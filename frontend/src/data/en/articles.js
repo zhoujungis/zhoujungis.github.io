@@ -23044,6 +23044,291 @@ monthly transfer ≈ downloaded bytes × egress price
 `,
   },
 
+  {
+    slug: 'load-balancing-algorithms-in-practice',
+    zhSlug: 'load-balancing-algorithms-in-practice',
+    topicSlug: 'backend',
+    title: 'Load balancing: the cost of round robin, least connections and consistent hashing',
+    excerpt:
+      'The algorithms differ less in fairness than in what they assume load is and what they cannot see. Pick the wrong assumption and scale-out just moves the same pressure somewhere else.',
+    date: '2026-11-04',
+    readingTime: 24,
+    html: `
+<blockquote>
+<p>Who this is for: anyone who has scaled out and found throughput flat, and anyone choosing a backend selection strategy for a gateway or a mesh.</p>
+<p><strong>TL;DR:</strong> round robin assumes identical machines and identical request cost, least connections assumes connection count represents pressure, consistent hashing assumes you need the same key on the same backend. Choose the wrong assumption and more machines only relocate the queue.</p>
+<p>Reading time around 24 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>Eight to twelve, and throughput did not move</h2>
+
+<p>An internal order lookup service ran on eight instances behind a Kubernetes service, called by a set of gRPC clients. At seventy percent CPU on all eight the tail started jumping, so it was scaled to twelve, the obvious move.</p>
+
+<p>The result was ugly: total throughput unchanged, a worse tail than before, error rate up, and the four new machines sitting at visibly lower CPU, as if they were not there. The first instinct was misconfiguration, and switching from round robin to least connections helped for half a day before reverting.</p>
+
+<p>Three things had combined. The clients used long-lived gRPC connections, resolved once and reused, so nothing moved to the new instances until connections rebuilt, which means round robin never had a decision to make. Each of the twelve instances held dozens of database connections, together pushing the server close to its limit, so CPU fell but the shared database became the bottleneck and the extra machines queued at its door. And as the tail degraded the clients retried on timeout, and the proxy retried upstream again, so the backend saw more requests than users sent.</p>
+
+<p>Three layers of problem: <strong>who makes the choice, what the choice is based on, and how the system reacts when the choice is wrong</strong>. Most discussion covers only the first and treats the algorithm as an interchangeable switch, which is why failed scale-outs turn into strategy roulette.</p>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>When round robin fits</td><td>Similar request cost, homogeneous backends, short connections, even traffic</td></tr>
+<tr><td>When least connections fits</td><td>Request cost varies widely and connection count reflects concurrency</td></tr>
+<tr><td>What consistent hashing solves</td><td>Same key on the same backend, with few keys moving on resize</td></tr>
+<tr><td>What health checks prove</td><td>Only that the probe answered that second, never that the instance can take the load</td></tr>
+<tr><td>Why scale-out fails</td><td>A shared bottleneck, connections pinned open, sticky sessions, or retry amplification</td></tr>
+</tbody>
+</table>
+
+<h2>L4 and L7: you can only change what you can see</h2>
+
+<p>The first boundary is not the algorithm but the layer that makes the decision.</p>
+
+<p>At layer four, the balancer sees a four-tuple of addresses and ports and decides which backend gets the connection, then forwards bytes. It cannot tell HTTP from a database protocol, and it never sees a path or a header. It is cheap, protocol-agnostic, and works for anything from HTTP to Redis without terminating TLS, but its unit of decision is the connection: ten thousand requests inside one connection are still one connection, so round robin there distributes connections, not requests.</p>
+
+<p>At layer seven, the balancer terminates TCP and parses HTTP, which buys routing by path, canaries by header, health judged from status codes, retrying elsewhere after a failure, and even rewriting requests and responses. The cost is TLS work, per-connection memory, changed semantics under multiplexing, and the inability to forward arbitrary protocols.</p>
+
+<p>Mesh sidecars sit in between: layer seven capable, local to a pod, able to see service-level metrics and apply breakers and retries, but they do not solve backend selection across machines by themselves, since the choice is control-plane configuration and whether the caller reconnects.</p>
+
+<p>The crudest variant is DNS round robin, returning several addresses and letting the client pick. Caching slows changes, resolvers and clients may not honour the TTL, there is no health awareness, and weights and sessions cannot be expressed. It suits coarse multi-region routing and static endpoints, not sole dispatch for an online service.</p>
+
+<p>Every algorithm can only use the signals its layer can see. Layer four sees connections, layer seven sees requests, the application sees business meaning, and a clever algorithm cannot use a signal it never receives.</p>
+
+<h2>Round robin and its assumptions</h2>
+
+<p>Round robin needs three things at once: comparable backend capacity, comparable request cost, and a scheduler that sees requests as its unit.</p>
+
+<p>The third breaks most often. On layer four it distributes connections, so a long-lived connection drags every later request to the same machine. Even at layer seven with a keep-alive pool, allocation is per request while long requests accumulate on whichever machine received them.</p>
+
+<p>The first fails in heterogeneous fleets, with different hardware, different warm-up, different local cache hit rates, so identical requests take measurably different times while allocation stays even and the slow machine's queue grows.</p>
+
+<p>The second is the subtlest. A service often has endpoints that read one cached value and endpoints that scan a large table, and round robin gives both the same number of turns, which assumes equal cost. Load should be distributed by work, not by count.</p>
+
+<p>Weighted round robin patches the first assumption by distributing according to declared weight, and a smooth implementation spreads the weight across every choice rather than granting seven turns to the heavy machine and then one to the light one.</p>
+
+<p>But weights are static. They express expected capacity, not current capacity, so a machine degraded by an aging disk, a full collection or a negotiated-down link keeps its weight until somebody notices and edits a file, and edits take hours while failure propagates in seconds.</p>
+
+<p>So weighted round robin is right for long-term capacity differences and for canaries where the ratio is a traffic switch. It is wrong as a remedy for a slow machine: turning a degraded node down hides the problem until it fails outright.</p>
+
+<h2>Least connections, least response time, random</h2>
+
+<p>Least connections changes the signal: it looks at active connections per backend and sends new work to the least busy one, and a weighted implementation can express both capacity ratio and current pressure.</p>
+
+<p>The assumption is that connections approximate pressure, which beats round robin when request cost varies, because a slow query holding a connection naturally steers new work elsewhere. When every request takes milliseconds the counts barely differ and it degrades into jittery round robin.</p>
+
+<p>Two cases break it. Connection reuse, where multiplexing means the active count reflects in-flight requests reasonably well at layer seven but means nothing at layer four, so three chatty sockets and thirty silent ones look identical. And a shared root cause, where every backend waits on the same database, so all counts rise together and the balancer merely moves work from one queue to another; that needs load shedding or a breaker, not a different algorithm.</p>
+
+<p>Least response time uses latency directly. Open-source Nginx has no such policy; commercial Nginx offers least time by first byte or full response, Envoy offers least request, and HAProxy's least connection mode still looks only at connections.</p>
+
+<p>The implementation detail that matters: <strong>most "least" implementations do not scan every backend.</strong> Envoy samples two at random and picks the one with fewer active requests, which is the power-of-two-choices approach, and Nginx's random two least connection option is the same idea. A full scan is linear and makes every scheduler converge on the same currently-best node, while sampling two is constant cost with almost the same effect.</p>
+
+<p>Random is stateless and cannot resonate through shared counters, but it has high short-term variance and skews visibly with few backends. It suits many backends with light requests, or serves as a fallback.</p>
+
+<table>
+<thead><tr><th>Strategy</th><th>Signal</th><th>Precondition</th><th>Main failure</th></tr></thead>
+<tbody>
+<tr><td>Round robin</td><td>Request sequence</td><td>Homogeneous, equal cost, short connections</td><td>Long connections, mixed machines, slow requests accumulating</td></tr>
+<tr><td>Weighted round robin</td><td>Static weight</td><td>Stable long-term capacity differences</td><td>Runtime degradation, unmaintained weights</td></tr>
+<tr><td>Least connections</td><td>Active connections</td><td>Count approximates pressure</td><td>Long connections, shared downstream bottleneck</td></tr>
+<tr><td>Least response time</td><td>Recent latency</td><td>Latency differences are local</td><td>Latency noise, a common downstream slowing</td></tr>
+<tr><td>Random</td><td>None</td><td>Many backends, light requests</td><td>Small fleets, strict ratios</td></tr>
+</tbody>
+</table>
+
+<h2>IP hash and sticky sessions</h2>
+
+<p>IP hash sends every request from one address to one backend by hashing the client address, which lets that backend keep session state in local memory with no shared store. It buys affinity and introduces two problems.</p>
+
+<p>First, <strong>NAT and mobile networks compress thousands of users into a few addresses</strong>, so an office egress or a carrier gateway maps an entire population onto one machine that no weight can rescue. Under IPv4 the default hash often uses only the first three octets, so a whole /24 shares a bucket and the clumping gets worse.</p>
+
+<p>Second, <strong>a resize remaps almost everything</strong>, because the scheme is modular hashing in disguise: going from eight to nine backends changes the destination of most keys, which means mass session loss and mass cache misses. That is exactly what consistent hashing exists to avoid.</p>
+
+<p>Cookie-based affinity is more precise: the balancer plants a cookie naming the backend and later requests return there. It is immune to NAT and pays in other ways. New machines only get new sessions, so an active user with a long session never migrates and scale-out does nothing for them. Failover turns affinity into a liability, since that machine's sessions vanish, and if they lived only in memory the users are logged out. And capacity planning loses elasticity, because the distribution is decided by history rather than by current capacity.</p>
+
+<p>Which is why most teams externalise sessions to a cache or a database and make the application stateless, after which affinity is usually unnecessary.</p>
+
+<p>What lingers is local caching: process-local per-user data hits more often when the user stays on one machine, so removing affinity lowers the hit rate and raises database pressure. The answer is to externalise that cache too, or to accept the lower rate and re-evaluate database capacity, rather than keeping affinity to save one cache lookup at the cost of scale-out.</p>
+
+<p>Affinity is a patch for state that was never externalised. Keeping it after externalising is usually trading scale-out capability for a little hit rate.</p>
+
+<h2>Consistent hashing and rendezvous hashing</h2>
+
+<p>Consistent hashing addresses one question: when the number of backends changes, change as few key assignments as possible. Hash the backends and the keys onto a ring and walk clockwise to the first backend. Adding a node affects only the arc between it and its successor, so going from N to N+1 moves about one key in N+1, and removing one moves about one in N.</p>
+
+<p>Modular hashing by contrast moves almost everything: from eight to nine, only keys where the two moduli agree stay put, roughly one in nine, so nearly nine in ten keys move. That gap is the entire value.</p>
+
+<p>The ring alone is not enough, because a single point per backend distributes arc length unevenly. Virtual nodes fix it: each physical backend gets a hundred to two hundred replicas on the ring, and the arc lengths converge as the replica count grows, with the standard deviation falling with the square root of the product. Virtual nodes also carry weight naturally, since a heavier machine gets more replicas and proportionally more arc.</p>
+
+<p>Two limits are firm. <strong>It balances keys, not load</strong>: a hot key always lands on one machine and adding machines cannot split it, so the fix is to change the dimension, by suffixing the key into sub-keys, caching locally, or replicating reads. And <strong>it does not notice a slow machine</strong>, because the ring knows assignment and not health, so a degraded backend slows its whole arc until health checks remove it, which moves that arc wholesale.</p>
+
+<p>Rendezvous hashing, also called highest random weight, takes another route with no ring: hash the key against every backend identity, producing scores, and take the highest. The behaviour is nearly identical, since adding a backend only moves keys where the new one outscores the incumbent, again about one in N+1, and removing one moves only its share.</p>
+
+<table>
+<thead><tr><th>Dimension</th><th>Consistent hashing with vnodes</th><th>Rendezvous hashing</th></tr></thead>
+<tbody>
+<tr><td>Lookup</td><td>Logarithmic, binary search on the ring</td><td>Linear, one hash per backend</td></tr>
+<tr><td>Memory</td><td>Ring and virtual node table</td><td>Nothing extra</td></tr>
+<tr><td>Balance</td><td>Depends on replica count, needs tuning</td><td>Naturally even, no tuning</td></tr>
+<tr><td>Weights</td><td>Through replica counts</td><td>Through the scoring formula</td></tr>
+<tr><td>Very many nodes</td><td>Still fast</td><td>Hashing grows with node count</td></tr>
+</tbody>
+</table>
+
+<p>With tens or hundreds of nodes either works. With thousands of nodes and high throughput the ring's lookup advantage dominates, which is the direction lookup-table designs such as Maglev push further. With few nodes and no appetite for maintaining a replica table, rendezvous hashing is less code and less to get wrong. The choice is which you fear more, lookup cost or tuning.</p>
+
+<h2>Health checks: healthy is not the same as able</h2>
+
+<p>A health check is usually treated as a switch: an endpoint returns 200 and the instance is healthy. That catches a dead process and misses most real failures.</p>
+
+<p><strong>Passive checks</strong> learn from real traffic rather than sending probes. The open-source proxy's failure count and window say that after a number of failures within a window the backend is marked unavailable for the duration of that window, then one request is let through to test. Note that the two parameters share a name pattern but mean different things: one is a window, the other a punishment duration. The weakness is that the first users of a broken machine always suffer, and the strength is zero extra traffic plus the ability to catch failures that a probe would never see.</p>
+
+<p><strong>Active checks</strong> are periodic probes with an interval, a timeout, and counts of consecutive failures and successes, and every mature proxy offers them.</p>
+
+<p>Their weakness is that they can lie. A liveness endpoint returns 200 while the connection pool is exhausted, the disk is full and collections are pausing for ten seconds. It proves the HTTP server is running, not that the instance can do business.</p>
+
+<p>Hence the rule: <strong>health is binary and capacity is continuous</strong>. A machine at thirty percent capacity is still healthy, still receives its full share, and still queues into timeout.</p>
+
+<p>Several remedies exist. Tiered probes separate liveness, which restarts a hung process, from readiness, which removes an instance from traffic, from business probes on critical paths, with the caution that readiness must not translate a slow dependency into "every instance is unhealthy", which empties the cluster on one database wobble. Slow start ramps traffic after an instance returns, because a cold cache and an empty pool cannot take a full share without failing again, and open-source proxies without the feature need a low initial weight and manual ramping. Outlier ejection is not a probe at all but a statistic over real traffic, triggered by consecutive failures or a falling success rate, with two important guards: a maximum ejection percentage so a systemic fault cannot empty the pool, and exponentially increasing ejection duration so a flapping node does not oscillate.</p>
+
+<p>Thresholds need hysteresis: several consecutive failures to mark down, several consecutive successes to restore, never one of either. A single failure turns a network blip into a capacity blip, and a single success lets a half-dead machine back in.</p>
+
+<h2>Retries and load balancing</h2>
+
+<p>A retry looks like fault tolerance and is really a second dispatch decision made by the client or the proxy.</p>
+
+<p>It couples to balancing in three ways. <strong>It changes the distribution</strong>: twelve machines take a twelfth each until one is slow, the retry goes elsewhere, and without a limit the share keeps shifting until everything queues, turning local slowness into global slowness. <strong>It requires idempotency</strong>, since a POST replayed after the response is lost creates a second order, so clients need an idempotency key and servers need to deduplicate; Nginx's default is to retry only on error and timeout and to exclude non-idempotent methods unless explicitly allowed, and that default is protection rather than a limitation. And <strong>it multiplies volume</strong>: with up to a attempts per request the system sees a times the load, which under an overload root cause pours fuel on the fire and is the standard way a metastable failure forms, a high-load, high-retry, low-success equilibrium that cannot recover by itself.</p>
+
+<p>Four controls. A retry budget caps retries as a fraction of total requests rather than per request, with a minimum concurrency floor so low-traffic periods still retry; per-call policies in RPC frameworks limit attempts and backoff. Retry only what deserves it: connection failures, timeouts and explicit gateway errors, not application errors, bad requests or throttling responses, remembering that many proxies do not retry gateway errors by default and that adding application errors converts logic faults into traffic. Add exponential backoff with jitter, or every failed client returns in the same instant. And honour the retry-after hint on 429 and 503, because ignoring it invalidates the server's own throttling.</p>
+
+<h2>Long connections and graceful removal</h2>
+
+<p>Long connections change the unit from requests to connections, and every request-based strategy distorts. One keep-alive connection carries hundreds of requests, so layer-four round robin distributes by when clients connected rather than by who produced the work, and a single hot client with one connection can saturate one machine while the rest idle. HTTP/2 and gRPC go further, multiplexing dozens of streams over a connection that may not rebuild for hours, so a new instance gets no traffic until old connections die, and no service abstraction moves established connections.</p>
+
+<p>Three responses. Cap connection lifetime or request count so clients rebuild and re-resolve, accepting periodic churn for predictable scale-out. Let clients watch endpoints, which depends on the client implementation and is uneven across languages. And drain at the connection layer on deploy: mark the instance as no longer accepting new connections, let existing work finish, then stop the process. For WebSockets that means sending a close frame indicating the server is going away so clients reconnect deliberately rather than seeing a reset.</p>
+
+<p>The order is what matters: stop new traffic, wait for in-flight work, then stop the process. Reversed, killing first and editing configuration second, the requests in between are simply lost. Layer four can only stop forwarding; layer seven can drain per request, though WebSockets still need the client to be told.</p>
+
+<h2>A production Nginx upstream</h2>
+
+<pre><code>upstream order_api {
+    zone order_api 64k;          # share failure counts across workers
+    least_conn;
+    keepalive 64;
+    keepalive_requests 1000;
+    keepalive_timeout 60s;
+
+    server 10.0.0.11:8080 weight=3 max_fails=3 fail_timeout=15s;
+    server 10.0.0.12:8080 weight=3 max_fails=3 fail_timeout=15s;
+    server 10.0.0.13:8080 weight=2 max_fails=3 fail_timeout=15s;
+    server 10.0.0.14:8080 weight=1 max_fails=3 fail_timeout=15s backup;
+}
+</code></pre>
+
+<p>Without the shared zone, failure counts are per worker and eight workers multiply the effective threshold by eight. The least-connection strategy respects weights when comparing. The keep-alive pool holds idle connections and only works with version 1.1 upstream and a cleared connection header, or every request opens a new socket.</p>
+
+<p>A backup server takes traffic only when everything else is down, which suits a small degraded fallback and not normal capacity.</p>
+
+<pre><code>upstream tenant_shard {
+    hash $arg_tenant_id consistent;
+    hash_method crc32;
+    server 10.0.1.21:6379 weight=2;
+    server 10.0.1.22:6379 weight=2;
+    server 10.0.1.23:6379 weight=1;
+}
+</code></pre>
+
+<p>Changing the hash method reorders every key, which is a full migration and must be treated as a release rather than a tweak.</p>
+
+<pre><code>upstream legacy_portal {
+    ip_hash;
+    server 10.0.2.31:8080;
+    server 10.0.2.32:8080;
+    server 10.0.2.33:8080 down;   # take a machine out with down, do not delete it
+}
+</code></pre>
+
+<p>That last comment is the documentation's own advice, and it says plainly how expensive the remapping is.</p>
+
+<pre><code>location /api/ {
+    proxy_pass http://order_api;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Request-Id $request_id;
+
+    proxy_connect_timeout 1s;
+    proxy_read_timeout 10s;
+    proxy_send_timeout 10s;
+
+    proxy_next_upstream error timeout http_502 http_503 http_504;
+    proxy_next_upstream_tries 2;
+    proxy_next_upstream_timeout 3s;
+}
+</code></pre>
+
+<p>Connect timeouts are shorter than read timeouts because a refusal means a dead machine or a broken path. Read timeouts must cover a legitimately slow request and stay below the client's timeout, or the client gives up while the proxy still waits. Two attempts including the first, with a three second budget for the whole thing, and no non-idempotent retries.</p>
+
+<p>Two settings outside the strategy matter as much: a per-server connection cap so one machine cannot be flooded, and request and header size limits at the edge.</p>
+
+<h2>Observing: uneven distribution or degraded backend</h2>
+
+<p>After a failed scale-out the reflex is to change strategy. The first step is to classify: traffic not spread, everything slower, or a few machines slower. The three need different remedies.</p>
+
+<pre><code>log_format upstream_log '$remote_addr "$request" $status '
+                        'upstream=$upstream_addr '
+                        'ustatus=$upstream_status '
+                        'urt=$upstream_response_time '
+                        'uct=$upstream_connect_time '
+                        'urtotal=$request_time';
+
+access_log /var/log/nginx/upstream.log upstream_log;
+</code></pre>
+
+<p>Aggregating selected backend, its duration and its status per backend gives share, latency distribution and error rate per machine. If a machine's share does not match its weight, suspect three things first: health checks removed it, failure counts are not shared, or connections are pinned.</p>
+
+<p>Then compare between-backend variance with within-backend variance. If every backend's tail rises together, the problem is a shared dependency or the client, and no strategy helps. If a few backends are uniformly worse across request types, those machines are degrading, so remove and repair them rather than editing weights. If a few are worse only on heavy requests, the strategy cannot see cost and is spreading expensive work evenly, so split the upstream by request class or move to a concurrency-aware strategy. If new instances take close to zero share, connections are not rebuilding, DNS is cached, or affinity is holding traffic on the old machines.</p>
+
+<p>In a mesh the names differ and the semantics do not: active connections, request duration and backend errors per upstream host.</p>
+
+<p>The usual blind spot is the average: averaging twelve tails dilutes one badly degraded machine and hides the fact that most requests land on two of them. <strong>Balancing must be watched per backend, not in aggregate.</strong></p>
+
+<h2>Capacity and queueing: why more machines can be slower</h2>
+
+<pre><code>ρ = λ / (N · μ)
+</code></pre>
+
+<p>Utilisation falls as machines are added, but only if per-machine capacity μ actually scales with the count. Queueing time rises non-linearly as utilisation approaches one, roughly tripling between seventy and ninety percent, so adding machines should help, provided the capacity is real.</p>
+
+<p>Three shared resources prevent it. Shared storage: the database has fixed connections, locks and IOPS, so fifty percent more application instances means fifty percent more concurrent connections, more lock contention and more context switching, and per-request time grows, so utilisation appears to fall while capacity falls faster. Shared cache efficiency: per-instance local caches scale in total size while each one's hit rate drops, since the same key is loaded by several instances, so more requests penetrate to the database. And then long connections and retries on top, which is exactly the opening incident.</p>
+
+<p>The conclusion is short: <strong>confirm the bottleneck can scale horizontally before scaling out.</strong> When it is a database, one cache or one downstream API, more application machines only move the queue down a layer.</p>
+
+<p>A practical order of checks. Did the shared dependency's throughput, connection count and tail move at the same time? Is the new instance actually receiving traffic, measured per backend rather than in total? Did the retry rate rise, with backend requests growing while user requests did not? Did the CPU cost per request change, as a falling cache hit rate would cause? If any answer is yes, no strategy change will help.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>What balancing chooses</td><td>Which machine does this unit of work, using only the signals its layer can see</td></tr>
+<tr><td>Round robin's cost</td><td>Assumes homogeneity and equal cost; distorts under long connections and mixed machines</td></tr>
+<tr><td>Least connections' cost</td><td>Assumes count equals pressure; fails under long connections and shared bottlenecks</td></tr>
+<tr><td>Consistent hashing's cost</td><td>Balances keys not hot spots; moves about one in N+1, but virtual nodes need tuning</td></tr>
+<tr><td>Rendezvous hashing's cost</td><td>Even and untuned, at linear lookup cost</td></tr>
+<tr><td>Health check's limit</td><td>A binary signal that cannot prove spare capacity; pair it with slow start and outlier ejection</td></tr>
+<tr><td>Retry's limit</td><td>Idempotency, a budget, backoff and honouring retry hints</td></tr>
+<tr><td>Why scale-out fails</td><td>Shared bottleneck, pinned connections, sticky sessions, retry amplification</td></tr>
+<tr><td>What to watch</td><td>Per-backend distribution, and between-backend versus within-backend variance</td></tr>
+</tbody>
+</table>
+
+<p>If only one sentence survives: <strong>load balancing is not handing out requests, it is allocating finite capacity across work of different cost.</strong> Understand the cost of the work and the edge of the capacity first, and then talk about which algorithm.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/">负载均衡：轮询、最少连接与一致性哈希的代价</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

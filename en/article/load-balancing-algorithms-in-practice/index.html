@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="The algorithms differ less in fairness than in what they assume load is and what they cannot see. Pick the wrong assumption and scale-out just moves the same pressure somewhere else." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/load-balancing-algorithms-in-practice/" />
+    <meta property="og:title" content="Load balancing: the cost of round robin, least connections and consistent hashing | Stack Frame" />
+    <meta property="og:description" content="The algorithms differ less in fairness than in what they assume load is and what they cannot see. Pick the wrong assumption and scale-out just moves the same pressure somewhere else." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/load-balancing-algorithms-in-practice/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Load balancing: the cost of round robin, least connections and consistent hashing | Stack Frame" />
+    <meta name="twitter:description" content="The algorithms differ less in fairness than in what they assume load is and what they cannot see. Pick the wrong assumption and scale-out just moves the same pressure somewhere else." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Load balancing: the cost of round robin, least connections and consistent hashing | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/load-balancing-algorithms-in-practice/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>Load balancing: the cost of round robin, least connections and consistent hashing</h1><div class="ns-meta">2026-11-04 · 24 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: anyone who has scaled out and found throughput flat, and anyone choosing a backend selection strategy for a gateway or a mesh.</p>
+<p><strong>TL;DR:</strong> round robin assumes identical machines and identical request cost, least connections assumes connection count represents pressure, consistent hashing assumes you need the same key on the same backend. Choose the wrong assumption and more machines only relocate the queue.</p>
+<p>Reading time around 24 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>Eight to twelve, and throughput did not move</h2>
+
+<p>An internal order lookup service ran on eight instances behind a Kubernetes service, called by a set of gRPC clients. At seventy percent CPU on all eight the tail started jumping, so it was scaled to twelve, the obvious move.</p>
+
+<p>The result was ugly: total throughput unchanged, a worse tail than before, error rate up, and the four new machines sitting at visibly lower CPU, as if they were not there. The first instinct was misconfiguration, and switching from round robin to least connections helped for half a day before reverting.</p>
+
+<p>Three things had combined. The clients used long-lived gRPC connections, resolved once and reused, so nothing moved to the new instances until connections rebuilt, which means round robin never had a decision to make. Each of the twelve instances held dozens of database connections, together pushing the server close to its limit, so CPU fell but the shared database became the bottleneck and the extra machines queued at its door. And as the tail degraded the clients retried on timeout, and the proxy retried upstream again, so the backend saw more requests than users sent.</p>
+
+<p>Three layers of problem: <strong>who makes the choice, what the choice is based on, and how the system reacts when the choice is wrong</strong>. Most discussion covers only the first and treats the algorithm as an interchangeable switch, which is why failed scale-outs turn into strategy roulette.</p>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>When round robin fits</td><td>Similar request cost, homogeneous backends, short connections, even traffic</td></tr>
+<tr><td>When least connections fits</td><td>Request cost varies widely and connection count reflects concurrency</td></tr>
+<tr><td>What consistent hashing solves</td><td>Same key on the same backend, with few keys moving on resize</td></tr>
+<tr><td>What health checks prove</td><td>Only that the probe answered that second, never that the instance can take the load</td></tr>
+<tr><td>Why scale-out fails</td><td>A shared bottleneck, connections pinned open, sticky sessions, or retry amplification</td></tr>
+</tbody>
+</table>
+
+<h2>L4 and L7: you can only change what you can see</h2>
+
+<p>The first boundary is not the algorithm but the layer that makes the decision.</p>
+
+<p>At layer four, the balancer sees a four-tuple of addresses and ports and decides which backend gets the connection, then forwards bytes. It cannot tell HTTP from a database protocol, and it never sees a path or a header. It is cheap, protocol-agnostic, and works for anything from HTTP to Redis without terminating TLS, but its unit of decision is the connection: ten thousand requests inside one connection are still one connection, so round robin there distributes connections, not requests.</p>
+
+<p>At layer seven, the balancer terminates TCP and parses HTTP, which buys routing by path, canaries by header, health judged from status codes, retrying elsewhere after a failure, and even rewriting requests and responses. The cost is TLS work, per-connection memory, changed semantics under multiplexing, and the inability to forward arbitrary protocols.</p>
+
+<p>Mesh sidecars sit in between: layer seven capable, local to a pod, able to see service-level metrics and apply breakers and retries, but they do not solve backend selection across machines by themselves, since the choice is control-plane configuration and whether the caller reconnects.</p>
+
+<p>The crudest variant is DNS round robin, returning several addresses and letting the client pick. Caching slows changes, resolvers and clients may not honour the TTL, there is no health awareness, and weights and sessions cannot be expressed. It suits coarse multi-region routing and static endpoints, not sole dispatch for an online service.</p>
+
+<p>Every algorithm can only use the signals its layer can see. Layer four sees connections, layer seven sees requests, the application sees business meaning, and a clever algorithm cannot use a signal it never receives.</p>
+
+<h2>Round robin and its assumptions</h2>
+
+<p>Round robin needs three things at once: comparable backend capacity, comparable request cost, and a scheduler that sees requests as its unit.</p>
+
+<p>The third breaks most often. On layer four it distributes connections, so a long-lived connection drags every later request to the same machine. Even at layer seven with a keep-alive pool, allocation is per request while long requests accumulate on whichever machine received them.</p>
+
+<p>The first fails in heterogeneous fleets, with different hardware, different warm-up, different local cache hit rates, so identical requests take measurably different times while allocation stays even and the slow machine's queue grows.</p>
+
+<p>The second is the subtlest. A service often has endpoints that read one cached value and endpoints that scan a large table, and round robin gives both the same number of turns, which assumes equal cost. Load should be distributed by work, not by count.</p>
+
+<p>Weighted round robin patches the first assumption by distributing according to declared weight, and a smooth implementation spreads the weight across every choice rather than granting seven turns to the heavy machine and then one to the light one.</p>
+
+<p>But weights are static. They express expected capacity, not current capacity, so a machine degraded by an aging disk, a full collection or a negotiated-down link keeps its weight until somebody notices and edits a file, and edits take hours while failure propagates in seconds.</p>
+
+<p>So weighted round robin is right for long-term capacity differences and for canaries where the ratio is a traffic switch. It is wrong as a remedy for a slow machine: turning a degraded node down hides the problem until it fails outright.</p>
+
+<h2>Least connections, least response time, random</h2>
+
+<p>Least connections changes the signal: it looks at active connections per backend and sends new work to the least busy one, and a weighted implementation can express both capacity ratio and current pressure.</p>
+
+<p>The assumption is that connections approximate pressure, which beats round robin when request cost varies, because a slow query holding a connection naturally steers new work elsewhere. When every request takes milliseconds the counts barely differ and it degrades into jittery round robin.</p>
+
+<p>Two cases break it. Connection reuse, where multiplexing means the active count reflects in-flight requests reasonably well at layer seven but means nothing at layer four, so three chatty sockets and thirty silent ones look identical. And a shared root cause, where every backend waits on the same database, so all counts rise together and the balancer merely moves work from one queue to another; that needs load shedding or a breaker, not a different algorithm.</p>
+
+<p>Least response time uses latency directly. Open-source Nginx has no such policy; commercial Nginx offers least time by first byte or full response, Envoy offers least request, and HAProxy's least connection mode still looks only at connections.</p>
+
+<p>The implementation detail that matters: <strong>most "least" implementations do not scan every backend.</strong> Envoy samples two at random and picks the one with fewer active requests, which is the power-of-two-choices approach, and Nginx's random two least connection option is the same idea. A full scan is linear and makes every scheduler converge on the same currently-best node, while sampling two is constant cost with almost the same effect.</p>
+
+<p>Random is stateless and cannot resonate through shared counters, but it has high short-term variance and skews visibly with few backends. It suits many backends with light requests, or serves as a fallback.</p>
+
+<table>
+<thead><tr><th>Strategy</th><th>Signal</th><th>Precondition</th><th>Main failure</th></tr></thead>
+<tbody>
+<tr><td>Round robin</td><td>Request sequence</td><td>Homogeneous, equal cost, short connections</td><td>Long connections, mixed machines, slow requests accumulating</td></tr>
+<tr><td>Weighted round robin</td><td>Static weight</td><td>Stable long-term capacity differences</td><td>Runtime degradation, unmaintained weights</td></tr>
+<tr><td>Least connections</td><td>Active connections</td><td>Count approximates pressure</td><td>Long connections, shared downstream bottleneck</td></tr>
+<tr><td>Least response time</td><td>Recent latency</td><td>Latency differences are local</td><td>Latency noise, a common downstream slowing</td></tr>
+<tr><td>Random</td><td>None</td><td>Many backends, light requests</td><td>Small fleets, strict ratios</td></tr>
+</tbody>
+</table>
+
+<h2>IP hash and sticky sessions</h2>
+
+<p>IP hash sends every request from one address to one backend by hashing the client address, which lets that backend keep session state in local memory with no shared store. It buys affinity and introduces two problems.</p>
+
+<p>First, <strong>NAT and mobile networks compress thousands of users into a few addresses</strong>, so an office egress or a carrier gateway maps an entire population onto one machine that no weight can rescue. Under IPv4 the default hash often uses only the first three octets, so a whole /24 shares a bucket and the clumping gets worse.</p>
+
+<p>Second, <strong>a resize remaps almost everything</strong>, because the scheme is modular hashing in disguise: going from eight to nine backends changes the destination of most keys, which means mass session loss and mass cache misses. That is exactly what consistent hashing exists to avoid.</p>
+
+<p>Cookie-based affinity is more precise: the balancer plants a cookie naming the backend and later requests return there. It is immune to NAT and pays in other ways. New machines only get new sessions, so an active user with a long session never migrates and scale-out does nothing for them. Failover turns affinity into a liability, since that machine's sessions vanish, and if they lived only in memory the users are logged out. And capacity planning loses elasticity, because the distribution is decided by history rather than by current capacity.</p>
+
+<p>Which is why most teams externalise sessions to a cache or a database and make the application stateless, after which affinity is usually unnecessary.</p>
+
+<p>What lingers is local caching: process-local per-user data hits more often when the user stays on one machine, so removing affinity lowers the hit rate and raises database pressure. The answer is to externalise that cache too, or to accept the lower rate and re-evaluate database capacity, rather than keeping affinity to save one cache lookup at the cost of scale-out.</p>
+
+<p>Affinity is a patch for state that was never externalised. Keeping it after externalising is usually trading scale-out capability for a little hit rate.</p>
+
+<h2>Consistent hashing and rendezvous hashing</h2>
+
+<p>Consistent hashing addresses one question: when the number of backends changes, change as few key assignments as possible. Hash the backends and the keys onto a ring and walk clockwise to the first backend. Adding a node affects only the arc between it and its successor, so going from N to N+1 moves about one key in N+1, and removing one moves about one in N.</p>
+
+<p>Modular hashing by contrast moves almost everything: from eight to nine, only keys where the two moduli agree stay put, roughly one in nine, so nearly nine in ten keys move. That gap is the entire value.</p>
+
+<p>The ring alone is not enough, because a single point per backend distributes arc length unevenly. Virtual nodes fix it: each physical backend gets a hundred to two hundred replicas on the ring, and the arc lengths converge as the replica count grows, with the standard deviation falling with the square root of the product. Virtual nodes also carry weight naturally, since a heavier machine gets more replicas and proportionally more arc.</p>
+
+<p>Two limits are firm. <strong>It balances keys, not load</strong>: a hot key always lands on one machine and adding machines cannot split it, so the fix is to change the dimension, by suffixing the key into sub-keys, caching locally, or replicating reads. And <strong>it does not notice a slow machine</strong>, because the ring knows assignment and not health, so a degraded backend slows its whole arc until health checks remove it, which moves that arc wholesale.</p>
+
+<p>Rendezvous hashing, also called highest random weight, takes another route with no ring: hash the key against every backend identity, producing scores, and take the highest. The behaviour is nearly identical, since adding a backend only moves keys where the new one outscores the incumbent, again about one in N+1, and removing one moves only its share.</p>
+
+<table>
+<thead><tr><th>Dimension</th><th>Consistent hashing with vnodes</th><th>Rendezvous hashing</th></tr></thead>
+<tbody>
+<tr><td>Lookup</td><td>Logarithmic, binary search on the ring</td><td>Linear, one hash per backend</td></tr>
+<tr><td>Memory</td><td>Ring and virtual node table</td><td>Nothing extra</td></tr>
+<tr><td>Balance</td><td>Depends on replica count, needs tuning</td><td>Naturally even, no tuning</td></tr>
+<tr><td>Weights</td><td>Through replica counts</td><td>Through the scoring formula</td></tr>
+<tr><td>Very many nodes</td><td>Still fast</td><td>Hashing grows with node count</td></tr>
+</tbody>
+</table>
+
+<p>With tens or hundreds of nodes either works. With thousands of nodes and high throughput the ring's lookup advantage dominates, which is the direction lookup-table designs such as Maglev push further. With few nodes and no appetite for maintaining a replica table, rendezvous hashing is less code and less to get wrong. The choice is which you fear more, lookup cost or tuning.</p>
+
+<h2>Health checks: healthy is not the same as able</h2>
+
+<p>A health check is usually treated as a switch: an endpoint returns 200 and the instance is healthy. That catches a dead process and misses most real failures.</p>
+
+<p><strong>Passive checks</strong> learn from real traffic rather than sending probes. The open-source proxy's failure count and window say that after a number of failures within a window the backend is marked unavailable for the duration of that window, then one request is let through to test. Note that the two parameters share a name pattern but mean different things: one is a window, the other a punishment duration. The weakness is that the first users of a broken machine always suffer, and the strength is zero extra traffic plus the ability to catch failures that a probe would never see.</p>
+
+<p><strong>Active checks</strong> are periodic probes with an interval, a timeout, and counts of consecutive failures and successes, and every mature proxy offers them.</p>
+
+<p>Their weakness is that they can lie. A liveness endpoint returns 200 while the connection pool is exhausted, the disk is full and collections are pausing for ten seconds. It proves the HTTP server is running, not that the instance can do business.</p>
+
+<p>Hence the rule: <strong>health is binary and capacity is continuous</strong>. A machine at thirty percent capacity is still healthy, still receives its full share, and still queues into timeout.</p>
+
+<p>Several remedies exist. Tiered probes separate liveness, which restarts a hung process, from readiness, which removes an instance from traffic, from business probes on critical paths, with the caution that readiness must not translate a slow dependency into "every instance is unhealthy", which empties the cluster on one database wobble. Slow start ramps traffic after an instance returns, because a cold cache and an empty pool cannot take a full share without failing again, and open-source proxies without the feature need a low initial weight and manual ramping. Outlier ejection is not a probe at all but a statistic over real traffic, triggered by consecutive failures or a falling success rate, with two important guards: a maximum ejection percentage so a systemic fault cannot empty the pool, and exponentially increasing ejection duration so a flapping node does not oscillate.</p>
+
+<p>Thresholds need hysteresis: several consecutive failures to mark down, several consecutive successes to restore, never one of either. A single failure turns a network blip into a capacity blip, and a single success lets a half-dead machine back in.</p>
+
+<h2>Retries and load balancing</h2>
+
+<p>A retry looks like fault tolerance and is really a second dispatch decision made by the client or the proxy.</p>
+
+<p>It couples to balancing in three ways. <strong>It changes the distribution</strong>: twelve machines take a twelfth each until one is slow, the retry goes elsewhere, and without a limit the share keeps shifting until everything queues, turning local slowness into global slowness. <strong>It requires idempotency</strong>, since a POST replayed after the response is lost creates a second order, so clients need an idempotency key and servers need to deduplicate; Nginx's default is to retry only on error and timeout and to exclude non-idempotent methods unless explicitly allowed, and that default is protection rather than a limitation. And <strong>it multiplies volume</strong>: with up to a attempts per request the system sees a times the load, which under an overload root cause pours fuel on the fire and is the standard way a metastable failure forms, a high-load, high-retry, low-success equilibrium that cannot recover by itself.</p>
+
+<p>Four controls. A retry budget caps retries as a fraction of total requests rather than per request, with a minimum concurrency floor so low-traffic periods still retry; per-call policies in RPC frameworks limit attempts and backoff. Retry only what deserves it: connection failures, timeouts and explicit gateway errors, not application errors, bad requests or throttling responses, remembering that many proxies do not retry gateway errors by default and that adding application errors converts logic faults into traffic. Add exponential backoff with jitter, or every failed client returns in the same instant. And honour the retry-after hint on 429 and 503, because ignoring it invalidates the server's own throttling.</p>
+
+<h2>Long connections and graceful removal</h2>
+
+<p>Long connections change the unit from requests to connections, and every request-based strategy distorts. One keep-alive connection carries hundreds of requests, so layer-four round robin distributes by when clients connected rather than by who produced the work, and a single hot client with one connection can saturate one machine while the rest idle. HTTP/2 and gRPC go further, multiplexing dozens of streams over a connection that may not rebuild for hours, so a new instance gets no traffic until old connections die, and no service abstraction moves established connections.</p>
+
+<p>Three responses. Cap connection lifetime or request count so clients rebuild and re-resolve, accepting periodic churn for predictable scale-out. Let clients watch endpoints, which depends on the client implementation and is uneven across languages. And drain at the connection layer on deploy: mark the instance as no longer accepting new connections, let existing work finish, then stop the process. For WebSockets that means sending a close frame indicating the server is going away so clients reconnect deliberately rather than seeing a reset.</p>
+
+<p>The order is what matters: stop new traffic, wait for in-flight work, then stop the process. Reversed, killing first and editing configuration second, the requests in between are simply lost. Layer four can only stop forwarding; layer seven can drain per request, though WebSockets still need the client to be told.</p>
+
+<h2>A production Nginx upstream</h2>
+
+<pre><code>upstream order_api {
+    zone order_api 64k;          # share failure counts across workers
+    least_conn;
+    keepalive 64;
+    keepalive_requests 1000;
+    keepalive_timeout 60s;
+
+    server 10.0.0.11:8080 weight=3 max_fails=3 fail_timeout=15s;
+    server 10.0.0.12:8080 weight=3 max_fails=3 fail_timeout=15s;
+    server 10.0.0.13:8080 weight=2 max_fails=3 fail_timeout=15s;
+    server 10.0.0.14:8080 weight=1 max_fails=3 fail_timeout=15s backup;
+}
+</code></pre>
+
+<p>Without the shared zone, failure counts are per worker and eight workers multiply the effective threshold by eight. The least-connection strategy respects weights when comparing. The keep-alive pool holds idle connections and only works with version 1.1 upstream and a cleared connection header, or every request opens a new socket.</p>
+
+<p>A backup server takes traffic only when everything else is down, which suits a small degraded fallback and not normal capacity.</p>
+
+<pre><code>upstream tenant_shard {
+    hash $arg_tenant_id consistent;
+    hash_method crc32;
+    server 10.0.1.21:6379 weight=2;
+    server 10.0.1.22:6379 weight=2;
+    server 10.0.1.23:6379 weight=1;
+}
+</code></pre>
+
+<p>Changing the hash method reorders every key, which is a full migration and must be treated as a release rather than a tweak.</p>
+
+<pre><code>upstream legacy_portal {
+    ip_hash;
+    server 10.0.2.31:8080;
+    server 10.0.2.32:8080;
+    server 10.0.2.33:8080 down;   # take a machine out with down, do not delete it
+}
+</code></pre>
+
+<p>That last comment is the documentation's own advice, and it says plainly how expensive the remapping is.</p>
+
+<pre><code>location /api/ {
+    proxy_pass http://order_api;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Request-Id $request_id;
+
+    proxy_connect_timeout 1s;
+    proxy_read_timeout 10s;
+    proxy_send_timeout 10s;
+
+    proxy_next_upstream error timeout http_502 http_503 http_504;
+    proxy_next_upstream_tries 2;
+    proxy_next_upstream_timeout 3s;
+}
+</code></pre>
+
+<p>Connect timeouts are shorter than read timeouts because a refusal means a dead machine or a broken path. Read timeouts must cover a legitimately slow request and stay below the client's timeout, or the client gives up while the proxy still waits. Two attempts including the first, with a three second budget for the whole thing, and no non-idempotent retries.</p>
+
+<p>Two settings outside the strategy matter as much: a per-server connection cap so one machine cannot be flooded, and request and header size limits at the edge.</p>
+
+<h2>Observing: uneven distribution or degraded backend</h2>
+
+<p>After a failed scale-out the reflex is to change strategy. The first step is to classify: traffic not spread, everything slower, or a few machines slower. The three need different remedies.</p>
+
+<pre><code>log_format upstream_log '$remote_addr "$request" $status '
+                        'upstream=$upstream_addr '
+                        'ustatus=$upstream_status '
+                        'urt=$upstream_response_time '
+                        'uct=$upstream_connect_time '
+                        'urtotal=$request_time';
+
+access_log /var/log/nginx/upstream.log upstream_log;
+</code></pre>
+
+<p>Aggregating selected backend, its duration and its status per backend gives share, latency distribution and error rate per machine. If a machine's share does not match its weight, suspect three things first: health checks removed it, failure counts are not shared, or connections are pinned.</p>
+
+<p>Then compare between-backend variance with within-backend variance. If every backend's tail rises together, the problem is a shared dependency or the client, and no strategy helps. If a few backends are uniformly worse across request types, those machines are degrading, so remove and repair them rather than editing weights. If a few are worse only on heavy requests, the strategy cannot see cost and is spreading expensive work evenly, so split the upstream by request class or move to a concurrency-aware strategy. If new instances take close to zero share, connections are not rebuilding, DNS is cached, or affinity is holding traffic on the old machines.</p>
+
+<p>In a mesh the names differ and the semantics do not: active connections, request duration and backend errors per upstream host.</p>
+
+<p>The usual blind spot is the average: averaging twelve tails dilutes one badly degraded machine and hides the fact that most requests land on two of them. <strong>Balancing must be watched per backend, not in aggregate.</strong></p>
+
+<h2>Capacity and queueing: why more machines can be slower</h2>
+
+<pre><code>ρ = λ / (N · μ)
+</code></pre>
+
+<p>Utilisation falls as machines are added, but only if per-machine capacity μ actually scales with the count. Queueing time rises non-linearly as utilisation approaches one, roughly tripling between seventy and ninety percent, so adding machines should help, provided the capacity is real.</p>
+
+<p>Three shared resources prevent it. Shared storage: the database has fixed connections, locks and IOPS, so fifty percent more application instances means fifty percent more concurrent connections, more lock contention and more context switching, and per-request time grows, so utilisation appears to fall while capacity falls faster. Shared cache efficiency: per-instance local caches scale in total size while each one's hit rate drops, since the same key is loaded by several instances, so more requests penetrate to the database. And then long connections and retries on top, which is exactly the opening incident.</p>
+
+<p>The conclusion is short: <strong>confirm the bottleneck can scale horizontally before scaling out.</strong> When it is a database, one cache or one downstream API, more application machines only move the queue down a layer.</p>
+
+<p>A practical order of checks. Did the shared dependency's throughput, connection count and tail move at the same time? Is the new instance actually receiving traffic, measured per backend rather than in total? Did the retry rate rise, with backend requests growing while user requests did not? Did the CPU cost per request change, as a falling cache hit rate would cause? If any answer is yes, no strategy change will help.</p>
+
+<h2>Summary</h2>
+
+<table>
+<thead><tr><th>Question</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>What balancing chooses</td><td>Which machine does this unit of work, using only the signals its layer can see</td></tr>
+<tr><td>Round robin's cost</td><td>Assumes homogeneity and equal cost; distorts under long connections and mixed machines</td></tr>
+<tr><td>Least connections' cost</td><td>Assumes count equals pressure; fails under long connections and shared bottlenecks</td></tr>
+<tr><td>Consistent hashing's cost</td><td>Balances keys not hot spots; moves about one in N+1, but virtual nodes need tuning</td></tr>
+<tr><td>Rendezvous hashing's cost</td><td>Even and untuned, at linear lookup cost</td></tr>
+<tr><td>Health check's limit</td><td>A binary signal that cannot prove spare capacity; pair it with slow start and outlier ejection</td></tr>
+<tr><td>Retry's limit</td><td>Idempotency, a budget, backoff and honouring retry hints</td></tr>
+<tr><td>Why scale-out fails</td><td>Shared bottleneck, pinned connections, sticky sessions, retry amplification</td></tr>
+<tr><td>What to watch</td><td>Per-backend distribution, and between-backend versus within-backend variance</td></tr>
+</tbody>
+</table>
+
+<p>If only one sentence survives: <strong>load balancing is not handing out requests, it is allocating finite capacity across work of different cost.</strong> Understand the cost of the work and the edge of the capacity first, and then talk about which algorithm.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/">负载均衡：轮询、最少连接与一致性哈希的代价</a>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>
