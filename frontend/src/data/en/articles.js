@@ -29652,6 +29652,260 @@ after:   3 --------&gt; 5
 `,
   },
 
+  {
+    slug: 'lc-143-reorder-list',
+    zhSlug: 'lc-143-reorder-list',
+    topicSlug: 'leetcode',
+    title: 'LC 143, reorder a list: one problem, three problems, all of them already done',
+    excerpt:
+      'Find the middle, reverse the back half, interleave. The only new idea is the split, and the one line that keeps the merged list from becoming a cycle.',
+    date: '2026-10-20',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Given a list of nodes, rearrange it in place from sequential order into first, last, second, second to last, and so on. Values may not be swapped; the nodes themselves must be moved.</p>
+
+<pre><code>input:  1 -&gt; 2 -&gt; 3 -&gt; 4
+output: 1 -&gt; 4 -&gt; 2 -&gt; 3
+</code></pre>
+
+<pre><code>class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+</code></pre>
+
+<p>It shows up in backend interviews more often than its medium label suggests, for a practical reason: it is a composite of the three list techniques, so one question reveals whether you can find a middle, reverse, and merge. It also shows whether you habitually decompose before coding.</p>
+
+<p>And the "may not swap values" clause is not filler. It is the point of the problem.</p>
+
+<h2>Translating "reorder"</h2>
+
+<pre><code>before: 1 -&gt; 2 -&gt; 3 -&gt; 4
+after:  1 -&gt; 4 -&gt; 2 -&gt; 3
+</code></pre>
+
+<p>The pattern is plain: the first half keeps its order, the second half is reversed, and its nodes are inserted into the gaps of the first half one at a time.</p>
+
+<pre><code>front: 1 -&gt; 2
+back:  3 -&gt; 4   reversed: 4 -&gt; 3
+merge: 1 -&gt; 4 -&gt; 2 -&gt; 3
+</code></pre>
+
+<p>For an odd length, five nodes, the front is one, two, three and the back is four, five, reversed to five, four, giving one, five, two, four, three, with the middle node left where it is.</p>
+
+<p>If swapping values were allowed, the problem would collapse into array simulation: read the values out, reorder by index, write them back, never touching a link. That would test indices, not lists. Requiring actual node movement means detaching the back half and reattaching it in a new order. It also means the array version, at linear space, is worse than the intended constant-space solution, so do not offer it as a first answer.</p>
+
+<p>A useful picture: a line of children holding hands. Making everyone swap neighbours at once is chaos. Instead, find the middle and split the line, have the back half turn around together, then interleave one from each side. Every one of those steps is a LeetCode problem you have already solved.</p>
+
+<h2>The three steps</h2>
+
+<table>
+<thead><tr><th>Step</th><th>What it does</th><th>Problem it is</th><th>Technique</th></tr></thead>
+<tbody>
+<tr><td>1, find the middle</td><td>Split into front and back</td><td>LC 876, middle of the list</td><td>Two pointers, fast two steps, slow one</td></tr>
+<tr><td>2, reverse the back</td><td>Turn it around</td><td><strong>LC 206</strong></td><td>Save, turn, advance</td></tr>
+<tr><td>3, interleave</td><td>Zip the two halves</td><td>LC 21's insertion step</td><td>Two link changes per node</td></tr>
+</tbody>
+</table>
+
+<p>That is the entire difficulty: seeing that it is three problems. Each part alone is easy; the medium label is on the decomposition.</p>
+
+<h3>Where the middle lands</h3>
+
+<pre><code>slow, fast = head, head.next
+while fast and fast.next:
+    slow = slow.next
+    fast = fast.next.next
+</code></pre>
+
+<p>Starting fast one node ahead, with that loop condition, leaves slow on the last node of the front half, which is the node to cut after. For four nodes slow stops on two, giving a front of one, two and a back of three, four. For five nodes slow stops on three, so the middle node belongs to the front.</p>
+
+<p>That last detail is easy to invert. The middle node must stay where it is, so it belongs to the front half; put it in the back and it ends up moved to the end of the result. With odd lengths the middle goes to the front, so the front has one more node than the back.</p>
+
+<h3>Cut, then reverse</h3>
+
+<pre><code>second = slow.next
+slow.next = None
+</code></pre>
+
+<p>This is the least conspicuous and most important line in the algorithm. It makes two independent lists out of one. Without it the front's tail still points into the back, and the interleaving step winds the pointers into a cycle that never ends.</p>
+
+<pre><code>prev, curr = None, second
+while curr:
+    nxt = curr.next
+    curr.next = prev
+    prev = curr
+    curr = nxt
+</code></pre>
+
+<p>Identical to LC 206, with a different starting node; afterwards <code>prev</code> is the new head of that segment.</p>
+
+<h3>Interleave</h3>
+
+<pre><code>first, second = head, prev
+while second:
+    t1, t2 = first.next, second.next
+    first.next = second
+    second.next = t1
+    first, second = t1, t2
+</code></pre>
+
+<p>Each round inserts one node from the back and reattaches the front's next node behind it. The loop condition is on the back half, which is enough because it is never longer: when it runs out, the remaining tail of the front is already in place. The front pointer needs no null check either, since the two are consumed together and the front is only longer.</p>
+
+<h2>The animation</h2>
+
+<p>The original post breaks four nodes into ten steps, colour-coded by phase. Three things to watch. In the middle-finding phase, fast crosses two nodes per step and stops off the end while slow lands at the end of the front half. In the cut and reverse phase, the back half drops a row and its arrows turn around one by one. In the merge phase, nodes from the back hop up into the gaps and the pointers follow.</p>
+
+<p>Counting pointer moves gives the complexity: fast takes half the length in large steps, slow the same number of small ones, reversing touches half the nodes, and merging changes one link per node. <strong>Every node is visited a constant number of times</strong>, which is where linear time comes from.</p>
+
+<h2>Code</h2>
+
+<pre><code>def reorderList(head):
+    if not head or not head.next:
+        return
+
+    slow, fast = head, head.next
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+
+    second = slow.next
+    slow.next = None
+    prev, curr = None, second
+    while curr:
+        nxt = curr.next
+        curr.next = prev
+        prev = curr
+        curr = nxt
+
+    first, second = head, prev
+    while second:
+        t1, t2 = first.next, second.next
+        first.next = second
+        second.next = t1
+        first, second = t1, t2
+</code></pre>
+
+<p>The early return for zero or one node is worth writing. A single node would not crash, since the back half is empty and the merge loop never runs, but the explicit check makes the intent visible and keeps an empty input from dereferencing anything.</p>
+
+<table>
+<thead><tr><th>Phase</th><th>Action</th><th>Front</th><th>Back</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>start</td><td>-</td><td>-</td><td>-</td><td>1,2,3,4</td></tr>
+<tr><td>find middle</td><td>slow at 2, fast at 4</td><td>1,2</td><td>3,4</td><td></td></tr>
+<tr><td>cut</td><td>2.next is null</td><td>1,2</td><td>3,4</td><td>two chains</td></tr>
+<tr><td>reverse</td><td>3.next null, 4.next 3</td><td>1,2</td><td>4,3</td><td></td></tr>
+<tr><td>merge 1</td><td>1.next is 4</td><td>1</td><td>4,3</td><td>1,4</td></tr>
+<tr><td>merge 2</td><td>4.next is 2</td><td>2</td><td>3</td><td>1,4,2</td></tr>
+<tr><td>merge 3</td><td>2.next is 3</td><td>-</td><td>3</td><td>1,4,2,3</td></tr>
+<tr><td>merge 4</td><td>3.next is null, back empty</td><td>-</td><td>-</td><td>1,4,2,3</td></tr>
+</tbody>
+</table>
+
+<pre><code>class Solution {
+    public void reorderList(ListNode head) {
+        if (head == null || head.next == null) return;
+
+        ListNode slow = head, fast = head.next;
+        while (fast != null &amp;&amp; fast.next != null) {
+            slow = slow.next;
+            fast = fast.next.next;
+        }
+
+        ListNode second = slow.next;
+        slow.next = null;
+        ListNode prev = null, curr = second;
+        while (curr != null) {
+            ListNode nxt = curr.next;
+            curr.next = prev;
+            prev = curr;
+            curr = nxt;
+        }
+
+        ListNode first = head;
+        second = prev;
+        while (second != null) {
+            ListNode t1 = first.next, t2 = second.next;
+            first.next = second;
+            second.next = t1;
+            first = t1;
+            second = t2;
+        }
+    }
+}
+</code></pre>
+
+<p>The Java signature returns nothing, because the reorder is in place and the head never changes. Do not casually return the head as you would in LC 206.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Front</th><th>Back</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>one node</td><td>1</td><td>empty</td><td>1</td></tr>
+<tr><td>two nodes</td><td>1</td><td>2</td><td>1,2</td></tr>
+<tr><td>three nodes</td><td>1,2</td><td>3</td><td>1,3,2</td></tr>
+<tr><td>four nodes</td><td>1,2</td><td>3,4</td><td>1,4,2,3</td></tr>
+<tr><td>five nodes</td><td>1,2,3</td><td>4,5</td><td>1,5,2,4,3</td></tr>
+</tbody>
+</table>
+
+<p>The odd cases show the convention: with the middle in the front, the back is always the floor of half the length and the front the ceiling. Invert it and the middle node migrates to the end of the result.</p>
+
+<p>A quick self-check if you are unsure: three nodes must produce one, three, two. If it comes out unchanged, the back half was judged empty, which means the middle was found at the first node.</p>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Phase</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Find the middle</td><td>Half the length</td><td>Constant</td></tr>
+<tr><td>Reverse the back</td><td>Half the length</td><td>Constant</td></tr>
+<tr><td>Interleave</td><td>Half the length</td><td>Constant</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>Linear</strong></td><td><strong>Constant</strong></td></tr>
+</tbody>
+</table>
+
+<p>The constant space comes from using only six pointer variables, with no array, no stack and no recursion. A recursive reversal would immediately push the space to half the length and risk overflow on long inputs, which is why that step must be iterative here.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Forgetting the cut. The front's tail still points into the back, and after reversing, the two wind into a closed loop. The symptom is usually a time limit exceeded rather than an error, because the judge's traversal never terminates. On a timeout, suspect a cycle before changing the algorithm.</li>
+<li>Taking the middle into the back half, which is wrong for odd lengths. Check with three nodes.</li>
+<li>Reversing recursively, which costs linear space and can overflow.</li>
+<li>Writing the merge loop condition on the front half. The front is longer, so the back may still have nodes when the front runs out. Condition on the shorter one.</li>
+<li>Reversing the order of the two assignments in the merge, using a saved pointer after it has already been overwritten. Save both next pointers first, for the same reason as in the reversal loop.</li>
+<li>Returning a head. The head never changes, and the Java signature is void.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Restate the target: the front half stays, the back half is reversed and inserted into the gaps, and only pointers may change. Then the decomposition: find the middle, cut, reverse iteratively, interleave. Then volunteer the cut, since it is the part that bites. Then the complexity: three linear scans, constant pointers.</p>
+
+<p>Two follow-ups worth preparing. Why not an array: it works but costs linear space, and the problem is testing in-place rearrangement. And can the merge be done by concatenating and then adjusting wholesale: no, because each insertion changes two links, so the nodes must be placed one at a time.</p>
+
+<h2>Closing</h2>
+
+<table>
+<thead><tr><th>Piece</th><th>Role here</th><th>Its own problem</th></tr></thead>
+<tbody>
+<tr><td>Find the middle</td><td>Split the list</td><td>LC 876</td></tr>
+<tr><td>Reverse</td><td>Turn the back half</td><td>LC 206</td></tr>
+<tr><td>Interleave</td><td>Zip the halves</td><td>LC 21's insertion step</td></tr>
+</tbody>
+</table>
+
+<p>Composition is the solution. Composites are common among list problems: k-group reversal is LC 206 plus group joins, this one is 876 plus 206 plus 21, and rotation is two-pointer location plus forming a cycle and cutting it.</p>
+
+<p>So when a list problem looks unfamiliar, do not search for a new algorithm. Ask whether the final shape decomposes into known transformations, and where the seams are, meaning which node must be cut and which must be reattached. Answer those two and the rest is three easy problems you have already done.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-143-reorder-list/">【LC 143】重排链表：一题拆三题，中间那道刷过</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
