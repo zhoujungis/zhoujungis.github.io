@@ -26627,6 +26627,241 @@ curl -s -o /dev/null -w "%{http_code}\\n" http://127.0.0.1:8000/api/articles/dra
 `,
   },
 
+  {
+    slug: 'api-versioning-deep-dive',
+    zhSlug: 'api-versioning-deep-dive',
+    topicSlug: 'backend',
+    title: 'Still shipping /v1 and /v2? The real work of API versioning',
+    excerpt:
+      'A renamed field white-screened an app, because three clients with three release cycles shared one contract. Four strategies, a decision tree for when to bump, and how to retire a version without breaking anyone.',
+    date: '2026-10-28',
+    readingTime: 16,
+    html: `
+<blockquote>
+<p>Who this is for: anyone maintaining several API versions, or about to start.</p>
+<p>Language agnostic, covering REST, GraphQL and gRPC.</p>
+<p>Reading time around 16 minutes. What you get: a framework for when to bump a version, how to add one, and how to retire it.</p>
+</blockquote>
+
+<h2>A renamed field took an app down</h2>
+
+<p>A mobile colleague reported that the app white-screened after a backend change. A user detail endpoint had renamed one field for clarity, and the old release still parsed the previous name, so the page failed to render.</p>
+
+<p>The postmortem found three clients on that endpoint, iOS, Android and web, with three release cadences: two weeks of app review, a week of staged rollout, and instant deployment. Changing one field meant coordinating three adaptations at once.</p>
+
+<p>That is not a field problem, it is a contract problem. Versioning answers one question: when you inevitably have to change an interface, how do old clients keep working, new clients get the new behaviour, and operations stay sane?</p>
+
+<h2>Why versioning is not optional</h2>
+
+<p>An API is a contract, and both sides hold expectations: the caller expects a field to always be a string, the provider expects a parameter never to appear. Versioning is change management for that contract. Without it, every change is a silent amendment, and the caller learns about it from a crash.</p>
+
+<p>Three forces make change unavoidable. The product grows and needs new fields and endpoints. Security requires fixing an old response that exposes something it should not. And performance requires splitting a payload that returns five hundred fields to serve ten.</p>
+
+<p>And direct change is impossible because the clients are not yours: users may not update for months, partner integrations cannot be edited on your schedule, and web clients may still be running a cached bundle.</p>
+
+<table>
+<thead><tr><th>Consequence</th><th>How it shows</th></tr></thead>
+<tbody>
+<tr><td>Clients crash</td><td>A renamed or retyped field fails to parse</td></tr>
+<tr><td>Data lost</td><td>A removed field makes old clients send data nobody reads</td></tr>
+<tr><td>Security holes</td><td>An old version cannot be patched independently</td></tr>
+<tr><td>Blocked teams</td><td>Front end and back end wait on each other to deploy</td></tr>
+</tbody>
+</table>
+
+<h2>Four strategies</h2>
+
+<h3>Path versioning</h3>
+
+<pre><code>GET /v1/users/1001
+GET /v2/users/1001
+</code></pre>
+
+<p>It is the most obvious, the easiest to test with a browser or a command-line client, and the easiest to route at a gateway by prefix. It also damages the REST idea that a URL identifies a resource, inflates into a wall of prefixes over the years, and hardcodes a version into every client.</p>
+
+<p>Use major versions only, where the number means "there was an incompatible change". Compatible additions never bump it. And keep the prefix clean: the version segment belongs to the resource, not to a gateway namespace.</p>
+
+<h3>Header versioning</h3>
+
+<pre><code>GET /users/1001
+X-API-Version: 2
+</code></pre>
+
+<p>The URL stays stable and the version can be chosen per request. The costs are real: a browser address bar cannot set a header, so testing and debugging get harder; caches key on the URL, so the same URL with different headers needs explicit vary configuration; and generated documentation handles header versions inconsistently.</p>
+
+<p>It suits teams with strong HTTP infrastructure and internal clients. It does not suit public APIs, where the debugging experience matters more than the elegance.</p>
+
+<h3>Media type versioning</h3>
+
+<pre><code>GET /users/1001
+Accept: application/vnd.myapp.v2+json
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.myapp.v2+json
+</code></pre>
+
+<p>This is the theoretically correct option, following content negotiation and allowing one resource to have several representations. It shares the header strategy's problems, and it overloads a header whose job is format negotiation with versioning, which confuses both. Most client libraries handle custom media types inconsistently.</p>
+
+<p>Theoretically best, practically least recommended, unless you are building a genuinely hypermedia-driven API.</p>
+
+<h3>Compatible evolution</h3>
+
+<p>The most underrated and most used strategy is not to bump at all when the change stays backward compatible.</p>
+
+<pre><code># incompatible, so bump
+# v1: {"nickname": "Zhang San"}
+# v2: {"display_name": "Zhang San"}
+
+# compatible, so do not
+# v1: {"nickname": "Zhang San"}
+# v1: {"nickname": "Zhang San", "level": 3}
+</code></pre>
+
+<p>Add, never remove; extend, never alter.</p>
+
+<table>
+<thead><tr><th>Change</th><th>Compatible</th><th>Bump</th></tr></thead>
+<tbody>
+<tr><td>New field</td><td>Yes</td><td>No</td></tr>
+<tr><td>New endpoint</td><td>Yes</td><td>No</td></tr>
+<tr><td>Type change</td><td>No</td><td>Yes</td></tr>
+<tr><td>Rename</td><td>No</td><td>Yes</td></tr>
+<tr><td>Removal</td><td>No</td><td>Yes</td></tr>
+<tr><td>Changed meaning of a value</td><td>No</td><td>Yes</td></tr>
+<tr><td>Numeric precision increase</td><td>Depends</td><td>Depends on the client</td></tr>
+<tr><td>Array ordering change</td><td>Depends</td><td>Depends on whether clients rely on order</td></tr>
+</tbody>
+</table>
+
+<p>This is the foundation: most changes do not need a new version. Ask whether the change breaks an old client, and bump only when it does.</p>
+
+<h2>When to bump</h2>
+
+<table>
+<thead><tr><th>Must bump</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td>Deleting or renaming a field</td><td>A clearer name for the same value</td></tr>
+<tr><td>Changing a type</td><td>Age from integer to string</td></tr>
+<tr><td>Changing error semantics</td><td>An unauthorised code now means an expired token</td></tr>
+<tr><td>Fixing a leak</td><td>The old response exposed something it should not</td></tr>
+<tr><td>Splitting an endpoint</td><td>One aggregate endpoint becoming several</td></tr>
+<tr><td>Changing business meaning</td><td>A status field now describes payment rather than the order</td></tr>
+</tbody>
+</table>
+
+<pre><code>about to change the interface
++-- a new field or endpoint?      -> add it, no version
++-- a bug fix?                    -> fix it, no version
++-- a field that was always wrong?
+|   +-- yes                       -> bump, keep the old version
+|   +-- unsure                    -> treat it as incompatible and bump
++-- a security hole?              -> bump, and patch the old version too
+</code></pre>
+
+<h2>The lifecycle</h2>
+
+<p>Shipping a new version is the start, not the end, and the old one keeps running. Route new clients to the latest by default while old clients ask for the version they know. Monitor call volume per version, because a rising old version means migration has not happened. And keep documentation for every version readable.</p>
+
+<pre><code>request -> gateway -+-- v1 (old service, still running)
+                    +-- v2 (current)
+                    +-- v3 (canary)
+</code></pre>
+
+<p>Coexistence costs code maintenance across branches, regression testing per version, and data consistency risk when both versions write the same tables under different names. Keep two or three active versions at most; beyond that the cost grows faster than linearly.</p>
+
+<p>Retirement is a process. Mark the version deprecated in documentation and in response headers, with a sunset date and a link to the migration guide. Notify the callers through every channel you have. Watch the volume fall. Then throttle it, return a gone response, and finally remove it. Keep the documentation available afterwards for whoever is still migrating.</p>
+
+<pre><code>HTTP/1.1 200 OK
+Deprecation: true
+Sunset: Sat, 01 Nov 2025 00:00:00 GMT
+Link: &lt;/docs/migration/v1-to-v2&gt;; rel="migration"
+</code></pre>
+
+<table>
+<thead><tr><th>API type</th><th>Minimum coexistence</th></tr></thead>
+<tbody>
+<tr><td>Internal services</td><td>One to two weeks, since every service is yours</td></tr>
+<tr><td>Partner APIs</td><td>Three to six months, since they have their own roadmap</td></tr>
+<tr><td>Public APIs</td><td>Six to twelve months, because the long tail is long</td></tr>
+</tbody>
+</table>
+
+<h2>gRPC and GraphQL</h2>
+
+<pre><code>message User {
+  int32 id = 1;
+  string nickname = 2;
+  string display_name = 3;
+  reserved 4;
+  reserved "old_field";
+}
+</code></pre>
+
+<p>In protobuf, field numbers must never be reused, so a removed number and name are reserved to prevent someone assigning them a new meaning. Types have their own compatibility rules, and optional versus required needs care. Because serialisation keys on numbers rather than names, compatibility is far stronger than JSON, and many gRPC APIs never bump a version at all.</p>
+
+<pre><code>{
+  user(id: "1001") {
+    nickname
+    level
+  }
+}
+</code></pre>
+
+<p>GraphQL's official position is no versioning: there is one endpoint, clients ask for what they need, and adding a field affects nobody who did not ask for it. Change is expressed with a deprecation directive, and removal is a last resort. The strength is that version explosion cannot happen. The weakness is that a genuine semantic change has no version boundary to hide behind, so it becomes a new field plus a migration window.</p>
+
+<h2>Five traps</h2>
+
+<p><strong>Retiring before migrating.</strong> Ship the new version, watch the old one's traffic fall, notify, then remove. Launching takes minutes and retiring can take months.</p>
+
+<p><strong>Calendar versions.</strong> A date in the path says when, not what: callers cannot tell whether it is compatible. A number that counts incompatible changes does, and the date belongs in the changelog.</p>
+
+<p><strong>A "compatible" change that is not.</strong> Turning a comma-separated string into an array breaks every client that splits it. The gold standard is whether old client code runs unmodified; if it does not, the change is incompatible.</p>
+
+<p><strong>Versioning only at the gateway.</strong> If two versions write the same table and only one knows a new column, the other's writes overwrite it with null. Apply the same rule to the database: add columns, never remove them, give new columns defaults, and prefer a new column over redefining an old one.</p>
+
+<p><strong>No per-version monitoring.</strong> Without volume, error rate, client type and caller per version, you cannot know when retirement is safe, and you find out someone still depends on it when it breaks.</p>
+
+<h2>Checklist and questions</h2>
+
+<ul>
+<li>Is the change backward compatible? If not, bump.</li>
+<li>The old version keeps running when the new one ships.</li>
+<li>Gateway routing is correct for both prefixes.</li>
+<li>Database changes only add columns, with defaults.</li>
+<li>Documentation is updated and every version stays readable.</li>
+<li>Per-version monitoring exists for volume, errors and callers.</li>
+<li>Callers have been notified with a migration guide.</li>
+<li>A retirement plan exists with a timeline, notifications and staged removal.</li>
+<li>Responses carry the version they served.</li>
+<li>Deprecated versions return deprecation and sunset headers.</li>
+</ul>
+
+<p><strong>Path or header?</strong> Path by default: it is visible, testable, cacheable, and fits almost everything. Headers suit internal APIs behind uniform infrastructure.</p>
+
+<p><strong>Start at zero or one?</strong> One. Zero implies instability, and the point of versioning is stability. An API under rapid change should ship under an alpha or beta prefix instead.</p>
+
+<p><strong>Do compatible changes need announcing?</strong> Not with a migration window, but they belong in a changelog so callers know something new exists.</p>
+
+<p><strong>How many versions at once?</strong> Three at most; beyond that the maintenance cost climbs steeply, and pressure to migrate beats carrying them.</p>
+
+<p><strong>How do large public platforms do it?</strong> Mostly path versions, kept alive for a year or two, because they cannot control anyone's upgrade schedule. Expect the same if your API is public.</p>
+
+<p><strong>Do internal services need this?</strong> Only across team boundaries. Within one team, simultaneous deployment through continuous integration can replace formal versions.</p>
+
+<p><strong>Does GraphQL really avoid versions?</strong> Mostly, but a genuine semantic change still means a new field, a deprecation mark and a migration window.</p>
+
+<h2>Closing</h2>
+
+<p>With versioning in place, the incident has a script: recognise the rename as incompatible, ship a version that returns the new name while the old one keeps the old, let old apps keep calling the old, let new apps use the new, watch the old volume fall, notify, and remove.</p>
+
+<p>It may take two months, and nobody sees a white screen.</p>
+
+<p>The essence is not a segment in the URL. It is a promise to callers: this interface will not change behind your back, and if it must, you get a stable new version and time to move. That is a technical problem and a trust problem at once.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/api-versioning-deep-dive/">API 还在用 /v1、/v2？——接口版本管理的演进与实战策略</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

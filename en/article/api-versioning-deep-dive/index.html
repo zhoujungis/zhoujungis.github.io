@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A renamed field white-screened an app, because three clients with three release cycles shared one contract. Four strategies, a decision tree for when to bump, and how to retire a version without breaking anyone." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/api-versioning-deep-dive/" />
+    <meta property="og:title" content="Still shipping /v1 and /v2? The real work of API versioning | Stack Frame" />
+    <meta property="og:description" content="A renamed field white-screened an app, because three clients with three release cycles shared one contract. Four strategies, a decision tree for when to bump, and how to retire a version without breaking anyone." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/api-versioning-deep-dive/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Still shipping /v1 and /v2? The real work of API versioning | Stack Frame" />
+    <meta name="twitter:description" content="A renamed field white-screened an app, because three clients with three release cycles shared one contract. Four strategies, a decision tree for when to bump, and how to retire a version without breaking anyone." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Still shipping /v1 and /v2? The real work of API versioning | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/api-versioning-deep-dive/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/api-versioning-deep-dive/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/api-versioning-deep-dive/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>Still shipping /v1 and /v2? The real work of API versioning</h1><div class="ns-meta">2026-10-28 · 16 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: anyone maintaining several API versions, or about to start.</p>
+<p>Language agnostic, covering REST, GraphQL and gRPC.</p>
+<p>Reading time around 16 minutes. What you get: a framework for when to bump a version, how to add one, and how to retire it.</p>
+</blockquote>
+
+<h2>A renamed field took an app down</h2>
+
+<p>A mobile colleague reported that the app white-screened after a backend change. A user detail endpoint had renamed one field for clarity, and the old release still parsed the previous name, so the page failed to render.</p>
+
+<p>The postmortem found three clients on that endpoint, iOS, Android and web, with three release cadences: two weeks of app review, a week of staged rollout, and instant deployment. Changing one field meant coordinating three adaptations at once.</p>
+
+<p>That is not a field problem, it is a contract problem. Versioning answers one question: when you inevitably have to change an interface, how do old clients keep working, new clients get the new behaviour, and operations stay sane?</p>
+
+<h2>Why versioning is not optional</h2>
+
+<p>An API is a contract, and both sides hold expectations: the caller expects a field to always be a string, the provider expects a parameter never to appear. Versioning is change management for that contract. Without it, every change is a silent amendment, and the caller learns about it from a crash.</p>
+
+<p>Three forces make change unavoidable. The product grows and needs new fields and endpoints. Security requires fixing an old response that exposes something it should not. And performance requires splitting a payload that returns five hundred fields to serve ten.</p>
+
+<p>And direct change is impossible because the clients are not yours: users may not update for months, partner integrations cannot be edited on your schedule, and web clients may still be running a cached bundle.</p>
+
+<table>
+<thead><tr><th>Consequence</th><th>How it shows</th></tr></thead>
+<tbody>
+<tr><td>Clients crash</td><td>A renamed or retyped field fails to parse</td></tr>
+<tr><td>Data lost</td><td>A removed field makes old clients send data nobody reads</td></tr>
+<tr><td>Security holes</td><td>An old version cannot be patched independently</td></tr>
+<tr><td>Blocked teams</td><td>Front end and back end wait on each other to deploy</td></tr>
+</tbody>
+</table>
+
+<h2>Four strategies</h2>
+
+<h3>Path versioning</h3>
+
+<pre><code>GET /v1/users/1001
+GET /v2/users/1001
+</code></pre>
+
+<p>It is the most obvious, the easiest to test with a browser or a command-line client, and the easiest to route at a gateway by prefix. It also damages the REST idea that a URL identifies a resource, inflates into a wall of prefixes over the years, and hardcodes a version into every client.</p>
+
+<p>Use major versions only, where the number means "there was an incompatible change". Compatible additions never bump it. And keep the prefix clean: the version segment belongs to the resource, not to a gateway namespace.</p>
+
+<h3>Header versioning</h3>
+
+<pre><code>GET /users/1001
+X-API-Version: 2
+</code></pre>
+
+<p>The URL stays stable and the version can be chosen per request. The costs are real: a browser address bar cannot set a header, so testing and debugging get harder; caches key on the URL, so the same URL with different headers needs explicit vary configuration; and generated documentation handles header versions inconsistently.</p>
+
+<p>It suits teams with strong HTTP infrastructure and internal clients. It does not suit public APIs, where the debugging experience matters more than the elegance.</p>
+
+<h3>Media type versioning</h3>
+
+<pre><code>GET /users/1001
+Accept: application/vnd.myapp.v2+json
+
+HTTP/1.1 200 OK
+Content-Type: application/vnd.myapp.v2+json
+</code></pre>
+
+<p>This is the theoretically correct option, following content negotiation and allowing one resource to have several representations. It shares the header strategy's problems, and it overloads a header whose job is format negotiation with versioning, which confuses both. Most client libraries handle custom media types inconsistently.</p>
+
+<p>Theoretically best, practically least recommended, unless you are building a genuinely hypermedia-driven API.</p>
+
+<h3>Compatible evolution</h3>
+
+<p>The most underrated and most used strategy is not to bump at all when the change stays backward compatible.</p>
+
+<pre><code># incompatible, so bump
+# v1: {"nickname": "Zhang San"}
+# v2: {"display_name": "Zhang San"}
+
+# compatible, so do not
+# v1: {"nickname": "Zhang San"}
+# v1: {"nickname": "Zhang San", "level": 3}
+</code></pre>
+
+<p>Add, never remove; extend, never alter.</p>
+
+<table>
+<thead><tr><th>Change</th><th>Compatible</th><th>Bump</th></tr></thead>
+<tbody>
+<tr><td>New field</td><td>Yes</td><td>No</td></tr>
+<tr><td>New endpoint</td><td>Yes</td><td>No</td></tr>
+<tr><td>Type change</td><td>No</td><td>Yes</td></tr>
+<tr><td>Rename</td><td>No</td><td>Yes</td></tr>
+<tr><td>Removal</td><td>No</td><td>Yes</td></tr>
+<tr><td>Changed meaning of a value</td><td>No</td><td>Yes</td></tr>
+<tr><td>Numeric precision increase</td><td>Depends</td><td>Depends on the client</td></tr>
+<tr><td>Array ordering change</td><td>Depends</td><td>Depends on whether clients rely on order</td></tr>
+</tbody>
+</table>
+
+<p>This is the foundation: most changes do not need a new version. Ask whether the change breaks an old client, and bump only when it does.</p>
+
+<h2>When to bump</h2>
+
+<table>
+<thead><tr><th>Must bump</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td>Deleting or renaming a field</td><td>A clearer name for the same value</td></tr>
+<tr><td>Changing a type</td><td>Age from integer to string</td></tr>
+<tr><td>Changing error semantics</td><td>An unauthorised code now means an expired token</td></tr>
+<tr><td>Fixing a leak</td><td>The old response exposed something it should not</td></tr>
+<tr><td>Splitting an endpoint</td><td>One aggregate endpoint becoming several</td></tr>
+<tr><td>Changing business meaning</td><td>A status field now describes payment rather than the order</td></tr>
+</tbody>
+</table>
+
+<pre><code>about to change the interface
++-- a new field or endpoint?      -> add it, no version
++-- a bug fix?                    -> fix it, no version
++-- a field that was always wrong?
+|   +-- yes                       -> bump, keep the old version
+|   +-- unsure                    -> treat it as incompatible and bump
++-- a security hole?              -> bump, and patch the old version too
+</code></pre>
+
+<h2>The lifecycle</h2>
+
+<p>Shipping a new version is the start, not the end, and the old one keeps running. Route new clients to the latest by default while old clients ask for the version they know. Monitor call volume per version, because a rising old version means migration has not happened. And keep documentation for every version readable.</p>
+
+<pre><code>request -> gateway -+-- v1 (old service, still running)
+                    +-- v2 (current)
+                    +-- v3 (canary)
+</code></pre>
+
+<p>Coexistence costs code maintenance across branches, regression testing per version, and data consistency risk when both versions write the same tables under different names. Keep two or three active versions at most; beyond that the cost grows faster than linearly.</p>
+
+<p>Retirement is a process. Mark the version deprecated in documentation and in response headers, with a sunset date and a link to the migration guide. Notify the callers through every channel you have. Watch the volume fall. Then throttle it, return a gone response, and finally remove it. Keep the documentation available afterwards for whoever is still migrating.</p>
+
+<pre><code>HTTP/1.1 200 OK
+Deprecation: true
+Sunset: Sat, 01 Nov 2025 00:00:00 GMT
+Link: &lt;/docs/migration/v1-to-v2&gt;; rel="migration"
+</code></pre>
+
+<table>
+<thead><tr><th>API type</th><th>Minimum coexistence</th></tr></thead>
+<tbody>
+<tr><td>Internal services</td><td>One to two weeks, since every service is yours</td></tr>
+<tr><td>Partner APIs</td><td>Three to six months, since they have their own roadmap</td></tr>
+<tr><td>Public APIs</td><td>Six to twelve months, because the long tail is long</td></tr>
+</tbody>
+</table>
+
+<h2>gRPC and GraphQL</h2>
+
+<pre><code>message User {
+  int32 id = 1;
+  string nickname = 2;
+  string display_name = 3;
+  reserved 4;
+  reserved "old_field";
+}
+</code></pre>
+
+<p>In protobuf, field numbers must never be reused, so a removed number and name are reserved to prevent someone assigning them a new meaning. Types have their own compatibility rules, and optional versus required needs care. Because serialisation keys on numbers rather than names, compatibility is far stronger than JSON, and many gRPC APIs never bump a version at all.</p>
+
+<pre><code>{
+  user(id: "1001") {
+    nickname
+    level
+  }
+}
+</code></pre>
+
+<p>GraphQL's official position is no versioning: there is one endpoint, clients ask for what they need, and adding a field affects nobody who did not ask for it. Change is expressed with a deprecation directive, and removal is a last resort. The strength is that version explosion cannot happen. The weakness is that a genuine semantic change has no version boundary to hide behind, so it becomes a new field plus a migration window.</p>
+
+<h2>Five traps</h2>
+
+<p><strong>Retiring before migrating.</strong> Ship the new version, watch the old one's traffic fall, notify, then remove. Launching takes minutes and retiring can take months.</p>
+
+<p><strong>Calendar versions.</strong> A date in the path says when, not what: callers cannot tell whether it is compatible. A number that counts incompatible changes does, and the date belongs in the changelog.</p>
+
+<p><strong>A "compatible" change that is not.</strong> Turning a comma-separated string into an array breaks every client that splits it. The gold standard is whether old client code runs unmodified; if it does not, the change is incompatible.</p>
+
+<p><strong>Versioning only at the gateway.</strong> If two versions write the same table and only one knows a new column, the other's writes overwrite it with null. Apply the same rule to the database: add columns, never remove them, give new columns defaults, and prefer a new column over redefining an old one.</p>
+
+<p><strong>No per-version monitoring.</strong> Without volume, error rate, client type and caller per version, you cannot know when retirement is safe, and you find out someone still depends on it when it breaks.</p>
+
+<h2>Checklist and questions</h2>
+
+<ul>
+<li>Is the change backward compatible? If not, bump.</li>
+<li>The old version keeps running when the new one ships.</li>
+<li>Gateway routing is correct for both prefixes.</li>
+<li>Database changes only add columns, with defaults.</li>
+<li>Documentation is updated and every version stays readable.</li>
+<li>Per-version monitoring exists for volume, errors and callers.</li>
+<li>Callers have been notified with a migration guide.</li>
+<li>A retirement plan exists with a timeline, notifications and staged removal.</li>
+<li>Responses carry the version they served.</li>
+<li>Deprecated versions return deprecation and sunset headers.</li>
+</ul>
+
+<p><strong>Path or header?</strong> Path by default: it is visible, testable, cacheable, and fits almost everything. Headers suit internal APIs behind uniform infrastructure.</p>
+
+<p><strong>Start at zero or one?</strong> One. Zero implies instability, and the point of versioning is stability. An API under rapid change should ship under an alpha or beta prefix instead.</p>
+
+<p><strong>Do compatible changes need announcing?</strong> Not with a migration window, but they belong in a changelog so callers know something new exists.</p>
+
+<p><strong>How many versions at once?</strong> Three at most; beyond that the maintenance cost climbs steeply, and pressure to migrate beats carrying them.</p>
+
+<p><strong>How do large public platforms do it?</strong> Mostly path versions, kept alive for a year or two, because they cannot control anyone's upgrade schedule. Expect the same if your API is public.</p>
+
+<p><strong>Do internal services need this?</strong> Only across team boundaries. Within one team, simultaneous deployment through continuous integration can replace formal versions.</p>
+
+<p><strong>Does GraphQL really avoid versions?</strong> Mostly, but a genuine semantic change still means a new field, a deprecation mark and a migration window.</p>
+
+<h2>Closing</h2>
+
+<p>With versioning in place, the incident has a script: recognise the rename as incompatible, ship a version that returns the new name while the old one keeps the old, let old apps keep calling the old, let new apps use the new, watch the old volume fall, notify, and remove.</p>
+
+<p>It may take two months, and nobody sees a white screen.</p>
+
+<p>The essence is not a segment in the URL. It is a promise to callers: this interface will not change behind your back, and if it must, you get a stable new version and time to move. That is a technical problem and a trust problem at once.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/api-versioning-deep-dive/">API 还在用 /v1、/v2？——接口版本管理的演进与实战策略</a>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/api-versioning-deep-dive/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/api-versioning-deep-dive/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>
