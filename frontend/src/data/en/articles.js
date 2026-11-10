@@ -29906,6 +29906,270 @@ while second:
 `,
   },
 
+  {
+    slug: 'lc-234-palindrome-linked-list',
+    zhSlug: 'lc-234-palindrome-linked-list',
+    topicSlug: 'leetcode',
+    title: 'LC 234, palindrome linked list: reverse the back half and compare',
+    excerpt:
+      'Same skeleton as the reorder problem, with one difference that matters: nothing gets cut, and the cleared link at the middle is what makes the walk stop on its own.',
+    date: '2026-10-19',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Decide whether a singly linked list reads the same forwards and backwards.</p>
+
+<pre><code>1 -&gt; 2 -&gt; 2 -&gt; 1   true
+1 -&gt; 2             false
+</code></pre>
+
+<p><strong>Follow-up:</strong> linear time and constant space. This is a common warm-up in interviews, and the follow-up is usually the actual ask.</p>
+
+<pre><code>class ListNode:
+    def __init__(self, val=0, next=None):
+        self.val = val
+        self.next = next
+</code></pre>
+
+<h2>What palindromic means on a list</h2>
+
+<pre><code>def is_palindrome(arr):
+    i, j = 0, len(arr) - 1
+    while i &lt; j:
+        if arr[i] != arr[j]:
+            return False
+        i += 1
+        j -= 1
+    return True
+</code></pre>
+
+<p>This works because indexing is constant time. A list has no indices, and walking the second pointer back from the end costs a full traversal, which makes the naive version quadratic.</p>
+
+<p>So the "from the end" motion has to be converted into something a list is good at.</p>
+
+<pre><code>1 -&gt; 2 -&gt; 2 -&gt; 1
+front: 1 -&gt; 2
+back:       2 -&gt; 1
+back reversed: 1 -&gt; 2
+</code></pre>
+
+<p>Reversed, the back half reads exactly like the front half. That is the whole insight: <strong>a list is a palindrome exactly when the front half and the reversed back half match node by node</strong>.</p>
+
+<p>A counterexample, one, two, three: the front is one, and the reversed back is three then two, so the first comparison already fails.</p>
+
+<p>Reversing in place needs no extra memory, which is how the constant space requirement is met. Finding the middle with two pointers is also constant, so the whole algorithm uses six pointers and no auxiliary structure.</p>
+
+<p>One note: this does modify the list's structure, and the problem does not forbid it. Unlike the reorder problem, which explicitly demands moving nodes, this one only cares about the boolean.</p>
+
+<h2>Three steps, all previously solved</h2>
+
+<table>
+<thead><tr><th>Step</th><th>What it does</th><th>Problem it is</th><th>Technique</th></tr></thead>
+<tbody>
+<tr><td>1, find the middle</td><td>Split into two halves</td><td>LC 876</td><td>Two pointers, fast two, slow one</td></tr>
+<tr><td>2, reverse the back</td><td>Turn it around</td><td><strong>LC 206</strong></td><td>Save, turn, advance</td></tr>
+<tr><td>3, compare pairs</td><td>Front against reversed back</td><td>The array two-pointer comparison</td><td>Loop while the back pointer is set</td></tr>
+</tbody>
+</table>
+
+<h3>Where the middle lands, and why it differs from the reorder problem</h3>
+
+<pre><code>slow = fast = head
+while fast and fast.next:
+    slow = slow.next
+    fast = fast.next.next
+</code></pre>
+
+<p>Both pointers start at the head here, unlike the reorder problem, and that changes where slow stops. For four nodes it stops on the third, leaving the front as the first two and the back as the last two. For five nodes it stops on the middle one, so the middle belongs to the back half, with the front holding two and the back holding three.</p>
+
+<table>
+<thead><tr><th>Problem</th><th>Start</th><th>Slow stops on</th><th>Middle belongs to</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Reorder</td><td>Slow at head, fast at the next node</td><td>Last node of the front</td><td><strong>Front</strong></td><td>The middle must stay in place</td></tr>
+<tr><td>Palindrome</td><td>Both at head</td><td>First node of the back</td><td><strong>Back</strong></td><td>It never matters; reversing drops it at the end</td></tr>
+</tbody>
+</table>
+
+<p>Giving the middle to the back is harmless here because it ends up compared with itself, which always succeeds. It is also convenient: after reversing, it lands at the end of the back half automatically.</p>
+
+<h3>Reverse, and notice there is no cut</h3>
+
+<pre><code>prev, curr = None, slow
+while curr:
+    nxt = curr.next
+    curr.next = prev
+    prev = curr
+    curr = nxt
+</code></pre>
+
+<p>Word for word the reversal from LC 206, starting at the middle instead of the head. And here is the interesting part: <strong>the cut is not needed</strong>.</p>
+
+<p>In the reorder problem the cut is essential, because merging two live halves winds the pointers into a cycle. Here nothing is merged, only read, so the situation is different in a useful way. The last node of the front still points at the middle, while reversing sets the middle's link to none, since it becomes the first node of the reversed segment. So walking from the head stops at the middle naturally, and the front traversal has exactly the length we want.</p>
+
+<pre><code>after reversing, four nodes:
+front: 0 -&gt; 1 -&gt; 2 -&gt; None
+back:  3 -&gt; 2 -&gt; None
+</code></pre>
+
+<p>The leftover link is not a bug here; it is borrowed.</p>
+
+<h3>Compare pairs</h3>
+
+<pre><code>p1, p2 = head, prev
+while p2:
+    if p1.val != p2.val:
+        return False
+    p1, p2 = p1.next, p2.next
+return True
+</code></pre>
+
+<p>The condition must be on the back pointer. For an even length the front chain has one more node than the reversed back, because the front is walked until it reaches the middle while the back stops there. Using the front pointer instead would dereference an empty pointer once the back one runs out. The back is always the shorter chain, so it is the correct bound; for odd lengths they are equal and the last pair is the middle against itself.</p>
+
+<h2>The animation</h2>
+
+<p>The original post breaks the example into nine steps. In the middle-finding phase fast crosses two nodes per step and exits while slow lands at the start of the back half. In the reversing phase the back half drops a row, its arrows turn around one by one, and the whole segment reads left to right like the row above it. In the comparison phase the two rows line up, one pointer walking each, with a marker between each pair.</p>
+
+<p>Seen that way, the core insight is literal: the two rows are identical.</p>
+
+<h2>Code</h2>
+
+<pre><code>class Solution:
+    def isPalindrome(self, head: Optional[ListNode]) -&gt; bool:
+        if head is None or head.next is None:
+            return True
+
+        slow = fast = head
+        while fast and fast.next:
+            slow = slow.next
+            fast = fast.next.next
+
+        prev, curr = None, slow
+        while curr:
+            nxt = curr.next
+            curr.next = prev
+            prev = curr
+            curr = nxt
+
+        p1, p2 = head, prev
+        while p2:
+            if p1.val != p2.val:
+                return False
+            p1, p2 = p1.next, p2.next
+        return True
+</code></pre>
+
+<pre><code>class Solution {
+    public boolean isPalindrome(ListNode head) {
+        if (head == null || head.next == null) return true;
+
+        ListNode slow = head, fast = head;
+        while (fast != null &amp;&amp; fast.next != null) {
+            slow = slow.next;
+            fast = fast.next.next;
+        }
+
+        ListNode prev = null, curr = slow;
+        while (curr != null) {
+            ListNode nxt = curr.next;
+            curr.next = prev;
+            prev = curr;
+            curr = nxt;
+        }
+
+        ListNode p1 = head, p2 = prev;
+        while (p2 != null) {
+            if (p1.val != p2.val) return false;
+            p1 = p1.next;
+            p2 = p2.next;
+        }
+        return true;
+    }
+}
+</code></pre>
+
+<p>The early return is defensive: a single node would also compare correctly, since the middle compares with itself, but stating it saves a pointless reversal and makes the intent explicit.</p>
+
+<table>
+<thead><tr><th>Step</th><th>Phase</th><th>Action</th><th>Pointers</th><th>Back half</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>start</td><td>-</td><td>-</td><td>1,2,2,1</td></tr>
+<tr><td>1</td><td>find</td><td>Slow one, fast two</td><td>Slow at 1, fast at 2</td><td>-</td></tr>
+<tr><td>2</td><td>find</td><td>Slow one, fast two</td><td>Slow at 2, fast off the end</td><td>-</td></tr>
+<tr><td>3</td><td>reverse</td><td>Back half drops</td><td>prev none, curr at the middle</td><td>2,1</td></tr>
+<tr><td>4</td><td>reverse</td><td>Turn, advance</td><td>prev at the middle</td><td>2</td></tr>
+<tr><td>5</td><td>reverse</td><td>Turn, advance</td><td>prev at the last node</td><td>1,2</td></tr>
+<tr><td>6</td><td>compare</td><td>One against one</td><td>Both at their first</td><td>-</td></tr>
+<tr><td>7</td><td>compare</td><td>Two against two</td><td>Both at their second</td><td>-</td></tr>
+<tr><td>8</td><td>done</td><td>Back pointer empty</td><td>-</td><td>true</td></tr>
+</tbody>
+</table>
+
+<p>For one, two, three the failure is immediate: after reversing, the back starts with three, and the first comparison is one against three, so it returns false after a single pair. That is why the check returns as soon as a mismatch appears rather than collecting everything first.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Slow stops on</th><th>Back half</th><th>Pairs compared</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>empty</td><td>-</td><td>-</td><td>0</td><td>true</td></tr>
+<tr><td>one node</td><td>node 0</td><td>node 0</td><td>1, with itself</td><td>true</td></tr>
+<tr><td>1,2</td><td>node 1</td><td>node 1</td><td>1</td><td>false</td></tr>
+<tr><td>1,1</td><td>node 1</td><td>node 1</td><td>1</td><td>true</td></tr>
+<tr><td>1,2,2,1</td><td>node 2</td><td>nodes 2 and 3</td><td>2</td><td>true</td></tr>
+<tr><td>1,2,3,2,1</td><td>node 2</td><td>nodes 2, 3, 4</td><td>3, the last with itself</td><td>true</td></tr>
+<tr><td>1,2,3</td><td>node 1</td><td>nodes 1 and 2</td><td>1, fails</td><td>false</td></tr>
+</tbody>
+</table>
+
+<p>Worth remembering: an empty list is a palindrome, and so is a single node. Odd lengths compare the middle with itself once, which is free. The number of comparisons is the ceiling of half the length, though only the floor of it is informative.</p>
+
+<h2>Complexity</h2>
+
+<p>Linear time: the middle-finding loop runs about half the length, reversing touches the other half, and comparison walks half again, which totals under one and a half passes over the nodes. Constant space: six pointers, no array, no stack, no recursion.</p>
+
+<p>The array version would also be linear in time and linear in space, and compressing that space is precisely what the follow-up is testing.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Putting the front pointer in the comparison loop condition, which dereferences an empty pointer for even lengths.</li>
+<li>Confusing the middle convention with the reorder problem. The two are opposite, and each start position pairs with a matching way of taking the back half; mixing them loses or adds one comparison.</li>
+<li>Adding the cut. It is unnecessary here and not wrong, but it costs one comparison and makes restoring the list harder.</li>
+<li>Comparing recursively, which is elegant and uses linear stack space, failing the follow-up.</li>
+<li>Forgetting the empty and single-node guards, particularly in variants that manipulate the second link inside the loop.</li>
+<li>Being unable to answer whether the list can be restored. It can, in one line: reverse the back half again, because nothing was ever cut, so re-reversing reattaches it.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>State the idea in thirty seconds rather than starting to type: a palindrome means the front half equals the reversed back half, and since a list cannot walk backwards, reverse the back and compare with two pointers. Then find the middle with two pointers, reverse, compare. Linear time, constant space.</p>
+
+<p>Then volunteer the three subtleties, which is what separates understanding from memorisation: both pointers start at the head so slow lands at the start of the back half with the middle included, no cut is needed because reversing clears the middle's link so the front walk stops there by itself, and the comparison loop is bounded by the back pointer because the front chain is longer for even lengths.</p>
+
+<p>For the follow-ups: no extra space is already the case, six pointers; restoring is one more reversal of the back half; the odd middle compares with itself and needs no special case; and the recursive front-and-back-pointer trick uses linear stack space, so it does not qualify.</p>
+
+<h2>Closing</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>What it contributes</th><th>Relation to this one</th></tr></thead>
+<tbody>
+<tr><td>LC 876</td><td>Middle with two pointers</td><td>Step one</td></tr>
+<tr><td>LC 206</td><td>In-place reversal</td><td>Step two, reused verbatim</td></tr>
+<tr><td>LC 143</td><td>Middle, reverse, interleave</td><td>Same skeleton, but the cut is mandatory</td></tr>
+<tr><td>LC 234</td><td>Middle, reverse, compare</td><td>This one, where no cut is needed</td></tr>
+<tr><td>LC 19</td><td>Two pointers at a fixed gap</td><td>A cousin, with the fast pointer leading by n plus one</td></tr>
+</tbody>
+</table>
+
+<p>This and the reorder problem share a skeleton; the difference is the third step. One rewires the topology, so it must cut to avoid a cycle. The other only reads values, so the cut is optional and skipping it is actually simpler.</p>
+
+<p>So when a list problem asks you to go backwards, ask first whether reversing the back half turns it into a forwards problem. If it does, half the work is done.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-234-palindrome-linked-list/">【LC 234】回文链表：翻后半段，比是否相同</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
