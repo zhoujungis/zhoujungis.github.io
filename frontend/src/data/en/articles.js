@@ -28894,6 +28894,283 @@ None &lt;- 4 &lt;- 3      1 -&gt; 2 -&gt; 3 -&gt; 4 -&gt; 5
 `,
   },
 
+  {
+    slug: 'lc-141-142-linked-list-cycle',
+    zhSlug: 'lc-141-142-linked-list-cycle',
+    topicSlug: 'leetcode',
+    title: 'LC 141 and 142, linked list cycles: why fast two and slow one always meet',
+    excerpt:
+      'A congruence argument you can write out under pressure, a widely repeated claim that is simply false, and the two independent reasons the step counts are two and one.',
+    date: '2026-10-23',
+    readingTime: 18,
+    html: `
+<h2>The problems</h2>
+
+<p><strong>141:</strong> given the head of a linked list, decide whether it contains a cycle. <strong>Follow-up:</strong> can you do it with constant extra space?</p>
+
+<p><strong>142:</strong> return the node where the cycle begins, or null if there is none. Do not modify the list.</p>
+
+<pre><code>input: 1 -&gt; 2 -&gt; 0 -&gt; -4, with the tail pointing at index 1
+141: true
+142: the node at index 1
+
+input: 1 -&gt; 2, no cycle
+141: false
+142: null
+</code></pre>
+
+<pre><code>class ListNode:
+    def __init__(self, x=0, next=None):
+        self.val = x
+        self.next = next
+</code></pre>
+
+<p>Two details in the constraints shape the solution space. The list can hold up to ten thousand nodes, which decides whether a hash set is affordable, and the list may not be modified, which rules out marking visited nodes by changing values or links. That leaves very little standing, which is why Floyd's algorithm is the expected answer.</p>
+
+<h2>Fixing the coordinate system</h2>
+
+<p>Most confusion about the proof comes from unstated symbols. Define three quantities and use only them.</p>
+
+<ul>
+<li><strong>a</strong>, the length of the straight part: the number of steps from the head to the entry. Steps and indices coincide here, since the head has index zero and the entry has index a.</li>
+<li><strong>b</strong>, the number of nodes in the cycle.</li>
+<li><strong>n</strong>, the total, so n is a plus b.</li>
+<li>And <strong>x</strong>, used only in the proof: the distance from the meeting point forward along the cycle to the entry, with zero at most x and x below b.</li>
+</ul>
+
+<p>The running example is a list from one to thirteen, entering the cycle at node five, with thirteen pointing back at five. So a is four, b is nine and n is thirteen, and every number below comes from that list.</p>
+
+<h2>The obvious approach, and what it costs</h2>
+
+<pre><code>def hasCycle(head):
+    seen = set()
+    while head:
+        if head in seen:
+            return True
+        seen.add(head)
+        head = head.next
+    return False
+</code></pre>
+
+<pre><code>def detectCycle(head):
+    seen = set()
+    while head:
+        if head in seen:
+            return head
+        seen.add(head)
+        head = head.next
+    return None
+</code></pre>
+
+<p>Linear time and very clean, but linear space: in the worst case the set holds nearly every node. Ten thousand references is not much in absolute terms, and the follow-up question is not about that cost, it is about whether the problem can be solved with no extra storage at all, which matters in streaming and embedded settings. The expected answer is Floyd's tortoise and hare.</p>
+
+<h2>Floyd: why the two must meet</h2>
+
+<pre><code>def hasCycle(head):
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+        if slow is fast:
+            return True
+    return False
+</code></pre>
+
+<pre><code>public boolean hasCycle(ListNode head) {
+    ListNode slow = head, fast = head;
+    while (fast != null &amp;&amp; fast.next != null) {
+        slow = slow.next;
+        fast = fast.next.next;
+        if (slow == fast) return true;
+    }
+    return false;
+}
+</code></pre>
+
+<p>Five lines. The interview question is why it must meet.</p>
+
+<h3>Turning the meeting into a congruence</h3>
+
+<p>Define one distance: <strong>gap</strong>, the number of steps the fast pointer needs, travelling forward, to reach the slow pointer. The direction matters: the fast pointer is chasing the slow one, not the reverse.</p>
+
+<p>Before the slow pointer enters the cycle, no meeting is possible, because they occupy disjoint sets of nodes. So any meeting happens after it is inside.</p>
+
+<p>Once both are on the cycle, each step moves the slow pointer one node and the fast pointer two, so the gap shrinks by one per step. With a step difference of c, the gap shrinks by c per step, and for the standard pair c is one.</p>
+
+<p>The important part is that distance on a cycle is modulo b. The gap does not go negative, it wraps. So the gap after k steps is the initial gap minus c times k, taken modulo b, and a meeting is exactly the case where that is zero, which is a linear congruence: c times k is congruent to the initial gap modulo b. Number theory says a solution exists precisely when the greatest common divisor of c and b divides the initial gap.</p>
+
+<p>So everything reduces to one question: what is the initial gap?</p>
+
+<h3>The initial gap satisfies the divisibility for free</h3>
+
+<p>The initial gap is measured the instant the slow pointer enters the cycle. The slow pointer has walked a steps to the entry, which is position zero on the cycle. The fast pointer has walked a times its step count, so it is ahead by a times the step difference, which is a times c. Its position on the cycle is therefore a times c, modulo b, while the slow pointer is at zero.</p>
+
+<pre><code>gap0 = (-a * c) mod b
+</code></pre>
+
+<p>Look at that expression. The product a times c is a multiple of c, and reducing it modulo b keeps it a multiple of c minus some number of b's. The greatest common divisor of c and b divides both c and b, so it divides the product and it divides b, and therefore it divides the reduced value. The divisibility condition holds automatically, the congruence has a solution, and the pointers must meet.</p>
+
+<p>This is not luck and not something you discover by trying; it is fixed algebraically. Enumerating every combination with step counts from two to five, a from zero to fourteen and b from one to fourteen, two hundred and ten cases each, produced zero non-converging pairs on all four rows.</p>
+
+<h3>A claim that is widely repeated and wrong</h3>
+
+<p>Before writing this I nearly copied a claim from the internet: if the fast pointer moves three and the slow one one, then with an even cycle length the two never meet.</p>
+
+<p>Under the standard setup with both pointers starting at the head, that is false, and the enumeration above is the evidence. With a step difference of two over two hundred and ten cases, nothing failed to converge.</p>
+
+<p>The counterexample people cite is real, but it assumes the pointers start at <strong>different</strong> positions. If both begin on the cycle with the fast one already d nodes ahead, that offset is arbitrary and the divisibility is no longer guaranteed.</p>
+
+<table>
+<thead><tr><th>b</th><th>c</th><th>gcd</th><th>offset 1</th><th>offset 2</th><th>offset 3</th></tr></thead>
+<tbody>
+<tr><td>4</td><td>2</td><td>2</td><td>miss</td><td>meet</td><td>miss</td></tr>
+<tr><td>6</td><td>2</td><td>2</td><td>miss</td><td>meet</td><td>miss</td></tr>
+<tr><td>9</td><td>2</td><td>1</td><td>meet</td><td>meet</td><td>meet</td></tr>
+<tr><td>12</td><td>2</td><td>2</td><td>miss</td><td>meet</td><td>miss</td></tr>
+</tbody>
+</table>
+
+<p>Row two with offset one is the real counterexample: the divisor is two, one is not divisible by it, and the gap cycles forever without reaching zero. But standard Floyd starts both pointers at the head, where the initial gap is pinned by the divisor, so that trap is unreachable. Applying a different-start result to a same-start setup is where the error came from. And note row three, where the divisor is one and every offset meets, which is why the false claim is easy to "verify" if you happen to pick an odd cycle length.</p>
+
+<h3>The animation</h3>
+
+<p>The original post animates the list from one to thirteen, entering at five. Watch the orange arc inside the cycle, which is the gap. Each step shortens it by exactly one, from five down to zero.</p>
+
+<pre><code>gap: 5 -&gt; 4 -&gt; 3 -&gt; 2 -&gt; 1 -&gt; 0
+</code></pre>
+
+<p>That arc is the whole intuition: the gap decreases modulo b, and a modular decrease cannot skip zero, so it must pass through every value below it in turn. In the example the pointers meet at node ten after nine steps, at which point the slow pointer has taken nine steps and the fast one eighteen, and the extra nine is exactly one lap.</p>
+
+<h3>A closed form for the meeting step</h3>
+
+<p>Since the gap decreases by c per step modulo b, the number of steps after the slow pointer enters solves the congruence, and solving it gives a closed form: the total number of steps is the smallest multiple of b divided by the divisor of c and b that is at least a. For the example that is nine, matching the animation, and a comparison against brute simulation over eight hundred and forty cases produced no disagreements.</p>
+
+<p>One row of that comparison is worth noticing: a faster pointer does not always meet sooner. With a of seven and b of six, a step of two takes twelve, three takes nine, four takes eight, and five goes back up to nine, because the constraint that the extra distance be a whole number of laps changes with the step difference.</p>
+
+<p>If only 141 is asked, "the gap shrinks by one and must pass zero" is enough. Producing the initial-gap expression is what shows you understand it.</p>
+
+<h2>LC 142: where the entry is</h2>
+
+<p>Let the meeting point be x steps from the entry, measured forward. At the meeting the slow pointer has travelled a plus x, and the fast pointer twice that. The difference is necessarily a whole number of laps, because they end on the same node.</p>
+
+<pre><code>2(a + x) - (a + x) = a + x = m * b
+</code></pre>
+
+<p>Rewritten modulo b, that says a is congruent to b minus x. In words: walking a steps from the head reaches the entry, and walking b minus x steps from the meeting point also reaches the entry, with the two paths differing by whole laps.</p>
+
+<p>Which gives the second phase. Put one pointer back at the head, leave the other at the meeting point, move both one step at a time, and they meet at the entry, because both paths have the same length modulo the cycle.</p>
+
+<pre><code>def detectCycle(head):
+    slow = fast = head
+    while fast and fast.next:
+        slow = slow.next
+        fast = fast.next.next
+        if slow is fast:
+            ptr1, ptr2 = head, slow
+            while ptr1 is not ptr2:
+                ptr1 = ptr1.next
+                ptr2 = ptr2.next
+            return ptr1
+    return None
+</code></pre>
+
+<pre><code>public ListNode detectCycle(ListNode head) {
+    ListNode slow = head, fast = head;
+    while (fast != null &amp;&amp; fast.next != null) {
+        slow = slow.next;
+        fast = fast.next.next;
+        if (slow == fast) {
+            ListNode ptr1 = head, ptr2 = slow;
+            while (ptr1 != ptr2) {
+                ptr1 = ptr1.next;
+                ptr2 = ptr2.next;
+            }
+            return ptr1;
+        }
+    }
+    return null;
+}
+</code></pre>
+
+<p>No extra storage anywhere, just four pointers, independent of n.</p>
+
+<p>The second animation shows two counters decreasing together: the distance from the head to the entry, and the distance from the meeting point around the cycle to the entry. The example is deliberately built so those two are equal, four and four, which makes the symmetry visible. It is a choice rather than a necessity, since the two lengths only have to be congruent.</p>
+
+<h3>An edge worth mentioning: the head inside the cycle</h3>
+
+<p>If the head is itself on the cycle, then a is zero, the entry is the head, and the meeting point is also the entry, so the second phase does no work and returns immediately. No special case is needed, but it is worth saying out loud, or a reader assumes the second walk always happens. Two other edges: an empty list returns false or null immediately, and a single node pointing at itself has a cycle of length one, which has to be drawn as an arc rather than a line of zero length.</p>
+
+<h2>Why two and one specifically</h2>
+
+<p>Two independent reasons, and both are needed.</p>
+
+<p><strong>The relative speed must be positive.</strong> A step difference of zero means the gap never changes, so the pointers keep their initial distance forever. So the fast step must be at least two, and two is the smallest value that qualifies, which minimises the constant.</p>
+
+<p><strong>A step difference of one is what makes 142 work.</strong> The derivation used the fact that the fast pointer travels exactly twice as far. With a step of three the relation becomes twice the sum being a multiple of b, which does not imply the sum itself is a multiple of b. When b is even, the sum can be an odd multiple of half of b, and then the congruence fails, and with it the "walk from the head at the same speed" method: the second pointer will not be at the entry when the first arrives.</p>
+
+<table>
+<thead><tr><th>Step count</th><th>Difference</th><th>Cases</th><th>Second phase fails</th><th>Works</th></tr></thead>
+<tbody>
+<tr><td>2</td><td>1</td><td>210</td><td>0</td><td>100.0%</td></tr>
+<tr><td>3</td><td>2</td><td>210</td><td>55</td><td>73.8%</td></tr>
+<tr><td>4</td><td>3</td><td>210</td><td>41</td><td>80.5%</td></tr>
+<tr><td>5</td><td>4</td><td>210</td><td>65</td><td>69.0%</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Requirement</th><th>Satisfied by</th></tr></thead>
+<tbody>
+<tr><td>Positive relative speed</td><td>Step count at least two</td></tr>
+<tr><td>Second phase valid for any cycle length</td><td>Step count exactly two</td></tr>
+<tr><td>Intersection</td><td>Only two</td></tr>
+</tbody>
+</table>
+
+<p>So the choice is not convention, it is the unique value satisfying both constraints.</p>
+
+<h2>Accounting for the constant space claim</h2>
+
+<p>The hash set holds up to n node references, so linear space. Floyd holds two pointers, or four in 142, so constant space, independent of n. For thirteen nodes that is thirteen references against two.</p>
+
+<p>Time is not worse. Before the slow pointer enters, it walks at most a steps; after that the gap decreases by one modulo b, so at most b minus one steps to catch up, giving linear time. The second phase walks a steps with both pointers. Measured on the example: nine steps to meet, four to find the entry, thirty-five pointer moves in total on a thirteen node list, the excess being the fast pointer's eighteen and the two four-step walks.</p>
+
+<table>
+<thead><tr><th>Approach</th><th>Time</th><th>Space</th><th>Works for 142</th></tr></thead>
+<tbody>
+<tr><td>Hash set</td><td>Linear</td><td><strong>Linear</strong></td><td>Yes, first repeated node is the entry</td></tr>
+<tr><td>Floyd</td><td>Linear</td><td><strong>Constant</strong></td><td>Yes, with the second phase</td></tr>
+</tbody>
+</table>
+
+<p>The "do not modify the list" constraint is satisfied because Floyd only reads links; it never changes a node.</p>
+
+<h2>The ninety-second answer</h2>
+
+<p>For 141, run two pointers from the head at one and two steps. When the slow pointer enters the cycle, the fast one is some gap ahead, and each step reduces that gap by one modulo the cycle length, which must pass through zero, so they meet.</p>
+
+<p>Why not three? Because the relative speed must be positive, which needs at least two, and because 142's second phase requires a step difference of one; otherwise the derivation breaks whenever the cycle length is even. The intersection is two and one.</p>
+
+<p>For 142, use the meeting point: the slow pointer travelled a plus x and the fast one twice that, so the difference is a whole number of laps, giving a congruent to b minus x. Walk one pointer from the head and the other from the meeting point at the same speed and they arrive at the entry together.</p>
+
+<p>Space is constant, a handful of pointer variables, regardless of length.</p>
+
+<p>If asked whether three and one meet at all: yes, provided both start at the head, because the initial gap is then pinned by the divisibility. The internet claim about even cycle lengths misapplies a different-start result to the standard setup.</p>
+
+<h2>Where the numbers come from</h2>
+
+<p>A counting script produces the meeting steps, the gap sequences, the enumeration counts and the failure rates, and it is deterministic: distances and indices are arithmetic, so the same input gives the same number regardless of machine load. Timing would not be, since the noise floor on this machine is twelve percent and reaches fifty-seven across sessions.</p>
+
+<p>The script simulates standard Floyd for brute-force ground truth, enumerates the full grid of step counts, a and b to count non-converging pairs, verifies the initial gap is always divisible, and measures how often the second phase would fail for larger step counts. The first three are machine checks on the algebra, the fourth is the machine check on why the step counts are two and one.</p>
+
+<h2>Closing</h2>
+
+<p>This closes the three habits of linked-list problems: reversing, as in LC 206; stitching with a dummy node and a tail pointer, as in LC 21 and LC 23; and here, what the <strong>difference in speed</strong> between two pointers can prove.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-141-142-linked-list-cycle/">【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
