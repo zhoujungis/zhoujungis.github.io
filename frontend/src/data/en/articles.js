@@ -30903,6 +30903,425 @@ def merge_range(lists, lo, hi):
 `,
   },
 
+  {
+    slug: 'lc-102-binary-tree-level-order-traversal',
+    zhSlug: 'lc-102-binary-tree-level-order-traversal',
+    topicSlug: 'leetcode',
+    title: 'LC 102, level order traversal: snapshot the queue length first',
+    excerpt:
+      'Ten lines of BFS, and one of them is the ancestor of five variants. Why the length must be captured before the inner loop, and what breaks when it is not.',
+    date: '2026-10-15',
+    readingTime: 15,
+    html: `
+<h2>The problem</h2>
+
+<p>Return the values of a binary tree level by level, left to right within each level.</p>
+
+<pre><code>input:  [3,9,20,null,null,15,7]
+output: [[3],[9,20],[15,7]]
+</code></pre>
+
+<p>Note the nesting. The answer is not a flat list of five values, it is a list of lists.</p>
+
+<p>Barely anyone gets asked this by itself; the question arrives with its family.</p>
+
+<table>
+<thead><tr><th>Variant</th><th>Problem</th><th>Requirement</th></tr></thead>
+<tbody>
+<tr><td>Zigzag traversal</td><td>LC 103</td><td>Odd levels left to right, even levels right to left</td></tr>
+<tr><td>Right side view</td><td>LC 199</td><td>Only the rightmost node per level</td></tr>
+<tr><td>Bottom-up traversal</td><td>LC 107</td><td>Reverse the level order</td></tr>
+<tr><td>N-ary traversal</td><td>LC 429</td><td>Children list instead of left and right</td></tr>
+</tbody>
+</table>
+
+<pre><code>class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+</code></pre>
+
+<p>A note on the input format: the array is LeetCode's level-order encoding, where the node at index i has children at two i plus one and two i plus two, and gaps are filled with nulls that hold their places. So the nine has no children here, while the twenty has fifteen and seven.</p>
+
+<h2>Plain BFS gives the order, not the levels</h2>
+
+<pre><code>from collections import deque
+
+def bfs(root):
+    if not root:
+        return []
+    q = deque([root])
+    out = []
+    while q:
+        node = q.popleft()
+        out.append(node.val)
+        if node.left:
+            q.append(node.left)
+        if node.right:
+            q.append(node.right)
+    return out
+</code></pre>
+
+<p>On the example this produces three, nine, twenty, fifteen, seven, which is the correct visiting order. What it loses is where the boundaries are: from a flat list you cannot tell which values shared a level.</p>
+
+<h2>The levels are already in the queue</h2>
+
+<p>The key is a property of the queue itself: nodes of the same level are always adjacent in it, and they always leave before any node of the next level.</p>
+
+<pre><code>start        q = [3]
+pop 3        q = [9, 20]
+pop 9        q = [20]
+pop 20       q = [15, 7]
+pop 15       q = []
+pop 7        q = []
+</code></pre>
+
+<p>Look at the second line: nine and twenty are adjacent, with nothing from the next level between them, because level one was enqueued as a block while level zero was being drained. First-in-first-out guarantees the grouping for free.</p>
+
+<p>So the layering information already exists. The code above simply consumes one node per iteration and discards the grouping. What is missing is recording, at the moment a level starts, how many nodes belong to it.</p>
+
+<h2>The line that does the work</h2>
+
+<pre><code>while q:
+    size = len(q)
+    level = []
+    for _ in range(size):
+        node = q.popleft()
+        level.append(node.val)
+        if node.left:
+            q.append(node.left)
+        if node.right:
+            q.append(node.right)
+    res.append(level)
+</code></pre>
+
+<p>The inner loop both drains and refills, so the length changes while it runs. Using the live length as the loop bound pulls nodes of the next level into the same iteration, and the levels merge.</p>
+
+<p>Snapshotted into a variable, that single line gives three things at once: the size of the level, the exact number of iterations, and the hook every variant hangs on.</p>
+
+<p>One sentence to remember: capture the length at the moment you enter the outer loop. Afterwards, whatever happens inside cannot move the boundary.</p>
+
+<pre><code>from collections import deque
+from typing import List, Optional
+
+class Solution:
+    def levelOrder(self, root: Optional[TreeNode]) -&gt; List[List[int]]:
+        if not root:
+            return []
+
+        res = []
+        q = deque([root])
+
+        while q:
+            size = len(q)
+            level = []
+            for _ in range(size):
+                node = q.popleft()
+                level.append(node.val)
+                if node.left:
+                    q.append(node.left)
+                if node.right:
+                    q.append(node.right)
+            res.append(level)
+
+        return res
+</code></pre>
+
+<h2>The animation</h2>
+
+<p>The original post breaks the example into fifteen frames. The green bracket over the queue is the snapshot: it spans the nodes of the current level that have not yet been drained, and shrinks by one with each pop until it reaches zero. The orange node is the one being drained, turning green afterwards, and green filled nodes at the tail are the next level arriving. The result area grows one line at a time, only on the frames that close a level.</p>
+
+<p>Watch frames four and nine, the two closes: a row appears only after the full snapshot has been drained. That is layering made visible.</p>
+
+<h2>Full trace</h2>
+
+<pre><code>index: 0=3  1=9  2=20  3=null  4=null  5=15  6=7
+
+        3
+      /   \\
+     9     20
+          /  \\
+        15    7
+</code></pre>
+
+<table>
+<thead><tr><th>Frame</th><th>Phase</th><th>Queue</th><th>size</th><th>Drained</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>3</td><td>-</td><td>-</td><td>empty</td></tr>
+<tr><td>1</td><td><strong>enter</strong></td><td>3</td><td><strong>1</strong></td><td>0</td><td>empty</td></tr>
+<tr><td>2</td><td>consume</td><td>empty</td><td>1</td><td>1</td><td>empty</td></tr>
+<tr><td>3</td><td>enqueue</td><td>9, 20</td><td>1</td><td>1</td><td>empty</td></tr>
+<tr><td>4</td><td><strong>close</strong></td><td>9, 20</td><td>1</td><td>1</td><td>3</td></tr>
+<tr><td>5</td><td><strong>enter</strong></td><td>9, 20</td><td><strong>2</strong></td><td>0</td><td>3</td></tr>
+<tr><td>6</td><td>consume</td><td>20</td><td>2</td><td>1</td><td>3</td></tr>
+<tr><td>7</td><td>consume</td><td>empty</td><td>2</td><td>2</td><td>3</td></tr>
+<tr><td>8</td><td>enqueue</td><td>15, 7</td><td>2</td><td>2</td><td>3</td></tr>
+<tr><td>9</td><td><strong>close</strong></td><td>15, 7</td><td>2</td><td>2</td><td>3, 9 20</td></tr>
+<tr><td>10</td><td><strong>enter</strong></td><td>15, 7</td><td><strong>2</strong></td><td>0</td><td>3, 9 20</td></tr>
+<tr><td>11</td><td>consume</td><td>7</td><td>2</td><td>1</td><td>3, 9 20</td></tr>
+<tr><td>12</td><td>consume</td><td>empty</td><td>2</td><td>2</td><td>3, 9 20</td></tr>
+<tr><td>13</td><td><strong>close</strong></td><td>empty</td><td>2</td><td>2</td><td>3, 9 20, 15 7</td></tr>
+<tr><td>14</td><td><strong>done</strong></td><td>empty</td><td>-</td><td>-</td><td>the answer</td></tr>
+</tbody>
+</table>
+
+<p>The three snapshots are one, two, two, which are exactly the widths of the three levels. That is the whole secret; everything else is ordinary BFS.</p>
+
+<p>The enqueue frames leave the snapshot unchanged, because enqueueing does not alter how many nodes belong to the level currently being drained. And the close and enter frames have identical queue contents, differing only in a level counter that increments and a collection that clears.</p>
+
+<h2>Variant one: zigzag (LC 103)</h2>
+
+<p>Odd levels left to right, even levels right to left, so the example becomes three, then twenty and nine, then fifteen and seven.</p>
+
+<p>The common approach collects normally and reverses afterwards:</p>
+
+<pre><code>res.append(level[::-1] if len(res) % 2 else level)
+</code></pre>
+
+<p>It passes, and it puts the reversal after the fact, disconnected from the mechanism that actually produces order.</p>
+
+<p>Better is to change which end of the level the value goes into. The dequeue order within a level is always left to right, since enqueueing is always left then right, and that must not change. Only the destination changes:</p>
+
+<pre><code>reversed_layer = (level_index % 2 == 1)
+
+for _ in range(size):
+    node = q.popleft()
+    if reversed_layer:
+        level.insert(0, node.val)
+    else:
+        level.append(node.val)
+    if node.left:
+        q.append(node.left)
+    if node.right:
+        q.append(node.right)
+</code></pre>
+
+<p>Nine arrives first and becomes nine; twenty arrives later and pushing at the front puts it ahead. One insert does the collecting and the ordering together.</p>
+
+<p><strong>The easiest thing to get wrong here is reversing the enqueue order as well.</strong> The children of twenty are still enqueued fifteen then seven even in zigzag mode; reversing that would corrupt the next level. What gets reversed is the output, not the traversal.</p>
+
+<pre><code>class Solution:
+    def zigzagLevelOrder(self, root: Optional[TreeNode]) -&gt; List[List[int]]:
+        if not root:
+            return []
+
+        res = []
+        q = deque([root])
+
+        while q:
+            size = len(q)
+            level = []
+            reverse = len(res) % 2 == 1
+            for _ in range(size):
+                node = q.popleft()
+                if reverse:
+                    level.insert(0, node.val)
+                else:
+                    level.append(node.val)
+                if node.left:
+                    q.append(node.left)
+                if node.right:
+                    q.append(node.right)
+            res.append(level)
+
+        return res
+</code></pre>
+
+<p>Three differences from the base version: a flag, a conditional insert, and nothing else. The snapshot line is untouched.</p>
+
+<p>One cost worth mentioning: inserting at the front is linear in the level width, so on a very wide tree the constant is worse than collecting and then reversing. In practice the total stays linear because the widths sum to n, but a deque used at both ends, or a reverse at the end, is more predictable, and saying so is a good sign in an interview.</p>
+
+<h2>Variant two: right side view (LC 199)</h2>
+
+<p>Imagine standing to the right of the tree and returning what you can see from top to bottom, which is the rightmost node of each level. For the example that is three, twenty, seven.</p>
+
+<p>The temptation is to write a separate state machine. But the last node of a level is already the last element of the level list at the moment it closes, so one line on top of the main loop suffices:</p>
+
+<pre><code>while q:
+    size = len(q)
+    level = []
+    for _ in range(size):
+        node = q.popleft()
+        level.append(node.val)
+        if node.left:
+            q.append(node.left)
+        if node.right:
+            q.append(node.right)
+    res.append(level)
+    right_view.append(level[-1])
+</code></pre>
+
+<pre><code>class Solution:
+    def rightSideView(self, root: Optional[TreeNode]) -&gt; List[int]:
+        if not root:
+            return []
+
+        right_view = []
+        q = deque([root])
+
+        while q:
+            size = len(q)
+            for i in range(size):
+                node = q.popleft()
+                if i == size - 1:
+                    right_view.append(node.val)
+                if node.left:
+                    q.append(node.left)
+                if node.right:
+                    q.append(node.right)
+
+        return right_view
+</code></pre>
+
+<p>Checking the index against the snapshot is the same thing as taking the last element, without materialising the level list.</p>
+
+<p>But be careful if both variants are asked at once, which does happen. They share the snapshot but are not orthogonal.</p>
+
+<table>
+<thead><tr><th>Mode</th><th>Second level</th><th>Rightmost</th></tr></thead>
+<tbody>
+<tr><td>Normal, left to right</td><td>9, 20</td><td>20, the last element</td></tr>
+<tr><td><strong>Zigzag, right to left</strong></td><td><strong>20, 9</strong></td><td>the last element is now nine, which is wrong</td></tr>
+</tbody>
+</table>
+
+<p>If both are required, either compute the right view separately in normal order, or take the first element of the zigzag row. And in an interview, clarify whether the view is defined by the tree geometry or by the output order, because the two diverge exactly here.</p>
+
+<h2>Two more variants</h2>
+
+<p>Bottom-up (LC 107) reverses the order of the levels and nothing else:</p>
+
+<pre><code>return res[::-1]
+</code></pre>
+
+<p>Reversing within levels as well would turn it into the zigzag problem.</p>
+
+<p>For an N-ary tree (LC 429) the only change is the source of the children:</p>
+
+<pre><code>for child in node.children:
+    q.append(child)
+</code></pre>
+
+<p>The snapshot line copies over unchanged.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public List&lt;List&lt;Integer&gt;&gt; levelOrder(TreeNode root) {
+        List&lt;List&lt;Integer&gt;&gt; res = new ArrayList&lt;&gt;();
+        if (root == null) return res;
+
+        Deque&lt;TreeNode&gt; q = new ArrayDeque&lt;&gt;();
+        q.offer(root);
+
+        while (!q.isEmpty()) {
+            int size = q.size();
+            List&lt;Integer&gt; level = new ArrayList&lt;&gt;(size);
+            for (int i = 0; i &lt; size; i++) {
+                TreeNode node = q.poll();
+                level.add(node.val);
+                if (node.left != null) q.offer(node.left);
+                if (node.right != null) q.offer(node.right);
+            }
+            res.add(level);
+        }
+        return res;
+    }
+}
+</code></pre>
+
+<pre><code>while (!q.isEmpty()) {
+    int size = q.size();
+    LinkedList&lt;Integer&gt; level = new LinkedList&lt;&gt;();
+    boolean reverse = res.size() % 2 == 1;
+    for (int i = 0; i &lt; size; i++) {
+        TreeNode node = q.poll();
+        if (reverse) level.addFirst(node.val);
+        else         level.addLast(node.val);
+        if (node.left != null) q.offer(node.left);
+        if (node.right != null) q.offer(node.right);
+    }
+    res.add(level);
+}
+</code></pre>
+
+<p>The size must be extracted into a local, never recomputed in the loop condition. And a deque rejects nulls, though the guarded enqueues here make that moot.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Result</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>empty</td><td>empty</td><td>Return an empty list, not a list containing an empty list</td></tr>
+<tr><td>one node</td><td>one row of one</td><td>Snapshot of one</td></tr>
+<tr><td>root with a left child only</td><td>two rows</td><td>The second level holds one node</td></tr>
+<tr><td>root with a right child only</td><td>two rows</td><td>Same output as the previous case</td></tr>
+<tr><td>three nodes</td><td>root, then two</td><td>Two complete levels</td></tr>
+<tr><td>a right-leaning chain</td><td>one row per node</td><td>Levels equal nodes</td></tr>
+<tr><td>repeated values</td><td>unchanged shape</td><td>Equality does not affect grouping</td></tr>
+</tbody>
+</table>
+
+<p>Two of those deserve attention. An empty tree must give an empty list; without the guard, the queue is seeded with a null and the first dereference fails. And a left-only and a right-only child produce identical output, which shows the traversal cares about values and levels, not about which side they came from; that intuition breaks the moment you return node objects or compute the right side view.</p>
+
+<h2>Complexity</h2>
+
+<p>Linear time: every node is enqueued once and dequeued once, and the inner loops together run exactly n times, so they are not an independent nested traversal. This is the same style of argument as the inner skip loop in the duplicate-removal problem, where both loops advanced the same cursor.</p>
+
+<p>Linear space: the queue holds the widest level at its peak, about half the nodes for a complete tree, and the result holds n values. It is not constant.</p>
+
+<p>A good addition: distinguish queue space from result space. The peak queue size is the width of the widest level, which is linear for a complete tree and constant for a degenerate chain, which leads naturally into why breadth-first search is memory hungry on wide trees and depth-first search is stack hungry on deep ones.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Using the live queue length as the loop bound, which merges levels.</li>
+<li>Forgetting the empty guard, which dereferences a null.</li>
+<li>Appending before checking for an empty tree, which yields a list containing an empty list.</li>
+<li>Reversing the enqueue order in zigzag mode. Enqueue order is always left then right.</li>
+<li>Using a list with a pop at index zero, which is linear per removal and quadratic overall.</li>
+<li>Applying the last-element trick to a zigzag result. The variants share the snapshot but not the semantics.</li>
+<li>Building the tree by hand and treating the nulls in the encoding as nodes, which inflates the width of a level.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Say BFS, then say the key is layering: capture the queue length at the top of the outer loop, because the inner loop refills while it drains and the length keeps changing. Then run the inner loop exactly that many times, collecting values and enqueueing children. When it ends, a level ends. Linear time, linear space.</p>
+
+<p>Then volunteer the two variants. Zigzag adds a flag and switches which end of the row values go to, leaving dequeue order alone. The right view is one line at close time.</p>
+
+<p>For follow-ups: the snapshot is not optional because level zero enqueues level one immediately, so both are in the queue at once; the inner loop does not nest because its iterations sum to n; a DFS with a depth parameter also works but BFS matches the question; a list with pop at the front is quadratic while a deque is constant; and the space is the widest level plus the result, which is why breadth-first search is expensive on wide trees.</p>
+
+<h2>Closing</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>Core action</th><th>Relation</th></tr></thead>
+<tbody>
+<tr><td>LC 144, 94, 145</td><td>Recursion or an explicit stack</td><td>The depth-first half</td></tr>
+<tr><td>LC 102</td><td>Snapshot the queue length</td><td>This one, the foundation of the family</td></tr>
+<tr><td>LC 103</td><td>Insert at one end or the other</td><td>Only changes where values go</td></tr>
+<tr><td>LC 199</td><td>Take the last of each level</td><td>One extra line</td></tr>
+<tr><td>LC 107</td><td>Reverse the rows</td><td>Only changes the order between levels</td></tr>
+<tr><td>LC 429</td><td>Iterate a children list</td><td>Only changes the source of enqueues</td></tr>
+</tbody>
+</table>
+
+<p>What is worth keeping is not the ten lines but the reflex: when output must be grouped by level, use a queue, and capture the length before doing anything else.</p>
+
+<pre><code>q = [3]        snapshot 1
+  pop 3, push 9, 20
+q = [9, 20]    snapshot 2
+  pop 9, 20, push 15, 7
+q = [15, 7]    snapshot 2
+</code></pre>
+
+<p>The snapshot is the boundary line of each level. It is taken at the instant the loop is entered, and after that the queue can do whatever it likes without disturbing the current level.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-102-binary-tree-level-order-traversal/">【LC 102】二叉树的层序遍历：为什么先存队列长度</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
