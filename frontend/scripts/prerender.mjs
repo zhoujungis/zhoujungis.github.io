@@ -1069,7 +1069,10 @@ function renderEnIndexPage(template) {
     `<h1>${escapeHtml(EN_UI.home.title)}</h1>` +
     `<p class="ns-sub">${escapeHtml(EN_UI.home.sub)}</p>\n` +
     EN_UI.home.lede.map((p) => `<p>${escapeHtml(p)}</p>`).join('\n') +
-    `\n<p class="ns-meta">${EN_ARTICLES.length} English ${EN_ARTICLES.length === 1 ? 'post' : 'posts'} · full archive in Chinese</p>` +
+    // 这句话原来写「N English posts · full archive in Chinese」，是英文稿只有十几篇、
+    // 其余只能去中文站的年代留下的。现在英文稿已有自己分页的完整列表，再写着
+    // 「完整归档在中文」既不准确也误导，改成指向英文列表本身，中文只留一个入口。
+    `\n<p class="ns-meta">${EN_ARTICLES.length} English ${EN_ARTICLES.length === 1 ? 'post' : 'posts'} · <a href="${EN_BASE}/articles/">browse all</a> · <a href="/" hreflang="zh-CN">中文站</a></p>` +
     `<section><h2>${escapeHtml(EN_HOME.summaryTitle)}</h2>\n` +
     EN_HOME.summary.map((p) => `<p>${escapeHtml(p)}</p>`).join('\n') +
     `</section>` +
@@ -1089,8 +1092,10 @@ function renderEnIndexPage(template) {
 
   return renderEnPage(template, {
     title: 'Code & Life | Stack Frame',
+    // 旧描述只提桌面工具、嵌入式数据库与 AI agent，那是英文稿二十来篇时的范围。
+    // 现在覆盖算法、后端、数据库内核、AI agent 与项目实战，按实际内容改。
     description:
-      'Selected English posts about small desktop tools, embedded databases and AI agents.',
+      'English editions of essays on backend engineering, database internals, AI agents and algorithms, plus notes on code and the everyday.',
     url: `${EN_HOME_URL}`,
     alternates: enAlternates(null),
     body,
