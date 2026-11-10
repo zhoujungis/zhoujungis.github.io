@@ -25823,6 +25823,561 @@ layer 3: the flag service       the single source of truth
 `,
   },
 
+  {
+    slug: 'django-jwt-dual-token-auth',
+    zhSlug: 'django-jwt-dual-token-auth',
+    topicSlug: 'backend',
+    title: 'Logged out after an hour? Dual-token auth with Django and Vue',
+    excerpt:
+      'A short-lived access token, a long-lived refresh token, and the four hard parts: single-flight refresh, anonymous 401s, real revocation, and rate limiting the login endpoint.',
+    date: '2026-10-30',
+    readingTime: 26,
+    html: `
+<blockquote>
+<p>Stack: Django 6 with SimpleJWT, Vue 3 with Pinia and Axios. The code is the actual blog: settings, urls, the auth store, the Axios client and the router guard.</p>
+<p>Reading time around 26 minutes. What you get: a dual-token template that refreshes on its own, refreshes once under concurrency, logs out cleanly and resists password guessing.</p>
+</blockquote>
+
+<h2>The most annoying bug is "I just logged in"</h2>
+
+<p>When the admin area first shipped, it had a mysterious failure. Login in the morning and the dashboard works. Write an article at noon, hit save, and the page bounces to login with the draft nearly lost. The network tab shows a wall of 401s from the admin endpoints.</p>
+
+<p>The cause in one sentence: the access token expires after an hour and the front end never renews it, so the user must log in again by hand.</p>
+
+<p>After the fix, the first request after expiry refreshes and retries without the user noticing, five concurrent 401s produce exactly one refresh, and only an expired refresh token sends anyone back to login. That is the full dual-token chain.</p>
+
+<h2>The whole picture</h2>
+
+<pre><code>login page
+  -> POST /api/token/ {username, password}
+  -> {access (1h), refresh (1d)} stored locally
+
+save an article
+  -> POST /api/admin/articles/ with Bearer access -> 201
+
+an hour later, save again
+  -> 401 (access expired)
+  -> interceptor: POST /api/token/refresh/ {refresh} -> new access
+  -> retry the original request -> 201, user sees nothing
+
+refresh expired too (a day away from the admin)
+  -> refresh also 401 -> clear tokens -> go to login
+</code></pre>
+
+<table>
+<thead><tr><th>Token</th><th>Lifetime</th><th>Purpose</th><th>If leaked</th></tr></thead>
+<tbody>
+<tr><td>Access</td><td>Sixty minutes</td><td>Sent with every request, short lived</td><td>Usable for at most an hour</td></tr>
+<tr><td>Refresh</td><td>One day</td><td>Only exchanges for an access token</td><td>Can mint access tokens for a day, so protect it and make it revocable</td></tr>
+</tbody>
+</table>
+
+<p>The idea is a short-lived everyday key and a long-lived key that is used rarely. A single seven-day token is a seven-day master key once leaked; this halves the blast radius into an hour.</p>
+
+<h2>How a JWT works, in five minutes</h2>
+
+<pre><code>header.payload.signature
+</code></pre>
+
+<p>The header names the algorithm and type. The payload holds the claims, base64-encoded and readable, so never put a password there; the defaults include the token type, expiry, issued-at, a unique id and the user id. The signature is an HMAC over header and payload with the server key, so tampering fails verification.</p>
+
+<pre><code>{
+  "token_type": "access",
+  "exp": 1725828000,
+  "iat": 1725824400,
+  "jti": "a3f1c9...",
+  "user_id": 1
+}
+</code></pre>
+
+<p>The expiry is read by the client for a local guess, the unique id is what a blocklist keys on, and the user id is who you are.</p>
+
+<p>A JWT is stateless: no session on the server, only a signature check, which suits multiple workers that share nothing. The price is that a token cannot be invalidated after issue without a blocklist.</p>
+
+<h3>Why a JWT here rather than sessions or OAuth</h3>
+
+<table>
+<thead><tr><th>Approach</th><th>Multiple workers</th><th>Cross-origin</th><th>Revocation</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>Server sessions with cookies</td><td>Needs shared session storage</td><td>Third-party cookies are increasingly blocked</td><td>Delete the session, easiest</td><td>Same-origin, tightly controlled admin</td></tr>
+<tr><td>Dual JWT</td><td>Stateless, any worker verifies</td><td>A header, no cookies, no problem</td><td>Hard by default, needs a blocklist or a version</td><td>Separate front end, mobile, serverless</td></tr>
+<tr><td>OAuth with a provider</td><td>Same as JWT</td><td>Same as JWT</td><td>The provider handles it</td><td>Third-party login, no passwords to manage</td></tr>
+</tbody>
+</table>
+
+<p>A static site on one domain calling an API on another makes cookie-based sessions a permanent source of friction, and the header approach pairs once and works everywhere. Add statelessness across workers and reuse in a mobile app and the choice makes itself.</p>
+
+<h2>Backend: three settings</h2>
+
+<pre><code>REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+    ),
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+</code></pre>
+
+<p>Why an hour and a day: too short an access token means constant renewal while writing, which fails on weak networks; too long and it becomes a single token in disguise. A day of refresh matches a daily visit, and anonymous readers never need one at all. For a personal blog, thirty to sixty minutes and one to seven days is a reasonable range; a heavily used admin can use fifteen minutes and eight hours.</p>
+
+<pre><code>urlpatterns = [
+    path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("api/", include("articles.urls")),
+    path("api/admin/", include("articles.admin_urls")),
+]
+</code></pre>
+
+<p>Two endpoints issue every token in the system: one takes credentials and returns a pair, the other takes a refresh and returns an access, plus a new refresh once rotation is enabled.</p>
+
+<h3>A permission matrix</h3>
+
+<pre><code>class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    ...
+
+class ArticleAdminViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAdminUser]
+
+@api_view(["POST"])
+@permission_classes([IsAdminUser])
+def upload_image(request):
+    ...
+</code></pre>
+
+<table>
+<thead><tr><th>Endpoint</th><th>Anonymous</th><th>Logged in, not staff</th><th>Staff</th><th>Expired access</th></tr></thead>
+<tbody>
+<tr><td>Read articles</td><td>200</td><td>200</td><td>200</td><td>200, public reads skip verification</td></tr>
+<tr><td>Create article</td><td>401</td><td>403</td><td>201</td><td>401, then refresh and retry</td></tr>
+<tr><td>Upload image</td><td>401</td><td>403</td><td>201</td><td>Same</td></tr>
+</tbody>
+</table>
+
+<p>The distinction between 401 and 403 drives the interceptor: 401 means the server does not know who you are, which is worth a refresh; 403 means it knows and refuses, which a refresh cannot fix.</p>
+
+<h3>Five curl commands for the whole lifecycle</h3>
+
+<pre><code># log in and receive both tokens
+curl -s -X POST https://example.com/api/token/ \\
+  -H "Content-Type: application/json" \\
+  -d '{"username":"admin","password":"xxxx"}'
+
+# call an admin endpoint with the access token
+curl -s https://example.com/api/admin/stats/ \\
+  -H "Authorization: Bearer $A" -w "\\n%{http_code}\\n"
+
+# without one: 401
+curl -s -o /dev/null -w "%{http_code}\\n" https://example.com/api/admin/stats/
+
+# exchange the refresh for a new access
+curl -s -X POST https://example.com/api/token/refresh/ \\
+  -H "Content-Type: application/json" -d "{\\"refresh\\":\\"$R\\"}"
+
+# tamper with one character of the payload: 401, signature mismatch
+</code></pre>
+
+<h3>The gap nobody notices: the login endpoint has no rate limit</h3>
+
+<p>Auditing this blog turned up a real hole. Five throttle scopes were configured, and the two token endpoints used the default views with no throttle class at all, which means unlimited password attempts against a username that is easy to guess.</p>
+
+<pre><code>class LoginThrottle(AnonRateThrottle):
+    scope = "login"  # '5/minute'
+
+class RefreshThrottle(AnonRateThrottle):
+    scope = "refresh"  # '30/minute'
+
+urlpatterns = [
+    path("api/token/", TokenObtainPairView.as_view(throttle_classes=[LoginThrottle])),
+    path("api/token/refresh/", TokenRefreshView.as_view(throttle_classes=[RefreshThrottle])),
+]
+</code></pre>
+
+<p>Five a minute is generous for a person and useless for a dictionary attack, while thirty a minute on refresh tolerates several tabs renewing at once. Something stronger such as an account lockout library is available, but for a small blog the limiter is the right first step.</p>
+
+<p>On the client, answer both 401 and 429 with the same message, so a guesser learns nothing about which usernames exist, and disable the button for a few seconds after a failure.</p>
+
+<h2>Where to store the tokens</h2>
+
+<table>
+<thead><tr><th>Storage</th><th>XSS can read it</th><th>CSRF affects it</th><th>Survives reload</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>localStorage</td><td>Yes</td><td>No, the header is manual</td><td>Yes</td><td>A single-admin SPA</td></tr>
+<tr><td>HttpOnly cookie</td><td>No</td><td>Yes, needs SameSite and CSRF tokens</td><td>Yes</td><td>Higher-security products</td></tr>
+<tr><td>Memory only</td><td>Nothing to steal</td><td>No</td><td>No, a reload logs out</td><td>Maximum security, poor experience</td></tr>
+</tbody>
+</table>
+
+<p>This blog uses local storage with a local expiry check, on three mitigations. Article HTML is sanitised through a whitelist and a content policy, so injection is cut off first. The only privileged account is the author, with no bulk user data to exfiltrate. And an access token is useless after an hour.</p>
+
+<p>With real user data or payments, use HttpOnly cookies with a strict same-site policy and CSRF protection instead. Security is a trade, not a talisman.</p>
+
+<p>On naming: avoid generic keys that collide with other libraries, and store the expiry as a millisecond timestamp so it is visible in developer tools.</p>
+
+<h3>Migrating to cookies later</h3>
+
+<pre><code>CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = ["https://example.github.io"]  # exact origins, never a wildcard
+CSRF_COOKIE_SAMESITE = "None"
+SESSION_COOKIE_SAMESITE = "None"
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
+</code></pre>
+
+<pre><code>def cookie_login(request):
+    refresh = RefreshToken.for_user(user)
+    resp = JsonResponse({"detail": "ok"})
+    resp.set_cookie("access", str(refresh.access_token),
+                    httponly=True, secure=True, samesite="None", max_age=3600)
+    resp.set_cookie("refresh", str(refresh),
+                    httponly=True, secure=True, samesite="None", max_age=86400,
+                    path="/api/token/refresh/")
+    return resp
+</code></pre>
+
+<pre><code>const client = axios.create({ baseURL, withCredentials: true });
+</code></pre>
+
+<pre><code>class CookieJWTAuthentication(JWTAuthentication):
+    def authenticate(self, request):
+        token = request.COOKIES.get("access")
+        if not token:
+            return None
+        validated = self.get_validated_token(token)
+        return self.get_user(validated), validated
+</code></pre>
+
+<p>The price is that CSRF returns, because cookies travel automatically, so the same-site flags, the CSRF middleware and a header from the client all become mandatory. Choose by threat model rather than by fashion.</p>
+
+<h2>Login, and the local expiry guess</h2>
+
+<pre><code>function parseJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(base64))
+  } catch { return null }
+}
+
+function getStoredToken() {
+  const token = localStorage.getItem('token')
+  const expiry = localStorage.getItem('token_expiry')
+  if (token && expiry && Date.now() >= parseInt(expiry, 10)) {
+    localStorage.removeItem('token')
+    localStorage.removeItem('token_expiry')
+    localStorage.removeItem('user')
+    return null
+  }
+  return token || null
+}
+</code></pre>
+
+<p>Two details. Parsing the stored user is wrapped in a try, because a hand-edited or stale value once white-screened the whole app. And the local expiry check means an expired token is treated as no token, saving a round trip that would only return 401.</p>
+
+<h3>Remember me, custom claims, and revoking everything</h3>
+
+<p>Remember-me is a checkbox that requests a longer refresh lifetime from a second login endpoint, with the client passing the choice through. Sessions solved this with a cookie age; tokens solve it with a different lifetime at issue.</p>
+
+<pre><code>class MyTokenSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token["username"] = user.username
+        token["is_staff"] = user.is_staff
+        token["tv"] = getattr(user, "token_version", 0)
+        return token
+</code></pre>
+
+<p>Claims like these save a call to fetch the current user, but remember the payload is readable, so only non-sensitive display fields belong there.</p>
+
+<p>For revocation, add a version column to the user, put it in the token, and compare on every request: a mismatch returns 401. Bumping the version on a password change invalidates every access and refresh token at once, which is far cheaper than blocklisting them one by one. A blocklist revokes a single token, a version revokes all of them, and the two complement each other.</p>
+
+<h2>Automatic renewal: the sixty lines that matter</h2>
+
+<pre><code>client.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token')
+  if (token) config.headers.Authorization = \`Bearer \${token}\`
+  return config
+})
+</code></pre>
+
+<p>Without single-flight, saving a long article with five concurrent requests produces five 401s and five refresh calls, and the last four may fail once rotation is enabled because the refresh they hold has already been consumed. One shared promise fixes it.</p>
+
+<pre><code>let refreshInFlight = null
+
+async function refreshAccessToken() {
+  if (refreshInFlight) return refreshInFlight
+
+  const refresh = localStorage.getItem('refresh_token')
+  if (!refresh) throw new Error('No refresh token')
+
+  refreshInFlight = axios
+    .post(\`\${client.defaults.baseURL}token/refresh/\`,
+      { refresh },
+      { timeout: 15000, _skipRefresh: true })
+    .then((res) => {
+      const { access, refresh: newRefresh } = res.data || {}
+      if (!access) throw new Error('No access token in refresh response')
+      localStorage.setItem('token', access)
+      if (newRefresh) localStorage.setItem('refresh_token', newRefresh)
+      const payload = JSON.parse(atob(access.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+      if (payload?.exp) localStorage.setItem('token_expiry', String(payload.exp * 1000))
+      return access
+    })
+    .finally(() => {
+      setTimeout(() => { refreshInFlight = null }, 0)
+    })
+
+  return refreshInFlight
+}
+
+client.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const status = error.response?.status
+    const original = error.config || {}
+    if (status !== 401) return Promise.reject(error)
+
+    const url = original.url || ''
+    if (url.includes('/token/')) return Promise.reject(error)
+    if (original._skipRefresh) return Promise.reject(error)
+    if (original._retry) {
+      clearAuth()
+      if (window.location.pathname.startsWith('/admin')) window.location.href = '/admin'
+      return Promise.reject(error)
+    }
+
+    const wasAuthenticated = !!original.headers?.Authorization
+    if (wasAuthenticated && localStorage.getItem('refresh_token')) {
+      original._retry = true
+      try {
+        const newToken = await refreshAccessToken()
+        original.headers.Authorization = \`Bearer \${newToken}\`
+        return client(original)
+      } catch (refreshErr) {
+        clearAuth()
+        if ((original.url || '').includes('/admin/')) window.location.href = '/admin'
+        return Promise.reject(refreshErr)
+      }
+    }
+    return Promise.reject(error)
+  },
+)
+</code></pre>
+
+<p>Four guards, all of them necessary. The refresh call itself is never refreshed, or a failure recurses. A retried request is not retried again, or a dead refresh loops forever. An anonymous 401 leaves the session alone, because a public endpoint failing once must not log the admin out. And a 401 from the token endpoints is a wrong password, not an expired session.</p>
+
+<h3>The router guard</h3>
+
+<pre><code>router.beforeEach(async (to, from, next) => {
+  if (!to.meta.requiresAuth) return next()
+  const authStore = useAuthStore()
+  authStore.checkAuth()
+  if (authStore.isAuthenticated) return next()
+
+  try {
+    await refreshAccessToken()
+    authStore.checkAuth()
+    if (authStore.isAuthenticated) return next()
+  } catch { /* fall through */ }
+  next({ name: 'AdminLogin' })
+})
+</code></pre>
+
+<p>Without this, opening the dashboard directly after the access token expires bounces the user before any API call happens. The guard tries a refresh first. And it reuses the same function the client uses: two implementations once diverged and produced a bug.</p>
+
+<h3>Multiple tabs, drafts, and the login form</h3>
+
+<pre><code>window.addEventListener('storage', (e) => {
+  if (e.key === 'token' && !e.newValue) {
+    const auth = useAuthStore()
+    auth.checkAuth()
+    if (!auth.isAuthenticated && window.location.pathname.startsWith('/admin')) {
+      window.location.href = '/admin'
+    }
+  }
+})
+</code></pre>
+
+<p>Otherwise logging out in one tab leaves the others looking logged in until the next save fails.</p>
+
+<pre><code>watch(content, debounce((v) => {
+  localStorage.setItem(\`draft:\${route.params.id || 'new'}\`, v)
+}, 1000))
+</code></pre>
+
+<p>Renewal only saves the draft if the refresh token is still valid, so the editor keeps a local copy and offers to restore it.</p>
+
+<pre><code>const cooldown = ref(0)
+async function onLogin() {
+  if (cooldown.value &gt; 0) return
+  try {
+    await authStore.login(username.value, password.value)
+    router.push({ name: 'AdminDashboard' })
+  } catch (e) {
+    error.value = 'Username or password is incorrect, please try again'
+    cooldown.value = 3
+    const t = setInterval(() => { if (--cooldown.value &lt;= 0) clearInterval(t) }, 1000)
+  }
+}
+</code></pre>
+
+<h2>Logout, and the holes around it</h2>
+
+<p>Clearing local storage only clears this browser. The refresh token stays valid for its remaining lifetime, so anyone holding a copy can still mint access tokens, and the stateless server has no idea you logged out. Acceptable for a single-author blog, not for anything with users.</p>
+
+<p>Two things are possible without touching the backend: shorten the refresh lifetime, and be honest that logging out clears this device only. Claiming "signed out of all devices" without a blocklist is a lie.</p>
+
+<p>The real fix is rotation plus a blocklist.</p>
+
+<pre><code>SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+</code></pre>
+
+<p>With rotation, each refresh returns a new pair and the used one is blacklisted, so replaying it fails. The client was already written to store a new refresh when one arrives, so enabling this needs no front-end change.</p>
+
+<pre><code>@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def logout(request):
+    refresh = request.data.get("refresh")
+    if not refresh:
+        return Response({"detail": "refresh required"}, status=400)
+    try:
+        RefreshToken(refresh).blacklist()
+    except Exception:
+        pass
+    return Response({"detail": "logged out"})
+</code></pre>
+
+<p>The client calls that endpoint first and clears storage regardless of the result. Only after this is "log out" honest.</p>
+
+<h2>Debugging, and eight traps</h2>
+
+<p>Set the access lifetime to a minute locally and the chain becomes visible in the network tab: a 401, a refresh, and the retried request succeeding a few hundred milliseconds later, which is the whole evidence for single-flight plus retry.</p>
+
+<ol>
+<li><strong>The authorization header never arrives.</strong> Cross-origin configuration did not allow the header; check that the allowed headers include it.</li>
+<li><strong>The scheme is wrong.</strong> The client must send the exact scheme the backend expects.</li>
+<li><strong>An access token sent to the refresh endpoint.</strong> It wants a refresh; the keys differ.</li>
+<li><strong>Refresh reuse after rotation.</strong> The old token is dead, so concurrent refreshes without single-flight mostly fail.</li>
+<li><strong>Clock drift.</strong> The expiry is signed by the server and compared with the client's clock, so a few minutes of drift makes the two disagree. The local check is an optimisation; the 401 is the truth.</li>
+<li><strong>Secure cookies over local HTTP.</strong> Once cookies are in play, a secure flag breaks local development; expect it and configure around it.</li>
+<li><strong>Malformed JSON in storage.</strong> Parsing a corrupted value throws during store initialisation and white-screens the app.</li>
+<li><strong>An anonymous 401 treated as a session expiry.</strong> A transient failure on a public endpoint must not clear the session, which is why the interceptor checks both that the request was authenticated and that it targeted admin routes.</li>
+</ol>
+
+<h2>Checklist</h2>
+
+<p><strong>Backend.</strong></p>
+
+<ul>
+<li>Access of thirty to sixty minutes and refresh of one to seven days, with a non-default secret in production.</li>
+<li>Both token endpoints reachable and the header scheme identical on both sides.</li>
+<li>Login limited to a handful per minute and refresh to a looser but still bounded rate.</li>
+<li>Reads open, writes restricted, and the 401 versus 403 distinction preserved.</li>
+<li>Only the JSON renderer in production, to avoid leaking detail in error responses.</li>
+<li>HTTPS with HSTS, and exact allowed origins rather than a wildcard.</li>
+<li>Optionally rotation with a blocklist and a logout endpoint.</li>
+<li>Optionally a token version for revoking everything at once.</li>
+<li>Failed logins logged, with an alert on a burst of throttled attempts.</li>
+</ul>
+
+<p><strong>Frontend.</strong></p>
+
+<ul>
+<li>Store access, refresh and the expiry timestamp at login.</li>
+<li>Attach the bearer header, or enable credentials instead in cookie mode.</li>
+<li>Refresh on 401 with single-flight, a single retry, and the recursion guard.</li>
+<li>Never refresh a token endpoint failure, and never clear a session on an anonymous 401.</li>
+<li>Try a refresh in the route guard before redirecting.</li>
+<li>Clear all four keys on logout, after calling the logout endpoint when a blocklist exists.</li>
+<li>Survive malformed stored JSON without white-screening.</li>
+<li>Synchronise logout across tabs with a storage listener.</li>
+<li>Keep editor drafts locally with a restore prompt.</li>
+<li>Cool the login button down and use a neutral error message.</li>
+<li>Clear storage by hand after using a shared machine.</li>
+</ul>
+
+<h2>Questions that come up</h2>
+
+<p><strong>Does an expiring access token lose a long draft?</strong> No. The interceptor refreshes and replays the request, so the save succeeds a few hundred milliseconds later, and the local draft is a second safety net.</p>
+
+<p><strong>A week away with a one-day refresh?</strong> Log in again. Raise the lifetime, or offer a remember-me tier, if that is too often.</p>
+
+<p><strong>Is local storage really worse than a cookie?</strong> For anything with user data or payments, use cookies. For a single-author blog behind sanitisation with short tokens, local storage is an acceptable trade.</p>
+
+<p><strong>Why do tabs disagree?</strong> They do not, once a storage listener propagates logout.</p>
+
+<p><strong>Does changing a password invalidate old tokens?</strong> Not by default. Either blocklist them or bump a token version.</p>
+
+<p><strong>JWT or sessions?</strong> Separated origins and cross-domain calls favour tokens, a same-origin admin favours sessions for easy revocation, and third-party login adds OAuth on top.</p>
+
+<p><strong>Is putting a username in the token safe?</strong> The payload is readable, so only display fields belong there; anything sensitive is looked up server-side.</p>
+
+<p><strong>What if a refresh token is stolen?</strong> Rotation makes a used token dead, a short lifetime limits the window, and a version bump ends every session at once.</p>
+
+<p><strong>Does the login form need a captcha?</strong> A five-per-minute limit makes scripted guessing useless; add a challenge only if someone targets you.</p>
+
+<p><strong>What about clock drift?</strong> The local expiry check is only an optimisation; the server's 401 is authoritative.</p>
+
+<p><strong>Where do mobile apps store tokens?</strong> The platform keychain rather than plain application storage, with the same renewal logic.</p>
+
+<p><strong>Can a refresh still be used after logout?</strong> Without a blocklist, yes, for its remaining lifetime. That is what the logout endpoint is for.</p>
+
+<p><strong>How does the client tell 401 from 403?</strong> Refresh on the first, show a permission message on the second.</p>
+
+<p><strong>Why does it work in a REST client but fail in the browser?</strong> A REST client skips cross-origin checks; verify the allowed origins and that the authorization header is permitted.</p>
+
+<p><strong>How should the secret be managed?</strong> An environment variable, never committed, because losing it means every token must be reissued.</p>
+
+<h2>Defence in depth, and tests</h2>
+
+<pre><code>SECURE_SSL_REDIRECT = True
+SECURE_HSTS_SECONDS = 31536000
+CORS_ALLOWED_ORIGINS = ["https://example.github.io"]
+CORS_ALLOW_ALL_ORIGINS = False
+</code></pre>
+
+<p>Add content sanitisation and no SVG uploads, and the login limiter. An attacker now has to pass HTTPS, the limiter, the sanitiser, an hour-long token and the blocklist. One layer failing is not fatal, which is what depth means.</p>
+
+<pre><code>def test_login_ok(api_client, admin_user):
+    assert api_client.post("/api/token/", {"username": "a", "password": "p"}).status_code == 200
+
+def test_admin_api_no_token_401(api_client):
+    assert api_client.get("/api/admin/stats/").status_code == 401
+
+def test_normal_user_admin_api_403(api_client, normal_user):
+    assert api_client.get("/api/admin/stats/").status_code == 403
+
+def test_login_throttled_after_5_fails(api_client):
+    for _ in range(6):
+        api_client.post("/api/token/", {"username": "a", "password": "wrong"})
+    assert api_client.post("/api/token/", {"username": "a", "password": "wrong"}).status_code == 429
+</code></pre>
+
+<p>On the front end, three cases are worth pinning: five concurrent 401s produce one refresh, a 401 from the token endpoint does not trigger a refresh, and an anonymous 401 clears nothing.</p>
+
+<h2>Closing</h2>
+
+<p>Three sentences. The access token does the work and lives briefly; the refresh token waits and lives long; expiry renews itself. The hard parts are never the two lifetimes but the concurrency of renewal, the edge cases around anonymous failures, the honesty of logout, and the rate limit on the door.</p>
+
+<p>Get those four right and the session stops randomly dropping and starts lasting quietly.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/django-jwt-dual-token-auth/">登录态 1 小时就掉？Django + Vue 双 Token 认证实战</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
