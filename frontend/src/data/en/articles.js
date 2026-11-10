@@ -21743,6 +21743,487 @@ async_to_sync(channel_layer.group_send)(
 `,
   },
 
+  {
+    slug: 'distributed-transaction-outbox-saga-tcc',
+    zhSlug: 'distributed-transaction-outbox-saga-tcc',
+    topicSlug: 'backend',
+    title: 'Distributed transactions: outbox, Saga and TCC, and where each one stops',
+    excerpt:
+      'No scheme gets all four ACID properties. Outbox trades atomicity for a durable event, Saga trades isolation for availability, TCC trades business intrusion for reserved resources. Choose the intermediate state you can live with.',
+    date: '2026-11-04',
+    readingTime: 28,
+    html: `
+<blockquote>
+<p>Who this is for: engineers splitting a monolith into services and hitting the first "these two tables must change together", and anyone tangled in the vocabulary of two-phase commit, transactional messaging, Saga and TCC.</p>
+<p><strong>TL;DR:</strong> nothing gives you all of ACID across services. The outbox pattern buys eventual consistency with one local transaction plus at-least-once delivery plus an idempotent consumer. Saga buys availability for long workflows with compensations, and gives up isolation. TCC buys reservation-level isolation at the cost of three endpoints per participant. The choice is which intermediate state you can tolerate.</p>
+<p>Reading time around 28 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>The payment went through and the order did not exist</h2>
+
+<p>Reconciliation happens at the end of the month. Finance found a batch of payments marked successful with no corresponding order. Only a few dozen, but every one of them means the money left the customer's account and the fulfilment system has no idea the transaction exists.</p>
+
+<pre><code>def create_order(user_id, sku_id, amount):
+    order = Order.objects.create(
+        user_id=user_id, sku_id=sku_id, amount=amount, status="pending"
+    )
+    resp = requests.post(PAYMENT_URL, json={
+        "order_id": order.id, "amount": str(amount), "user_id": user_id,
+    }, timeout=3)
+    if resp.status_code == 200:
+        Order.objects.filter(id=order.id).update(status="paid")
+        publish_order_paid(order.id)
+    else:
+        order.delete()
+</code></pre>
+
+<p>That function contains three independent local transactions: write the order, take the payment, update the status. Each can succeed or fail on its own, and two network calls sit between them. In the incident, the payment service committed and returned 200, and the order service was killed by a deploy before it updated the status. After the restart, no compensation job knew whether a missing order should be created.</p>
+
+<p>The more common variant is the mirror image: the order is written, the payment call times out, the client retries, the second attempt succeeds, and now there are two orders or one order charged twice. A third variant is a message published inside the transaction that later rolls back, so downstream receives an event pointing at an order that never existed.</p>
+
+<p>Three directions, one cause: <strong>two local transactions have no atomicity between them, and the remote call in the middle cannot be undone.</strong> A 200 does not prove the other side committed, and a local commit does not prove the event was delivered. Any two-step operation with a network in the middle has a window.</p>
+
+<p>So the problem was never "how do two databases commit together". It is "in a system whose windows cannot be eliminated, how do you make the final outcome controllable". The four approaches below are four definitions of controllable.</p>
+
+<h2>Why two-phase commit and XA struggle in microservices</h2>
+
+<p>The obvious answer is a coordinator: ask every participant to prepare, and commit once all of them agree. The protocol is fine; the runtime it assumes is not.</p>
+
+<p>Two terms first. Two-phase commit is the protocol, prepare then commit. XA is a standard set of interfaces that lets databases and brokers expose prepare and commit to an external transaction manager, which is what the start, end, prepare, commit, rollback and recover calls are. The protocol can run without XA, and XA is one carrier for it.</p>
+
+<p>Between two or three resources that all support XA, in one application, in one data centre, it works. Moving into microservices hits four walls.</p>
+
+<p><strong>Synchronous blocking.</strong> After prepare succeeds a participant must hold the resource until commit: row locks held, connections not returned, undo not reclaimed. A cross-service transaction lasts as long as the network plus the downstream work plus any retry wait, and nobody guarantees milliseconds.</p>
+
+<p><strong>The coordinator is a single point.</strong> If it dies after prepare, participants sit in a prepared state, unable to commit or roll back on their own, waiting for a log replay. Host it separately and it becomes a highly available service you must run; host it inside a business service and every restart strands a batch of prepared transactions.</p>
+
+<p><strong>Participants hold locks for a long time.</strong> In microservices the participant is often an HTTP service, and it is hard to ask one to prepare and wait unless it implements a transaction manager, at which point it stops being autonomous, since its connections, locks and idempotency state now serve someone else's transaction.</p>
+
+<p><strong>Heterogeneous resources.</strong> Payment providers, SMS gateways, object storage and caches mostly do not speak XA. One participant that cannot prepare is enough to degrade the whole protocol into "most of it locks, one of it cannot", and you are back to compensation.</p>
+
+<p>One outcome gets forgotten: if some participants fail during commit, the system lands in a heuristic, mixed result that the coordinator can record but not repair. That is not an implementation flaw but a consequence of the protocol under partition. Faced with the trade-off, two-phase commit chooses consistency and pays in availability and recovery complexity.</p>
+
+<p>So its niche in microservices is narrow: few participants, short transactions, one data centre, all XA capable, and human intervention acceptable when the coordinator fails. Most long flows do not qualify.</p>
+
+<h2>The outbox table</h2>
+
+<p>Three names, one table: the local message table, the transactional outbox, and the outbox event router that change-data-capture tools provide to turn rows into events.</p>
+
+<p>The idea is one sentence: <strong>write the pending event and the business data in the same database, in the same transaction.</strong> If the business transaction commits the event is there; if it rolls back the event is not. When it actually gets published is a separate, retryable, failable action.</p>
+
+<p>The table belongs to the business service, not to the broker. It is not a message staging area but part of the business database, with the same backups, migrations, permissions and transaction semantics as the order table. The broker is only transport, and swapping it changes nothing about the outbox.</p>
+
+<p>This differs from broker-side transactional messaging, where the half message lives in the broker and the producer confirms commit or rollback after its local work. Both solve the same problem, atomicity between a local write and a publish, but they trust different storage: one trusts the broker, the other trusts your database. For a team that already operates a database well, the second has the more familiar failure domain.</p>
+
+<p>One boundary up front: <strong>the outbox guarantees the event is not lost, not that it is consumed once.</strong> The relay may send twice and the consumer may process twice. At-least-once is the design target, not a defect.</p>
+
+<pre><code>CREATE TABLE outbox_event (
+    id              BIGSERIAL PRIMARY KEY,
+    event_id        UUID NOT NULL UNIQUE,
+    aggregate_type  TEXT NOT NULL,
+    aggregate_id    TEXT NOT NULL,
+    event_type      TEXT NOT NULL,
+    schema_version  INT NOT NULL DEFAULT 1,
+    payload         JSONB NOT NULL,
+    occurred_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    available_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    status          TEXT NOT NULL DEFAULT 'pending',
+    attempts        INT NOT NULL DEFAULT 0,
+    last_error      TEXT NOT NULL DEFAULT '',
+    locked_at       TIMESTAMPTZ,
+    locked_by       TEXT
+);
+
+CREATE INDEX outbox_ready_idx
+    ON outbox_event (status, available_at, id);
+
+CREATE INDEX outbox_aggregate_idx
+    ON outbox_event (aggregate_type, aggregate_id, id);
+</code></pre>
+
+<p>The event id exists so consumers can deduplicate and must be generated by the producer, never invented by the consumer. The aggregate id decides the partition key and the ordering boundary. The availability timestamp lets retry backoff work without a separate schedule table. And the schema version is a hedge: formats will change, and consumers need to know which version they are reading.</p>
+
+<h2>Writing: one database, one transaction, no external IO</h2>
+
+<pre><code>class OutboxEvent(models.Model):
+    event_id = models.UUIDField(default=uuid.uuid4, unique=True)
+    aggregate_type = models.CharField(max_length=64)
+    aggregate_id = models.CharField(max_length=64)
+    event_type = models.CharField(max_length=64)
+    schema_version = models.PositiveIntegerField(default=1)
+    payload = models.JSONField()
+    occurred_at = models.DateTimeField(auto_now_add=True)
+    available_at = models.DateTimeField(default=timezone.now)
+    status = models.CharField(max_length=16, default="pending")
+    attempts = models.PositiveIntegerField(default=0)
+    last_error = models.TextField(blank=True)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    locked_by = models.CharField(max_length=64, blank=True)
+
+
+def create_order(user_id, sku_id, amount):
+    with transaction.atomic():
+        order = Order.objects.create(
+            user_id=user_id, sku_id=sku_id, amount=amount, status="pending"
+        )
+        OutboxEvent.objects.create(
+            aggregate_type="order",
+            aggregate_id=str(order.pk),
+            event_type="order.created",
+            payload={
+                "order_id": order.pk,
+                "user_id": user_id,
+                "sku_id": sku_id,
+                "amount": str(amount),
+                "currency": "CNY",
+            },
+        )
+    return order
+</code></pre>
+
+<p>The point is not writing two tables, it is writing them inside one transaction that performs no external IO. If an outer transaction or request-wide atomicity is already in place, the inner write joins it automatically. If you instead call a payment provider, send an SMS or write to a cache inside the transaction, those round trips stretch the transaction and hold row locks and connections with it. <strong>Keep the outbox write near the end and keep the transaction to database work only.</strong></p>
+
+<p>A trap worth naming: publishing from the post-commit hook. That hook solves "run after commit", so it does prevent a message for a rolled-back transaction, but it cannot prevent a crash between the commit and the callback. The callback lives in process memory, and when the process dies the message is gone. It is fine for emails and cache invalidation, where loss is acceptable, and wrong as the only channel for cross-service events.</p>
+
+<p>The payload has rules too. Do not put ORM objects, file handles or datetimes into it, since serialisation either fails or produces an unpredictable format. Amounts go as strings or integer minor units, never floats. And include only the fields the consumer actually needs: copying the whole row means the next column you add breaks downstream schemas. An event is a contract, not a snapshot.</p>
+
+<h2>Delivery: polling relay, skip locked, or change capture</h2>
+
+<p>A relay is a separate process that moves pending rows into the broker. It has to solve three things: several instances must not grab the same row, a failed send must be retryable, and a crash must be recoverable.</p>
+
+<pre><code>WITH picked AS (
+    SELECT id
+    FROM outbox_event
+    WHERE status = 'pending'
+      AND available_at &lt;= now()
+    ORDER BY id
+    FOR UPDATE SKIP LOCKED
+    LIMIT 100
+)
+UPDATE outbox_event o
+SET status = 'sending',
+    locked_at = now(),
+    locked_by = :worker_id
+FROM picked p
+WHERE o.id = p.id
+RETURNING o.id, o.event_id, o.event_type, o.payload;
+</code></pre>
+
+<p>Skip-locked lets each instance lock the rows it selected while others step over them without blocking, which is what makes horizontal relay instances possible.</p>
+
+<pre><code>def relay_once(worker_id, batch_size=100):
+    with transaction.atomic():
+        rows = list(
+            OutboxEvent.objects.select_for_update(skip_locked=True)
+            .filter(status="pending", available_at__lte=timezone.now())
+            .order_by("id")[:batch_size]
+        )
+        ids = [row.id for row in rows]
+        if not ids:
+            return 0
+        OutboxEvent.objects.filter(id__in=ids).update(
+            status="sending",
+            locked_at=timezone.now(),
+            locked_by=worker_id,
+        )
+
+    for row in rows:
+        try:
+            body = dict(row.payload)
+            body["event_id"] = str(row.event_id)
+            producer.send(
+                topic="order-events",
+                key=row.aggregate_id,
+                value=body,
+            )
+            OutboxEvent.objects.filter(id=row.id).update(status="sent")
+        except Exception as exc:
+            attempts = row.attempts + 1
+            delay = min(pow(2, attempts), 3600)
+            OutboxEvent.objects.filter(id=row.id).update(
+                status="pending",
+                attempts=attempts,
+                last_error=str(exc)[:500],
+                available_at=timezone.now() + timedelta(seconds=delay),
+            )
+    return len(rows)
+</code></pre>
+
+<p>Note the crash window: the transaction marked the row as sending, then the process died before the publish, and that row stays in sending forever. The fix is a lease: anything locked longer than a threshold, five minutes say, is considered expired and a sweeper returns it to pending. The cost is possible duplicate sends, which is precisely what at-least-once means. Publishing inside the transaction is the alternative, but then you hold a row lock across a network call, and a success followed by a rollback creates a phantom message. Duplicates are cheaper than losses.</p>
+
+<p>Polling latency follows the interval and throughput follows batch size over round duration. If events arrive at some rate per second and a round handles a batch in a known time, the service rate is the ratio, and it has to sit comfortably above the arrival rate with margin for downstream jitter. That estimate needs no load test, only division, and it tells you in advance that a batch of ten polled once a second will pile up at peak.</p>
+
+<p>Change capture is the other path. A connector reads the write-ahead log or the binary log and turns each row into an event, so there is no relay code, latency is close to realtime, and the database is not scanned repeatedly.</p>
+
+<pre><code>{
+  "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+  "database.hostname": "postgres",
+  "database.dbname": "shop",
+  "table.include.list": "public.outbox_event",
+  "transforms": "outbox",
+  "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+  "transforms.outbox.table.field.event.id": "event_id",
+  "transforms.outbox.table.field.event.key": "aggregate_id",
+  "transforms.outbox.table.field.event.type": "event_type",
+  "transforms.outbox.table.field.event.payload": "payload"
+}
+</code></pre>
+
+<p>The cost moves to operations. Replication slots retain the log, so the longer the connector is down the faster the disk fills. Schema changes have to reach the connector configuration. A restart may redeliver, so consumers still need idempotency. And you monitor connector lag rather than outbox backlog. It suits teams that already run the capture infrastructure and badly suits anyone hoping for a maintenance-free relay.</p>
+
+<p>Both paths share one property: <strong>ordering is per partition only.</strong> Several relays grabbing rows concurrently have no agreed send order, and even a table ordered by id does not produce ordered sends. Ordering for one order requires the aggregate id as the partition key, one consumer per partition, and no reliance on global ordering across aggregates, which was never a sound business dependency.</p>
+
+<h2>At least once means the consumer must be idempotent</h2>
+
+<p>The outbox made delivery part of the database transaction, but duplicates still happen: a relay crashes after sending and before marking, a connector restarts, a consumer crashes after doing the work and before committing its offset, a timeout makes the producer resend. Those are not exceptional paths; they are normal operation.</p>
+
+<p>So every consumer must answer one question: if this event arrives twice, is the business result the same as once?</p>
+
+<pre><code>class ProcessedEvent(models.Model):
+    event_id = models.UUIDField(unique=True)
+    consumer = models.CharField(max_length=64)
+    processed_at = models.DateTimeField(auto_now_add=True)
+
+
+def handle_order_created(event):
+    with transaction.atomic():
+        _, created = ProcessedEvent.objects.get_or_create(
+            event_id=event["event_id"],
+            defaults={"consumer": "inventory-service"},
+        )
+        if not created:
+            return
+        Inventory.objects.filter(sku_id=event["sku_id"]).update(
+            reserved=F("reserved") + 1
+        )
+</code></pre>
+
+<p>The get-or-create handles the unique violation internally: look, insert if absent, and if the insert collides, look again. It puts the check and the write in one transaction, and under concurrency one caller wins while the other re-reads and sees the existing row. That is more reliable than checking and then writing, which has a window between the two.</p>
+
+<p>When the business table already has a natural key, the deduplication table is unnecessary. A payment success that flips an order status is enough:</p>
+
+<pre><code>UPDATE "order"
+SET status = 'paid', paid_at = now()
+WHERE id = :order_id AND status = 'pending';
+</code></pre>
+
+<p>The affected row count is the idempotency signal: one the first time, zero afterwards. Making the state transition the key is less machinery than another table, but it requires every write to go through the conditional form, or someone will bypass it with a plain update.</p>
+
+<p>Deduplication tables grow. Retention follows the redelivery window, which is the broker's longest retry, the relay lease, and the replay range of the capture tool. Duplicates older than that essentially do not occur, so archive by timestamp. Do not keep everything forever: that table eventually outgrows the business data.</p>
+
+<p>One more rule: <strong>the consumer commits its offset after the business transaction.</strong> Committing first and then processing loses the message permanently on a crash. Processing and crashing before the commit redelivers, and idempotency absorbs it. Manual commits and manual acknowledgements both follow this order, and a stronger version writes the offset into the same transaction as the result, at the cost of coupling the consumer to the broker.</p>
+
+<h2>Saga: orchestration, choreography and compensation</h2>
+
+<p>Saga is not a synonym for a distributed transaction framework. It was described in 1987 as a long-lived transaction made of local transactions, each with a compensating action, executed in reverse when a step fails.</p>
+
+<pre><code>1. create the order (pending)     compensate: cancel the order
+2. reserve inventory              compensate: release the reservation
+3. reserve the coupon             compensate: unlock the coupon
+4. take the payment               compensate: refund
+5. send the shipment notice       compensate: nothing
+</code></pre>
+
+<p>The first four have a semantic inverse and the fifth does not, which is the entire reason it goes last and only after everything else succeeded. Not because it is unimportant, but because once it runs there is no automatic way back.</p>
+
+<p>Taking the payment looks compensable, and a refund is a second transaction that can fail, be delayed or cost a fee. The steadier design splits it into an authorisation that freezes funds and a capture at the end: the authorisation can be released and the capture sits at the terminus. That is already close to TCC.</p>
+
+<p>Two ways to organise it.</p>
+
+<p>Orchestration is a central state machine that knows the order, timeouts, retries and compensations, and that state must be persisted rather than held in memory.</p>
+
+<pre><code>CREATE TABLE saga_instance (
+    id           UUID PRIMARY KEY,
+    saga_type    TEXT NOT NULL,
+    business_key TEXT NOT NULL,
+    state        TEXT NOT NULL,
+    current_step TEXT,
+    payload      JSONB NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (saga_type, business_key)
+);
+
+CREATE TABLE saga_step (
+    saga_id    UUID REFERENCES saga_instance(id),
+    step_name  TEXT NOT NULL,
+    seq        INT NOT NULL,
+    state      TEXT NOT NULL,
+    attempts   INT NOT NULL DEFAULT 0,
+    last_error TEXT,
+    PRIMARY KEY (saga_id, step_name)
+);
+</code></pre>
+
+<p>Each step flips to executing before the call and records done or failed after it, and compensation works the same way. After a crash, a recovery sweep finds instances that are running and stale and continues from the current step. Every step endpoint needs the instance and step as its idempotency key, or recovery runs the same step twice.</p>
+
+<p>Choreography has no central machine: each service listens for an event, does its local work and emits the next one. Compensation travels the same way. It is loosely coupled with no single point, at the cost of invisible global state, so an investigation means reassembling the story from event logs. It suits few steps and clear team boundaries; orchestration is easier to maintain once steps and compensations multiply.</p>
+
+<p>Compensation has properties that belong in the design. It is semantic, not a rollback: cancelling sets a status, it does not delete the row. It must be idempotent, because compensation is retried like anything else. It can fail, so it needs retries and alerts rather than an assumption of success. And it can overwrite someone else's write, which the next section covers.</p>
+
+<h2>Without isolation, the intermediate states show</h2>
+
+<p>The original paper says a saga provides atomicity, consistency and durability and not isolation, because each step commits independently and other transactions can see the states between them.</p>
+
+<p>The plainest case: the order exists and inventory is not yet reserved, so the customer page says awaiting payment, support says awaiting fulfilment and the warehouse says awaiting pick. Three systems, three readings of one order. A warehouse filtering on pending status may start picking, and if the customer cancels at that moment, the goods are already gone.</p>
+
+<p>The subtler case is a dirty read that changes a decision. With one unit in stock:</p>
+
+<pre><code>Saga A: reserve the last unit  -> stock is 0 -> a later step fails -> preparing to compensate
+Saga B: reads 0, concludes sold out, rejects the customer
+Saga A: compensates, stock returns to 1
+</code></pre>
+
+<p>The final state is correct and A compensated properly, but B refused based on a state that was about to be undone. The customer is told there is nothing left while the shelf is full. That never appears in reconciliation, only in complaints.</p>
+
+<p>The third is compensation clobbering other writes. An absolute assignment:</p>
+
+<pre><code>UPDATE inventory SET available = 10 WHERE sku_id = 'SKU-1';
+</code></pre>
+
+<p>erases a deduction another saga made in between. The incremental form does not:</p>
+
+<pre><code>UPDATE inventory
+SET available = available + 1
+WHERE sku_id = 'SKU-1';
+</code></pre>
+
+<p>Increments commute and absolute values do not, a difference tests rarely catch because a test usually runs one saga at a time.</p>
+
+<p>Mitigations, cheapest first. Use semantic locks so intermediate states stay invisible, with fulfilment allowed only from a confirmed status. Constrain the state machine so only legal transitions exist, including compensations that move to cancelled rather than deleting. Serialise by aggregate so all sagas for one order or one stock item land in the same partition and run one at a time, trading throughput for removing most interleaving. Move critical resources to TCC or a short database transaction, since check-and-deduct was never a good fit for reserve-then-restore. And give sagas a timeout, because a stuck state is more dangerous than a wrong one, since nobody knows whether it will ever move.</p>
+
+<h2>TCC: try, confirm, cancel and three classic failures</h2>
+
+<p>TCC splits a resource operation into three phases. Try reserves and validates, confirm converts the reservation into a real deduction, cancel releases it. The difference from Saga is the shape of the intermediate state: a saga has already deducted and may add back, while TCC has frozen an allowance and not yet taken it, which other transactions can see and correctly refuse. That is where TCC gets isolation at the resource level.</p>
+
+<p>The price is intrusion: every participant implements three endpoints, and all three must handle out-of-order, repeated and never-arrived calls. That produces exactly three classic failures.</p>
+
+<p><strong>Empty rollback.</strong> The try never executed, because the request timed out or never arrived, and the coordinator decides failure and sends cancel. If cancel reports "no such record", the coordinator keeps retrying or marks the business failed. Cancel has to be able to create a tombstone saying cancelled and return success.</p>
+
+<p><strong>Idempotency.</strong> Confirm or cancel is retried after timeouts. If cancel adds the stock back every time, one reservation is released repeatedly and the count inflates until it oversells. A unique constraint on the business key makes exactly one cancel take effect.</p>
+
+<p><strong>Hanging.</strong> Cancel arrives before try, because of reordering or a coordinator retry. Cancel has marked the resource cancelled, and a late try that reserves anyway leaves an allowance that will never be confirmed or cancelled. Try must read the state first and refuse if cancellation already happened.</p>
+
+<pre><code>CREATE TABLE tcc_record (
+    business_id TEXT NOT NULL,
+    participant TEXT NOT NULL,
+    state       TEXT NOT NULL,
+    amount      NUMERIC(18, 2),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (business_id, participant)
+);
+</code></pre>
+
+<p>Try becomes an insert or read:</p>
+
+<pre><code>INSERT INTO tcc_record (business_id, participant, state, amount)
+VALUES (:business_id, :participant, 'TRIED', :amount)
+ON CONFLICT (business_id, participant) DO NOTHING;
+</code></pre>
+
+<p>If the insert succeeds this is the first try and the allowance is frozen. If it affects no rows a record exists, so read the state: cancelled means the cancel arrived first and this try is refused, which prevents hanging; tried or confirmed means return success idempotently.</p>
+
+<pre><code>INSERT INTO tcc_record (business_id, participant, state)
+VALUES (:business_id, :participant, 'CANCELLED')
+ON CONFLICT (business_id, participant)
+DO UPDATE SET state = 'CANCELLED'
+WHERE tcc_record.state = 'TRIED';
+</code></pre>
+
+<p>If that insert succeeds there was no try, so this is an empty rollback and the tombstone is enough. If it conflicts and the previous state was tried, release the allowance and move to cancelled. If it is already cancelled or confirmed, return success. The important part is that releasing the allowance and moving the state happen in one transaction, with a conditional update so exactly one caller can win.</p>
+
+<p>Confirm allows only tried to confirmed. A missing record means the try never succeeded and nothing may be confirmed out of thin air; an existing confirmed record returns success. A failed confirm must be retried rather than abandoned, because the resource is reserved and neither confirming nor cancelling freezes it indefinitely.</p>
+
+<p>That state machine is business fencing: database constraints and conditional updates turn "who arrived first" into "which transition is legal". It is more reliable than an application lock, because a lock dies with the process and a state row does not.</p>
+
+<h2>Choosing between them</h2>
+
+<table>
+<thead><tr><th>Approach</th><th>Consistency</th><th>Isolation</th><th>Intrusion</th><th>Failure handling</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>Two-phase commit / XA</td><td>Strong before commit, possibly mixed after</td><td>Yes, via locks</td><td>Low, middleware</td><td>Coordinator recovery, humans</td><td>One database, several resources, short transactions, all XA</td></tr>
+<tr><td>Outbox</td><td>Eventual</td><td>None</td><td>Medium, a table and a relay</td><td>Retries, backoff, dead letters, idempotent consumers</td><td>Async decoupling, event-driven, seconds to minutes acceptable</td></tr>
+<tr><td>Saga</td><td>Eventual</td><td>None, only semantic locks</td><td>Medium-high, compensations and a state machine</td><td>Compensation retries, human fallback</td><td>Long flows across many services where participants cannot reserve</td></tr>
+<tr><td>TCC</td><td>Eventual after confirm</td><td>Reservation level</td><td>High, three endpoints each</td><td>Empty rollback, idempotency, hanging</td><td>Money and stock, where overselling is unacceptable</td></tr>
+</tbody>
+</table>
+
+<p>Ask five questions before asking which is strongest.</p>
+
+<p>How long may the intermediate state last? If the customer must see paid immediately, the asynchronous delay of an outbox may be too long and the synchronous path needs a stronger constraint. If the downstream only awards points or sends a notification, seconds do not matter.</p>
+
+<p>Can you change every participant? TCC needs three endpoints from each, and third-party payment or an external ERP usually cannot provide them, which leaves Saga compensation or pushing the external call to the end.</p>
+
+<p>How long is the flow? Two steps fit an outbox; ten need a persisted state machine, or recovery logic scatters across services.</p>
+
+<p>Will another part of the business read an intermediate state and act on it? If so, semantic locks or TCC are mandatory. If every read model only reads final states, the isolation problem is hidden by the design.</p>
+
+<p>Who handles a failure at the end? Every approach needs a human queue for failed compensations. Without it, elegant automation stalls at three in the morning.</p>
+
+<p>Real systems mix them: a saga orchestrates the order, each step uses a local transaction plus an outbox event, stock and balance use TCC reservations, and external payment uses authorise-then-capture to push the irreversible step to the end. The schemes are not exclusive; the boundary is which segment needs isolation and which only needs eventual consistency.</p>
+
+<h2>Watching it</h2>
+
+<p>These failures rarely switch everything off at once. They pile up slowly until they cross a threshold, so watch age and rate, not only counts.</p>
+
+<pre><code>SELECT status, count(*) AS rows, min(occurred_at) AS oldest
+FROM outbox_event
+GROUP BY status;
+
+SELECT count(*) AS stuck
+FROM outbox_event
+WHERE status = 'pending'
+  AND available_at &lt; now() - interval '5 minutes';
+</code></pre>
+
+<p>A pending count alone misleads, because a thousand rows at ten thousand events a second is a tenth of a second and at ten a second is minutes. Alert on the age of the oldest row, which matches what users feel.</p>
+
+<p>Compare relay arrival rate against service rate, estimated as batch size over round duration including lock acquisition, sending and the status update. If they approach each other the backlog grows linearly. Look at the attempt distribution too: many rows above five attempts means a persistent downstream fault rather than a blip.</p>
+
+<p>Dead letters need their own count and age. Treating maximum retries as "handled" only moves the problem somewhere nobody looks, and a dead letter means a piece of business that will never complete, so it deserves alerting at the same level as a business failure.</p>
+
+<p>On the consumer side, watch lag, deduplication hits and business failures. A jump in deduplication hits usually means the producer is resending, and a jump in business failures usually means a schema change or a broken dependency.</p>
+
+<pre><code>SELECT state, count(*), min(updated_at) AS oldest
+FROM saga_instance
+GROUP BY state;
+
+SELECT id, saga_type, current_step, updated_at
+FROM saga_instance
+WHERE state = 'running'
+  AND updated_at &lt; now() - interval '10 minutes';
+</code></pre>
+
+<p>A saga running for more than ten minutes is either retrying one step forever or stuck in compensation. Count compensation failures separately, because a forward failure can be retried while a compensation failure usually needs a human to establish whether the resource was actually released.</p>
+
+<p>For TCC, watch empty rollbacks and hanging refusals. Occasional empty rollbacks are normal after a try timeout; a sustained rise points at try timeouts or the network. Any hanging refusal means a cancel overtook a try, which is a signal to inspect the coordinator's timeout and retry policy.</p>
+
+<h2>Common misconceptions</h2>
+
+<p><strong>Broker transactional messaging is not a universal answer.</strong> It solves atomicity between a local transaction and a publish, not consumer idempotency and not downstream compensation. A consumer that receives it twice still charges twice. It is an outbox living in the broker, with the same boundaries.</p>
+
+<p><strong>Saga is not ACID.</strong> Intermediate states are visible, compensation is not rollback and can fail with new side effects, and a completed compensation is not "nothing happened" since refund and cancellation records remain.</p>
+
+<p><strong>TCC cancel must be idempotent.</strong> Retries are normal, and a cancel that increments stock every time inflates it. The fix is not to stop the coordinator retrying but to make cancel idempotent through a unique key, a state machine or a conditional update, ideally all three.</p>
+
+<p><strong>Outbox order is not message order.</strong> Rows increase by id and sends do not, so several relays interleave. Ordering belongs to the aggregate partition key with one consumer per partition; global ordering across partitions fights physics.</p>
+
+<p><strong>The outbox table needs pruning.</strong> Sent rows keep occupying the index, widen the relay's scan and slow backups. Archive by time with a window that covers audit and replay, and make the cleanup job idempotent so it does not fight the relay for rows.</p>
+
+<p><strong>Retries need limits and backoff.</strong> Without them every relay retries at once and deepens the outage. Exponential backoff with jitter, a maximum attempt count and a dead letter queue are not optional; retrying is a recovery tool with a price.</p>
+
+<h2>Summary</h2>
+
+<p>Back to the payment without an order. Had the outbox been in place, the successful charge would have left a payment event in the payment database, and the order service would have consumed it using the payment id as an idempotency key. Even if the order service had crashed, the event would have waited and continued on restart. That does not make money and orders consistent at the same instant, but it does make the order eventually exist, without duplicates on redelivery.</p>
+
+<p>The four approaches compress into one sentence each. Two-phase commit trades locks for strong consistency, and those locks are expensive in microservices. Outbox trades one local table for "the event is not lost", then a consumer key for "duplicates are harmless". Saga trades compensation for availability in long flows, and exposes intermediate states to the world. TCC trades reservations for isolation, at the price of three endpoints and three failure modes.</p>
+
+<p>What you are designing is not a framework choice but a decision about which failure shapes the business can accept: delay means outbox, intermediate states mean Saga, no overselling means TCC, and only same-database short transactions justify two-phase commit. Having chosen, add idempotency, compensation, dead letters and observability, or the scheme is only a diagram.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
