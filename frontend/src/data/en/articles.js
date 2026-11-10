@@ -31769,6 +31769,419 @@ self.invertTree(root.right)
 `,
   },
 
+  {
+    slug: 'lc-236-lowest-common-ancestor-of-a-binary-tree',
+    zhSlug: 'lc-236-lowest-common-ancestor-of-a-binary-tree',
+    topicSlug: 'leetcode',
+    title: 'LC 236, lowest common ancestor: the return value is a messenger, not the answer',
+    excerpt:
+      'Eight lines of post-order, three meanings per return value, and one line that handles the ancestor-is-itself case for free. Also why there is no pruning here.',
+    date: '2026-10-13',
+    readingTime: 18,
+    html: `
+<h2>The problem</h2>
+
+<p>Given a binary tree and two of its nodes, return their lowest common ancestor: an ancestor of both whose depth is maximal. A node counts as its own ancestor.</p>
+
+<pre><code>tree: [3,5,1,6,2,0,8,null,null,7,4]
+p = 5, q = 1  -&gt;  3
+p = 5, q = 4  -&gt;  5
+</code></pre>
+
+<p>This is the graduation exam for tree recursion. It is short, and short in a dangerous way, because three things become visible at once: whether you write post-order, whether you understand that a return value can carry more than one meaning, and whether you can pass information upward without any global state.</p>
+
+<table>
+<thead><tr><th>Variant</th><th>Problem</th><th>Difference</th></tr></thead>
+<tbody>
+<tr><td>LCA in a BST</td><td>LC 235</td><td>Ordering allows a single top-down walk, no backtracking</td></tr>
+<tr><td>LCA with parent pointers</td><td>LC 1650</td><td>Becomes the intersection of two lists</td></tr>
+<tr><td>LCA of the deepest leaves</td><td>LC 1123</td><td>Only the deepest level counts</td></tr>
+<tr><td>LCA of many nodes</td><td>LC 1676</td><td>The pair becomes a list of targets</td></tr>
+</tbody>
+</table>
+
+<pre><code>class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+</code></pre>
+
+<h2>Where the difficulty is</h2>
+
+<p>The obvious approach is to find the path from the root to each node and compare the two paths from the front, returning the last common node.</p>
+
+<pre><code>def lowestCommonAncestor(self, root, p, q):
+    path_p, path_q = [], []
+
+    def dfs(node, target, path):
+        if not node:
+            return False
+        path.append(node)
+        if node is target:
+            return True
+        if dfs(node.left, target, path) or dfs(node.right, target, path):
+            return True
+        path.pop()
+        return False
+
+    dfs(root, p, path_p)
+    dfs(root, q, path_q)
+    i = 0
+    while i &lt; len(path_p) and i &lt; len(path_q) and path_p[i] is path_q[i]:
+        i += 1
+    return path_p[i - 1]
+</code></pre>
+
+<p>It is correct and linear, and it walks the tree twice and keeps two arrays. The obvious follow-up is whether both can be avoided, and the answer is eight lines.</p>
+
+<p>Instead of asking for paths, ask each node a simpler question: looking down from here, can you find p and q? There are only three possible answers.</p>
+
+<table>
+<thead><tr><th>Situation</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td>Neither is in this subtree</td><td>null</td></tr>
+<tr><td>Exactly one is in this subtree</td><td>Return the one found</td></tr>
+<tr><td>Both are in this subtree</td><td>This node is the answer</td></tr>
+</tbody>
+</table>
+
+<p>The third case has a precise test: a non-null result from each side means p and q lie on different sides of this node, making it the fork, hence the lowest common ancestor.</p>
+
+<p>The second case is the heart of it. When only one is found, the return value is not the answer, it is a marker that says "one is over here, whoever has the other should meet me". Confusing the marker with the answer is what makes this problem feel tangled.</p>
+
+<h3>Handling a node being its own ancestor</h3>
+
+<p>The definition explicitly allows it, and the temptation is to special-case it. No case is needed, because of one line:</p>
+
+<pre><code>if not root or root is p or root is q:
+    return root
+</code></pre>
+
+<p>Recursion stops the moment it reaches p or q, without descending into that node's subtrees. That single behaviour covers both situations. If q is inside p's subtree, the call at p returns p and it propagates upward, and no ancestor above it can ever see a non-null result from the other side, because q was cut off below. So p travels all the way up and becomes the answer. If q is not inside p's subtree, then p is merely a marker that keeps rising until some node sees two non-null children.</p>
+
+<p>So there is no branch for "p is an ancestor of q". The single return handles it, which is the most elegant part of the design.</p>
+
+<h2>The animation</h2>
+
+<p>The original post has twenty-three frames for p of six and q of four, whose answer is five. The official first example would show nothing, since its two nodes are the root's children and the recursion hits both on the second frame, so the example here is chosen to bury both targets deep in one subtree and show the full descent and report.</p>
+
+<p>The tree panel marks nodes that found something with solid green edges and nodes that searched and found nothing with grey dashed ones, each carrying a small label of the value it reports upward. The call stack panel grows and shrinks, annotating which stage each frame is in. And a conveyor at the bottom shows the value currently travelling up and its identity: a marker for p, a marker for q, or the answer itself.</p>
+
+<p>Three frames matter. The hit frame enters six and returns immediately without descending. The deciding frame at five sees six from the left and four from the right, the only place in the whole run where both sides are non-null, and returns itself. And the deciding frame at the root sees only five on the left with nothing on the right, so it is not the fork, merely an ancestor passing the answer upward. That is what "lowest" means here: not containing both, but separating them.</p>
+
+<h2>Full trace</h2>
+
+<pre><code>index: 0=3  1=5  2=1  3=6  4=2  5=0  6=8  7=null  8=null  9=7  10=4
+
+            3
+         /     \\
+        5       1
+       / \\     / \\
+      6   2   0   8
+         / \\
+        7   4
+
+p = 6, q = 4, answer = 5
+</code></pre>
+
+<table>
+<thead><tr><th>Frame</th><th>Phase</th><th>Node</th><th>Returns</th><th>Identity</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>3</td><td>-</td><td>-</td><td>Stack empty</td></tr>
+<tr><td>1</td><td>recurse</td><td>3</td><td>-</td><td>-</td><td>Not a target, ask left</td></tr>
+<tr><td>2</td><td>recurse</td><td>5</td><td>-</td><td>-</td><td>Not a target, ask left</td></tr>
+<tr><td>3</td><td><strong>hit</strong></td><td>6</td><td>6</td><td><strong>p</strong></td><td>Hit, return immediately</td></tr>
+<tr><td>4</td><td>recurse</td><td>5</td><td>6</td><td>-</td><td>Left answered, ask right</td></tr>
+<tr><td>5</td><td>recurse</td><td>2</td><td>-</td><td>-</td><td>Not a target, ask left</td></tr>
+<tr><td>6</td><td>return</td><td>7</td><td>null</td><td>null</td><td>Leaf, not a target</td></tr>
+<tr><td>7</td><td>recurse</td><td>2</td><td>-</td><td>-</td><td>Ask right</td></tr>
+<tr><td>8</td><td><strong>hit</strong></td><td>4</td><td>4</td><td><strong>q</strong></td><td>Hit, return</td></tr>
+<tr><td>9</td><td>collect</td><td>2</td><td>-</td><td>-</td><td>Both sides answered</td></tr>
+<tr><td>10</td><td>decide</td><td>2</td><td>4</td><td><strong>q</strong></td><td>One side non-null, report it</td></tr>
+<tr><td>11</td><td>collect</td><td>5</td><td>-</td><td>-</td><td>Both sides answered</td></tr>
+<tr><td>12</td><td><strong>decide</strong></td><td>5</td><td><strong>5</strong></td><td><strong>answer</strong></td><td>Both non-null, fork, return itself</td></tr>
+<tr><td>13</td><td>recurse</td><td>3</td><td>5</td><td>-</td><td>Left answered, ask right</td></tr>
+<tr><td>14</td><td>recurse</td><td>1</td><td>-</td><td>-</td><td>Not a target</td></tr>
+<tr><td>15</td><td>return</td><td>0</td><td>null</td><td>null</td><td>Leaf</td></tr>
+<tr><td>16</td><td>recurse</td><td>1</td><td>-</td><td>-</td><td>Ask right</td></tr>
+<tr><td>17</td><td>return</td><td>8</td><td>null</td><td>null</td><td>Leaf</td></tr>
+<tr><td>18</td><td>collect</td><td>1</td><td>-</td><td>-</td><td>Both null</td></tr>
+<tr><td>19</td><td>decide</td><td>1</td><td>null</td><td>null</td><td>Whole subtree useless</td></tr>
+<tr><td>20</td><td>collect</td><td>3</td><td>-</td><td>-</td><td>Left five, right null</td></tr>
+<tr><td>21</td><td>decide</td><td>3</td><td>5</td><td><strong>answer</strong></td><td>Not a fork, pass it up</td></tr>
+<tr><td>22</td><td><strong>done</strong></td><td>5</td><td>5</td><td><strong>answer</strong></td><td>Return the answer</td></tr>
+</tbody>
+</table>
+
+<p>Worth pausing on three things. The hit frame does not descend, which matters as soon as p has a subtree of its own. The deciding frame at five is the only fork in the whole tree. And the root, though it is also an ancestor of both, sees only one non-null side and therefore passes the answer along untouched.</p>
+
+<p>Also note the frame where the entire right subtree finishes having found nothing. The recursion does not exit early; it walks the whole tree, which is where the linear bound comes from. There is no pruning, because until you finish a side you cannot know whether a target is hiding there.</p>
+
+<h2>The code</h2>
+
+<pre><code>class Solution:
+    def lowestCommonAncestor(self, root: TreeNode, p: TreeNode, q: TreeNode) -&gt; TreeNode:
+        if not root or root is p or root is q:
+            return root
+
+        left = self.lowestCommonAncestor(root.left, p, q)
+        right = self.lowestCommonAncestor(root.right, p, q)
+
+        if left and right:
+            return root
+        return left or right
+</code></pre>
+
+<p>The first line merges three conditions, each returning the node itself: null means nothing found here, and identity with either target means a hit, return immediately without descending.</p>
+
+<p>Identity comparison is essential. Values are not unique in a tree, so comparing values would mistake a different node with the same value for a target.</p>
+
+<p>The two recursive calls happen before any decision, which is what makes this post-order: the node must wait for information from below before it can act.</p>
+
+<p>The fork branch is the only place that produces an answer. Both sides non-null means one target on each side, so this node is the lowest common ancestor, and because the recursion is bottom-up the first such node to see that condition is the deepest one. Ancestors above it will only ever see a single non-null side, so they cannot overwrite the answer.</p>
+
+<p>The final line covers both remaining cases through short-circuiting: exactly one non-null returns it, reporting honestly that both targets are on that side, and both null returns null.</p>
+
+<pre><code>if left and right:
+    return root
+elif left:
+    return left
+else:
+    return right
+</code></pre>
+
+<p>This expansion is equivalent. The short form is idiomatic but relies on the assumption that the only values are nodes and null, which holds because tree nodes are always truthy in Python. Say the assumption out loud if you use the short form.</p>
+
+<p>Time is linear, with each node visited once, and note the absence of pruning: even if the fork is found on the left, the right must still be walked. Space is the recursion depth, logarithmic for a balanced tree and linear in the degenerate case.</p>
+
+<p>Compared with the path approach, both are linear, but this one walks once and allocates nothing beyond the stack.</p>
+
+<h2>Variant one: LCA in a binary search tree</h2>
+
+<p>Ordering changes everything. Compare the two target values against the current node and there are three cases: both smaller, so both live left; both larger, so both live right; or they straddle, in which case this node is the fork.</p>
+
+<p>The criterion is the same as above, but the implementation is completely different. The general tree provides no information, so you must search everything and let results bubble up. The BST lets you decide at the current node, so a single top-down walk suffices.</p>
+
+<pre><code>class Solution:
+    def lowestCommonAncestor(self, root: TreeNode, p: TreeNode, q: TreeNode) -&gt; TreeNode:
+        while root:
+            if p.val &lt; root.val and q.val &lt; root.val:
+                root = root.left
+            elif p.val &gt; root.val and q.val &gt; root.val:
+                root = root.right
+            else:
+                return root
+        return None
+</code></pre>
+
+<p>No recursion, no stack, no backtracking: constant space iteratively, logarithmic time.</p>
+
+<p>Note that the else branch also covers the case where one target equals the current node, which is the BST reflection of "a node is its own ancestor", handled without a special case.</p>
+
+<pre><code>def lowestCommonAncestor(self, root, p, q):
+    if p.val &lt; root.val and q.val &lt; root.val:
+        return self.lowestCommonAncestor(root.left, p, q)
+    if p.val &gt; root.val and q.val &gt; root.val:
+        return self.lowestCommonAncestor(root.right, p, q)
+    return root
+</code></pre>
+
+<p>The recursive form is closer to the general solution, and note it still recurses only once per level.</p>
+
+<p>Reusing the general code on a BST produces correct answers and wastes the ordering, turning logarithmic into linear. That is exactly what the interviewer is checking for.</p>
+
+<table>
+<thead><tr><th></th><th>General tree</th><th>BST</th></tr></thead>
+<tbody>
+<tr><td>Direction</td><td>Post-order, bottom-up</td><td>Pre-order, top-down</td></tr>
+<tr><td>Test</td><td>Both subtree results non-null</td><td>Values straddle the current node</td></tr>
+<tr><td>Paths walked</td><td>The whole tree</td><td>A single path</td></tr>
+<tr><td>Space</td><td>Stack depth</td><td>Constant iteratively</td></tr>
+<tr><td>Self-ancestor case</td><td>Handled by the hit return</td><td>Handled by the else branch</td></tr>
+</tbody>
+</table>
+
+<p>One sentence: on a general tree you can only search, on a BST you can decide.</p>
+
+<h2>Variant two: LCA with parent pointers</h2>
+
+<p>Add a parent reference to each node and the problem becomes the intersection of two lists: the chain from p to the root and the chain from q to the root, whose first shared node is the answer. That is exactly the intersection problem from earlier in this series, including its cursor-swapping trick.</p>
+
+<pre><code>class Solution:
+    def lowestCommonAncestor(self, p: 'Node', q: 'Node') -&gt; 'Node':
+        a, b = p, q
+        while a is not b:
+            a = a.parent if a.parent else q
+            b = b.parent if b.parent else p
+        return a
+</code></pre>
+
+<pre><code>def lowestCommonAncestor(self, p, q):
+    seen = set()
+    while p:
+        seen.add(p)
+        p = p.parent
+    while q not in seen:
+        q = q.parent
+    return q
+</code></pre>
+
+<p>The set version is more direct, the pointer version uses no extra memory.</p>
+
+<p>The key comparison is why the parent version reaches constant space at all: the pointer makes going upward an explicit operation. Without it, going upward can only happen through return values, which is precisely why the general solution needs the bubbling mechanism.</p>
+
+<h2>Two more variants</h2>
+
+<p>With many targets, replace the identity check with set membership and keep everything else:</p>
+
+<pre><code>class Solution:
+    def lowestCommonAncestor(self, root, nodes):
+        target = set(nodes)
+
+        def dfs(node):
+            if not node:
+                return None
+            if node in target:
+                return node
+            left = dfs(node.left)
+            right = dfs(node.right)
+            if left and right:
+                return node
+            return left or right
+
+        return dfs(root)
+</code></pre>
+
+<p>One line changed, which shows the mechanism was never about there being two targets.</p>
+
+<p>For the deepest leaves, the return value becomes a pair of depth and answer:</p>
+
+<pre><code>class Solution:
+    def lcaDeepestLeaves(self, root):
+        def dfs(node):
+            if not node:
+                return (0, None)
+            dl, nl = dfs(node.left)
+            dr, nr = dfs(node.right)
+            if dl &gt; dr:
+                return (dl + 1, nl)
+            if dr &gt; dl:
+                return (dr + 1, nr)
+            return (dl + 1, node)
+
+        return dfs(root)[1]
+</code></pre>
+
+<p>Same fork test, with equal depths instead of non-null results.</p>
+
+<table>
+<thead><tr><th>Problem</th><th>The fork test</th></tr></thead>
+<tbody>
+<tr><td>LC 236</td><td>Both subtree results non-null</td></tr>
+<tr><td>LC 1123</td><td>Both subtree depths equal</td></tr>
+<tr><td>LC 1676</td><td>Both subtrees contain targets</td></tr>
+</tbody>
+</table>
+
+<p>One skeleton, three tests: post-order, report subtree conclusions upward, and declare yourself the answer under some condition.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public TreeNode lowestCommonAncestor(TreeNode root, TreeNode p, TreeNode q) {
+        if (root == null || root == p || root == q) return root;
+
+        TreeNode left  = lowestCommonAncestor(root.left,  p, q);
+        TreeNode right = lowestCommonAncestor(root.right, p, q);
+
+        if (left != null &amp;&amp; right != null) return root;
+        return left != null ? left : right;
+    }
+}
+</code></pre>
+
+<pre><code>class Solution {
+    public TreeNode lowestCommonAncestor(TreeNode root, TreeNode p, TreeNode q) {
+        while (root != null) {
+            if (p.val &lt; root.val &amp;&amp; q.val &lt; root.val) {
+                root = root.left;
+            } else if (p.val &gt; root.val &amp;&amp; q.val &gt; root.val) {
+                root = root.right;
+            } else {
+                return root;
+            }
+        }
+        return null;
+    }
+}
+</code></pre>
+
+<p>In Java the identity comparison is the default for references, and it must be used rather than a value comparison. The null return carries a single meaning here because the inputs are guaranteed non-null, which is worth keeping in mind if the guarantee is lifted.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Result</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>empty tree</td><td>null</td><td>The first condition returns</td></tr>
+<tr><td>one node, both targets</td><td>that node</td><td>Trivially the answer</td></tr>
+<tr><td>p is the parent of q</td><td>p</td><td>The ancestor case, no special handling</td></tr>
+<tr><td>the same, arguments swapped</td><td>p</td><td>Order of arguments is irrelevant</td></tr>
+<tr><td>root with two children as targets</td><td>root</td><td>The standard fork</td></tr>
+<tr><td>skewed chain</td><td>the higher one</td><td>One is an ancestor of the other</td></tr>
+<tr><td>both targets identical</td><td>that node</td><td>Returns itself</td></tr>
+</tbody>
+</table>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Treating the marker as the answer. A returned p only says "p is here"; the answer is only produced by the fork branch.</li>
+<li>Comparing values instead of identity, which fails on trees with duplicates.</li>
+<li>Returning the right subtree as soon as the left is empty, which skips the fork test that needs both results.</li>
+<li>Using the general solution on a BST, which is correct and abandons the ordering.</li>
+<li>Tracking the first found target in a global variable, which then requires extra work to track that target's ancestry.</li>
+<li>Forgetting that a null return in Java means both "nothing found" and "empty node", which is safe only while the inputs are guaranteed non-null.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Thirty seconds: post-order DFS where each node reports what it found, with three meanings. Null means nothing, returning p or q means a marker, returning itself means a fork. If both sides are non-null, the targets straddle this node and it is the answer. Two base cases, empty and hit, and the hit return covers the self-ancestor definition for free. Linear time, stack-depth space.</p>
+
+<p>Then volunteer the variants: the BST version decides instead of searching, in a single top-down walk with constant space iteratively, and the parent-pointer version is the intersection of two lists with the cursor-swapping trick.</p>
+
+<p>For follow-ups: the self-ancestor case is automatically handled because the hit return prevents descending; identity comparison is necessary because values repeat; there is no useful pruning because the other side must be finished before the fork test can run; post-order is required because the decision depends on subtree results; and space is the tree height, logarithmic for balanced trees.</p>
+
+<h2>Closing</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>Core action</th><th>Relation</th></tr></thead>
+<tbody>
+<tr><td>LC 144, 94, 145</td><td>Recursion or explicit stack</td><td>Where the skeleton starts</td></tr>
+<tr><td>LC 102, 103, 199</td><td>Queue snapshot</td><td>The breadth-first half</td></tr>
+<tr><td>LC 236</td><td>Post-order with bubbling return values</td><td>This one, the graduation exam</td></tr>
+<tr><td>LC 235</td><td>Top-down using ordering</td><td>Same test, different implementation</td></tr>
+<tr><td>LC 1650</td><td>Two lists intersecting</td><td>The degenerate form with parent pointers</td></tr>
+<tr><td>LC 1676, 1123</td><td>Different tests on the same skeleton</td><td>Targets as a list, or as depth</td></tr>
+</tbody>
+</table>
+
+<p>What to keep is not the eight lines but two reflexes: when a question about the relationship between nodes must be decided bottom-up, reach for post-order; and when information from a subtree must reach its parent, treat the return value as a carrier that can mean more than its literal type.</p>
+
+<pre><code>dfs(node)
+  empty or hit -&gt; return immediately
+  left  = dfs(node.left)
+  right = dfs(node.right)
+  both non-null ? return self : report honestly
+</code></pre>
+
+<p>The return value is a messenger, not the answer. Only when both messengers come back does the node receiving them become the answer.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-236-lowest-common-ancestor-of-a-binary-tree/">【LC 236】二叉树的最近公共祖先：命中即返回</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
