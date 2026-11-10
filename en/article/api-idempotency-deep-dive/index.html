@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Check-then-insert always has a window, and repeated requests cannot be prevented. Four lines of defence, measured: uniqueness, an idempotency table, a state machine and a one-shot token." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/api-idempotency-deep-dive/" />
+    <meta property="og:title" content="The user double-clicked and seven extra orders appeared | Stack Frame" />
+    <meta property="og:description" content="Check-then-insert always has a window, and repeated requests cannot be prevented. Four lines of defence, measured: uniqueness, an idempotency table, a state machine and a one-shot token." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/api-idempotency-deep-dive/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="The user double-clicked and seven extra orders appeared | Stack Frame" />
+    <meta name="twitter:description" content="Check-then-insert always has a window, and repeated requests cannot be prevented. Four lines of defence, measured: uniqueness, an idempotency table, a state machine and a one-shot token." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>The user double-clicked and seven extra orders appeared | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/api-idempotency-deep-dive/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/api-idempotency-deep-dive/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/api-idempotency-deep-dive/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>The user double-clicked and seven extra orders appeared</h1><div class="ns-meta">2026-11-01 · 20 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: anyone who has written an order, payment or form endpoint and met a double click, a redelivered callback or a duplicated queue message.</p>
+<p>Tested with Python and SQL, but no framework is assumed.</p>
+<p>Reading time around 20 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>A duplicate shipment</h2>
+
+<p>The user pressed submit, the network stalled for a second, and they pressed again. The next day the warehouse shipped two parcels.</p>
+
+<pre><code>SELECT * FROM orders WHERE user_id = 1001;
+id=4242  user=1001  product=88  created_at=10:23:01.204
+id=4243  user=1001  product=88  created_at=10:23:01.219   -- fifteen milliseconds later
+</code></pre>
+
+<p>The code had a duplicate check:</p>
+
+<pre><code>def create_order(request):
+    if not Order.objects.filter(user=request.user, product_id=pid).exists():
+        Order.objects.create(user=request.user, product_id=pid)
+</code></pre>
+
+<p>It still duplicated, because <strong>check then insert always has a window</strong>: both requests pass the check and both insert. Measured locally with eight concurrent submissions of the same order, that shape produced eight rows.</p>
+
+<p>This is idempotency, the property that running an operation once and running it many times leaves the same result. It matters because <strong>duplicate requests cannot be prevented</strong>, and there are at least four sources.</p>
+
+<table>
+<thead><tr><th>Source</th><th>How</th><th>How often</th></tr></thead>
+<tbody>
+<tr><td>The user</td><td>Double clicks, or refreshes and resubmits</td><td>Daily</td></tr>
+<tr><td>The client</td><td>Automatic retry on timeout</td><td>Common</td></tr>
+<tr><td>Gateway or load balancer</td><td>Upstream retry policies</td><td>Hidden and lethal</td></tr>
+<tr><td>Queues and callbacks</td><td>At-least-once delivery, which is the default everywhere</td><td>Guaranteed</td></tr>
+</tbody>
+</table>
+
+<p>So the only option is to make repetition harmless.</p>
+
+<h2>What is naturally idempotent</h2>
+
+<table>
+<thead><tr><th>Operation</th><th>Idempotent</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Reading a resource</td><td>Yes</td><td>Nothing changes</td></tr>
+<tr><td>Full replacement of a resource</td><td>Yes</td><td>The end state is the same</td></tr>
+<tr><td>Deleting a resource</td><td>Yes</td><td>The second attempt finds nothing, and nothing is the state</td></tr>
+<tr><td>Creating an order</td><td>No</td><td>Every call adds a row</td></tr>
+<tr><td>Deducting a balance</td><td>No</td><td>Every call removes money, the most dangerous case</td></tr>
+<tr><td>Incrementing a counter</td><td>No</td><td>Two calls double the increment</td></tr>
+</tbody>
+</table>
+
+<p>Two misconceptions. A method being semantically idempotent says nothing about your handler: a replacement endpoint that increments a counter inside is still not idempotent, because <strong>idempotency is a property of the resulting state, not of the verb</strong>. And a disabled button on the front end improves the experience while doing nothing about retries, replays or scripts calling the API directly, so the boundary has to be server-side.</p>
+
+<p>One more fact worth internalising: queues and payment callbacks are almost always at-least-once, whether because of rebalancing or because a gateway resends when no acknowledgement arrives. <strong>Your endpoint will be called twice.</strong> The only question is whether that is today or on the busiest day of the year.</p>
+
+<h2>Reproducing the failure</h2>
+
+<pre><code>E1 double-click race: 8 threads submit the same order for user 1
+  A no protection (check then insert)   orders   8   expected 1, seven duplicates
+</code></pre>
+
+<pre><code>time   thread 1                    thread 2                   ... thread 8
+-----------------------------------------------------------------------
+t1     SELECT exists -> False
+t2                                 SELECT exists -> False
+t3     ... all threads pass the check inside the ten millisecond window
+t4     INSERT order
+t5                                 INSERT order
+t6     ... eight rows
+</code></pre>
+
+<p>This is the textbook check-to-use race: the window is as wide as the work between the check and the write, and any validation, pricing or stock lookup in between guarantees a window.</p>
+
+<p><strong>A check in application code is information, not a constraint</strong>: it can tell you nothing existed a moment ago, and it cannot stop someone else inserting now. Mutual exclusion belongs to the database, the only thing that can see this instant.</p>
+
+<p>Does a transaction fix it? On the default isolation level the same race survives, and a locking read on the row is not available everywhere; resting the design on isolation levels is the most common trap here.</p>
+
+<h2>First line: a uniqueness constraint</h2>
+
+<pre><code>class Order(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "product"], name="uniq_user_product"
+            ),
+        ]
+</code></pre>
+
+<pre><code>CREATE TABLE orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    amount TEXT NOT NULL,
+    UNIQUE (user_id, product_id)
+);
+</code></pre>
+
+<p>Then catch the conflict rather than checking first.</p>
+
+<pre><code>def create_order(request):
+    try:
+        order = Order.objects.create(user=request.user, product_id=pid, amount=amt)
+        return JsonResponse({"order_id": order.id})
+    except IntegrityError:
+        order = Order.objects.get(user=request.user, product_id=pid)
+        return JsonResponse({"order_id": order.id})
+</code></pre>
+
+<pre><code>  B uniqueness constraint          orders   1   seven requests rejected by the database
+</code></pre>
+
+<p>That is the only defence where duplication is physically impossible regardless of how the code is written or how high concurrency goes.</p>
+
+<p>Its success depends entirely on the business key: one entry per user per campaign for a flash sale, an outbound trade number for a payment record, a user and article pair for a like, a phone, code and scene for a verification message. An ordinary shop where a user may legitimately buy twice has no such key, which is exactly why the next line exists.</p>
+
+<p>Its limits are honest. It only stops identical keys, so a user who edits the shipping address and resubmits creates a different key. It requires the business to be genuinely unique. And the conflict path has to return the existing record, or the user sees an error instead of their order.</p>
+
+<h2>Second line: an idempotency table</h2>
+
+<p>When no natural business key exists, invent one: the client sends a unique id for each intent, and the server executes a key it has never seen and replays the stored result for one it has. This is the pattern behind the idempotency header every payment API exposes, and the promise is that retrying the same key returns the same result rather than charging twice.</p>
+
+<pre><code>CREATE TABLE idempotency (
+    idem_key      TEXT PRIMARY KEY,   -- client generated, a UUID
+    request_hash  TEXT NOT NULL,      -- body fingerprint, stops key reuse with new content
+    status        TEXT NOT NULL,      -- PROCESSING / SUCCESS / FAILED
+    response      TEXT,               -- cached response body
+    created_at    TIMESTAMP
+);
+</code></pre>
+
+<pre><code>def create_order(request):
+    key = request.headers.get("Idempotency-Key")
+    body_hash = sha256(request.body).hexdigest()[:16]
+
+    with transaction.atomic():
+        try:
+            Idempotency.objects.create(
+                idem_key=key, request_hash=body_hash, status="PROCESSING"
+            )
+        except IntegrityError:
+            rec = Idempotency.objects.get(idem_key=key)
+            if rec.request_hash != body_hash:
+                return err(422, "this key is bound to a different body")
+            if rec.status == "SUCCESS":
+                return JsonResponse(json.loads(rec.response))
+            return err(409, "the previous request is still processing")
+
+    order = do_create_order(request)
+
+    Idempotency.objects.filter(idem_key=key).update(
+        status="SUCCESS", response=json.dumps({"order_id": order.id})
+    )
+    return JsonResponse({"order_id": order.id})
+</code></pre>
+
+<p>Three details, each of them a trap.</p>
+
+<p><strong>Claim by insert, never by select.</strong> Checking for the key first is the same race again; an insert colliding on the primary key is atomic in the database, so exactly one of eight concurrent requests wins.</p>
+
+<p><strong>The request fingerprint stops key reuse.</strong> The same key with a different body, which is what happens when a user edits a field and retries with the old key, must be rejected, or they receive the cached result of the previous attempt with the previous address. The measurement appears below.</p>
+
+<p><strong>What a late arrival does while the claim is processing.</strong> There are three options: wait and poll, return a conflict immediately, or return the previous result. Fast failure suits a flash sale, waiting suits an ordinary form.</p>
+
+<pre><code>  C idempotency table (claim by insert)   orders   1   all eight requests received id 1
+</code></pre>
+
+<p>What it adds over the constraint is <strong>response consistency</strong>: eight concurrent requests all get the same id, so a double click shows one order rather than an error on the second press.</p>
+
+<table>
+<thead><tr><th>Where the key comes from</th><th>How</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>Issued on page load</td><td>A UUID fetched when the form opens, submitted with it</td><td>Forms, mobile web</td></tr>
+<tr><td>Generated by the client</td><td>A random UUID in the browser</td><td>Modern browsers</td></tr>
+<tr><td>Derived from the business</td><td>Composite of semantic fields, such as a trade number</td><td>Payment callbacks</td></tr>
+<tr><td>Generated by the server</td><td>Fingerprint of user, endpoint and parameters</td><td>A coarse fallback</td></tr>
+</tbody>
+</table>
+
+<p>The table grows, so clean it: keeping successful records for a day covers any realistic retry window, which is what the payment APIs do. It is not a ledger.</p>
+
+<h2>Third line: a state machine with conditional updates</h2>
+
+<p>Many duplicates are not duplicate creations but the same document processed several times, such as a payment callback announcing success five times and firing notifications, accounting and stock updates each time.</p>
+
+<pre><code># wrong: unconditional, so five callbacks mean five side effects
+Payment.objects.filter(order_no=no).update(status="PAID", paid_at=now())
+send_sms(...)
+</code></pre>
+
+<pre><code># right: only the pending-to-paid edge is legal
+updated = Payment.objects.filter(
+    order_no=no, status="PENDING"
+).update(status="PAID", paid_at=now())
+
+if updated == 0:
+    current = Payment.objects.get(order_no=no).status
+    if current == "PAID":
+        return ok("already processed")
+    return err(409, f"illegal transition: {current} to PAID")
+
+send_sms(...)
+</code></pre>
+
+<p>A conditional update is an atomic read-modify-write: the database guarantees one transaction moves the row out of pending and every other affects zero rows. It is the same idea as pushing an expression into the statement instead of reading and then writing.</p>
+
+<pre><code>E2 payment callback replay: the same success callback delivered five times
+  A unconditional   success logic ran 5 times (sms, accounting)   final PAID
+  B conditional     success logic ran once, the rest skipped      final PAID
+  C illegal jump    a paid callback on a shipped order            rejected
+</code></pre>
+
+<p>The third behaviour is the one neither a constraint nor an idempotency table can provide: a shipped order receiving a payment callback must be refused, and only the state machine knows that.</p>
+
+<pre><code>PENDING --paid--> PAID --shipped--> SHIPPED --received--> DONE
+   |                |
+   +--timeout--> CLOSED   +--refund--> REFUNDED
+</code></pre>
+
+<pre><code>ALLOWED = {
+    ("PENDING", "PAID"), ("PENDING", "CLOSED"),
+    ("PAID", "SHIPPED"), ("PAID", "REFUNDED"),
+    ("SHIPPED", "DONE"),
+}
+
+def transition(order_no, to_status):
+    from_status = Payment.objects.get(order_no=order_no).status
+    if (from_status, to_status) not in ALLOWED:
+        raise IllegalTransition(f"{from_status} to {to_status}")
+    updated = Payment.objects.filter(
+        order_no=order_no, status=from_status
+    ).update(status=to_status)
+    return updated == 1
+</code></pre>
+
+<p>Optimistic locking is the generalised form: substitute a version counter for the state, compare it, increment it.</p>
+
+<table>
+<thead><tr><th></th><th>State machine</th><th>Version column</th></tr></thead>
+<tbody>
+<tr><td>Expresses</td><td>Business semantics, including which jumps are illegal</td><td>Only whether anything changed</td></tr>
+<tr><td>On conflict</td><td>Naturally idempotent, zero rows means already done</td><td>Re-read and retry</td></tr>
+<tr><td>Fits</td><td>Document lifecycles: orders, payments, tickets</td><td>Concurrent editing: documents, inventory rows</td></tr>
+</tbody>
+</table>
+
+<p>Use the state machine for documents and the version for edits, and do not mix them.</p>
+
+<h2>Fourth line: a one-shot token</h2>
+
+<pre><code>1. open the form  -> GET /api/order/token -> issue a key with a ten minute TTL, return it
+2. submit         -> POST /api/orders with a token header
+3. server         -> deleting the key succeeds  = first submission, proceed
+                  -> deleting the key affects 0 = duplicate submission, reject
+</code></pre>
+
+<p>Issuing and redeeming is atomic, and the whole idea is a variant of the distributed lock pattern with a shorter life.</p>
+
+<pre><code>def issue_token(request):
+    token = uuid.uuid4().hex
+    cache.add(f"order:token:{token}", 1, timeout=600)   # add is set-if-absent
+    return JsonResponse({"token": token})
+
+def create_order(request):
+    token = request.headers.get("X-Token")
+    if not token or not cache.delete(f"order:token:{token}"):
+        return err(409, "do not submit twice")
+    ...
+</code></pre>
+
+<p>It is the weakest layer, for three reasons: a script or an old client can call the endpoint without a token, tokens expire so a slow user is rejected on a legitimate second attempt, and a cache outage voids every ticket.</p>
+
+<p>So treat it as experience rather than safety: it stops the ninety-nine percent who double click, and the database constraint stops the rest. An endpoint with a token and no constraint is unprotected.</p>
+
+<h2>Idempotency, deduplication and locks</h2>
+
+<table>
+<thead><tr><th>Concept</th><th>Solves</th><th>Layer</th><th>If missing</th></tr></thead>
+<tbody>
+<tr><td>Idempotency</td><td>Repeated execution is harmless</td><td>The design of the write path</td><td>Duplicate orders, double charges</td></tr>
+<tr><td>Deduplication</td><td>Repeated data does not persist</td><td>The data layer, unique keys and fingerprints</td><td>Dirty rows, wrong counts</td></tr>
+<tr><td>Distributed locks</td><td>Repeated entry into a critical section</td><td>Runtime coordination</td><td>Concurrent writes corrupting shared state</td></tr>
+</tbody>
+</table>
+
+<p>A lock blocks in advance and idempotency survives when blocking fails. Locks expire, get lost on failover and are broken by process pauses, so a lock can never be the only defence. Deduplication is a subset of idempotency: it ensures one row, while idempotency also requires a consistent response, consistent side effects and correct state transitions. Returning a 500 when the constraint catches a duplicate leaves the data correct and the user staring at an error. Combining them gives a complete answer: the lock shapes the experience, idempotency guarantees safety, and the payment callback chain is deliberately lock-free because duplicates there cross processes, time and systems, where no lock reaches.</p>
+
+<pre><code>ask of any write handler: what happens if this runs twice?
+├─ read only, or pure overwrite      -> already idempotent
+├─ an extra row or an extra charge   -> uniqueness where possible, idempotency table otherwise
+├─ a state changed twice             -> conditional update inside a state machine
+└─ an outbound side effect           -> the outside system must be idempotent too
+the more expensive the side effect (money, then messages, then logs), the more layers
+</code></pre>
+
+<h2>Three real combinations</h2>
+
+<p><strong>Payment callbacks</strong>, the highest risk: verify the signature, then the idempotency table keyed on the trade number catches replays, then the conditional update serialises concurrency, then a uniqueness constraint on the ledger is the final backstop. Each layer does one job, and losing any of them costs sleep.</p>
+
+<p><strong>Queue consumers</strong>, the most deceptive: deduplicating on message ids does not work, because a rebalance redelivers with a new id and a producer resend also carries a new one. Use a business key constraint instead.</p>
+
+<pre><code>def on_message(msg):
+    try:
+        with transaction.atomic():
+            PaymentFlow.objects.create(
+                out_trade_no=msg["out_trade_no"], ...
+            )
+    except IntegrityError:
+        return Ack
+    return Ack
+</code></pre>
+
+<p>And mind the acknowledgement policy: genuine failures should be retried, while an already-processed conflict should be acknowledged immediately or the message redelivers forever.</p>
+
+<p><strong>Form submissions</strong>, the most common: a debounced and disabled button plus a key issued on page load, backed by an idempotency table for response consistency and a constraint as the backstop. The second click receives the first click's result and the interface shows nothing unusual.</p>
+
+<table>
+<thead><tr><th>Scenario</th><th>Required</th><th>Optional</th></tr></thead>
+<tbody>
+<tr><td>Payment callback</td><td>Constraint, state machine, idempotency table</td><td>Signature checks, amount reconciliation</td></tr>
+<tr><td>Queue consumer</td><td>Business key constraint</td><td>Consumption log, dead letters</td></tr>
+<tr><td>Form submission</td><td>A constraint where possible</td><td>Idempotency key, one-shot token</td></tr>
+<tr><td>Balance deduction</td><td>A conditional update guarded by the balance</td><td>Version column, reconciliation</td></tr>
+</tbody>
+</table>
+
+<h2>The measurements together</h2>
+
+<pre><code>E1 double-click race: 8 threads on the same order
+  A no protection        orders 8   seven duplicates
+  B uniqueness           orders 1   seven rejected by IntegrityError
+  C idempotency table    orders 1   all eight received id 1
+
+E2 callback replay: the same success callback delivered five times
+  A unconditional        success logic ran five times, final PAID
+  B conditional          success logic ran once, final PAID
+  C illegal jump         rejected
+
+E3 key plus fingerprint: the same key a hundred times
+  same key, same body x100 : one execution, 99 cache hits, identical responses
+  same key, other body   x1 : rejected, the key is bound to another body
+</code></pre>
+
+<p>Three readings worth keeping. Eight concurrent requests produce eight orders, so the duplicate rate is not probabilistic, it is certain, since every request enters the window. The idempotency table gives all eight the same id, which is response consistency and something a constraint cannot do. And the fingerprint rejects a changed body under the same key, without which the key itself becomes a source of corruption.</p>
+
+<h2>Checklist and questions</h2>
+
+<ul>
+<li>Every creation endpoint has a uniqueness constraint where the business allows it, with the conflict path returning the existing record.</li>
+<li>Where it does not, an idempotency table with client-generated keys.</li>
+<li>That table stores a request fingerprint and returns a client error when the body differs.</li>
+<li>It also has a cleanup job, deleting successes after a day.</li>
+<li>Document lifecycles use conditional updates, branching on the affected row count.</li>
+<li>Illegal transitions are rejected explicitly and alerted, not silently 500.</li>
+<li>Queue consumers deduplicate on business keys rather than message ids.</li>
+<li>Consumers distinguish retryable failure from already-processed success.</li>
+<li>Payment callbacks use all four layers.</li>
+<li>Front-end debouncing is accepted as experience only, with a database backstop behind it.</li>
+<li>The three scenarios, double click, callback replay and edited retry, have been load tested.</li>
+<li>A reconciliation job exists and actually runs.</li>
+</ul>
+
+<p><strong>Can the key live in a cache instead of a table?</strong> A cache is fast and losable, so anything where a lost key means a lost order belongs in the database. Use the cache for the first quick look and the table as the source of truth.</p>
+
+<p><strong>Is the record fetched after a conflict the same as the one just created?</strong> The response is the same. Telling which request created it requires storing the owner, which almost nothing needs.</p>
+
+<p><strong>How do incremental patches become idempotent?</strong> Change them to full replacements, or send a version and reject conflicts so the client re-reads.</p>
+
+<p><strong>How long should keys live?</strong> Long enough to cover the client's worst retry window; a day is the industry norm. Not forever, or storage explodes.</p>
+
+<p><strong>What if the business logic fails after the claim?</strong> Mark the record failed and either delete it or allow the same key to retry. Never leave a failed key as a permanent lock, and cover that path in tests.</p>
+
+<p><strong>How should the state machine look in code?</strong> Put the allowed transitions on the class, funnel every change through one function, and let views call it rather than writing filters of their own.</p>
+
+<p><strong>Is a balance-guarded deduction idempotent?</strong> It is correct rather than idempotent: the second attempt fails for insufficient funds, which prevents a double charge by accident, but the user may see a spurious error, so pair it with a key.</p>
+
+<p><strong>Who owns retry safety, the gateway or the service?</strong> The gateway retries anything it did not get a response for, so idempotency is the service's obligation. Always assume the gateway retries, and check the configuration, because some proxies retry POST by default.</p>
+
+<h2>Closing</h2>
+
+<p>Three sentences. The backstop is the database, since application checks are information and check-then-insert always has a window. Consistency comes from the idempotency table, which combines a claim, a fingerprint and a cached response so repeats see one result instead of an error. Lifecycles come from the state machine, which compresses read-modify-write into one statement, skipping replays and refusing illegal jumps.</p>
+
+<p>Back to the double click: with a uniqueness constraint on user and product, a key on submission and a payment state machine that only accepts pending, the ticket never exists.</p>
+
+<p>"The user submitted once" is the front end's worldview. "The endpoint will be called more than once" is the back end's.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/api-idempotency-deep-dive/">用户只是双击了一下，订单多了 7 条——接口幂等</a>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/api-idempotency-deep-dive/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/api-idempotency-deep-dive/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>

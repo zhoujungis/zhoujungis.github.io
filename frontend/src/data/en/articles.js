@@ -23685,6 +23685,410 @@ SELECT to_tsvector('chinese', 'Django 部署与断点续传');
 `,
   },
 
+  {
+    slug: 'api-idempotency-deep-dive',
+    zhSlug: 'api-idempotency-deep-dive',
+    topicSlug: 'backend',
+    title: 'The user double-clicked and seven extra orders appeared',
+    excerpt:
+      'Check-then-insert always has a window, and repeated requests cannot be prevented. Four lines of defence, measured: uniqueness, an idempotency table, a state machine and a one-shot token.',
+    date: '2026-11-01',
+    readingTime: 20,
+    html: `
+<blockquote>
+<p>Who this is for: anyone who has written an order, payment or form endpoint and met a double click, a redelivered callback or a duplicated queue message.</p>
+<p>Tested with Python and SQL, but no framework is assumed.</p>
+<p>Reading time around 20 minutes. Level: intermediate to advanced.</p>
+</blockquote>
+
+<h2>A duplicate shipment</h2>
+
+<p>The user pressed submit, the network stalled for a second, and they pressed again. The next day the warehouse shipped two parcels.</p>
+
+<pre><code>SELECT * FROM orders WHERE user_id = 1001;
+id=4242  user=1001  product=88  created_at=10:23:01.204
+id=4243  user=1001  product=88  created_at=10:23:01.219   -- fifteen milliseconds later
+</code></pre>
+
+<p>The code had a duplicate check:</p>
+
+<pre><code>def create_order(request):
+    if not Order.objects.filter(user=request.user, product_id=pid).exists():
+        Order.objects.create(user=request.user, product_id=pid)
+</code></pre>
+
+<p>It still duplicated, because <strong>check then insert always has a window</strong>: both requests pass the check and both insert. Measured locally with eight concurrent submissions of the same order, that shape produced eight rows.</p>
+
+<p>This is idempotency, the property that running an operation once and running it many times leaves the same result. It matters because <strong>duplicate requests cannot be prevented</strong>, and there are at least four sources.</p>
+
+<table>
+<thead><tr><th>Source</th><th>How</th><th>How often</th></tr></thead>
+<tbody>
+<tr><td>The user</td><td>Double clicks, or refreshes and resubmits</td><td>Daily</td></tr>
+<tr><td>The client</td><td>Automatic retry on timeout</td><td>Common</td></tr>
+<tr><td>Gateway or load balancer</td><td>Upstream retry policies</td><td>Hidden and lethal</td></tr>
+<tr><td>Queues and callbacks</td><td>At-least-once delivery, which is the default everywhere</td><td>Guaranteed</td></tr>
+</tbody>
+</table>
+
+<p>So the only option is to make repetition harmless.</p>
+
+<h2>What is naturally idempotent</h2>
+
+<table>
+<thead><tr><th>Operation</th><th>Idempotent</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Reading a resource</td><td>Yes</td><td>Nothing changes</td></tr>
+<tr><td>Full replacement of a resource</td><td>Yes</td><td>The end state is the same</td></tr>
+<tr><td>Deleting a resource</td><td>Yes</td><td>The second attempt finds nothing, and nothing is the state</td></tr>
+<tr><td>Creating an order</td><td>No</td><td>Every call adds a row</td></tr>
+<tr><td>Deducting a balance</td><td>No</td><td>Every call removes money, the most dangerous case</td></tr>
+<tr><td>Incrementing a counter</td><td>No</td><td>Two calls double the increment</td></tr>
+</tbody>
+</table>
+
+<p>Two misconceptions. A method being semantically idempotent says nothing about your handler: a replacement endpoint that increments a counter inside is still not idempotent, because <strong>idempotency is a property of the resulting state, not of the verb</strong>. And a disabled button on the front end improves the experience while doing nothing about retries, replays or scripts calling the API directly, so the boundary has to be server-side.</p>
+
+<p>One more fact worth internalising: queues and payment callbacks are almost always at-least-once, whether because of rebalancing or because a gateway resends when no acknowledgement arrives. <strong>Your endpoint will be called twice.</strong> The only question is whether that is today or on the busiest day of the year.</p>
+
+<h2>Reproducing the failure</h2>
+
+<pre><code>E1 double-click race: 8 threads submit the same order for user 1
+  A no protection (check then insert)   orders   8   expected 1, seven duplicates
+</code></pre>
+
+<pre><code>time   thread 1                    thread 2                   ... thread 8
+-----------------------------------------------------------------------
+t1     SELECT exists -> False
+t2                                 SELECT exists -> False
+t3     ... all threads pass the check inside the ten millisecond window
+t4     INSERT order
+t5                                 INSERT order
+t6     ... eight rows
+</code></pre>
+
+<p>This is the textbook check-to-use race: the window is as wide as the work between the check and the write, and any validation, pricing or stock lookup in between guarantees a window.</p>
+
+<p><strong>A check in application code is information, not a constraint</strong>: it can tell you nothing existed a moment ago, and it cannot stop someone else inserting now. Mutual exclusion belongs to the database, the only thing that can see this instant.</p>
+
+<p>Does a transaction fix it? On the default isolation level the same race survives, and a locking read on the row is not available everywhere; resting the design on isolation levels is the most common trap here.</p>
+
+<h2>First line: a uniqueness constraint</h2>
+
+<pre><code>class Order(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "product"], name="uniq_user_product"
+            ),
+        ]
+</code></pre>
+
+<pre><code>CREATE TABLE orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    amount TEXT NOT NULL,
+    UNIQUE (user_id, product_id)
+);
+</code></pre>
+
+<p>Then catch the conflict rather than checking first.</p>
+
+<pre><code>def create_order(request):
+    try:
+        order = Order.objects.create(user=request.user, product_id=pid, amount=amt)
+        return JsonResponse({"order_id": order.id})
+    except IntegrityError:
+        order = Order.objects.get(user=request.user, product_id=pid)
+        return JsonResponse({"order_id": order.id})
+</code></pre>
+
+<pre><code>  B uniqueness constraint          orders   1   seven requests rejected by the database
+</code></pre>
+
+<p>That is the only defence where duplication is physically impossible regardless of how the code is written or how high concurrency goes.</p>
+
+<p>Its success depends entirely on the business key: one entry per user per campaign for a flash sale, an outbound trade number for a payment record, a user and article pair for a like, a phone, code and scene for a verification message. An ordinary shop where a user may legitimately buy twice has no such key, which is exactly why the next line exists.</p>
+
+<p>Its limits are honest. It only stops identical keys, so a user who edits the shipping address and resubmits creates a different key. It requires the business to be genuinely unique. And the conflict path has to return the existing record, or the user sees an error instead of their order.</p>
+
+<h2>Second line: an idempotency table</h2>
+
+<p>When no natural business key exists, invent one: the client sends a unique id for each intent, and the server executes a key it has never seen and replays the stored result for one it has. This is the pattern behind the idempotency header every payment API exposes, and the promise is that retrying the same key returns the same result rather than charging twice.</p>
+
+<pre><code>CREATE TABLE idempotency (
+    idem_key      TEXT PRIMARY KEY,   -- client generated, a UUID
+    request_hash  TEXT NOT NULL,      -- body fingerprint, stops key reuse with new content
+    status        TEXT NOT NULL,      -- PROCESSING / SUCCESS / FAILED
+    response      TEXT,               -- cached response body
+    created_at    TIMESTAMP
+);
+</code></pre>
+
+<pre><code>def create_order(request):
+    key = request.headers.get("Idempotency-Key")
+    body_hash = sha256(request.body).hexdigest()[:16]
+
+    with transaction.atomic():
+        try:
+            Idempotency.objects.create(
+                idem_key=key, request_hash=body_hash, status="PROCESSING"
+            )
+        except IntegrityError:
+            rec = Idempotency.objects.get(idem_key=key)
+            if rec.request_hash != body_hash:
+                return err(422, "this key is bound to a different body")
+            if rec.status == "SUCCESS":
+                return JsonResponse(json.loads(rec.response))
+            return err(409, "the previous request is still processing")
+
+    order = do_create_order(request)
+
+    Idempotency.objects.filter(idem_key=key).update(
+        status="SUCCESS", response=json.dumps({"order_id": order.id})
+    )
+    return JsonResponse({"order_id": order.id})
+</code></pre>
+
+<p>Three details, each of them a trap.</p>
+
+<p><strong>Claim by insert, never by select.</strong> Checking for the key first is the same race again; an insert colliding on the primary key is atomic in the database, so exactly one of eight concurrent requests wins.</p>
+
+<p><strong>The request fingerprint stops key reuse.</strong> The same key with a different body, which is what happens when a user edits a field and retries with the old key, must be rejected, or they receive the cached result of the previous attempt with the previous address. The measurement appears below.</p>
+
+<p><strong>What a late arrival does while the claim is processing.</strong> There are three options: wait and poll, return a conflict immediately, or return the previous result. Fast failure suits a flash sale, waiting suits an ordinary form.</p>
+
+<pre><code>  C idempotency table (claim by insert)   orders   1   all eight requests received id 1
+</code></pre>
+
+<p>What it adds over the constraint is <strong>response consistency</strong>: eight concurrent requests all get the same id, so a double click shows one order rather than an error on the second press.</p>
+
+<table>
+<thead><tr><th>Where the key comes from</th><th>How</th><th>Fits</th></tr></thead>
+<tbody>
+<tr><td>Issued on page load</td><td>A UUID fetched when the form opens, submitted with it</td><td>Forms, mobile web</td></tr>
+<tr><td>Generated by the client</td><td>A random UUID in the browser</td><td>Modern browsers</td></tr>
+<tr><td>Derived from the business</td><td>Composite of semantic fields, such as a trade number</td><td>Payment callbacks</td></tr>
+<tr><td>Generated by the server</td><td>Fingerprint of user, endpoint and parameters</td><td>A coarse fallback</td></tr>
+</tbody>
+</table>
+
+<p>The table grows, so clean it: keeping successful records for a day covers any realistic retry window, which is what the payment APIs do. It is not a ledger.</p>
+
+<h2>Third line: a state machine with conditional updates</h2>
+
+<p>Many duplicates are not duplicate creations but the same document processed several times, such as a payment callback announcing success five times and firing notifications, accounting and stock updates each time.</p>
+
+<pre><code># wrong: unconditional, so five callbacks mean five side effects
+Payment.objects.filter(order_no=no).update(status="PAID", paid_at=now())
+send_sms(...)
+</code></pre>
+
+<pre><code># right: only the pending-to-paid edge is legal
+updated = Payment.objects.filter(
+    order_no=no, status="PENDING"
+).update(status="PAID", paid_at=now())
+
+if updated == 0:
+    current = Payment.objects.get(order_no=no).status
+    if current == "PAID":
+        return ok("already processed")
+    return err(409, f"illegal transition: {current} to PAID")
+
+send_sms(...)
+</code></pre>
+
+<p>A conditional update is an atomic read-modify-write: the database guarantees one transaction moves the row out of pending and every other affects zero rows. It is the same idea as pushing an expression into the statement instead of reading and then writing.</p>
+
+<pre><code>E2 payment callback replay: the same success callback delivered five times
+  A unconditional   success logic ran 5 times (sms, accounting)   final PAID
+  B conditional     success logic ran once, the rest skipped      final PAID
+  C illegal jump    a paid callback on a shipped order            rejected
+</code></pre>
+
+<p>The third behaviour is the one neither a constraint nor an idempotency table can provide: a shipped order receiving a payment callback must be refused, and only the state machine knows that.</p>
+
+<pre><code>PENDING --paid--> PAID --shipped--> SHIPPED --received--> DONE
+   |                |
+   +--timeout--> CLOSED   +--refund--> REFUNDED
+</code></pre>
+
+<pre><code>ALLOWED = {
+    ("PENDING", "PAID"), ("PENDING", "CLOSED"),
+    ("PAID", "SHIPPED"), ("PAID", "REFUNDED"),
+    ("SHIPPED", "DONE"),
+}
+
+def transition(order_no, to_status):
+    from_status = Payment.objects.get(order_no=order_no).status
+    if (from_status, to_status) not in ALLOWED:
+        raise IllegalTransition(f"{from_status} to {to_status}")
+    updated = Payment.objects.filter(
+        order_no=order_no, status=from_status
+    ).update(status=to_status)
+    return updated == 1
+</code></pre>
+
+<p>Optimistic locking is the generalised form: substitute a version counter for the state, compare it, increment it.</p>
+
+<table>
+<thead><tr><th></th><th>State machine</th><th>Version column</th></tr></thead>
+<tbody>
+<tr><td>Expresses</td><td>Business semantics, including which jumps are illegal</td><td>Only whether anything changed</td></tr>
+<tr><td>On conflict</td><td>Naturally idempotent, zero rows means already done</td><td>Re-read and retry</td></tr>
+<tr><td>Fits</td><td>Document lifecycles: orders, payments, tickets</td><td>Concurrent editing: documents, inventory rows</td></tr>
+</tbody>
+</table>
+
+<p>Use the state machine for documents and the version for edits, and do not mix them.</p>
+
+<h2>Fourth line: a one-shot token</h2>
+
+<pre><code>1. open the form  -> GET /api/order/token -> issue a key with a ten minute TTL, return it
+2. submit         -> POST /api/orders with a token header
+3. server         -> deleting the key succeeds  = first submission, proceed
+                  -> deleting the key affects 0 = duplicate submission, reject
+</code></pre>
+
+<p>Issuing and redeeming is atomic, and the whole idea is a variant of the distributed lock pattern with a shorter life.</p>
+
+<pre><code>def issue_token(request):
+    token = uuid.uuid4().hex
+    cache.add(f"order:token:{token}", 1, timeout=600)   # add is set-if-absent
+    return JsonResponse({"token": token})
+
+def create_order(request):
+    token = request.headers.get("X-Token")
+    if not token or not cache.delete(f"order:token:{token}"):
+        return err(409, "do not submit twice")
+    ...
+</code></pre>
+
+<p>It is the weakest layer, for three reasons: a script or an old client can call the endpoint without a token, tokens expire so a slow user is rejected on a legitimate second attempt, and a cache outage voids every ticket.</p>
+
+<p>So treat it as experience rather than safety: it stops the ninety-nine percent who double click, and the database constraint stops the rest. An endpoint with a token and no constraint is unprotected.</p>
+
+<h2>Idempotency, deduplication and locks</h2>
+
+<table>
+<thead><tr><th>Concept</th><th>Solves</th><th>Layer</th><th>If missing</th></tr></thead>
+<tbody>
+<tr><td>Idempotency</td><td>Repeated execution is harmless</td><td>The design of the write path</td><td>Duplicate orders, double charges</td></tr>
+<tr><td>Deduplication</td><td>Repeated data does not persist</td><td>The data layer, unique keys and fingerprints</td><td>Dirty rows, wrong counts</td></tr>
+<tr><td>Distributed locks</td><td>Repeated entry into a critical section</td><td>Runtime coordination</td><td>Concurrent writes corrupting shared state</td></tr>
+</tbody>
+</table>
+
+<p>A lock blocks in advance and idempotency survives when blocking fails. Locks expire, get lost on failover and are broken by process pauses, so a lock can never be the only defence. Deduplication is a subset of idempotency: it ensures one row, while idempotency also requires a consistent response, consistent side effects and correct state transitions. Returning a 500 when the constraint catches a duplicate leaves the data correct and the user staring at an error. Combining them gives a complete answer: the lock shapes the experience, idempotency guarantees safety, and the payment callback chain is deliberately lock-free because duplicates there cross processes, time and systems, where no lock reaches.</p>
+
+<pre><code>ask of any write handler: what happens if this runs twice?
+├─ read only, or pure overwrite      -> already idempotent
+├─ an extra row or an extra charge   -> uniqueness where possible, idempotency table otherwise
+├─ a state changed twice             -> conditional update inside a state machine
+└─ an outbound side effect           -> the outside system must be idempotent too
+the more expensive the side effect (money, then messages, then logs), the more layers
+</code></pre>
+
+<h2>Three real combinations</h2>
+
+<p><strong>Payment callbacks</strong>, the highest risk: verify the signature, then the idempotency table keyed on the trade number catches replays, then the conditional update serialises concurrency, then a uniqueness constraint on the ledger is the final backstop. Each layer does one job, and losing any of them costs sleep.</p>
+
+<p><strong>Queue consumers</strong>, the most deceptive: deduplicating on message ids does not work, because a rebalance redelivers with a new id and a producer resend also carries a new one. Use a business key constraint instead.</p>
+
+<pre><code>def on_message(msg):
+    try:
+        with transaction.atomic():
+            PaymentFlow.objects.create(
+                out_trade_no=msg["out_trade_no"], ...
+            )
+    except IntegrityError:
+        return Ack
+    return Ack
+</code></pre>
+
+<p>And mind the acknowledgement policy: genuine failures should be retried, while an already-processed conflict should be acknowledged immediately or the message redelivers forever.</p>
+
+<p><strong>Form submissions</strong>, the most common: a debounced and disabled button plus a key issued on page load, backed by an idempotency table for response consistency and a constraint as the backstop. The second click receives the first click's result and the interface shows nothing unusual.</p>
+
+<table>
+<thead><tr><th>Scenario</th><th>Required</th><th>Optional</th></tr></thead>
+<tbody>
+<tr><td>Payment callback</td><td>Constraint, state machine, idempotency table</td><td>Signature checks, amount reconciliation</td></tr>
+<tr><td>Queue consumer</td><td>Business key constraint</td><td>Consumption log, dead letters</td></tr>
+<tr><td>Form submission</td><td>A constraint where possible</td><td>Idempotency key, one-shot token</td></tr>
+<tr><td>Balance deduction</td><td>A conditional update guarded by the balance</td><td>Version column, reconciliation</td></tr>
+</tbody>
+</table>
+
+<h2>The measurements together</h2>
+
+<pre><code>E1 double-click race: 8 threads on the same order
+  A no protection        orders 8   seven duplicates
+  B uniqueness           orders 1   seven rejected by IntegrityError
+  C idempotency table    orders 1   all eight received id 1
+
+E2 callback replay: the same success callback delivered five times
+  A unconditional        success logic ran five times, final PAID
+  B conditional          success logic ran once, final PAID
+  C illegal jump         rejected
+
+E3 key plus fingerprint: the same key a hundred times
+  same key, same body x100 : one execution, 99 cache hits, identical responses
+  same key, other body   x1 : rejected, the key is bound to another body
+</code></pre>
+
+<p>Three readings worth keeping. Eight concurrent requests produce eight orders, so the duplicate rate is not probabilistic, it is certain, since every request enters the window. The idempotency table gives all eight the same id, which is response consistency and something a constraint cannot do. And the fingerprint rejects a changed body under the same key, without which the key itself becomes a source of corruption.</p>
+
+<h2>Checklist and questions</h2>
+
+<ul>
+<li>Every creation endpoint has a uniqueness constraint where the business allows it, with the conflict path returning the existing record.</li>
+<li>Where it does not, an idempotency table with client-generated keys.</li>
+<li>That table stores a request fingerprint and returns a client error when the body differs.</li>
+<li>It also has a cleanup job, deleting successes after a day.</li>
+<li>Document lifecycles use conditional updates, branching on the affected row count.</li>
+<li>Illegal transitions are rejected explicitly and alerted, not silently 500.</li>
+<li>Queue consumers deduplicate on business keys rather than message ids.</li>
+<li>Consumers distinguish retryable failure from already-processed success.</li>
+<li>Payment callbacks use all four layers.</li>
+<li>Front-end debouncing is accepted as experience only, with a database backstop behind it.</li>
+<li>The three scenarios, double click, callback replay and edited retry, have been load tested.</li>
+<li>A reconciliation job exists and actually runs.</li>
+</ul>
+
+<p><strong>Can the key live in a cache instead of a table?</strong> A cache is fast and losable, so anything where a lost key means a lost order belongs in the database. Use the cache for the first quick look and the table as the source of truth.</p>
+
+<p><strong>Is the record fetched after a conflict the same as the one just created?</strong> The response is the same. Telling which request created it requires storing the owner, which almost nothing needs.</p>
+
+<p><strong>How do incremental patches become idempotent?</strong> Change them to full replacements, or send a version and reject conflicts so the client re-reads.</p>
+
+<p><strong>How long should keys live?</strong> Long enough to cover the client's worst retry window; a day is the industry norm. Not forever, or storage explodes.</p>
+
+<p><strong>What if the business logic fails after the claim?</strong> Mark the record failed and either delete it or allow the same key to retry. Never leave a failed key as a permanent lock, and cover that path in tests.</p>
+
+<p><strong>How should the state machine look in code?</strong> Put the allowed transitions on the class, funnel every change through one function, and let views call it rather than writing filters of their own.</p>
+
+<p><strong>Is a balance-guarded deduction idempotent?</strong> It is correct rather than idempotent: the second attempt fails for insufficient funds, which prevents a double charge by accident, but the user may see a spurious error, so pair it with a key.</p>
+
+<p><strong>Who owns retry safety, the gateway or the service?</strong> The gateway retries anything it did not get a response for, so idempotency is the service's obligation. Always assume the gateway retries, and check the configuration, because some proxies retry POST by default.</p>
+
+<h2>Closing</h2>
+
+<p>Three sentences. The backstop is the database, since application checks are information and check-then-insert always has a window. Consistency comes from the idempotency table, which combines a claim, a fingerprint and a cached response so repeats see one result instead of an error. Lifecycles come from the state machine, which compresses read-modify-write into one statement, skipping replays and refusing illegal jumps.</p>
+
+<p>Back to the double click: with a uniqueness constraint on user and product, a key on submission and a payment state machine that only accepts pending, the ticket never exists.</p>
+
+<p>"The user submitted once" is the front end's worldview. "The endpoint will be called more than once" is the back end's.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/api-idempotency-deep-dive/">用户只是双击了一下，订单多了 7 条——接口幂等</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
