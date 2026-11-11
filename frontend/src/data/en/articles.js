@@ -36649,6 +36649,680 @@ public int maxProfitUnlimited(int[] prices) {
 `,
   },
 
+  {
+    slug: 'lc-239-sliding-window-maximum',
+    zhSlug: 'lc-239-sliding-window-maximum',
+    topicSlug: 'leetcode',
+    title: 'LC 239, sliding window maximum: a monotonic queue keeps only candidates',
+    excerpt:
+      'A newcomer that is larger and later dominates everything behind it forever. Two independent maintenance actions, one by value and one by index, give linear time.',
+    date: '2026-09-21',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Given an array and a window size, return the maximum of every window as it slides right, in linear time.</p>
+
+<pre><code>[1,3,-1,-3,5,3,6,7], k = 3  -&gt;  [3,3,5,5,6,7]
+</code></pre>
+
+<p>Scanning each window is quadratic and becomes truly square when the window is half the array. Linear time requires not repeating comparisons.</p>
+
+<h2>Keep only the candidates</h2>
+
+<p>Watch what happens when a five arrives behind a three and a minus one. Can either of them ever be the maximum of a future window? No. As long as the five is inside the window, the smaller values cannot win, and the five also leaves later, so they are already gone when it goes. Being beaten on both size and time is domination, and it is permanent.</p>
+
+<p>That is the entire idea: keep only candidates that could still become the maximum, ordered by decreasing value, so the front is always the current maximum. Each new element evicts everything at the back that it dominates, then joins.</p>
+
+<p>The eviction test is inclusive, because an equal older element adds no information and occupies a slot. After eviction the queue is strictly decreasing, which matters later.</p>
+
+<h2>Two independent actions</h2>
+
+<pre><code>from collections import deque
+
+def maxSlidingWindow(nums, k):
+    dq = deque()
+    ans = []
+    for i, x in enumerate(nums):
+        if dq and dq[0] &lt; i - k + 1:
+            dq.popleft()
+        while dq and nums[dq[-1]] &lt;= x:
+            dq.pop()
+        dq.append(i)
+        if i &gt;= k - 1:
+            ans.append(nums[dq[0]])
+    return ans
+</code></pre>
+
+<p>Three points. The queue stores <strong>indices</strong>, not values, because only an index can answer whether an element has left the window; storing values makes that test impossible, and it is the most common implementation error here. The two actions are independent: the front check uses indices, the space dimension of expiry, while the back loop uses values, the domination dimension, and they pop from opposite ends. And the answer is the front, since the queue is strictly decreasing and every index inside is still in the window.</p>
+
+<p>The front check can be a single conditional because the window advances one step at a time, while the back loop must loop because one newcomer can dominate several elements.</p>
+
+<h2>The animation</h2>
+
+<p>Four rows: the array with the window tinted and the current element outlined, where dominated cells get dashed outlines and grey values and cells that slid out turn grey; the queue showing values with their indices, the front outlined in green; the collected answers; and a dedicated frame each time a window fills, announcing that the front is this window's maximum.</p>
+
+<p>The textbook frame is where the five arrives: the front expires and two values are dominated in the same step, shrinking the queue from three entries to one.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>i</th><th>Value</th><th>Window</th><th>Expired</th><th>Dominated</th><th>Queue</th><th>Recorded</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>0</td><td>1</td><td>0 to 0</td><td>-</td><td>-</td><td>1</td><td>-</td></tr>
+<tr><td>2</td><td>1</td><td>3</td><td>0 to 1</td><td>-</td><td>1</td><td>3</td><td>-</td></tr>
+<tr><td>3</td><td>2</td><td>-1</td><td>0 to 2</td><td>-</td><td>-</td><td>3, -1</td><td><strong>3</strong></td></tr>
+<tr><td>4</td><td>3</td><td>-3</td><td>1 to 3</td><td>-</td><td>-</td><td>3, -1, -3</td><td><strong>3</strong></td></tr>
+<tr><td>5</td><td>4</td><td>5</td><td>2 to 4</td><td>3</td><td>-3, -1</td><td>5</td><td><strong>5</strong></td></tr>
+<tr><td>6</td><td>5</td><td>3</td><td>3 to 5</td><td>-</td><td>-</td><td>5, 3</td><td><strong>5</strong></td></tr>
+<tr><td>7</td><td>6</td><td>6</td><td>4 to 6</td><td>-</td><td>3, 5</td><td>6</td><td><strong>6</strong></td></tr>
+<tr><td>8</td><td>7</td><td>7</td><td>5 to 7</td><td>-</td><td>6</td><td>7</td><td><strong>7</strong></td></tr>
+</tbody>
+</table>
+
+<p>Frame two is worth internalising: the one is dominated by the three and never returns, since no window containing the three has a larger one. Frame five is the one where both actions fire together.</p>
+
+<h2>Alternatives</h2>
+
+<pre><code>import heapq
+
+def maxSlidingWindow(nums, k):
+    h, ans = [], []
+    for i, x in enumerate(nums):
+        heapq.heappush(h, (-x, i))
+        if i &gt;= k - 1:
+            while h[0][1] &lt; i - k + 1:
+                heapq.heappop(h)
+            ans.append(-h[0][0])
+    return ans
+</code></pre>
+
+<p>A max-heap with lazy deletion is slower but quicker to write and harder to get wrong, and it naturally supports broader queries than the maximum. Block decomposition is another linear method: chunk by the window size, precompute prefix maxima from the block start and suffix maxima to the block end, and any window maximum is then the larger of one suffix value and one prefix value. It is genuinely linear with no amortisation, and unintuitive with poor extensibility, so knowing it exists is enough.</p>
+
+<p>For streaming, the monotonic queue is already online, so it needs only a counter. For data larger than memory, chunk and merge, which is the distributed version of the block method, and the point to make is that chunking localises the problem and the merge costs only the number of chunks.</p>
+
+<table>
+<thead><tr><th>Problem</th><th>Which monotonic structure</th></tr></thead>
+<tbody>
+<tr><td>Shortest subarray with sum at least k</td><td>Increasing queue over prefix sums, with expiry at the front</td></tr>
+<tr><td>Longest subarray with difference at most limit</td><td>Two queues, one for the maximum and one for the minimum</td></tr>
+<tr><td>Next greater element</td><td>A monotonic stack, where the pop time is the answer</td></tr>
+<tr><td>Trapping rain water, stack solution</td><td>The same dominance-eviction idea</td></tr>
+</tbody>
+</table>
+
+<p>Family rule: when a newcomer kills older elements, reach for a monotonic structure. Take the answer from one end and use a queue, as in sliding windows; want the next greater element per position and use a stack. What gets evicted is permanently out, which is why the amortised cost is constant.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int[] maxSlidingWindow(int[] nums, int k) {
+    int n = nums.length;
+    int[] ans = new int[n - k + 1];
+    Deque&lt;Integer&gt; dq = new ArrayDeque();
+    for (int i = 0; i &lt; n; i++) {
+        if (!dq.isEmpty() &amp;&amp; dq.peekFirst() &lt; i - k + 1) {
+            dq.pollFirst();
+        }
+        while (!dq.isEmpty() &amp;&amp; nums[dq.peekLast()] &lt;= nums[i]) {
+            dq.pollLast();
+        }
+        dq.offerLast(i);
+        if (i &gt;= k - 1) {
+            ans[i - k + 1] = nums[dq.peekFirst()];
+        }
+    }
+    return ans;
+}
+</code></pre>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Point</th></tr></thead>
+<tbody>
+<tr><td>window of one</td><td>the array itself</td><td>Each newcomer dominates everything</td></tr>
+<tr><td>window equal to length</td><td>a single maximum</td><td>One window only</td></tr>
+<tr><td>increasing</td><td>the right end of each window</td><td>The back is cleared every step</td></tr>
+<tr><td>decreasing</td><td>the left end of each window</td><td>The queue grows to the window size</td></tr>
+<tr><td>all equal</td><td>a constant array</td><td>The inclusive test keeps the queue strictly decreasing</td></tr>
+<tr><td>window larger than the array</td><td>empty</td><td>Reject at the entrance</td></tr>
+</tbody>
+</table>
+
+<h2>Complexity</h2>
+
+<p>Linear time, since each element enters and leaves the queue at most once; the inner loop looks nested and is amortised constant. Space is proportional to the window, since every stored index is inside it and the indices increase.</p>
+
+<p>For contrast: brute force is quadratic, the heap is linearithmic with linear space, and block decomposition is linear with linear space. The monotonic queue wins on all three metrics and costs the effort of understanding domination.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Storing values instead of indices, which makes the expiry test impossible.</li>
+<li>Popping the expired front after reading the answer, so the reported maximum may already have left the window. Order: maintain, push, then read.</li>
+<li>Using a strict comparison at the back, which keeps equal values and breaks the strict monotonicity, with degenerate behaviour on equal inputs.</li>
+<li>Not rejecting a window larger than the array, which happens to work by accident rather than by design.</li>
+<li>Believing the inner loop makes it quadratic instead of explaining the amortised accounting.</li>
+<li>Mismatching the heap version's expiry comparison with the window definition, which discards a still-valid top.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>State that the queue keeps only the still-possible candidates in decreasing order, then explain domination, which is the correctness argument and worth more than the code. Name the two independent actions and why the queue must hold indices. Volunteer the amortised accounting, then the comparison table with brute force, heap and block decomposition, and finally the streaming and out-of-memory extensions.</p>
+
+<h2>Closing</h2>
+
+<p>This is the definitive problem for monotonic structures: a single invariant, that domination is permanent, explains both the correctness and the complexity, because what is discarded really is useless and each element dies exactly once. The bracket stack earlier, this queue, and the monotonic stack in the trapping problem are three faces of one idea, differing only in which end the answer comes from.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-239-sliding-window-maximum/">【LC 239】滑动窗口最大值：单调队列只留候选</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-322-coin-change',
+    zhSlug: 'lc-322-coin-change',
+    topicSlug: 'leetcode',
+    title: 'LC 322, coin change: iterate amounts ascending, or the answer becomes minus one',
+    excerpt:
+      'One initialisation and one loop direction carry the whole problem. Infinity lets "impossible" be expressed; ascending order lets a coin be reused.',
+    date: '2026-09-20',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Given coin denominations and a target amount, return the fewest coins summing to the amount, or minus one if impossible. Each denomination is available unlimited times.</p>
+
+<pre><code>[1,2,5], amount 11  -&gt;  3    (5 + 5 + 1)
+[2],     amount 3   -&gt;  -1
+</code></pre>
+
+<p>This is the canonical unbounded knapsack minimisation. The recurrence is one line; the two thresholds are the choice of infinity and the direction of the inner loop over amounts. The second is the main character here: the same code returns three when amounts ascend and minus one when they descend.</p>
+
+<h2>Definition and recurrence</h2>
+
+<p>Enumerating how many of each coin explodes, so ask instead how many coins are needed for each amount. The state is the minimum count for an amount, zero needs none, and everything else starts at infinity.</p>
+
+<pre><code>dp[x] = min over coins c ( dp[x - c] + 1 )      for x &gt;= c
+</code></pre>
+
+<p>Read it as trying coin c as the last one added: the optimum for the remainder is already known, and appending this coin gives a candidate. Amounts ascend so that every dependency is already computed.</p>
+
+<pre><code>def coinChange(coins, amount):
+    dp = [0] + [float('inf')] * amount
+    for x in range(1, amount + 1):
+        for c in coins:
+            if x &gt;= c:
+                dp[x] = min(dp[x], dp[x - c] + 1)
+    return dp[amount] if dp[amount] != float('inf') else -1
+</code></pre>
+
+<p>Two details decide everything. Infinity rather than zero, because zero would declare every amount reachable with one coin and the minimum would collapse. And ascending amounts inside the loop, which is the switch for unlimited reuse.</p>
+
+<h2>Why ascending is the fingerprint of unbounded knapsack</h2>
+
+<p>Rewrite with coins outside and amounts inside, and only one variable remains: the direction of the inner loop.</p>
+
+<p>Ascending, when the loop reaches amount a, the entry for a minus c has <strong>already been updated in this same pass</strong>, and may itself be built from coin c. So the recurrence naturally allows adding another copy of the same coin. That is where reuse happens: the eleven is built from ten, ten from five, giving five plus five plus one.</p>
+
+<p>Descending, that entry has not yet been touched in this pass, so the value read is the one left by the previous pass, which is equivalent to each coin being usable once. With coins of one, two and five the total face value is only eight, so eleven is unreachable and the answer is minus one.</p>
+
+<p>One sentence: ascending reads the current pass, descending reads the previous pass.</p>
+
+<p>So this problem must ascend, while problems where each item is used at most once must descend. That is a difference in meaning, not in style.</p>
+
+<h2>The animations</h2>
+
+<p>The first animation fills the amount row, showing the current amount outlined, the source cell in green, and an arc between them. Below, each coin is scored with the candidate it offers, the winner outlined, and coins exceeding the amount struck out. After the eleventh cell the animation walks the predecessor chain back from eleven to ten to five to zero, recovering the combination, since counts alone cannot reproduce it.</p>
+
+<p>The second animation puts two panels side by side with literally identical equations, differing only in the direction of the inner loop. Each frame is aligned by the step within the pass, so the ascending panel works left to right while the descending one works right to left. Watch the source cell: on the left it is always a value written in this pass, on the right always a leftover from the previous pass. After three coins the left panel holds three at eleven and the right holds infinity.</p>
+
+<table>
+<thead><tr><th>Amount</th><th>Via one</th><th>Via two</th><th>Via five</th><th>Best</th><th>Combination</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>1</td><td>-</td><td>-</td><td>1</td><td>1</td></tr>
+<tr><td>2</td><td>2</td><td>1</td><td>-</td><td>1</td><td>2</td></tr>
+<tr><td>3</td><td>2</td><td>2</td><td>-</td><td>2</td><td>2 plus 1</td></tr>
+<tr><td>4</td><td>3</td><td>2</td><td>-</td><td>2</td><td>2 plus 2</td></tr>
+<tr><td>5</td><td>3</td><td>3</td><td>1</td><td>1</td><td>5</td></tr>
+<tr><td>6</td><td>2</td><td>3</td><td>2</td><td>2</td><td>5 plus 1</td></tr>
+<tr><td>7</td><td>3</td><td>2</td><td>2</td><td>2</td><td>5 plus 2</td></tr>
+<tr><td>8</td><td>3</td><td>3</td><td>3</td><td>3</td><td>5 plus 2 plus 1</td></tr>
+<tr><td>9</td><td>4</td><td>3</td><td>3</td><td>3</td><td>5 plus 2 plus 2</td></tr>
+<tr><td>10</td><td>4</td><td>4</td><td>2</td><td>2</td><td>5 plus 5</td></tr>
+<tr><td>11</td><td>3</td><td>4</td><td>3</td><td><strong>3</strong></td><td>5 plus 5 plus 1</td></tr>
+</tbody>
+</table>
+
+<p>At the last cell the three coins offer three, four and three, a tie between one and five, and the first is kept, so the chain runs eleven to ten to five to zero.</p>
+
+<table>
+<thead><tr><th>After coin</th><th>Ascending row</th><th>Descending row</th></tr></thead>
+<tbody>
+<tr><td>start</td><td>0, then infinities</td><td>0, then infinities</td></tr>
+<tr><td>1</td><td>0 through 11 all reachable</td><td>0, 1, then infinities</td></tr>
+<tr><td>2</td><td>improves throughout</td><td>0, 1, 1, 2, then infinities</td></tr>
+<tr><td>5</td><td>0, 1, 1, 2, 2, 1, 2, 2, 3, 3, 2, 3</td><td>0, 1, 1, 2, infinity, 1, 2, 2, 3, infinity, infinity, infinity</td></tr>
+</tbody>
+</table>
+
+<h2>The family</h2>
+
+<ul>
+<li><strong>Perfect squares.</strong> Coins replaced by square numbers, structurally identical with one line changed.</li>
+<li><strong>Coin change two, counting combinations.</strong> Addition instead of minimisation, and the loops must be coins outside and amounts ascending, which removes duplicate orderings.</li>
+<li><strong>Combination sum four, counting permutations.</strong> The same addition with the loops transposed, which is the only difference between the two.</li>
+<li><strong>Word break.</strong> The boolean version of the same recurrence.</li>
+<li><strong>Partition equal subset sum.</strong> Each item once, so the inner loop descends, which is the right panel of the second animation.</li>
+</ul>
+
+<p>The axes: capacity is the amount, items are the coins, unlimited means ascending, single-use means descending, optimisation means minimum or maximum, and counting means addition.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int coinChange(int[] coins, int amount) {
+    int INF = amount + 1;
+    int[] dp = new int[amount + 1];
+    Arrays.fill(dp, INF);
+    dp[0] = 0;
+    for (int x = 1; x &lt;= amount; x++) {
+        for (int c : coins) {
+            if (x &gt;= c &amp;&amp; dp[x - c] + 1 &lt; dp[x]) {
+                dp[x] = dp[x - c] + 1;
+            }
+        }
+    }
+    return dp[amount] == INF ? -1 : dp[amount];
+}
+</code></pre>
+
+<p>The sentinel is the amount plus one rather than the maximum integer, because incrementing that maximum overflows to a negative and the minimum then picks it. Adding a predecessor array recovers the actual coins by walking backwards from the target. A breadth-first search over amounts is equivalent and convenient when a combination must be printed.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>A target of zero answers zero without entering any loop.</li>
+<li>Unreachable targets leave infinity in place and return minus one.</li>
+<li>Coins larger than the target are skipped, and filtering them up front is cleaner.</li>
+<li>A single denomination matching the target answers one, and twice the target answers two, relying precisely on the ascending order.</li>
+<li>If a one exists, everything is reachable, which is why so many test cases feel safe.</li>
+<li>Duplicate denominations change nothing.</li>
+<li>Choose the sentinel per language so that incrementing it cannot overflow.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Version</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Standard table</td><td>Amount times coin types</td><td>Linear in amount</td></tr>
+<tr><td>With predecessors</td><td>Same</td><td>Same</td></tr>
+<tr><td>Breadth-first over amounts</td><td>Same</td><td>Same</td></tr>
+<tr><td>Naive recursion, for contrast</td><td>Exponential</td><td>Linear when memoised</td></tr>
+<tr><td>Two-dimensional form</td><td>Same</td><td>Amount times coin types</td></tr>
+</tbody>
+</table>
+
+<p>Collapsing the two-dimensional table to one row relies exactly on the ascending inner loop, since each entry depends only on smaller indices of the same row. Descending is what happens when that collapse is done in the wrong direction.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Initialising with zero instead of infinity, which collapses every answer.</li>
+<li>Iterating amounts descending, which still runs and may still pass samples while quietly turning the problem into the single-use variant.</li>
+<li>Greedily taking the largest coin first, which fails without divisibility: for six from one, three and four, greedy needs three coins and the optimum is two.</li>
+<li>Omitting the zero-target short circuit in code that assumes at least one coin.</li>
+<li>Returning infinity or a large number instead of minus one.</li>
+<li>Recording only the count when the combination is needed, which requires a predecessor array.</li>
+<li>Using the maximum integer as infinity in a fixed-width language.</li>
+<li>Mixing the loop-order rules between the minimisation and counting variants.</li>
+<li>Forgetting to filter coins larger than the target.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Define the state, the base, the recurrence and the sentinel, with an explanation of why zero will not do. Then the direction, which is where candidates separate: ascending reads this pass and permits reuse, descending reads the last pass and forbids it. Then the graph viewpoint, amounts as vertices and coins as unit edges, so the answer is a shortest path and a breadth-first search solves it, which is convenient for printing a combination. Then the follow-ups: counting combinations or permutations by loop order, and single-use items by descending.</p>
+
+<h2>Closing</h2>
+
+<p>The difficulty compresses into one initialisation and one direction. Infinity decides whether impossibility can be expressed at all, and the direction decides whether a coin may be reused. Say both clearly and the rest of the family is the same machine with new parameters.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-322-coin-change/">【LC 322】零钱兑换：正序完全背包，逆序变 -1</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-300-longest-increasing-subsequence',
+    zhSlug: 'lc-300-longest-increasing-subsequence',
+    topicSlug: 'leetcode',
+    title: 'LC 300, longest increasing subsequence: anchor the state, then change the anchor',
+    excerpt:
+      'Anchoring on "ending at this index" makes the recurrence appear; recording by length makes binary search possible. Two breakthroughs in opposite directions.',
+    date: '2026-09-19',
+    readingTime: 14,
+    html: `
+<h2>The problem</h2>
+
+<p>Return the length of the longest strictly increasing subsequence.</p>
+
+<pre><code>[10,9,2,5,3,7,101,18]  -&gt;  4    ([2,3,7,101] or [2,3,7,18])
+</code></pre>
+
+<p>Subsequences may skip elements as long as order is preserved, so whether to take an element depends on what was taken before. That is a combinatorial problem and not greedy, since the locally longest chain does not always extend to the globally longest.</p>
+
+<h2>Anchor the state</h2>
+
+<p>The breakthrough is one move: anchor the state on the ending index. Define the length of the longest increasing subsequence ending at each position. With that anchor, the question becomes which predecessor to attach to, because an increasing subsequence ending here, with its last element removed, is an increasing subsequence ending at some earlier position. The subproblem has exactly the same shape, only smaller.</p>
+
+<p>Two misconceptions to clear. Defining the state as the best within the first i elements fails, because that best may not end at i, so extending it with the next element is undefined; the anchor must be the ending position. And it is safe to look only at the endpoint, because increasing-ness acts only between adjacent elements, so deciding whether an attachment is legal requires comparing the new value with the last one and nothing else.</p>
+
+<p>This is the same move as in the maximum subarray problem, whose state is also anchored on the ending index. It is the most useful anchor for subsequence and subarray problems.</p>
+
+<h2>The recurrence</h2>
+
+<pre><code>def lengthOfLIS(nums):
+    n = len(nums)
+    if n == 0:
+        return 0
+    dp = [1] * n
+    for i in range(n):
+        for j in range(i):
+            if nums[j] &lt; nums[i] and dp[j] + 1 &gt; dp[i]:
+                dp[i] = dp[j] + 1
+    return max(dp)
+</code></pre>
+
+<p>Three points. The initial value is one, because each element alone is a subsequence of length one, and zero would make a descending array return zero. The inner loop looks back at everything rather than stopping at the first legal predecessor, since a longer chain may hide further back. And the answer is the maximum over the row rather than the last entry, because the longest chain need not end at the final element, which is the biggest trap in the problem and one the official sample does not expose.</p>
+
+<h2>The animation</h2>
+
+<p>Five layers: a banner showing the round, the action and the current value; the array with the current index outlined, the predecessor under review in green, failing predecessors dashed grey and legal candidates tinted; the state row, growing in place before settling to gold; a gold chain tracing the current best subsequence back through predecessors; and an answer row updated only on settling frames, since an unsettled value does not count.</p>
+
+<p>Two textbook moments. When the value seven arrives, one candidate predecessor carries a longer chain than another, and the gold chain switches. When one hundred one arrives, all six previous elements are legal and the value climbs to four. Then eighteen ties without improving, so the global answer stays at four, which is exactly the demonstration that the answer is a maximum over the row.</p>
+
+<table>
+<thead><tr><th>i</th><th>Value</th><th>Legal predecessors</th><th>Best predecessor</th><th>Length</th><th>Global best</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>10</td><td>none</td><td>-</td><td>1</td><td>1</td></tr>
+<tr><td>1</td><td>9</td><td>none</td><td>-</td><td>1</td><td>1</td></tr>
+<tr><td>2</td><td>2</td><td>none</td><td>-</td><td>1</td><td>1</td></tr>
+<tr><td>3</td><td>5</td><td>index 2</td><td>index 2</td><td>2</td><td>2</td></tr>
+<tr><td>4</td><td>3</td><td>index 2</td><td>index 2</td><td>2</td><td>2</td></tr>
+<tr><td>5</td><td>7</td><td>indices 2, 3, 4</td><td>index 3</td><td>3</td><td>3</td></tr>
+<tr><td>6</td><td>101</td><td>all before</td><td>index 5</td><td>4</td><td>4</td></tr>
+<tr><td>7</td><td>18</td><td>all but index 6</td><td>index 5</td><td>4</td><td>4</td></tr>
+</tbody>
+</table>
+
+<p>Two rows share the same predecessor and the same length, which shows why this is faster than enumerating subsequences: each anchored optimum is computed once and then looked up by every later index that can attach to it.</p>
+
+<h2>The advanced version</h2>
+
+<p>The quadratic class comes from the anchor itself: there are n possible endings, and finding who can attach to a new value requires scanning back. To use binary search, change the bookkeeping to be indexed by length instead.</p>
+
+<pre><code>tails[len] = the smallest possible tail among all increasing
+             subsequences of length len + 1
+</code></pre>
+
+<p>That array is strictly increasing, by a short contradiction: if a larger length had a smaller or equal tail, truncating that subsequence to the shorter length would produce a tail below the recorded minimum. Being strictly increasing, it supports a binary search for the first position with a value at least as large as the new element.</p>
+
+<p>If that position is inside the array, replace the entry: the tail for that length becomes smaller, which is strictly better for future attachments and does not change the length. If the position is past the end, the new element is larger than every recorded tail, so append it and the answer grows, which is the only operation that can increase the answer.</p>
+
+<pre><code>from bisect import bisect_left
+
+def lengthOfLIS(nums):
+    tails = []
+    for x in nums:
+        pos = bisect_left(tails, x)
+        if pos == len(tails):
+            tails.append(x)
+        else:
+            tails[pos] = x
+    return len(tails)
+</code></pre>
+
+<p>The hand-written binary search is a dozen lines and is often required, since it also proves the candidate understands lower bound semantics: the high bound starts at the array length because appending must be representable, and the midpoint rounds down so that the loop cannot fail to shrink.</p>
+
+<p>An important clarification: the array is not the subsequence. After the sample it holds the four values of a different chain than the true answer, because a later replacement overwrote content. Only its length is reliable.</p>
+
+<p>To reconstruct an actual subsequence, go back to the quadratic version and record parents.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int lengthOfLIS(int[] nums) {
+    int n = nums.length;
+    int[] dp = new int[n];
+    int best = 0;
+    for (int i = 0; i &lt; n; i++) {
+        dp[i] = 1;
+        for (int j = 0; j &lt; i; j++) {
+            if (nums[j] &lt; nums[i] &amp;&amp; dp[j] + 1 &gt; dp[i]) {
+                dp[i] = dp[j] + 1;
+            }
+        }
+        best = Math.max(best, dp[i]);
+    }
+    return best;
+}
+
+public int lengthOfLISFast(int[] nums) {
+    int[] tails = new int[nums.length];
+    int size = 0;
+    for (int x : nums) {
+        int lo = 0, hi = size;
+        while (lo &lt; hi) {
+            int mid = (lo + hi) &gt;&gt;&gt; 1;
+            if (tails[mid] &lt; x) lo = mid + 1;
+            else hi = mid;
+        }
+        tails[lo] = x;
+        if (lo == size) size++;
+    }
+    return size;
+}
+</code></pre>
+
+<p>Using the library binary search is a poor substitute, since on a hit it returns an arbitrary matching index rather than the leftmost, and the negative return value then needs conversion. The hand-written loop is shorter and more predictable.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Point</th></tr></thead>
+<tbody>
+<tr><td>empty</td><td>0</td><td>Guard before the maximum</td></tr>
+<tr><td>one element</td><td>1</td><td>Trivially</td></tr>
+<tr><td>all equal</td><td>1</td><td>Strictly increasing means equality cannot attach</td></tr>
+<tr><td>strictly decreasing</td><td>1</td><td>Every entry stays one</td></tr>
+<tr><td>strictly increasing</td><td>the length</td><td>Every step appends</td></tr>
+<tr><td>longest chain not at the end</td><td>3</td><td>The counterexample to returning the last entry</td></tr>
+</tbody>
+</table>
+
+<h2>Complexity</h2>
+
+<p>The quadratic version is time quadratic and space linear, the latter doubled if parents are kept for reconstruction. The tails version is linearithmic and linear, since each element costs one binary search over at most n entries.</p>
+
+<p>Each compression gives up information: brute force over all subsequences is exponential, the anchored DP turns enumeration into lookup, and the tails version turns the backward scan into a search while losing the identity of the chain. Offer the quadratic version with a proper explanation of the definition first, then upgrade; the order matters.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Returning the last entry, which the official sample does not expose. Self-test on a case where the longest chain is not at the end.</li>
+<li>Using the strict-increasing binary search for a non-decreasing problem, or the reverse. On equal elements the wrong choice either overcounts or undercounts.</li>
+<li>Defining the state as the best in the prefix, which makes the recurrence unwritable.</li>
+<li>Initialising to zero, which returns zero for a descending array, or forgetting the empty guard before taking the maximum.</li>
+<li>Treating the tails array as the answer subsequence, whose contents are overwritten.</li>
+<li>Getting the hand-written binary search boundaries wrong, which loops forever or misses the append case.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Give the quadratic version with the anchor explained, then point out the sample blind spot, since that sentence separates memorisation from work. Then the upgrade, phrased as changing the anchor: record by length the smallest tail per length, use strict monotonicity to binary search, and return the length. Then the clarification that the array is not the subsequence, and finally the variants: non-decreasing needs the right-hand search, counting distinct longest subsequences needs a counter array, sorting by one dimension reduces the two-dimensional version to this one, and the longest common subsequence is a relative.</p>
+
+<h2>Closing</h2>
+
+<p>State definition decides everything here. The first question tests whether you dare anchor the state on the ending index, at which point the recurrence grows by itself. The second tests whether you dare abandon that anchor for one indexed by length, at which point binary search becomes available. Two breakthroughs, in opposite directions: first pin the state down, then loosen it. The earlier maximum subarray problem used the first; this one collects both.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-300-longest-increasing-subsequence/">【LC 300】最长递增子序列：加锚，再压到 O(n log n)</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-bitmap-sort-dedup',
+    zhSlug: 'lc-bitmap-sort-dedup',
+    topicSlug: 'leetcode',
+    title: 'Sorting and deduplicating a billion integers: one bitmap, 119 MiB instead of 4 GB',
+    excerpt:
+      'A bitmap is not a sorting algorithm but a storage decision: when the value range is bounded, the range itself can be the data structure. Deduplication and order come free.',
+    date: '2026-09-18',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>A billion unordered integers, limited memory, and the requirement to sort and deduplicate them. If only the count of distinct values is wanted, it is a distinct-counting problem. The follow-up asks how to identify which values repeat and which appear exactly once.</p>
+
+<p>This is where bitmaps shine, and it is asked constantly because it tests a shift in thinking rather than a clever algorithm: when integers are bounded, the value range itself can serve as storage.</p>
+
+<h2>Trading range for space</h2>
+
+<p>Do the arithmetic first. A billion 32-bit integers held as they are occupy four gigabytes, which most machines cannot spare. A hash set is worse, since each element needs a boxed object, a reference and a node, tens of bytes each, so a billion of them is tens of gigabytes.</p>
+
+<p>But the values are bounded. If they range over a billion possibilities, one bit per possible value is enough to record whether it occurred, and that costs a hundred twenty-five million bytes, about a hundred nineteen mebibytes.</p>
+
+<p>That fits comfortably, and it incidentally solves both other requirements. Deduplication is free because a bit can only be set once, so a repeat finds the bit already on. Ordering is free because scanning bit indices ascending emits sorted output.</p>
+
+<p>The compression ratio here is thirty-two to one, since each possible value is represented in a single bit rather than four bytes. A bitmap is not a sorting algorithm; it is a storage decision that trades the size of the value range against the volume of data, and sorting and deduplication are by-products.</p>
+
+<h2>The one-bit version</h2>
+
+<pre><code>class BitMap:
+    def __init__(self, size: int):
+        self.size = size
+        self.words = [0] * ((size + 31) // 32)
+
+    def add(self, v: int) -&gt; None:
+        self.words[v &gt;&gt; 5] |= 1 &lt;&lt; (v &amp; 31)
+
+    def contains(self, v: int) -&gt; bool:
+        return (self.words[v &gt;&gt; 5] &gt;&gt; (v &amp; 31)) &amp; 1 == 1
+
+    def sorted_distinct(self) -&gt; list[int]:
+        return [v for v in range(self.size) if self.contains(v)]
+</code></pre>
+
+<p>Three steps: set the bit, test it, and scan in index order. Walking a small example, a repeated value lands on a bit that is already set, so the second occurrence does nothing at all, and deduplication happens without a comparison, a hash, or any extra space.</p>
+
+<h2>The animation</h2>
+
+<p>Each input takes two frames, one computing the word and bit position, the other setting the bit or skipping. The display shows the bitmap as two rows of thirty-two bits, green for set, orange for the current bit and gold for a duplicate hit, with a locating equation and the actual instruction, a row of output values in ascending order, and a progress tally.</p>
+
+<table>
+<thead><tr><th>Input</th><th>Word</th><th>Bit</th><th>Action</th><th>Set so far</th></tr></thead>
+<tbody>
+<tr><td>37</td><td>1</td><td>5</td><td>Set</td><td>37</td></tr>
+<tr><td>12</td><td>0</td><td>12</td><td>Set</td><td>37, 12</td></tr>
+<tr><td>37</td><td>1</td><td>5</td><td>Already set, skip</td><td>37, 12</td></tr>
+<tr><td>5</td><td>0</td><td>5</td><td>Set</td><td>37, 12, 5</td></tr>
+<tr><td>63</td><td>1</td><td>31</td><td>Set</td><td>37, 12, 5, 63</td></tr>
+<tr><td>42</td><td>1</td><td>10</td><td>Set</td><td>37, 12, 5, 63, 42</td></tr>
+</tbody>
+</table>
+
+<p>The scan then emits five values in ascending order. At scale, the comparison is stark.</p>
+
+<table>
+<thead><tr><th>Approach</th><th>Space</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Raw array</td><td>4 GB</td><td>Immediately out of budget</td></tr>
+<tr><td>Hash set of boxed values</td><td>Tens of GB</td><td>Object header, reference and node per element</td></tr>
+<tr><td><strong>Bitmap over a billion values</strong></td><td><strong>About 119 MiB</strong></td><td>Thirty-two to one</td></tr>
+<tr><td>Full 32-bit range bitmap</td><td>512 MiB</td><td>Convenient when the distribution is unknown</td></tr>
+<tr><td>Two-bit full range</td><td>1 GiB</td><td>Adds occurrence bucketing</td></tr>
+</tbody>
+</table>
+
+<p>The last two rows matter when the distribution is not controllable, since a full-range bitmap avoids all offset bookkeeping for a predictable cost.</p>
+
+<h2>The two-bit version</h2>
+
+<p>One bit only distinguishes presence. To identify which values repeat and which appear once, add a second bit and treat the pair as a state: unset, seen once, seen multiple times, with the fourth state reserved as a safety fallback.</p>
+
+<table>
+<thead><tr><th>Current state</th><th>Another occurrence</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td>00</td><td>First sighting</td><td>Become 01</td></tr>
+<tr><td>01</td><td>Second sighting</td><td>Become 10</td></tr>
+<tr><td>10</td><td>Third and beyond</td><td>Stay</td></tr>
+<tr><td>11</td><td>Reserved</td><td>Fall back to 10</td></tr>
+</tbody>
+</table>
+
+<pre><code>def add(self, v: int) -&gt; None:
+    cur = self._state(v)
+    if cur == 0b00:
+        self._set(v, 0b01)
+    elif cur == 0b01:
+        self._set(v, 0b10)
+    elif cur == 0b11:
+        self._set(v, 0b10)
+</code></pre>
+
+<p>Note that the states are not a counter. A counter would overflow on the fourth occurrence, while this only needs to separate once from many, and the many state is a bin that accepts anything.</p>
+
+<p>The cost is double the space, in exchange for three answers from one scan: which values appeared, which repeated, and which appeared exactly once.</p>
+
+<h2>The bit operations</h2>
+
+<pre><code>word = v &gt;&gt; 5
+bit  = v &amp; 31
+words[word] |= 1 &lt;&lt; bit
+(words[word] &gt;&gt; bit) &amp; 1 == 1
+words[word] &amp;= ~(1 &lt;&lt; bit)
+</code></pre>
+
+<p>For thirty-seven, the word is one and the bit is five, since thirty-seven is one times thirty-two plus five. The thirty-two bits inside a word are independent, which is what makes a single-bit update safe.</p>
+
+<p>Engineering details worth stating: negative values must be shifted by subtracting the minimum, or the index goes negative; endianness is irrelevant because addressing is by value rather than layout; the word size is a platform detail, and sixty-four-bit words address more coarsely and behave better in cache; and scanning can be accelerated by skipping whole zero words and by counting population for a distinct count, which is thirty-two times fewer operations per word.</p>
+
+<h2>When the range explodes</h2>
+
+<p>The premise is a bounded, modest range. When it fails, the answer is to reduce and partition. Sixty-four-bit values or identifiers have a range whose bitmap would exceed any storage, so bucket by high bits to disk, build a bitmap per bucket, and merge in order; or partition by hash at the cost of losing the natural ordering; or use a Bloom filter, which answers only membership with false positives and cannot emit results; or fall back to external sorting, which is the general answer and of which the bitmap is the bounded special case.</p>
+
+<p>Across machines, shard by value range, build independent bitmaps, and concatenate in shard order, since deduplication and ordering hold at the shard boundary.</p>
+
+<p>If only the count is needed, sum the population counts over words without emitting any sequence.</p>
+
+<h2>Complexity and selection</h2>
+
+<table>
+<thead><tr><th></th><th>Bitmap</th><th>Comparison sort</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>Data volume plus range</td><td>n log n</td></tr>
+<tr><td>Space</td><td>Range over eight</td><td>Data volume</td></tr>
+<tr><td>Deduplication</td><td>Free</td><td>A pass afterwards</td></tr>
+<tr><td>Sorted output</td><td>Free, by scan order</td><td>Free, by definition</td></tr>
+</tbody>
+</table>
+
+<p>The two terms in the time bound are separate: the data volume and the range. At a billion values over the same range they are of the same order, giving roughly two billion basic operations, against thirty billion comparisons for a comparison sort, and the constants for comparison and swapping are far worse than setting a bit.</p>
+
+<p>The deciding ratio is range divided by volume. Comparable magnitudes favour a bitmap with a thirty-two to one saving; a range far larger than the volume is a heavy loss, since a hundred values scattered across the full 32-bit range would cost half a gigabyte; and 64-bit scenarios rule bitmaps out entirely, pushing you to partitioning or external sorting.</p>
+
+<h2>Five mistakes, each genuinely fatal</h2>
+
+<ol>
+<li>Assigning instead of or-ing when setting a bit, which wipes the whole word. Setting zero then five leaves only five.</li>
+<li>Omitting the complement when clearing, which clears every other bit in the word too.</li>
+<li>Not offsetting negative values, which produces a negative index.</li>
+<li>Choosing a bitmap without computing the range. A bitmap over phone numbers needs eleven gibibytes, more than the original data.</li>
+<li>Asking a one-bit bitmap how many times a value appeared, which is unanswerable by construction. The follow-up is not a code change, it is a data structure change.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>The short version: the raw array is four gigabytes but the range is bounded, so one bit per possible value costs about a hundred nineteen mebibytes. Setting bits gives deduplication for free and scanning in index order gives sorted output, in linear time over volume plus range and linear space over range, a thirty-two to one saving. Then add the bit operations with their two landmines, the two-bit extension, and the escape hatches for unbounded ranges, noting that a bitmap is a special case with a bounded domain rather than a universal tool.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-bitmap-sort-dedup/">【海量数据】10 亿整数排序去重：一张位图，119 MiB 换 4 GB</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
