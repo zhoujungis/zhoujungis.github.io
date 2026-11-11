@@ -33918,6 +33918,255 @@ def canFinish(numCourses, prerequisites):
 `,
   },
 
+  {
+    slug: 'lc-155-232-min-stack-and-queue-via-stacks',
+    zhSlug: 'lc-155-232-min-stack-and-queue-via-stacks',
+    topicSlug: 'leetcode',
+    title: 'LC 155 and 232: minimum stack, and a queue made of two stacks',
+    excerpt:
+      'One problem needs the stack to remember history, the other needs it to reverse direction. Record the minimum per layer, or flip the whole pile exactly once.',
+    date: '2026-10-06',
+    readingTime: 14,
+    html: `
+<h2>The problems</h2>
+
+<p><strong>155:</strong> design a stack supporting push, pop and peek, plus a constant-time minimum.</p>
+
+<pre><code>push(-2), push(0), push(-3), getMin()  -&gt; -3
+pop(), top()                            -&gt; 0
+getMin()                                -&gt; -2
+</code></pre>
+
+<p><strong>232:</strong> implement a first-in-first-out queue using only two stacks, with push, pop, peek and empty.</p>
+
+<pre><code>push(1), push(2), push(3), pop(), peek(), pop()
+-&gt; 1, 2, 2
+</code></pre>
+
+<p>Both add a constraint to a structure that cannot satisfy it. A stack sees only its top and is last-in-first-out, yet the first problem demands knowing the minimum of the whole pile, including the previous minimum after a pop, and the second demands first-in-first-out. One needs the stack to remember history, the other needs it to reverse order.</p>
+
+<h2>155: the minimum is history, so store it per layer</h2>
+
+<p>Scanning the stack each time is linear, so that is out. The real difficulty is not the current minimum but the one after a pop: pushing minus two, zero and minus three makes the minimum minus three, and popping minus three must restore minus two. That minus two is a <strong>past</strong> minimum, and popping is time travel, so old answers must already be stored rather than recomputed.</p>
+
+<p>So the conclusion is direct: the minimum is not current state, it is history, and it must be recorded layer by layer. Keep an auxiliary stack holding, alongside each push, what the minimum was at that moment.</p>
+
+<ul>
+<li>The auxiliary top always equals the minimum of the whole stack, which makes the query constant time.</li>
+<li>A pop removes from both stacks, so the previous minimum comes back automatically.</li>
+</ul>
+
+<pre><code>class MinStack:
+    def __init__(self):
+        self.main = []
+        self.mins = []
+
+    def push(self, x):
+        self.main.append(x)
+        if not self.mins or x &lt;= self.mins[-1]:
+            self.mins.append(x)
+
+    def pop(self):
+        x = self.main.pop()
+        if x == self.mins[-1]:
+            self.mins.pop()
+        return x
+
+    def top(self):
+        return self.main[-1]
+
+    def getMin(self):
+        return self.mins[-1]
+</code></pre>
+
+<p>Two details. The auxiliary stack does not receive an entry for every push: pushing zero when the minimum is minus two leaves it untouched, because what it records is the moments when the minimum changed, a sampled history rather than a full copy. And the pop only mirrors when the value removed equals the current minimum, since otherwise the minimum never moved.</p>
+
+<p>An equivalent variant stores a pair of value and minimum in each frame of a single stack. It is shorter and records every layer instead of only the changes, so the auxiliary version usually uses less space. Either is accepted; the idea of storing per layer is the point.</p>
+
+<h2>232: two reversals restore the original order</h2>
+
+<p>A stack is last-in-first-out and a queue is first-in-first-out, and opposite of opposite is identity.</p>
+
+<p>Elements enter the input stack and are reversed once, so later arrivals sit on top of earlier ones. Flipping the whole pile into the output stack reverses again, which sinks the earliest arrival to the top of the output stack. That top is the front of the queue, and pop and peek only touch that stack.</p>
+
+<pre><code>class MyQueue:
+    def __init__(self):
+        self.inn = []
+        self.out = []
+
+    def push(self, x):
+        self.inn.append(x)
+
+    def _shift(self):
+        if not self.out:
+            while self.inn:
+                self.out.append(self.inn.pop())
+
+    def pop(self):
+        self._shift()
+        return self.out.pop()
+
+    def peek(self):
+        self._shift()
+        return self.out[-1]
+
+    def empty(self):
+        return not self.inn and not self.out
+</code></pre>
+
+<p>Two requirements, neither optional. Transfer only when the output stack is empty: if it still holds older elements, mixing new ones in puts a new element on top and breaks the front. And the transfer must move the entire pile, because stopping halfway leaves newer elements above older ones and the order is immediately wrong.</p>
+
+<p>The amortised argument: each element participates in at most three stack operations in its lifetime, entering the input stack, being transferred once, and leaving the output stack. So n queue operations cost linear time overall. A single pop can cost linear if it happens to trigger a transfer, but that pays the bill for the next n minus one operations in advance.</p>
+
+<h2>The animations</h2>
+
+<p>The minimum stack animation shows the main stack on the left and the auxiliary on the right, both drawn bottom up. Gold marks the frame's push, green marks a readable top, and an orange dashed ghost marks the element popped in that frame, left at its old height so the history being removed is visible. A push frame draws a synchronisation arrow only when the auxiliary is also pushed, so the frame pushing zero has no arrow, since zero is not a new minimum. On the pop frame, the value minus three becomes a ghost in both columns at once, because it was the minimum when pushed, so the old minimum minus two returns to the top. The query frame reads the auxiliary top and never touches the main stack.</p>
+
+<p>The queue animation shows the input stack, the output stack, and the dequeue sequence. Push only touches the input top. When the output stack still has stock, new elements wait behind it and are never transferred. The first pop finds the output stack empty, so an entire pile flips in one frame, with three, two and one each leaving the input top and landing on the output top. After that the output top is one, the earliest arrival, and it is recorded in the dequeue row. A later push of four, followed by a pop, returns three, because the older element must be consumed first.</p>
+
+<h2>The traces</h2>
+
+<table>
+<thead><tr><th>Frame</th><th>Operation</th><th>Main</th><th>Auxiliary</th><th>Push auxiliary</th><th>Returns</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>push(-2)</td><td>-2</td><td>-2</td><td>Yes, the first</td><td>-</td></tr>
+<tr><td>2</td><td>push(0)</td><td>-2, 0</td><td>-2</td><td>No, zero is larger</td><td>-</td></tr>
+<tr><td>3</td><td>push(-3)</td><td>-2, 0, -3</td><td>-2, -3</td><td>Yes, not larger</td><td>-</td></tr>
+<tr><td>4</td><td>getMin</td><td>unchanged</td><td>unchanged</td><td>-</td><td><strong>-3</strong></td></tr>
+<tr><td>5</td><td>pop</td><td>-2, 0</td><td>-2</td><td>-</td><td>-3, mirrored</td></tr>
+<tr><td>6</td><td>top</td><td>unchanged</td><td>unchanged</td><td>-</td><td><strong>0</strong></td></tr>
+<tr><td>7</td><td>getMin</td><td>unchanged</td><td>unchanged</td><td>-</td><td><strong>-2</strong></td></tr>
+</tbody>
+</table>
+
+<p>Frame five is the point: the value removed is exactly the auxiliary top, so both pop together and minus two returns. Had zero been popped instead, the auxiliary stack would not move at all.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Operation</th><th>Input</th><th>Output</th><th>Dequeued</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>push(1)</td><td>1</td><td>empty</td><td>-</td><td>Direct</td></tr>
+<tr><td>2</td><td>push(2)</td><td>1, 2</td><td>empty</td><td>-</td><td>Direct</td></tr>
+<tr><td>3</td><td>push(3)</td><td>1, 2, 3</td><td>empty</td><td>-</td><td>Direct</td></tr>
+<tr><td>4</td><td>pop triggers</td><td>1, 2, 3</td><td>empty</td><td>-</td><td>Output empty, transfer</td></tr>
+<tr><td>5</td><td>move 3</td><td>1, 2</td><td>3</td><td>-</td><td>Input top to output top</td></tr>
+<tr><td>6</td><td>move 2</td><td>1</td><td>3, 2</td><td>-</td><td>Same</td></tr>
+<tr><td>7</td><td>move 1</td><td>empty</td><td>3, 2, 1</td><td>-</td><td>Top is now the front</td></tr>
+<tr><td>8</td><td>pop</td><td>empty</td><td>3, 2</td><td>1</td><td>Output only</td></tr>
+<tr><td>9</td><td>peek</td><td>empty</td><td>3, 2</td><td>1</td><td>No removal</td></tr>
+<tr><td>10</td><td>pop</td><td>empty</td><td>3</td><td>1, 2</td><td>Output only</td></tr>
+<tr><td>11</td><td>push(4)</td><td>4</td><td>3</td><td>1, 2</td><td>Output has stock, no transfer</td></tr>
+<tr><td>12</td><td>pop</td><td>4</td><td>empty</td><td>1, 2, 3</td><td>Older pile consumed first</td></tr>
+<tr><td>13</td><td>move 4</td><td>empty</td><td>4</td><td>1, 2, 3</td><td>A single element still transfers</td></tr>
+<tr><td>14</td><td>pop</td><td>empty</td><td>empty</td><td>1, 2, 3, 4</td><td>Order preserved</td></tr>
+</tbody>
+</table>
+
+<p>Frames eleven and twelve are the most instructive. A four arrives while three is still unconsumed, and the correct behaviour is to finish the older element first. Transferring the four in would put it on top and make the next pop return four when the front is clearly three.</p>
+
+<h2>Variants</h2>
+
+<p>For the minimum stack, storing a pair per frame is the one-stack version, and the maximum stack adds a pop-maximum that removes an element from the middle, which an auxiliary stack cannot answer, since it knows the value but not the position. There is also a clever constant-space encoding using differences, which is beautiful, easy to get wrong, and best mentioned rather than written.</p>
+
+<p>For the queue, the reverse problem implements a stack with queues, and note where the cost goes: the queue version pushes cheaply and defers the reversal to the pop, while its mirror can only make the push pay, rotating the queue so the newest element ends up at the back of the line while pop stays constant. Both directions cannot be cheap, and that is precisely what the problem is testing.</p>
+
+<p>The family rule: to reverse order, add another stack, since flipping twice restores; to remember history, add a synchronised stack that stores the answer at every layer. Bracket matching and the monotonic queue are the same two sentences in different clothes.</p>
+
+<h2>Java</h2>
+
+<pre><code>class MinStack {
+    Deque&lt;Integer&gt; main = new ArrayDeque();
+    Deque&lt;Integer&gt; mins = new ArrayDeque();
+
+    public void push(int x) {
+        main.push(x);
+        if (mins.isEmpty() || x &lt;= mins.peek()) {
+            mins.push(x);
+        }
+    }
+
+    public void pop() {
+        if (main.pop().equals(mins.peek())) {
+            mins.pop();
+        }
+    }
+
+    public int top()    { return main.peek(); }
+    public int getMin() { return mins.peek(); }
+}
+
+class MyQueue {
+    Deque&lt;Integer&gt; in = new ArrayDeque();
+    Deque&lt;Integer&gt; out = new ArrayDeque();
+
+    public void push(int x) { in.push(x); }
+
+    private void shift() {
+        if (out.isEmpty()) {
+            while (!in.isEmpty()) {
+                out.push(in.pop());
+            }
+        }
+    }
+
+    public int pop()   { shift(); return out.pop(); }
+    public int peek()  { shift(); return out.peek(); }
+    public boolean empty() { return in.isEmpty() &amp;&amp; out.isEmpty(); }
+}
+</code></pre>
+
+<p>The Java trap: the pop returns a boxed integer, so comparing against the auxiliary top with the identity operator is unreliable outside the cache range. Compare by value.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Situation</th><th>Convention</th><th>Handling</th></tr></thead>
+<tbody>
+<tr><td>Query on an empty stack</td><td>Guaranteed non-empty</td><td>No check needed, but say so</td></tr>
+<tr><td>All values equal</td><td>Pushed three times to the auxiliary</td><td>The inclusive comparison keeps pop correct</td></tr>
+<tr><td>Strictly increasing input</td><td>One auxiliary entry</td><td>The sampled history only records the start</td></tr>
+<tr><td>Strictly decreasing input</td><td>Auxiliary mirrors every push</td><td>Worst case linear auxiliary space</td></tr>
+<tr><td>Consecutive pops on an empty queue</td><td>Not allowed</td><td>Check emptiness first</td></tr>
+<tr><td>Push while output has stock</td><td>New element enters input only</td><td>Never transfer</td></tr>
+<tr><td>Transfer with one element left</td><td>Still a full transfer</td><td>The same path runs</td></tr>
+</tbody>
+</table>
+
+<h2>Complexity</h2>
+
+<p>For the minimum stack, all four operations are constant time, and space is linear in the worst case, when the input is decreasing and the auxiliary mirrors every push; for increasing input it holds a single entry. The trade is space for remembering history.</p>
+
+<p>For the queue, push is constant, while pop and peek are constant amortised and linear in the worst single call that triggers a transfer. Space is linear, with the two stacks holding every element exactly once. The amortised ledger is three stack operations per element, which is linear in total.</p>
+
+<p>Compare the naive versions: scanning for the minimum is linear per query, and flipping the whole queue both ways on every pop is linear per call and quadratic overall. The lazy transfer reduces the total to linear.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Using a strict comparison when pushing to the auxiliary. With two equal values and one pop, the auxiliary empties while the main stack still holds the value, and the next query crashes. Equality is also a minimum at that moment.</li>
+<li>Popping the auxiliary unconditionally. Only a value equal to the current minimum mirrors, otherwise a minimum that has not yet occurred is discarded early.</li>
+<li>Transferring while the output stack still has stock. The new element lands on top and the next pop returns the wrong element.</li>
+<li>Transferring halfway. The whole pile must move in one loop, or newer elements end up above older ones.</li>
+<li>Calling an amortised bound a per-operation bound. A single pop can be linear.</li>
+<li>Storing only one global minimum variable, which cannot be restored after popping it. That is exactly the argument for storing per layer.</li>
+<li>Comparing boxed integers by identity in Java, which fails outside the small-integer cache.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>For the minimum stack, open with the characterisation: the minimum is history rather than current state, since a pop must travel back in time, so it has to be stored per layer. That sentence is worth more than the code. Then state the invariant, that the auxiliary top equals the minimum, and that it is a sampled history which must use the inclusive comparison.</p>
+
+<p>For the queue, open with the double reversal: enter the input stack for one reversal, flip the whole pile into the output stack for the second, and the output top is the front. Then the two requirements, transfer only when the output is empty and always transfer the entire pile, with the counterexample that shows why the first cannot be relaxed. Then the amortised ledger.</p>
+
+<p>Asked about variants: the mirror problem pays on push, the maximum stack cannot use an auxiliary because it needs to remove from the middle, and the backspace string comparison is the same stack simulation.</p>
+
+<h2>Closing</h2>
+
+<p>These are the two cornerstones of the stack family. The first teaches giving the stack a memory, a synchronised auxiliary stack storing history per layer. The second teaches giving the stack a direction, two stacks and two reversals. Everything after that, bracket matching talking only to the top, the monotonic queue discarding by dominance, the monotonic stack ordering by height, is a recombination of these two moves.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-155-232-min-stack-and-queue-via-stacks/">【LC 155/232】最小栈 &amp; 用栈实现队列：记历史与再翻一次</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
