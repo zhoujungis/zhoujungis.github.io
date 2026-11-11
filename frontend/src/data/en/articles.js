@@ -39419,6 +39419,481 @@ answer   = min over t &lt;= maxTime of dp[t][n-1]
 `,
   },
 
+  {
+    slug: 'django-n1-query-kill',
+    zhSlug: 'django-n1-query-kill',
+    topicSlug: 'django',
+    title: 'From 21 SQL statements to 2: three rounds against N plus one',
+    excerpt:
+      'The article list shows ten posts. Count the queries: one for the list, then two per post for category and tags. The fix is one line, but the discipline is reading the serializer line by line.',
+    date: '2026-09-07',
+    readingTime: 12,
+    html: `
+<h2>The numbers first</h2>
+
+<p>The article list page shows ten posts. The backend runs fourteen queries with eight posts, and twenty-one with a full page of ten. Exactly one of them is necessary.</p>
+
+<p>N plus one is the most common and most invisible performance problem in a Django project. The code looks fine, small datasets are fast, and after launch it degrades linearly with data. It raises nothing, it just makes the homepage slower while you stare at the code and cannot see where.</p>
+
+<h2>What the pattern is</h2>
+
+<pre><code>class ArticleListSerializer(serializers.ModelSerializer):
+    category = CategoryNestedField(read_only=True)
+    tags = TagNestedField(many=True, read_only=True)
+</code></pre>
+
+<p>Each post displays its category name and tag names, and the ORM does this: one query for the ten posts, then one query per post for its category, then one per post for its tags. One plus ten plus ten is twenty-one. The N is ten, the count is twice N plus one, and that is where the name comes from.</p>
+
+<table>
+<thead><tr><th>Version</th><th>Query count</th></tr></thead>
+<tbody>
+<tr><td>Looping over category and tags directly</td><td><strong>14</strong> with eight posts, tags reused</td></tr>
+<tr><td>With select and prefetch</td><td><strong>2</strong></td></tr>
+</tbody>
+</table>
+
+<p>With small data fourteen queries take milliseconds and nobody notices. But the count grows with the number of posts, and pagination, comments, RSS and search each bring their own set. It is not that slowness arrives suddenly; it is that each new post makes it a little slower, until one day it is unbearable.</p>
+
+<p>The key realisation: this is not a slow-query problem, it is a query-count problem. A single statement can be as fast as you like and still the count grows linearly.</p>
+
+<h2>First round: counts on the category list</h2>
+
+<pre><code>data = [(c.name, c.article_set.filter(status="published").count())
+        for c in Category.objects.all()]
+</code></pre>
+
+<p>Four categories give one query for the list plus four counts, five in total, and the count grows with the number of categories and tags.</p>
+
+<pre><code>def get_queryset(self):
+    return Category.objects.annotate(
+        article_count=Count(
+            "article",
+            filter=Q(article__status=Article.Status.PUBLISHED),
+        )
+    )
+</code></pre>
+
+<p>The annotation with a filtered count becomes a single statement with a conditional aggregate, so categories and counts come back together, always one query. The same applies to tags.</p>
+
+<p>Note the filter: only published articles count. Drafts, scheduled and archived posts must be excluded, and the counting rule has to match the visibility rule of the listing, or the category page advertises twelve posts and reveals eight. Numbers that do not add up destroy trust faster than anything.</p>
+
+<pre><code>class CategorySerializer(serializers.ModelSerializer):
+    article_count = serializers.IntegerField(read_only=True)
+</code></pre>
+
+<p>The field is declared as a plain read-only integer, so the data comes from the queryset annotation rather than a second query inside the serializer. That separation of duties is the general principle behind everything that follows: how many queries run and how they are shaped is the queryset's business, and the serializer only presents what has already been fetched.</p>
+
+<h2>Second round: comments</h2>
+
+<p>The comment serializer touches three relations: the reverse relation for replies, and the article twice through the foreign key. Each comment therefore triggers a query for the article and another for its replies, so a page of twenty comments is over forty statements.</p>
+
+<pre><code>return Comment.objects.filter(
+    article=article, is_approved=True, parent=None
+).select_related("article").prefetch_related("replies__article")
+</code></pre>
+
+<p>Forward foreign keys use the join variant and come back in the same statement. Reverse relations and many-to-many use the prefetch variant with a couple of extra queries, and note the double underscore in the path: the article of each reply must be prefetched too, or the pattern simply reappears one level down.</p>
+
+<p>The method: do not guess. Open the serializer, list every relation it touches line by line, and prefetch exactly those in the queryset.</p>
+
+<p>There is a second guard worth mentioning. The reply method is recursive, so the caller must prefetch and the recursion needs a depth cap. That protects against a maliciously constructed parent cycle and against runaway payloads. Query count and recursion depth are two different diseases, and nested serialisation needs both defences.</p>
+
+<h2>Third round: the RSS feed</h2>
+
+<p>The feed is the easiest place to miss the pattern, because it lives outside the DRF views and has no serializer.</p>
+
+<pre><code>.select_related("category")
+.prefetch_related("tags")
+</code></pre>
+
+<p>Every feed item prints its category and tags, so without prefetching, each poll by a reader costs dozens of statements. Nobody reads the feed, but crawlers and readers are the most frequent visitors of all, so skipping it leaves the busiest path in the slowest state.</p>
+
+<p>The lesson: cover every exit, the REST endpoints, the feed, the admin and the cron jobs. Fixing the API and leaving the feed is locking the front door and leaving the back open.</p>
+
+<h2>An honest section</h2>
+
+<p>The most frequently visited endpoint, the article list itself, had no prefetching at all, while its serializer touches both category and tags. The category and tag pages were fixed and the homepage was missed, the classic blind spot.</p>
+
+<pre><code>queryset = Article.objects.filter(
+    status=Article.Status.PUBLISHED
+).select_related("category").prefetch_related("tags")
+</code></pre>
+
+<p>Fourteen queries become two, one for the posts and one for the tags, with the category coming through the join, and the count is independent of N.</p>
+
+<p>Why write this down instead of quietly fixing it: because this is what the problem really is. It is not a bug that disappears once fixed; it is chronic, returning whenever a field or an endpoint is added. A method field that finds related articles by tag hides another few queries, so what is needed is not a fix but a habit of discovery.</p>
+
+<h2>A four-step method</h2>
+
+<table>
+<thead><tr><th>Step</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>List every relation the serializer touches, including queries hidden inside method fields</td></tr>
+<tr><td>2</td><td>Count queries locally, before and after, with a query-counting context or an assertion</td></tr>
+<tr><td>3</td><td>Use the join variant for forward keys and the prefetch variant for reverse and many-to-many, following double underscores to the end</td></tr>
+<tr><td>4</td><td>Cover every exit: API, feed, admin, scheduled jobs</td></tr>
+</tbody>
+</table>
+
+<p>Step two is the one worth insisting on: measure before you optimise. Every number above is measured locally, not estimated. Without a before, you cannot tell an improvement from a placebo.</p>
+
+<h2>Closing</h2>
+
+<p>The frightening thing about this pattern is not that it is hard to fix, since the fix is often one line, but that it is invisible. Everything works, every test passes, and the site slowly decays as data grows, losing users before anyone knows why.</p>
+
+<p>Three questions to ask yourself next time you write a DRF endpoint: which relations does the serializer touch, what did the query count do before and after, and are there sibling endpoints in the feed, the admin or the cron jobs. And the honest one: after fixing it, look again, because the busiest endpoint is usually the blind spot.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a>.</p>
+`,
+  },
+
+  {
+    slug: 'nim-stone-games',
+    zhSlug: 'nim-stone-games',
+    topicSlug: 'leetcode',
+    title: 'Nim and its relatives: one line of xor decides the game',
+    excerpt:
+      'Reduction is the whole subject. A pile configuration compresses to a single xor value, and a winning move is constructed in three steps rather than searched for.',
+    date: '2026-09-06',
+    readingTime: 12,
+    html: `
+<h2>The problem</h2>
+
+<p>Several piles of stones, two players alternating. On each turn a player takes any positive number of stones from any one pile. Whoever takes the last stone wins, and a player with no legal move loses. Decide whether the first player wins.</p>
+
+<pre><code>[3, 4, 5]  -&gt;  true, since 3 xor 4 xor 5 is 2, which is not zero
+</code></pre>
+
+<p>Two relatives are asked more often than the general form. One gives a row of piles and allows taking a whole pile only from either end, with an even number of piles. The other has a single pile with a cap on how many stones may be taken per turn.</p>
+
+<p>All three look like game theory and sit at three different levels: one line of xor, one parity argument, and one modulo. This article covers them in that order, and breaks the xor criterion into two arguments short enough to memorise.</p>
+
+<h2>Compress the piles into one number</h2>
+
+<p>The difficulty in these games is never computation but finding a state to recurse on. Each pile allows taking between one and its size, so the state space is far too large to search.</p>
+
+<p>The classic result instead assigns each position a number: xor all the pile sizes together. The first player wins exactly when that value is nonzero.</p>
+
+<p>Why it holds rests on two complementary arguments. When the xor is nonzero, there is always a move to a position with xor zero, which is a construction. And when the xor is zero, every move leads to a nonzero value: suppose changing one pile from p to a smaller value kept the total at zero, then that pile's contribution would be unchanged, meaning the value did not actually change, a contradiction.</p>
+
+<p>Together they give an induction. The first player can always hand back a zero position, and whatever the second player does necessarily returns a nonzero one. The total number of stones strictly decreases, so the game ends, and the player who makes the last move is the first.</p>
+
+<p>That is the definition of a losing position: not one where no move exists, but one where every move hands the win to the opponent.</p>
+
+<h2>Constructing the winning move</h2>
+
+<pre><code>def first_player_wins(piles) -&gt; bool:
+    x = 0
+    for p in piles:
+        x ^= p
+    return x != 0
+
+def winning_move(piles):
+    x = 0
+    for p in piles:
+        x ^= p
+    if x == 0:
+        return None
+    h = x.bit_length() - 1
+    for i, p in enumerate(piles):
+        if (p &gt;&gt; h) &amp; 1:
+            piles[i] ^= x
+            return piles
+</code></pre>
+
+<p>Take the highest set bit of the total, find a pile that has a one in that position, which must exist since otherwise the total could not have one there, and replace that pile with its xor against the total.</p>
+
+<p>The new value is legal because both the pile and the total have a one at that bit, so the xor clears it, and all higher bits match and are unchanged. Hence the new value is strictly smaller and non-negative.</p>
+
+<h2>The animation</h2>
+
+<p>The animation runs the sample in four steps. The pile row shows each size in binary, with the pile being changed outlined and the adjusted one in green. A running xor row accumulates the piles, compressing many numbers into one. A panel shows that the highest set bit of the total is bit one, that the second pile has a one there, and that replacing it with the xor gives one. A verdict bar turns green or red.</p>
+
+<p>The case where the three piles are one, two and three is worth running by hand: the xor is always zero, the verdict is a first-player loss, and the strategy described is a mirror, answering whatever the opponent removes so that the xor returns to zero.</p>
+
+<table>
+<thead><tr><th>Step</th><th>Action</th><th>Total xor</th></tr></thead>
+<tbody>
+<tr><td>start</td><td>3, 4, 5</td><td>2</td></tr>
+<tr><td>highest bit</td><td>The total is two, so bit one</td><td>2</td></tr>
+<tr><td>choose a pile</td><td>The pile of three has a one at bit one</td><td>2</td></tr>
+<tr><td>replace</td><td>Three becomes one, removing two stones</td><td>0</td></tr>
+<tr><td>verdict</td><td>A losing position handed to the opponent</td><td>First player wins</td></tr>
+</tbody>
+</table>
+
+<p>Check the second argument on the resulting position: the xor is zero, so any move by the opponent breaks it, for example taking one stone from the pile of four gives a total of seven, and the first player simply repeats the construction.</p>
+
+<h2>The even-pile variant</h2>
+
+<p>Restricting moves to taking an entire pile from either end, with an even number of piles, kills the xor criterion, since choices are now positional. But there is a cleaner result: the first player always wins, and the strategy is decided once at the start.</p>
+
+<p>Colour the piles by their original index, even and odd. If the first move takes the left end, then from that point on both ends of the remaining row are odd-indexed. Taking the right end instead leaves only even indices available.</p>
+
+<p>So the first move chooses which parity band the player will occupy for the whole game. Compute the sum of both bands, take the larger, and select the end that secures it. For the sample the even band sums to nine and the odd band to eight, so taking the left end locks in the win.</p>
+
+<p>The animation colours the two bands and shows the taken piles degrading into dashed shells with their scores, the two sums side by side, and the winner lit. Note that the opponent plays greedily, taking the larger end each time, and still loses, because the strategy does not depend on the opponent.</p>
+
+<p>With an odd number of piles the trick fails, since the two ends then have different parities and a single choice cannot lock a whole band, and interval dynamic programming is required, where the state records the advantage the first mover can obtain on a subarray.</p>
+
+<h2>Java</h2>
+
+<pre><code>public static boolean firstPlayerWins(int[] piles) {
+    int x = 0;
+    for (int p : piles) x ^= p;
+    return x != 0;
+}
+
+public static int[] winningMove(int[] piles) {
+    int x = 0;
+    for (int p : piles) x ^= p;
+    if (x == 0) return null;
+    int h = Integer.highestOneBit(x);
+    for (int i = 0; i &lt; piles.length; i++) {
+        if ((piles[i] &amp; h) != 0) {
+            piles[i] ^= x;
+            return piles;
+        }
+    }
+    return null;
+}
+</code></pre>
+
+<p>For the even-pile variant the answer is a single line returning true, though an interview requires the parity argument rather than the literal line.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>A single pile wins if it is non-empty and loses if it is empty.</li>
+<li>An empty position has xor zero and no move, so the player to act loses.</li>
+<li>Two equal piles have xor zero and lose, with the mirror strategy taking the same amount from the other pile.</li>
+<li>An empty pile among others is dead weight and is ignored by the xor.</li>
+<li>For the even-pile variant, an odd number of piles breaks the conclusion and requires dynamic programming.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Nim verdict</td><td>Linear</td><td>Constant</td></tr>
+<tr><td>Nim winning move</td><td>Linear</td><td>Constant</td></tr>
+<tr><td>Even-pile variant</td><td>Linear, two parity sums</td><td>Constant</td></tr>
+<tr><td>Odd-pile variant with interval DP</td><td>Quadratic</td><td>Quadratic</td></tr>
+<tr><td>Single pile with a cap</td><td>Constant, a modulo</td><td>Constant</td></tr>
+</tbody>
+</table>
+
+<p>The time goes into understanding the criterion, not into computing it. Every verdict here is linear or constant, and the difficulty is reducing a position to a single number.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Reversing the convention. The standard rule is that taking the last stone wins; the misère variant reverses it, and when every pile has size one the outcome flips by the parity of the pile count. Interviewers like to switch conventions verbally.</li>
+<li>Choosing the wrong pile for the winning move. It must be one with a one at the total's highest set bit; choosing arbitrarily can increase the pile, which gifts stones to the opponent.</li>
+<li>Treating a zero xor as a draw rather than a loss. The opponent has an explicit mirroring strategy, so it is not luck.</li>
+<li>Applying the parity argument to general Nim. It holds only for end-taking with an even number of piles, because it depends on locking one band with the first move.</li>
+<li>Writing the modulo rule as a division, or using the cap itself rather than the cap plus one.</li>
+<li>Using the xor verdict on constrained variants that no longer allow taking any number from any pile; those need minimax or dynamic programming.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>State the criterion with its name and complexity. Then both halves of the argument, the construction and the contradiction. Then the three construction steps rather than a claim of existence. Then the even-pile variant with the parity bands and the note that odd counts require interval DP. Then the family: the single-pile modulo rule, the golden-ratio losing positions of the two-pile game, misère Nim, and Sprague-Grundy for general impartial games.</p>
+
+<h2>Closing</h2>
+
+<p>The teaching value of these games is entirely in reduction: a huge space of pile configurations compresses into one xor value, giving a one-line verdict and a three-step construction. The even-pile variant shows that changing the constraint changes the invariant, from an xor to two parity bands. The work is never search, it is finding the invariant.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/nim-stone-games/">【博弈论】石子游戏：一行异或判定先手必胜</a>.</p>
+`,
+  },
+
+  {
+    slug: 'partition-variance-dp',
+    zhSlug: 'partition-variance-dp',
+    topicSlug: 'leetcode',
+    title: 'Splitting a sequence to maximise the sum of variances',
+    excerpt:
+      'Cutting a sequence makes the total variance larger, not smaller, because each segment gets its own mean. One prefix-sum identity turns the inner loop into constant time.',
+    date: '2026-09-05',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Given a sequence, cut it into a fixed number of contiguous segments so that the sum of the segments' variances is maximised.</p>
+
+<pre><code>a = [2, 8, 3, 9, 4, 7], k = 2  -&gt;  14.6875
+cut after the second element: variance of [2,8] is 9.00,
+variance of [3,9,4,7] is 5.6875
+</code></pre>
+
+<p>Two things are worth digging into: the answer defies intuition, since splitting into two segments often gives a larger total than not splitting at all, and the performance depends entirely on one prefix-sum identity. Without it the solution is cubic.</p>
+
+<h2>Cutting makes it larger</h2>
+
+<p>The whole sequence has variance 6.92, and the best two-segment split reaches 14.69, more than double. Variance measures distance from a mean, and in the whole sequence the value eight and the value three pull in opposite directions and cancel. Split into two groups and each gets its own mean, so the deviations that cancelled are now amplified separately.</p>
+
+<p>So the instinct that finer cuts reduce the sum is wrong, and it is wrong in the opposite direction. The maximum usually occurs where the segments are internally spread out and their means are close together.</p>
+
+<p>One identity always holds and helps decide when two formulations coincide: the total sum of squared deviations decomposes into the within-group and between-group parts. When segments are equal length, maximising the within-group variance is exactly minimising the between-group part, in other words pulling the segment means together. With unequal lengths the conversion fails, and the DP still works, but the shortcut is gone.</p>
+
+<h2>Constant-time segment variance</h2>
+
+<pre><code>dp[i][j] = max over k of dp[k][j-1] + var(k+1 .. i)
+dp[i][1] = var(1 .. i)
+dp[0][0] = 0
+answer   = dp[n][k]
+</code></pre>
+
+<p>For two segments this degenerates to a single scan over cut points, which is the first layer of the DP.</p>
+
+<pre><code>S1[i] = a[1] + ... + a[i]
+S2[i] = a[1]^2 + ... + a[i]^2
+
+for segment (l, i], length len = i - l:
+  sum  = S1[i] - S1[l]
+  mean = sum / len
+  var  = (S2[i] - S2[l]) / len - mean * mean
+</code></pre>
+
+<p>The last line is the definition written as the mean of squares minus the square of the mean, and it makes the inner loop two array reads and one multiply-subtract.</p>
+
+<table>
+<thead><tr><th>Cut</th><th>Left mean</th><th>Left variance</th><th>Right mean</th><th>Right variance</th><th>Total</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>2.00</td><td>0.00</td><td>6.20</td><td>5.32</td><td>5.32</td></tr>
+<tr><td>2</td><td>5.00</td><td>9.00</td><td>5.75</td><td>5.69</td><td><strong>14.69</strong></td></tr>
+<tr><td>3</td><td>4.33</td><td>6.89</td><td>6.67</td><td>4.22</td><td>11.11</td></tr>
+<tr><td>4</td><td>5.50</td><td>9.25</td><td>5.50</td><td>2.25</td><td>11.50</td></tr>
+<tr><td>5</td><td>5.20</td><td>7.76</td><td>7.00</td><td>0.00</td><td>7.76</td></tr>
+</tbody>
+</table>
+
+<p>The last row shows a single-element segment, whose variance is necessarily zero. That is why the answer with as many segments as elements is zero, and it is the boundary most often forgotten.</p>
+
+<p>The animation shows this scan with two mean lines and a moving cut line. The frame worth pausing on is the fourth cut: its left segment has a higher variance than the second cut's, yet the total is lower, which is the direct evidence that greedy selection fails.</p>
+
+<h2>Generalising to k segments</h2>
+
+<pre><code>def max_variance_sum(a, k):
+    n = len(a)
+    S1 = [0] * (n + 1)
+    S2 = [0] * (n + 1)
+    for i in range(1, n + 1):
+        S1[i] = S1[i - 1] + a[i - 1]
+        S2[i] = S2[i - 1] + a[i - 1] * a[i - 1]
+
+    def var(l, r):
+        length = r - l
+        if length &lt;= 0:
+            return 0.0
+        s = S1[r] - S1[l]
+        q = S2[r] - S2[l]
+        return q / length - (s / length) * (s / length)
+
+    NEG = float('-inf')
+    dp = [[NEG] * (k + 1) for _ in range(n + 1)]
+    dp[0][0] = 0.0
+    for i in range(1, n + 1):
+        for j in range(1, min(i, k) + 1):
+            best = NEG
+            for m in range(j - 1, i):
+                if dp[m][j - 1] == NEG:
+                    continue
+                cand = dp[m][j - 1] + var(m, i)
+                if cand &gt; best:
+                    best = cand
+    return dp[n][k] if k &lt;= n else None
+</code></pre>
+
+<p>The cost is quadratic in the length times the number of segments. If segment lengths have a lower bound, or the optimal cut point is monotone, divide-and-conquer or slope optimisation removes the inner loop, but write the cubic-free version correctly first.</p>
+
+<p>If the problem asks for the minimum, which is the more common industrial form used in binning, image segmentation and k-means-style cost functions, only the comparison and the sentinel change.</p>
+
+<h2>Java</h2>
+
+<pre><code>public static Double maxVarianceSum(int[] a, int k) {
+    int n = a.length;
+    if (k &gt; n) return null;
+    double[] s1 = new double[n + 1];
+    double[] s2 = new double[n + 1];
+    for (int i = 1; i &lt;= n; i++) {
+        s1[i] = s1[i - 1] + a[i - 1];
+        s2[i] = s2[i - 1] + (double) a[i - 1] * a[i - 1];
+    }
+    final double NEG = Double.NEGATIVE_INFINITY;
+    double[][] dp = new double[n + 1][k + 1];
+    for (double[] row : dp) java.util.Arrays.fill(row, NEG);
+    dp[0][0] = 0.0;
+    for (int i = 1; i &lt;= n; i++) {
+        for (int j = 1; j &lt;= Math.min(i, k); j++) {
+            double best = NEG;
+            for (int m = j - 1; m &lt; i; m++) {
+                if (dp[m][j - 1] == NEG) continue;
+                int len = i - m;
+                double sum = s1[i] - s1[m];
+                double sq = s2[i] - s2[m];
+                double mean = sum / len;
+                best = Math.max(best, dp[m][j - 1] + sq / len - mean * mean);
+            }
+            dp[i][j] = best;
+        }
+    }
+    return dp[n][k] == NEG ? null : dp[n][k];
+}
+</code></pre>
+
+<p>The cast before squaring matters: an integer squared overflows a 32-bit type at modest magnitudes, so the sum of squares must live in a wider type.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>One segment gives the variance of the whole sequence, which is the baseline for comparison.</li>
+<li>As many segments as elements gives zero, since every segment is a single point.</li>
+<li>More segments than elements is infeasible, so return a null result rather than raising.</li>
+<li>A constant sequence gives zero under any split.</li>
+<li>With negative values the formula is unchanged, though the mean may be negative, so do not take absolute values.</li>
+<li>Population variance divides by the length. Sample variance divides by one less, has no value for a single-point segment, and breaks the case of maximal segmentation, so agree on the convention first.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Step</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Prefix sums</td><td>Linear</td><td>Linear</td></tr>
+<tr><td>Two-segment scan</td><td>Linear</td><td>Constant</td></tr>
+<tr><td>General k, triple loop</td><td>Quadratic in n times k</td><td>n times k</td></tr>
+<tr><td>With a length bound and divide and conquer</td><td>n k log n</td><td>n times k</td></tr>
+</tbody>
+</table>
+
+<p>Greedy is not an option: the cut with the largest left variance does not give the largest total, so there is no monotone relationship between a locally good segment and the global answer, and only enumeration with a table is safe.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Recomputing each segment's variance from scratch, which turns linear into quadratic and the general case into cubic in the length.</li>
+<li>Mixing population and sample variance, which breaks the additivity the DP relies on and divides by zero at maximal segmentation.</li>
+<li>Assuming finer cuts reduce the sum, which the sample numbers refute directly.</li>
+<li>Integer overflow in the sum of squares, or catastrophic cancellation when subtracting two large nearly equal means under floating point.</li>
+<li>Forgetting that single-point segments have zero variance, which affects the answer at maximal segmentation and the lower bound of the inner loop.</li>
+<li>Assuming maximisation, when the industrial formulation is usually minimisation.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Give the recurrence, then the constant-time variance identity with the two prefix sums, then the counterintuitive point with the numbers, then the decomposition identity and when it converts maximisation into minimisation. Then the boundaries: one segment, maximal segments, infeasible counts, and single-point variance. Then the variants, including the minimisation form, a lower bound on segment length, and the optimisation techniques.</p>
+
+<h2>Closing</h2>
+
+<p>The skeleton is small: one recurrence and one formula. What it really tests is whether you trust a counterintuitive answer, since splitting doubles the total because each segment's mean amplifies deviations that used to cancel, and whether you are willing to derive the constant-time variance rather than leave a linear scan inside the loop.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/partition-variance-dp/">【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
