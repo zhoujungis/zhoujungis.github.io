@@ -986,7 +986,7 @@ t = esc(t);
     title: 'Halo Music: a multi-source music app on Cloudflare Pages, D1 and Electron',
     excerpt:
       'One static page, serverless functions, SQLite as a cache, and the same web app wrapped in an Electron shell — with the domain model that keeps four upstream platforms from leaking into the UI.',
-    date: '2026-10-16',
+    date: '2026-08-31',
     readingTime: 30,
     html: `
 <p>I wanted a music tool that works the moment you open a browser. Type a song name, get results from several platforms at once. Click a track and it plays, with lyrics scrolling along. Keep favourites and organize them into playlists. That idea became <a href="https://github.com/zhoujungis/halo_music" rel="noopener noreferrer" target="_blank">HALO Music</a>, my own music square.</p>
@@ -2170,7 +2170,7 @@ if (delay &gt; MAX_TIMEOUT) {
     title: 'Happy Games: 24 browser games with zero frameworks, one deploy',
     excerpt:
       'A browser arcade written in plain HTML, CSS and JavaScript: pattern-scored AI, chess with alpha-beta, GNU Go compiled to WebAssembly, D1-backed multiplayer and LLM-streamed narration.',
-    date: '2026-11-05',
+    date: '2026-09-07',
     readingTime: 40,
     html: `
 <p>Don't go looking for a game. Just start one. That's the pitch for Happy Games, a browser arcade written in plain HTML, CSS and JavaScript: 24 games, zero frameworks, zero build steps, zero dependencies. The AI ranges from pattern scoring to WebAssembly, multiplayer runs on D1 plus polling, narration streams from a language model, and the whole site deploys to Cloudflare Pages in one command.</p>
@@ -7740,7 +7740,7 @@ self.style.usage(1, turn.usage.prompt_tokens, turn.usage.completion_tokens);
     title: 'Agent memory without a vector database',
     excerpt:
       'A memory.json file, four categories, a 500 entry cap, BM25 over bigrams, and four memories injected per turn. No embeddings, no index, no daemon, and no illusions about what it cannot do.',
-    date: '2026-10-23',
+    date: '2026-10-22',
     readingTime: 32,
     html: `
 <blockquote>
@@ -8832,7 +8832,7 @@ std::thread::scope(|s| {
     title: 'Agent tool design: every output needs a ceiling',
     excerpt:
       'Tools have three contracts: topology, shape and budget. The third one is the one tutorials skip and production breaks on, because an uncapped output does not error, it just quietly feeds the model half the truth.',
-    date: '2026-10-24',
+    date: '2026-10-22',
     readingTime: 34,
     html: `
 <blockquote>
@@ -9728,7 +9728,7 @@ const DOC_NAMES: [&amp;str; 1] = ["AGENTS.md"];
     title: 'Agent concurrency without an async runtime',
     excerpt:
       'Two primitives, scoped threads and a counting gate, plus one join barrier per turn. Four levels of concurrency, seven fixable defects, and why the parallel window is a boundary question before it is a performance one.',
-    date: '2026-10-26',
+    date: '2026-10-22',
     readingTime: 34,
     html: `
 <blockquote>
@@ -10425,7 +10425,7 @@ extern "C" fn on_sigint(_sig: i32) {
     title: 'Agent security: letting it run commands without losing control',
     excerpt:
       'Five gates, layered so each one can fail alone: tool list, permission mode, hooks, approval and a Landlock sandbox. The surprising part is where the hole is, and it is not inside the sandbox.',
-    date: '2026-10-28',
+    date: '2026-10-22',
     readingTime: 36,
     html: `
 <blockquote>
@@ -11183,7 +11183,7 @@ assert!(!outside.join("c").exists());
     title: 'Multi-agent: sub-agents, the task board and the gate',
     excerpt:
       'Three shared objects and three individual ones. The hard part was never parallelism, it is the boundary of responsibility, and the places where the cut was not clean enough leave a deadlock, a lost interrupt and a leaked board.',
-    date: '2026-11-04',
+    date: '2026-10-22',
     readingTime: 36,
     html: `
 <blockquote>
@@ -11738,7 +11738,7 @@ impl Gate {
     title: 'Agent observability: keeping a ledger for every turn',
     excerpt:
       'Logs are a stream of events, a ledger is a table. Who spent it, on what, how much, when. Three ways an account goes wrong, three tables that fix it, and the series close.',
-    date: '2026-11-06',
+    date: '2026-10-22',
     readingTime: 34,
     html: `
 <blockquote>
@@ -12347,7 +12347,7 @@ impl Ledger {
     title: 'Prompt injection: whose words count as instructions',
     excerpt:
       'A model was not fooled. A piece of data was placed where an instruction belongs. Three inputs that do exactly that, and the gates that either hold or are quietly switched off by defaults.',
-    date: '2026-11-16',
+    date: '2026-10-23',
     readingTime: 36,
     html: `
 <blockquote>
@@ -12887,7 +12887,7 @@ pub trait Approver {
     title: 'Agent evaluation: a single passing run is a sample, not a result',
     excerpt:
       'Two hundred and ninety-three tests, a green CI badge, and the user breaks it on the first prompt. Four layers of assertion, the arithmetic of pass rates, and seven provable gaps in one real repository.',
-    date: '2026-11-11',
+    date: '2026-10-23',
     readingTime: 36,
     html: `
 <blockquote>
@@ -13555,7 +13555,7 @@ jq '.cases[] | select(.flaky) | .id' report.json
     title: 'Token economics: a tenfold spread on the same task',
     excerpt:
       'Cost is not price times tokens, it is context strategy times request count. Prefix stability, compaction and turn count explain the order of magnitude, and three constants called characters all count bytes.',
-    date: '2026-11-08',
+    date: '2026-10-23',
     readingTime: 34,
     html: `
 <blockquote>
@@ -14522,7 +14522,7 @@ fn a_fixed_task_costs_no_more_than_the_baseline() {
     title: 'Eight machines were slower than four: queueing theory and capacity planning',
     excerpt:
       'Utilisation amplifies latency nonlinearly, variance matters as much as the mean, and past an optimal node count adding machines makes things worse. A quantitative framework for whether to scale out, and how much headroom to keep.',
-    date: '2026-10-30',
+    date: '2026-09-21',
     readingTime: 26,
     html: `
 <blockquote>
@@ -15463,7 +15463,8 @@ WHERE table_schema = 'your_db';
 
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a>.</p>
 `,
-  },
+  },
+
   {
     slug: 'mysql-mvcc-version-chain-read-view',
     zhSlug: 'mysql-mvcc-version-chain-read-view',
@@ -15845,7 +15846,8 @@ WHERE kind = 2 AND ts &gt;= '2026-01-01';
 
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a>.</p>
 `,
-  },
+  },
+
   {
     slug: 'mysql-clustered-index-vs-secondary-index',
     zhSlug: 'mysql-clustered-index-vs-secondary-index',
@@ -16249,7 +16251,8 @@ SELECT * FROM users WHERE email LIKE 'abc%';
 
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a>.</p>
 `,
-  },
+  },
+
   {
     slug: 'cursor-pagination-deep-dive',
     zhSlug: 'cursor-pagination-deep-dive',
@@ -16257,7 +16260,7 @@ SELECT * FROM users WHERE email LIKE 'abc%';
     title: 'Why a deep offset gets slower, and what cursor pagination fixes',
     excerpt:
       'An offset makes the database pay for skipping. A cursor makes it pay for seeking. Everything else, including the signed token and the missing page numbers, follows from that one sentence.',
-    date: '2026-11-04',
+    date: '2026-09-20',
     readingTime: 16,
     html: `
 <blockquote>
@@ -16479,7 +16482,7 @@ LIMIT 20;
     title: 'Redis distributed locks: the right shape, and where they stop working',
     excerpt:
       'Five versions of the same idea, from a naive SETNX to Redlock, plus the two situations no TTL-based lock can fix. Most teams are still shipping version one.',
-    date: '2026-11-04',
+    date: '2026-09-11',
     readingTime: 22,
     html: `
 <blockquote>
@@ -16699,7 +16702,8 @@ WHERE id = 1 AND fence &lt; 11;   -- a stale token cannot write
 
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/redis-distributed-lock-deep-dive/">Redis 分布式锁：一次讲透正确姿势与失效边界</a>.</p>
 `,
-  },
+  },
+
   {
     slug: 'distributed-id-deep-dive',
     zhSlug: 'distributed-id-deep-dive',
@@ -16707,7 +16711,7 @@ WHERE id = 1 AND fence &lt; 11;   -- a stale token cannot write
     title: 'Distributed IDs, measured: page splits, a thousand clock rollbacks, and segments',
     excerpt:
       'Four approaches implemented and two controversies actually tested. How much the unordered write pattern costs, and what happens when the clock goes backwards without protection.',
-    date: '2026-11-04',
+    date: '2026-09-17',
     readingTime: 16,
     html: `
 <blockquote>
@@ -18010,7 +18014,7 @@ constexpr uint32_t LOCK_INSERT_INTENTION = 2048;
     title: 'Delete the cache first or the database first? Cache consistency in practice',
     excerpt:
       'Four write paths, the narrow window that actually breaks them, and the three classic cache failures with measured numbers: penetration, breakdown and avalanche.',
-    date: '2026-11-02',
+    date: '2026-09-14',
     readingTime: 24,
     html: `
 <blockquote>
@@ -18516,7 +18520,7 @@ def get_article_safe(article_id):
     title: 'The index is there, so why is the sort unindexed? A slow query investigation',
     excerpt:
       'Two queries per request is cheap until each one scans a million rows. An index whose direction disagrees with the ordering is worth nothing, and at nine rows you cannot see it.',
-    date: '2026-11-01',
+    date: '2026-09-14',
     readingTime: 30,
     html: `
 <blockquote>
@@ -19231,7 +19235,7 @@ async def fetch_orders(user_id):
     title: 'The downstream wobbled for three seconds and took us down for five',
     excerpt:
       'Timeouts, retries, jitter, retry budgets, circuit breakers and bulkheads, each implemented and measured. Retries cost 88 percent of my own throughput while cutting the downstream load by 40.',
-    date: '2026-11-03',
+    date: '2026-09-18',
     readingTime: 26,
     html: `
 <blockquote>
@@ -20763,7 +20767,7 @@ logging.getLogger().addFilter(TraceContextFilter())
     title: 'At deploy time the database rebuilds the whole table',
     excerpt:
       'One line in models.py can turn into an eight second full table copy that locks everything. Read the SQL first, then pick one of four escape routes.',
-    date: '2026-11-03',
+    date: '2026-09-14',
     readingTime: 30,
     html: `
 <blockquote>
@@ -22231,7 +22235,7 @@ WHERE state = 'running'
     title: 'Six of those three hundred log lines are yours',
     excerpt:
       'Measured numbers for logging costs: JSON is 40 percent slower than text, not ten times; the write path is 24.5 times worse than buffered writes; and random sampling throws away 98 percent of your errors.',
-    date: '2026-11-01',
+    date: '2026-09-21',
     readingTime: 26,
     html: `
 <blockquote>
@@ -23692,7 +23696,7 @@ SELECT to_tsvector('chinese', 'Django 部署与断点续传');
     title: 'The user double-clicked and seven extra orders appeared',
     excerpt:
       'Check-then-insert always has a window, and repeated requests cannot be prevented. Four lines of defence, measured: uniqueness, an idempotency table, a state machine and a one-shot token.',
-    date: '2026-11-01',
+    date: '2026-09-15',
     readingTime: 20,
     html: `
 <blockquote>
@@ -24096,7 +24100,7 @@ E3 key plus fingerprint: the same key a hundred times
     title: 'Rate limiting, measured: fixed windows double the burst, token buckets allow it',
     excerpt:
       'Four algorithms implemented and benchmarked on a fake clock: a fixed window lets twice the limit through at a boundary, and a leaky bucket is not smoother than a token bucket on the first burst.',
-    date: '2026-11-01',
+    date: '2026-09-16',
     readingTime: 22,
     html: `
 <blockquote>
@@ -24576,7 +24580,7 @@ INCR key; EXPIRE key 60
     title: 'The transaction rolled back and the email went out anyway',
     excerpt:
       'Lost updates, a save that costs a hundred milliseconds, and a post-save hook that sends mail before the commit. Four measured experiments and three rules that avoid most of it.',
-    date: '2026-11-02',
+    date: '2026-09-14',
     readingTime: 24,
     html: `
 <blockquote>
@@ -24957,7 +24961,7 @@ python ../tools/bench_transaction.py --threads 4 --increments 25
     title: 'The case of the vanishing messages',
     excerpt:
       'Three hops, three default settings that all point away from reliability, and a measured comparison: fire-and-forget lost 615 of 100,000 messages, the full configuration lost none and duplicated 85.',
-    date: '2026-10-30',
+    date: '2026-09-17',
     readingTime: 18,
     html: `
 <blockquote>
@@ -25212,7 +25216,7 @@ COMMIT;
     title: 'API gateways: one door for auth, rate limiting and routing',
     excerpt:
       'Cross-cutting concerns scattered across services are not a style problem, they are security incidents waiting for a release. What a gateway earns, what it costs, and which one to pick.',
-    date: '2026-10-30',
+    date: '2026-09-18',
     readingTime: 20,
     html: `
 <blockquote>
@@ -25502,7 +25506,7 @@ routes:
     title: 'At twenty percent, half the users lost the feature',
     excerpt:
       'A rollout percentage is a threshold line over a fixed bucket space, not a bucket count. Change the count and half your users get reshuffled out. Four rules and the measured numbers.',
-    date: '2026-10-30',
+    date: '2026-09-16',
     readingTime: 22,
     html: `
 <blockquote>
@@ -25830,7 +25834,7 @@ layer 3: the flag service       the single source of truth
     title: 'Logged out after an hour? Dual-token auth with Django and Vue',
     excerpt:
       'A short-lived access token, a long-lived refresh token, and the four hard parts: single-flight refresh, anonymous 401s, real revocation, and rate limiting the login endpoint.',
-    date: '2026-10-30',
+    date: '2026-09-10',
     readingTime: 26,
     html: `
 <blockquote>
@@ -26385,7 +26389,7 @@ def test_login_throttled_after_5_fails(api_client):
     title: 'Daring to allow anonymous comments: seven layers of defence',
     excerpt:
       'Anonymous input, invisible by default. A model that defaults to unapproved, a read path that leaks no drafts, a write path with a honeypot, and a nested serializer that cannot be made to recurse.',
-    date: '2026-10-28',
+    date: '2026-09-10',
     readingTime: 18,
     html: `
 <blockquote>
@@ -26634,7 +26638,7 @@ curl -s -o /dev/null -w "%{http_code}\\n" http://127.0.0.1:8000/api/articles/dra
     title: 'Still shipping /v1 and /v2? The real work of API versioning',
     excerpt:
       'A renamed field white-screened an app, because three clients with three release cycles shared one contract. Four strategies, a decision tree for when to bump, and how to retire a version without breaking anyone.',
-    date: '2026-10-28',
+    date: '2026-09-18',
     readingTime: 16,
     html: `
 <blockquote>
@@ -26869,7 +26873,7 @@ Link: &lt;/docs/migration/v1-to-v2&gt;; rel="migration"
     title: 'Three hundred concurrent requests, one database hit',
     excerpt:
       'Textbook defences fail in textbook ways: empty-value caching fills memory with one-shot keys, a mutex fills the thread pool, and TTL jitter does nothing when the cache disappears. Measured numbers for what works.',
-    date: '2026-10-27',
+    date: '2026-09-20',
     readingTime: 22,
     html: `
 <blockquote>
@@ -27254,7 +27258,7 @@ def read_hot_counter(key: str, n_shards: int = 8):
     title: 'Why I dare to render user Markdown: one XSS defence, four layers',
     excerpt:
       'Rendering user input is executing user code. Controlled rendering, a three-tier whitelist, hardened outbound links, and an excerpt taken from sanitised HTML, each earned by a real hole.',
-    date: '2026-10-27',
+    date: '2026-09-09',
     readingTime: 15,
     html: `
 <blockquote>
@@ -27444,7 +27448,7 @@ def read_hot_counter(key: str, n_shards: int = 8):
     title: 'A list endpoint from 800 milliseconds to 80: pagination, caching and throttling',
     excerpt:
       'One page_size=500 request took the site down: 7.5 megabytes, half a second of serialisation, a saturated CPU. What the three settings actually do, read from the DRF source.',
-    date: '2026-10-26',
+    date: '2026-09-10',
     readingTime: 24,
     html: `
 <blockquote>
@@ -28295,7 +28299,7 @@ for i = 1 .. n-1:
     title: 'LC 1, two sum: look before you store',
     excerpt:
       'Six lines, one hash table, and two statements that cannot be swapped. The first sample happens to be the one input that hides the bug, which is exactly why people ship it.',
-    date: '2026-10-25',
+    date: '2026-09-24',
     readingTime: 18,
     html: `
 <h2>The problem</h2>
@@ -28579,7 +28583,7 @@ i = 1:  x = 7, need 9 - 7 = 2. On my left? Yes, at index 0. Return [0, 1].
     title: 'LC 206, reverse a linked list: save the link before you cut it',
     excerpt:
       'One pointer change and the chain is gone. Three pointers, one order, and the same three steps that answer the interval and k-group variants.',
-    date: '2026-10-24',
+    date: '2026-09-21',
     readingTime: 16,
     html: `
 <h2>The problem</h2>
@@ -28901,7 +28905,7 @@ None &lt;- 4 &lt;- 3      1 -&gt; 2 -&gt; 3 -&gt; 4 -&gt; 5
     title: 'LC 141 and 142, linked list cycles: why fast two and slow one always meet',
     excerpt:
       'A congruence argument you can write out under pressure, a widely repeated claim that is simply false, and the two independent reasons the step counts are two and one.',
-    date: '2026-10-23',
+    date: '2026-09-22',
     readingTime: 18,
     html: `
 <h2>The problems</h2>
@@ -29178,7 +29182,7 @@ input: 1 -&gt; 2, no cycle
     title: 'LC 21, merging two sorted lists: what the dummy node carries for you',
     excerpt:
       'Easy by the numbers, and the source of two familiar failures: losing the rest of a list while stitching, and writing five branches to work out which head wins.',
-    date: '2026-10-22',
+    date: '2026-09-21',
     readingTime: 15,
     html: `
 <h2>The problem</h2>
@@ -29426,7 +29430,7 @@ def mergeKLists(lists):
     title: 'LC 19, removing the Nth node from the end: lock the gap and walk together',
     excerpt:
       'One scan, two pointers, a fixed distance. Why the fast pointer starts n plus one ahead, why the dummy makes deleting the head ordinary, and why returning the head is a bug.',
-    date: '2026-10-21',
+    date: '2026-09-22',
     readingTime: 14,
     html: `
 <h2>The problem</h2>
@@ -29659,7 +29663,7 @@ after:   3 --------&gt; 5
     title: 'LC 143, reorder a list: one problem, three problems, all of them already done',
     excerpt:
       'Find the middle, reverse the back half, interleave. The only new idea is the split, and the one line that keeps the merged list from becoming a cycle.',
-    date: '2026-10-20',
+    date: '2026-09-22',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -29913,7 +29917,7 @@ while second:
     title: 'LC 234, palindrome linked list: reverse the back half and compare',
     excerpt:
       'Same skeleton as the reorder problem, with one difference that matters: nothing gets cut, and the cleared link at the middle is what makes the walk stop on its own.',
-    date: '2026-10-19',
+    date: '2026-09-22',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -30177,7 +30181,7 @@ return True
     title: 'LC 160, intersection of two lists: swap cursors and the paths become equal',
     excerpt:
       'Five lines, no branches, no length arithmetic. The whole trick is that a plus c plus b equals b plus c plus a, which is just commutativity doing the work.',
-    date: '2026-10-18',
+    date: '2026-09-22',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -30388,7 +30392,7 @@ pB: b1 b2 c1 c2 a1 a2 | c1
     title: 'LC 82, removing every duplicated value: why the dummy is not optional',
     excerpt:
       'Because the first node of a duplicate run must also go, and that node may be the head. Plus the one rule that decides everything: prev only advances when curr is confirmed clean.',
-    date: '2026-10-17',
+    date: '2026-09-23',
     readingTime: 14,
     html: `
 <h2>The problem</h2>
@@ -30631,7 +30635,7 @@ else:
     title: 'LC 23, merging k sorted lists: how many nodes belong in the heap',
     excerpt:
       'Three approaches, one subroutine. Sequential merging is quadratic, divide and conquer and the heap are not, and for small k the heap is actually the slowest of the three.',
-    date: '2026-10-16',
+    date: '2026-09-22',
     readingTime: 17,
     html: `
 <h2>The problem</h2>
@@ -30910,7 +30914,7 @@ def merge_range(lists, lo, hi):
     title: 'LC 102, level order traversal: snapshot the queue length first',
     excerpt:
       'Ten lines of BFS, and one of them is the ancestor of five variants. Why the length must be captured before the inner loop, and what breaks when it is not.',
-    date: '2026-10-15',
+    date: '2026-09-23',
     readingTime: 15,
     html: `
 <h2>The problem</h2>
@@ -31329,7 +31333,7 @@ q = [15, 7]    snapshot 2
     title: 'LC 104 and 226: max depth and invert, each hiding one nail',
     excerpt:
       'Two easy tree problems, two modes of recursion. One is forced into post-order by its dependencies; the other is free, except for the one place where the swap cannot go.',
-    date: '2026-10-14',
+    date: '2026-09-24',
     readingTime: 17,
     html: `
 <h2>The two problems</h2>
@@ -31776,7 +31780,7 @@ self.invertTree(root.right)
     title: 'LC 236, lowest common ancestor: the return value is a messenger, not the answer',
     excerpt:
       'Eight lines of post-order, three meanings per return value, and one line that handles the ancestor-is-itself case for free. Also why there is no pruning here.',
-    date: '2026-10-13',
+    date: '2026-09-23',
     readingTime: 18,
     html: `
 <h2>The problem</h2>
@@ -32189,7 +32193,7 @@ else:
     title: 'LC 124, maximum path sum: the return value only takes one arm',
     excerpt:
       'A path can bend once, so the value reported upward and the value that updates the answer are different things. Ten lines, and both numbers matter.',
-    date: '2026-10-12',
+    date: '2026-09-23',
     readingTime: 17,
     html: `
 <h2>The problem</h2>
@@ -32582,7 +32586,7 @@ else:
     title: 'LC 3, longest substring without repeats: the test is not whether the character was seen',
     excerpt:
       'Ten lines of sliding window, and one condition whose absence passes every official sample. The real test is whether the previous position is still inside the window.',
-    date: '2026-10-11',
+    date: '2026-09-24',
     readingTime: 17,
     html: `
 <h2>The problem</h2>
@@ -32965,7 +32969,7 @@ def minWindow(s, t):
     title: 'LC 15, three sum: the difficulty is the two dedup checks, not the pointers',
     excerpt:
       'Sort, fix one value, squeeze with two pointers. Ten minutes to memorise the skeleton, and the two places that remove duplicates have different shapes, timings, and traps.',
-    date: '2026-10-10',
+    date: '2026-09-24',
     readingTime: 20,
     html: `
 <h2>The problem</h2>
@@ -33398,7 +33402,7 @@ assert threeSum([1, 2, 3]) == []
     title: 'LC 200, number of islands: one flood fill, and three ways to avoid the stack',
     excerpt:
       'Counting islands is counting connected components. The interesting question is not the skeleton, which is a single line, but what happens when a snake-shaped island makes the recursion depth ninety thousand.',
-    date: '2026-10-08',
+    date: '2026-10-12',
     readingTime: 15,
     html: `
 <h2>The problem</h2>
@@ -33684,7 +33688,7 @@ def numIslands_bfs(grid):
     title: 'LC 207, course schedule: in-degrees and a queue, or three colours and a back edge',
     excerpt:
       'A prerequisite relation is a directed edge, a valid course order is a topological order, and a cycle is an order that never finishes. Two equivalent machines for the same sentence.',
-    date: '2026-10-07',
+    date: '2026-10-12',
     readingTime: 15,
     html: `
 <h2>The problem</h2>
@@ -33925,7 +33929,7 @@ def canFinish(numCourses, prerequisites):
     title: 'LC 155 and 232: minimum stack, and a queue made of two stacks',
     excerpt:
       'One problem needs the stack to remember history, the other needs it to reverse direction. Record the minimum per layer, or flip the whole pile exactly once.',
-    date: '2026-10-06',
+    date: '2026-09-29',
     readingTime: 14,
     html: `
 <h2>The problems</h2>
@@ -34174,7 +34178,7 @@ class MyQueue {
     title: 'LC 139, word break: a boolean knapsack over prefixes',
     excerpt:
       'One line of initialisation and one window decide everything. The base case decides what can be expressed; the window decides whether it runs in time.',
-    date: '2026-10-05',
+    date: '2026-09-30',
     readingTime: 15,
     html: `
 <h2>The problem</h2>
@@ -34380,7 +34384,7 @@ dp = [True] * (n + 1)
     title: 'LC 53, maximum subarray: is carrying the prefix worth it',
     excerpt:
       'Five lines with one decision point, and three layers behind it: two candidates, a DP state anchored on the ending index, and an argument that a negative prefix is pure cost.',
-    date: '2026-10-03',
+    date: '2026-09-28',
     readingTime: 15,
     html: `
 <h2>The problem</h2>
@@ -34634,7 +34638,7 @@ assert maxSubarraySumCircular([-3,-2,-3]) == -2
     title: 'LC 189, rotate an array: three reversals, because reversal is its own inverse',
     excerpt:
       'Reversing the whole array swaps the two segments into place while inverting their internals; reversing each back restores order. Two passes, two jobs, and one Python trap at k of zero.',
-    date: '2026-10-02',
+    date: '2026-09-29',
     readingTime: 12,
     html: `
 <h2>The problem</h2>
@@ -34763,7 +34767,7 @@ assert maxSubarraySumCircular([-3,-2,-3]) == -2
     title: 'LC 165, compare version numbers: normalise, then compare column by column',
     excerpt:
       'Leading zeros and missing revisions are the same instruction: normalise first. Once stripped, longer means larger, and equal lengths compare lexicographically.',
-    date: '2026-10-01',
+    date: '2026-09-29',
     readingTime: 11,
     html: `
 <h2>The problem</h2>
@@ -35594,7 +35598,7 @@ def topKFrequent(nums, k):
     title: 'LC 470, rand10 from rand7: build a bigger space and cut it evenly',
     excerpt:
       'Seven states cannot split into ten parts, so sample twice for forty-nine equally likely states and keep the largest multiple of ten. Uniformity comes from counting, not from faith.',
-    date: '2026-09-27',
+    date: '2026-10-12',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -35744,7 +35748,7 @@ E[calls]  = 2 * 1.225 = 2.45
     title: 'LC 93, restore IP addresses: segment backtracking with two layers of pruning',
     excerpt:
       'Choosing three cut points out of at most eleven gaps is a bounded search. The design work is separating "is this segment legal" from "can this path still succeed".',
-    date: '2026-09-26',
+    date: '2026-09-29',
     readingTime: 12,
     html: `
 <h2>The problem</h2>
@@ -35932,7 +35936,7 @@ private void dfs(String s, int pos, List&lt;String&gt; path, List&lt;String&gt; 
     title: 'LC 704 and 69: binary search on an array, binary search on the answer',
     excerpt:
       'One invariant, one convention, three rules. The first problem stops the moment it hits; the second records a candidate and keeps going right, because the target is a boundary.',
-    date: '2026-09-25',
+    date: '2026-09-29',
     readingTime: 14,
     html: `
 <h2>The problems</h2>
@@ -36135,7 +36139,7 @@ public int mySqrt(int x) {
     title: 'Poker straight: jokers fill gaps, never duplicates',
     excerpt:
       'Five cards, one question about sorted differences. Both official samples pass all three classic wrong answers, so the self-test needs counterexamples of its own.',
-    date: '2026-09-24',
+    date: '2026-10-14',
     readingTime: 12,
     html: `
 <h2>The problem</h2>
@@ -36288,7 +36292,7 @@ spend jokers on the holes, succeed if the budget covers them
     title: 'LC 5, longest palindromic substring: two n minus one centres',
     excerpt:
       'A palindrome is determined by a centre and a radius, so enumerate centres rather than substrings. The count is two n minus one, and forgetting the gaps loses every even palindrome.',
-    date: '2026-09-23',
+    date: '2026-09-29',
     readingTime: 12,
     html: `
 <h2>The problem</h2>
@@ -36465,7 +36469,7 @@ private int[] expand(String s, int l, int r) {
     title: 'LC 121 and 122: one trade, and unlimited trades',
     excerpt:
       'The first is a patient minimum waiting to be redeemed; the second is a two-state machine, and its greedy shortcut collapses into the sum of positive differences.',
-    date: '2026-09-22',
+    date: '2026-09-30',
     readingTime: 14,
     html: `
 <h2>The problems</h2>
@@ -36656,7 +36660,7 @@ public int maxProfitUnlimited(int[] prices) {
     title: 'LC 239, sliding window maximum: a monotonic queue keeps only candidates',
     excerpt:
       'A newcomer that is larger and later dominates everything behind it forever. Two independent maintenance actions, one by value and one by index, give linear time.',
-    date: '2026-09-21',
+    date: '2026-09-29',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -36823,7 +36827,7 @@ def maxSlidingWindow(nums, k):
     title: 'LC 322, coin change: iterate amounts ascending, or the answer becomes minus one',
     excerpt:
       'One initialisation and one loop direction carry the whole problem. Infinity lets "impossible" be expressed; ascending order lets a coin be reused.',
-    date: '2026-09-20',
+    date: '2026-09-30',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -36995,7 +36999,7 @@ def maxSlidingWindow(nums, k):
     title: 'LC 300, longest increasing subsequence: anchor the state, then change the anchor',
     excerpt:
       'Anchoring on "ending at this index" makes the recurrence appear; recording by length makes binary search possible. Two breakthroughs in opposite directions.',
-    date: '2026-09-19',
+    date: '2026-09-30',
     readingTime: 14,
     html: `
 <h2>The problem</h2>
@@ -37171,7 +37175,7 @@ public int lengthOfLISFast(int[] nums) {
     title: 'Sorting and deduplicating a billion integers: one bitmap, 119 MiB instead of 4 GB',
     excerpt:
       'A bitmap is not a sorting algorithm but a storage decision: when the value range is bounded, the range itself can be the data structure. Deduplication and order come free.',
-    date: '2026-09-18',
+    date: '2026-10-15',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -37330,7 +37334,7 @@ words[word] &amp;= ~(1 &lt;&lt; bit)
     title: 'Longest common substring allowing one mismatch: the quota only comes from the clean state',
     excerpt:
       'Two states, because a path that already spent its error cannot be extended into a second one. Writing the mismatch transition from the dirty state inflates the answer on sixty percent of inputs.',
-    date: '2026-09-17',
+    date: '2026-10-15',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -37508,7 +37512,7 @@ different:  g[i][j][e] = g[i-1][j-1][e-1] + 1
     title: 'LC 33 and 153, rotated sorted arrays: one cliff, two opposite comparisons',
     excerpt:
       'A rotated array is two ascending runs with a cliff between them. Binary search needs one answer per step, which side of the cliff the midpoint is on, and the two problems compare against opposite ends.',
-    date: '2026-09-16',
+    date: '2026-09-29',
     readingTime: 14,
     html: `
 <h2>The problems</h2>
@@ -37683,7 +37687,7 @@ public int search(int[] nums, int target) {
     title: 'LC 72, edit distance: prefix against prefix, and the rolling row',
     excerpt:
       'Three operations map to three neighbours. Compressing the table is easy; noticing that the diagonal is the one neighbour your own write destroys is the actual question.',
-    date: '2026-09-15',
+    date: '2026-09-30',
     readingTime: 15,
     html: `
 <h2>The problem</h2>
@@ -37871,7 +37875,7 @@ rose  -&gt; ros     (delete e)
     title: 'LC 994, rotting oranges: multi-source BFS and a table of rot times',
     excerpt:
       'Every rotten orange is a source starting minute zero, so the answer is the radius of the last layer. Layered loops, timestamps and a distance field are three ways of recording it.',
-    date: '2026-09-14',
+    date: '2026-10-12',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -38078,7 +38082,7 @@ def orangesRotting(grid):
     title: 'LC 42, trapping rain water: four solutions to one question',
     excerpt:
       'The water above a column is set by the shorter of the two bounding sides. Every method is just a different way of learning those bounds, and the pointer proof is the part that matters.',
-    date: '2026-09-13',
+    date: '2026-09-28',
     readingTime: 18,
     html: `
 <h2>The problem</h2>
@@ -38370,7 +38374,7 @@ assert trap([2,0,2]) == 2
     title: 'Counting the digit one from 1 to n: count positions, not numbers',
     excerpt:
       'Ten rounds instead of two billion. Each position contributes based on three values, and the branch nobody tests is the one where the current digit is zero.',
-    date: '2026-09-12',
+    date: '2026-10-13',
     readingTime: 14,
     html: `
 <h2>The problem</h2>
@@ -38572,12 +38576,12 @@ lower  = n % weight
 
   {
     slug: 'lc-215-kth-largest-element-in-an-array',
-    zhSlug: 'lc-215-kth-largest-element-in-an-array',
+    zhSlug: 'lc-215-kth-largest-element',
     topicSlug: 'leetcode',
     title: 'LC 215, kth largest element: quicksort answers a question you only need once',
     excerpt:
       'After a partition the pivot sits at its final rank. So the search becomes a yes-or-no question, entering one side only, and that single change is the whole drop from linearithmic to linear.',
-    date: '2026-09-11',
+    date: '2026-09-28',
     readingTime: 17,
     html: `
 <h2>The problem</h2>
@@ -38781,7 +38785,7 @@ private int partition(int[] a, int left, int right) {
     title: 'LC 1262, greatest sum divisible by three: pick everything, then shave',
     excerpt:
       'With positive elements the total is an upper bound, so the only decision is the smallest shave that fixes the remainder. One element of remainder r, or two of the complement.',
-    date: '2026-09-10',
+    date: '2026-10-12',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -38992,7 +38996,7 @@ private int partition(int[] a, int left, int right) {
     title: 'LC 224 and 772, basic calculators: settle immediately, or wait your turn',
     excerpt:
       'With only plus and minus there is no precedence, so a running total and a sign suffice and the stack only stores outer debts. Add multiplication and the queueing begins.',
-    date: '2026-09-09',
+    date: '2026-09-29',
     readingTime: 16,
     html: `
 <h2>The problems</h2>
@@ -39230,7 +39234,7 @@ private int partition(int[] a, int left, int right) {
     title: 'LC 1928, cheapest path within a time budget: a layered graph',
     excerpt:
       'One cheap route and one fast route, with no domination between them. Time cannot be compressed into a cost, so the clock becomes a state dimension, and the answer is a minimum over all times.',
-    date: '2026-09-08',
+    date: '2026-10-14',
     readingTime: 16,
     html: `
 <h2>The problem</h2>
@@ -39426,7 +39430,7 @@ answer   = min over t &lt;= maxTime of dp[t][n-1]
     title: 'From 21 SQL statements to 2: three rounds against N plus one',
     excerpt:
       'The article list shows ten posts. Count the queries: one for the list, then two per post for category and tags. The fix is one line, but the discipline is reading the serializer line by line.',
-    date: '2026-09-07',
+    date: '2026-09-09',
     readingTime: 12,
     html: `
 <h2>The numbers first</h2>
@@ -39554,7 +39558,7 @@ answer   = min over t &lt;= maxTime of dp[t][n-1]
     title: 'Nim and its relatives: one line of xor decides the game',
     excerpt:
       'Reduction is the whole subject. A pile configuration compresses to a single xor value, and a winning move is constructed in three steps rather than searched for.',
-    date: '2026-09-06',
+    date: '2026-10-13',
     readingTime: 12,
     html: `
 <h2>The problem</h2>
@@ -39716,7 +39720,7 @@ public static int[] winningMove(int[] piles) {
     title: 'Splitting a sequence to maximise the sum of variances',
     excerpt:
       'Cutting a sequence makes the total variance larger, not smaller, because each segment gets its own mean. One prefix-sum identity turns the inner loop into constant time.',
-    date: '2026-09-05',
+    date: '2026-10-13',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -39901,7 +39905,7 @@ for segment (l, i], length len = i - l:
     title: 'Kth largest with duplicates: the answer can differ by a factor of two',
     excerpt:
       'Same array, same sentence, two readings. Counting duplicates turns sixteen into eight, and the official sample cannot tell them apart because it has no duplicates at the boundary.',
-    date: '2026-09-04',
+    date: '2026-10-13',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -40111,7 +40115,7 @@ def kth_largest(nums, k, dedupe=False):
     title: 'Spiral fill: agree on the direction first, then talk complexity',
     excerpt:
       'Right, down, left, up is geometrically clockwise, yet half the interview notes call it anticlockwise. Two guards prevent overwrites, and they only trigger on a single row or column.',
-    date: '2026-09-03',
+    date: '2026-10-13',
     readingTime: 12,
     html: `
 <h2>The problem</h2>
@@ -40294,7 +40298,7 @@ def kth_largest(nums, k, dedupe=False):
     title: 'Why I let anonymous visitors like: five layers of anti-abuse',
     excerpt:
       'Opening a write endpoint to the whole internet takes more than a counter. Identity must live server-side, counting must be atomic, and the dedup table must not grow forever.',
-    date: '2026-09-02',
+    date: '2026-09-09',
     readingTime: 13,
     html: `
 <h2>The setup</h2>
@@ -40450,7 +40454,7 @@ article.save()
     title: 'Do not let one bad address poison a whole mail run',
     excerpt:
       'Validation, state transitions, batching and triggering. Each link in the chain has poisoned the batch at least once, and the worst failures are the ones that log nothing.',
-    date: '2026-09-01',
+    date: '2026-09-09',
     readingTime: 13,
     html: `
 <h2>The chain</h2>
@@ -40610,7 +40614,7 @@ Article.objects.filter(
     title: 'Eliminating adjacent pairs summing to ten: a stack, and a uniqueness proof',
     excerpt:
       'Each digit has exactly one complement, so each digit has exactly one way to vanish. The stack holds the reduced form, and confluence is why the order of eliminations does not matter.',
-    date: '2026-08-31',
+    date: '2026-10-13',
     readingTime: 13,
     html: `
 <h2>The problem</h2>
@@ -40786,7 +40790,7 @@ Article.objects.filter(
     title: 'From three seconds to a first paint in milliseconds',
     excerpt:
       'Six requests, 220 KB of JavaScript, and a Vue mount before anything appears. Removing the SPA from the English edition cut the payload to 12.9 KB gzip and the script to 792 bytes inline.',
-    date: '2026-11-12',
+    date: '2026-11-11',
     readingTime: 13,
     html: `
 <h2>Three seconds of blank screen, and no single file to blame</h2>
@@ -40975,7 +40979,7 @@ css /assets/index.DfnPoa2_.css 30.5 KB | gzip 6.0 KB
     title: 'One fsync for a thousand rows: measuring SQLite commit strategies',
     excerpt:
       'A commit costs a flush, not a row. Row by row this machine manages 148 rows per second; batched 1000 at a time it reaches 123,829. Measured on the same disk, same table, same data.',
-    date: '2026-11-12',
+    date: '2026-11-11',
     readingTime: 11,
     html: `
 <h2>Twenty thousand rows took 136 seconds</h2>
@@ -41122,7 +41126,7 @@ for _ in range(200):
     title: 'A four minute build, three and a half of it re-encoding 94 images',
     excerpt:
       'Cold build: 191.3 seconds, of which 181.9 re-encoded covers that had not changed. Caching the encoder output outside dist took the image phase to 0.1 seconds and the build to 21.',
-    date: '2026-11-12',
+    date: '2026-11-11',
     readingTime: 10,
     html: `
 <h2>The build is slow, and you do not know where</h2>
