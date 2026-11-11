@@ -38570,6 +38570,659 @@ lower  = n % weight
 `,
   },
 
+  {
+    slug: 'lc-215-kth-largest-element-in-an-array',
+    zhSlug: 'lc-215-kth-largest-element-in-an-array',
+    topicSlug: 'leetcode',
+    title: 'LC 215, kth largest element: quicksort answers a question you only need once',
+    excerpt:
+      'After a partition the pivot sits at its final rank. So the search becomes a yes-or-no question, entering one side only, and that single change is the whole drop from linearithmic to linear.',
+    date: '2026-09-11',
+    readingTime: 17,
+    html: `
+<h2>The problem</h2>
+
+<p>Return the kth largest element, in linear time.</p>
+
+<pre><code>[3,2,1,5,6,4], k = 2        -&gt;  5
+[3,2,3,1,2,4,5,5,6], k = 4  -&gt;  4
+</code></pre>
+
+<h2>First, translate the question correctly</h2>
+
+<p>The second sample exists to pin the semantics: sort it descending and the fourth position holds four. The two fives each occupy their own seat. Reading it as the fourth distinct value gives three instead, which is wrong.</p>
+
+<p>So the accurate phrasing is: the element at index k after sorting. That immediately gives the first solution, sort and index, which is linearithmic and passes, and then the inevitable question of how to make it linear.</p>
+
+<p>In an ascending array the kth largest is at index n minus k. Writing k minus one instead finds the kth smallest, and the off-by-one is common because a symmetric sample cannot distinguish the two readings.</p>
+
+<h2>The ladder of solutions</h2>
+
+<table>
+<thead><tr><th>Approach</th><th>Time</th><th>Space</th><th>When</th></tr></thead>
+<tbody>
+<tr><td>Sort and index</td><td>Linearithmic</td><td>Constant</td><td>Small inputs, first write</td></tr>
+<tr><td>Min-heap of size k</td><td><strong>n log k</strong></td><td>k</td><td><strong>Streams, small k, memory bound</strong></td></tr>
+<tr><td>Quickselect</td><td><strong>Linear on average</strong>, quadratic worst</td><td>Constant</td><td>Everything in memory, array mutable</td></tr>
+<tr><td>Median of medians</td><td>Strictly linear</td><td>Linear</td><td>Theoretical</td></tr>
+</tbody>
+</table>
+
+<h2>Quickselect: position is rank</h2>
+
+<p>After one partition the pivot is guaranteed to sit at its final sorted position, since everything left is not larger and everything right is larger. That position is its rank, and the search becomes a three-way decision: equal to the target rank, answer; below it, search right; above it, search left.</p>
+
+<p>Quicksort recurses into both sides and quickselect into one, which is the entire reduction in complexity.</p>
+
+<pre><code>def findKthLargest(nums, k):
+    target = len(nums) - k
+    left, right = 0, len(nums) - 1
+    while True:
+        pivot = nums[right]
+        i = left
+        for j in range(left, right):
+            if nums[j] &lt;= pivot:
+                nums[i], nums[j] = nums[j], nums[i]
+                i += 1
+        nums[i], nums[right] = nums[right], nums[i]
+        if i == target:
+            return nums[i]
+        elif i &lt; target:
+            left = i + 1
+        else:
+            right = i - 1
+</code></pre>
+
+<table>
+<thead><tr><th>Frame</th><th>Interval</th><th>Pivot</th><th>Array</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>0 to 5</td><td>-</td><td>3,2,1,5,6,4</td><td>Target rank is four</td></tr>
+<tr><td>1</td><td>0 to 5</td><td>4</td><td>unchanged</td><td>Take the right end</td></tr>
+<tr><td>2-6</td><td>0 to 5</td><td>4</td><td>unchanged</td><td>Scan and move everything at most four left</td></tr>
+<tr><td>7</td><td>0 to 5</td><td>4</td><td>3,2,1,4,6,5</td><td>Pivot lands at index three</td></tr>
+<tr><td>8</td><td>4 to 5</td><td>4</td><td>unchanged</td><td>Three is below the target, discard the left</td></tr>
+<tr><td>9-11</td><td>4 to 5</td><td>5</td><td>3,2,1,4,5,6</td><td>Pivot lands at index four</td></tr>
+<tr><td>12</td><td>4 to 5</td><td>5</td><td>unchanged</td><td>Target reached, answer five</td></tr>
+</tbody>
+</table>
+
+<p>Two moments matter. When the pivot lands below the target rank, four elements are discarded forever, and all the savings are there. When it lands exactly on the target rank, the rank is certain and nothing else needs comparing.</p>
+
+<p>Why discarding is safe rather than optimistic: the pivot's rank is fixed, and if the target is greater, the candidates for that rank are exactly the elements to the right, while everything to the left has rank at or below the pivot's, which is below the target, so none can occupy it. It is deterministic exclusion, not probable pruning.</p>
+
+<h2>Where linear comes from, and where it breaks</h2>
+
+<p>If each partition halves the candidates, the total scan is n plus n over two plus n over four, which converges to twice n, giving about two n comparisons in expectation.</p>
+
+<p>Two inputs defeat the halving. A sorted array with the pivot fixed at the end makes every round discard only the pivot, which is quadratic; an eight-element sorted array takes seven rounds where randomisation takes two.</p>
+
+<p>All-equal elements are worse, counterintuitively. Even with an inclusive comparison, every element counts as not larger, the index walks to the end, and the pivot lands where it started, so each round removes one. Six equal elements take five rounds.</p>
+
+<p>Two fixes. Randomise the pivot by swapping a random index to the end before partitioning, which leaves the worst case theoretically possible but unreachable in practice, since for any fixed input the probability decays super-exponentially. And use three-way partitioning, splitting into less, equal and greater so that the equal block is placed in one go, which is the standard treatment for heavy duplicates. Production libraries go further, combining random pivots with a fallback to median of medians beyond a depth bound, which pins the worst case at linear.</p>
+
+<table>
+<thead><tr><th>Approach</th><th>Time</th><th>Space</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>k passes of selection</td><td>n times k</td><td>Constant</td><td>Quadratic for large k</td></tr>
+<tr><td>Sorting</td><td>Linearithmic</td><td>Constant</td><td>One line, misses the bound</td></tr>
+<tr><td>Min-heap</td><td>n log k</td><td>k</td><td>Near linear for small k, stream friendly</td></tr>
+<tr><td><strong>Quickselect</strong></td><td><strong>Linear average</strong></td><td>Constant</td><td>Fastest for a full in-memory array</td></tr>
+</tbody>
+</table>
+
+<h2>When the heap beats the linear bound</h2>
+
+<pre><code>import heapq
+
+def findKthLargest(nums, k):
+    heap = []
+    for x in nums:
+        heapq.heappush(heap, x)
+        if len(heap) &gt; k:
+            heapq.heappop(heap)
+    return heap[0]
+</code></pre>
+
+<p>Maintain a size-k min-heap: the root is the weakest of the current k candidates, and a newcomer must beat it to enter. The heap therefore carries the threshold at the kth position at all times.</p>
+
+<p>The usual misconception is reaching for a max-heap. That would require holding all n elements and popping k times, which is n plus k log n time and n space, whereas the min-heap holds only the candidates.</p>
+
+<table>
+<thead><tr><th>Dimension</th><th>Quickselect</th><th>Min-heap</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>Linear average, quadratic worst</td><td>Stable n log k</td></tr>
+<tr><td>Space</td><td>Constant</td><td>k</td></tr>
+<tr><td><strong>Streaming</strong></td><td><strong>No</strong>, needs random access to everything</td><td><strong>Yes</strong></td></tr>
+<tr><td><strong>Mutates the input</strong></td><td><strong>Yes</strong></td><td>No</td></tr>
+</tbody>
+</table>
+
+<p>Those last two rows are ignored surprisingly often and they decide real choices: streaming data rules quickselect out, and a caller who forbids mutation does the same. Many interviewers suggest writing the heap first, ten lines with no worst case, and then offering quickselect as the optimisation.</p>
+
+<h2>At engineering scale</h2>
+
+<p>For a billion integers finding the top hundred, the premise changes: memory cannot hold the data. Only k candidates need to fit, so a hundred-element min-heap scanned in one pass over the file suffices, at n log k time, which is tens of seconds. This is the streaming advantage in cash terms; quickselect is eliminated because it needs the whole array in hand.</p>
+
+<p>If the data is spread across machines or files, each computes its local top hundred with its own heap, and then the hundred local lists are merged, giving ten thousand candidates that fit anywhere. The correctness rests on the fact that every local candidate has already beaten ninety-nine local rivals, so the global top hundred must lie among them.</p>
+
+<table>
+<thead><tr><th>Situation</th><th>Approach</th><th>Key dependency</th></tr></thead>
+<tbody>
+<tr><td>All in memory, one shot</td><td>Randomised quickselect</td><td>Random access to everything</td></tr>
+<tr><td>All in memory, streaming acceptable</td><td>Min-heap</td><td>Only k of memory</td></tr>
+<tr><td>Spread across machines</td><td>Local heaps plus merge</td><td>The union of local answers contains the global one</td></tr>
+</tbody>
+</table>
+
+<h2>Java</h2>
+
+<pre><code>public int findKthLargest(int[] nums, int k) {
+    int target = nums.length - k;
+    int left = 0, right = nums.length - 1;
+    while (true) {
+        int idx = partition(nums, left, right);
+        if (idx == target) return nums[idx];
+        else if (idx &lt; target) left = idx + 1;
+        else right = idx - 1;
+    }
+}
+
+private int partition(int[] a, int left, int right) {
+    int r = left + (int) (Math.random() * (right - left + 1));
+    swap(a, r, right);
+    int pivot = a[right], i = left;
+    for (int j = left; j &lt; right; j++) {
+        if (a[j] &lt;= pivot) {
+            swap(a, i, j);
+            i++;
+        }
+    }
+    swap(a, i, right);
+    return i;
+}
+</code></pre>
+
+<p>The heap version uses the default priority queue, which is already a min-heap.</p>
+
+<h2>Edges and traps</h2>
+
+<ol>
+<li>Using k minus one instead of n minus k, which finds the kth smallest. Sanity-check the formula with k equal to n, where the answer must be the minimum.</li>
+<li>A fixed pivot timing out on sorted inputs; the test data includes large ordered arrays, so randomise.</li>
+<li>Using a strict comparison in the partition, which pushes equals to the right and worsens the duplicate case; use the inclusive test, plus three-way partitioning for heavy duplication.</li>
+<li>Recursing into both sides, which is quicksort rather than quickselect and loses the linear bound.</li>
+<li>Forgetting to pop beyond capacity in the heap version, which grows to n elements.</li>
+</ol>
+
+<h2>The family</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>What changes</th><th>How to think about it</th></tr></thead>
+<tbody>
+<tr><td>K closest points to the origin</td><td>The key is a squared distance</td><td>Continuous keys, so a heap or quickselect with a different comparator</td></tr>
+<tr><td>Kth largest in a stream</td><td>The data never ends</td><td>Only a heap works, since quickselect needs the whole array</td></tr>
+<tr><td>Top k frequent elements</td><td>The key is a frequency</td><td>Frequencies are small integers, so bucket sort is linear</td></tr>
+<tr><td>Minimum moves to equalise</td><td>Choose a reference rather than a rank</td><td>A median, which is a selection with k at half the length</td></tr>
+</tbody>
+</table>
+
+<h2>How to answer it</h2>
+
+<p>Give something that runs first, then the linear method with the randomisation and duplicate notes, then the streaming and distributed extensions, then two self-tests including the sample that pins position over distinct value. Close with the one-line characterisation: the pivot only ever answers which rank it holds, and once it does, the answer surfaces by itself.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-215-kth-largest-element/">【LC 215】数组中的第 K 个最大元素：快速选择只在回答「我排第几」</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-1262-greatest-sum-divisible-by-three',
+    zhSlug: 'lc-1262-greatest-sum-divisible-by-three',
+    topicSlug: 'leetcode',
+    title: 'LC 1262, greatest sum divisible by three: pick everything, then shave',
+    excerpt:
+      'With positive elements the total is an upper bound, so the only decision is the smallest shave that fixes the remainder. One element of remainder r, or two of the complement.',
+    date: '2026-09-10',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Choose any subset whose sum is divisible by three and return the largest such sum, or zero if none exists.</p>
+
+<pre><code>[3,6,5,1,8]  -&gt; 18   (3 + 6 + 1 + 8)
+[4]          -&gt; 0
+[1,2,3,4,4]  -&gt; 12
+</code></pre>
+
+<p>Clear up the most common misreading first: the subset may be any size, not exactly three. The sample uses four numbers. The three in the title refers to divisibility, and the only real constraint is that the chosen sum is congruent to zero modulo three.</p>
+
+<p>All elements are positive, which matters: the total is an upper bound on any subset sum, so the only task is to discard the smallest worthwhile handful. Two approaches are worth knowing, and they contrast nicely: a greedy pass grouping by remainder, which relies on the positive precondition, and a three-cell rolling DP, which does not.</p>
+
+<h2>Take everything, then shave</h2>
+
+<p>Let the total be S with remainder r. If r is zero, S itself is the answer. Otherwise the discarded set must have sum congruent to r, and the elements are bucketed by their remainder, sorted ascending. Elements with remainder zero are never discarded, since that is pure loss.</p>
+
+<table>
+<thead><tr><th>Total remainder</th><th>Options</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Discard one element of remainder one, or two of remainder two</td></tr>
+<tr><td>2</td><td>Discard one element of remainder two, or two of remainder one</td></tr>
+</tbody>
+</table>
+
+<pre><code>def maxSumDivThree(nums):
+    total = sum(nums)
+    r = total % 3
+    if r == 0:
+        return total
+    m1 = sorted(x for x in nums if x % 3 == 1)
+    m2 = sorted(x for x in nums if x % 3 == 2)
+
+    def two(bucket):
+        return bucket[0] + bucket[1] if len(bucket) &gt;= 2 else float('inf')
+
+    if r == 1:
+        drop = min(m1[0] if m1 else float('inf'), two(m2))
+    else:
+        drop = min(m2[0] if m2 else float('inf'), two(m1))
+
+    return 0 if drop == float('inf') else total - drop
+</code></pre>
+
+<p>Two details decide it. The buckets must be ascending and only the smallest entries matter, since discarding less is always better. And the two-element candidate must be infinite when the bucket is too short, because returning zero there would claim a free discard and the minimum would take a path that does not exist.</p>
+
+<h2>Why only those two shapes</h2>
+
+<p>Suppose the discarded set sums to something congruent to r. Looking only at each element's remainder, remainder-one contributes one and remainder-two contributes two.</p>
+
+<p>Single elements give the remainder directly. For two elements, one plus one gives two, two plus two gives one, and a mixed pair gives zero, which fixes nothing. So to obtain r from two elements they must both come from the complementary bucket.</p>
+
+<p>Three or more is worse in every case: either it contains three of the same kind, whose remainders cancel to zero and contribute nothing, or it reduces to one of the smaller combinations. Since all elements are positive, discarding more always means a smaller sum, so larger sets are dominated.</p>
+
+<p>Hence the smallest cost is always either one element of remainder r or two of the complement, and considering only those two makes the code complete.</p>
+
+<h2>The animation</h2>
+
+<p>The greedy animation shows the array with each value and its remainder, three columns bucketing the elements ascending, two candidate cards computing their costs live with the winner highlighted, and a footer showing the total, the remainder and the final subtraction. Watch that the cards collapse entirely when the remainder is zero, that only the smallest one or two per bucket ever light up, and that either card can show infinity when its bucket is short.</p>
+
+<p>The second animation shows the rolling DP: three states for the best sum with each remainder, with arcs from the old state to the new one as each element is processed, and a banner showing the concrete update. Two things to notice: each element is used once only, because the states are copied before writing, and the unreachable marker sinks and stays sunk, so only genuinely reachable remainders light up.</p>
+
+<table>
+<thead><tr><th>Step</th><th>Computation</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Total</td><td>Sum of all</td><td>23</td></tr>
+<tr><td>Remainder</td><td>23 modulo three</td><td>2</td></tr>
+<tr><td>Buckets</td><td>remainder zero: 3 and 6; remainder one: 1; remainder two: 5 and 8</td><td>-</td></tr>
+<tr><td>Candidate A</td><td>One of remainder two</td><td>5</td></tr>
+<tr><td>Candidate B</td><td>Two of remainder one, unavailable</td><td>infinity</td></tr>
+<tr><td>Answer</td><td>23 minus 5</td><td><strong>18</strong></td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Element</th><th>Remainder</th><th>dp zero</th><th>dp one</th><th>dp two</th></tr></thead>
+<tbody>
+<tr><td>start</td><td>-</td><td>0</td><td>unreachable</td><td>unreachable</td></tr>
+<tr><td>3</td><td>0</td><td>3</td><td>-</td><td>-</td></tr>
+<tr><td>6</td><td>0</td><td>9</td><td>-</td><td>-</td></tr>
+<tr><td>5</td><td>2</td><td>9</td><td>-</td><td>14</td></tr>
+<tr><td>1</td><td>1</td><td>15</td><td>10</td><td>14</td></tr>
+<tr><td>8</td><td>2</td><td><strong>18</strong></td><td>22</td><td>23</td></tr>
+</tbody>
+</table>
+
+<p>The final row shows all three states refreshed from different paths, and the larger intermediate sums with non-zero remainders are kept precisely so that later elements can rescue them.</p>
+
+<h2>The DP route</h2>
+
+<p>The greedy collapses once negatives are allowed, since the total is no longer an upper bound. The DP stays linear and does not care about signs.</p>
+
+<pre><code>def maxSumDivThree(nums):
+    NEG = float('-inf')
+    dp = [0, NEG, NEG]
+    for x in nums:
+        old = dp[:]
+        rem = x % 3
+        for j in range(3):
+            if old[j] == NEG:
+                continue
+            k = (j + rem) % 3
+            dp[k] = max(dp[k], old[j] + x)
+    return dp[0]
+</code></pre>
+
+<p>Three details. Snapshot before writing, which is the zero-one knapsack rule of using each item once; without it the same element can be read back and used twice. Use negative infinity rather than zero for unreachable states, or they appear reachable with sum zero. And only three states exist because there are only three remainders, so space is constant.</p>
+
+<p>The relationship is that the DP is the general solution and the greedy is its specialisation to positive inputs, faster and simpler but with a precondition that cannot be broken. In an interview, give the greedy idea and then add the DP for the signed case.</p>
+
+<h2>The family</h2>
+
+<ul>
+<li><strong>Subarrays with sum divisible by k:</strong> prefix sums plus congruence, counting equal-remainder pairs.</li>
+<li><strong>Shortest subarray whose removal makes the sum divisible by p:</strong> the same bucket idea with a shortest contiguous segment instead of fewest elements.</li>
+<li><strong>Check if pairs are divisible by k:</strong> remainders must be complementary, which is the same grouping action.</li>
+<li><strong>Binary prefixes divisible by five:</strong> maintain the remainder as the prefix shifts.</li>
+<li><strong>Paths in a matrix with sum divisible by k:</strong> the same remainder DP extended over a grid.</li>
+</ul>
+
+<p>Whenever divisibility appears, the first move is to compress the sum into a remainder, and everything else is counting, shortest segments, pairing or extension to higher dimensions.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int maxSumDivThree(int[] nums) {
+    int total = 0;
+    final int INF = Integer.MAX_VALUE / 2;
+    int one1 = INF, one2 = INF;
+    int two1 = INF, two2 = INF;
+    for (int x : nums) {
+        total += x;
+        if (x % 3 == 1) {
+            if (x &lt; one1) { one2 = one1; one1 = x; }
+            else if (x &lt; one2) { one2 = x; }
+        } else if (x % 3 == 2) {
+            if (x &lt; two1) { two2 = two1; two1 = x; }
+            else if (x &lt; two2) { two2 = x; }
+        }
+    }
+    int r = total % 3;
+    if (r == 0) return total;
+    long drop;
+    if (r == 1) drop = Math.min(one1, (long) two1 + two2);
+    else        drop = Math.min(two1, (long) one1 + one2);
+    return drop &gt;= INF ? 0 : total - (int) drop;
+}
+</code></pre>
+
+<p>Two Java-specific traps: the sentinel must be half the maximum integer, since incrementing the maximum overflows; and a negative operand yields a negative remainder, so a floor-modulo is safer. Sums may also exceed a 32-bit integer, so widen where necessary.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>A zero remainder returns the total immediately without consulting buckets.</li>
+<li>A single element that is not divisible by three returns zero, the empty subset.</li>
+<li>If neither candidate can be assembled, the answer is zero rather than a negative number.</li>
+<li>Three ones and three twos both have remainder zero overall, so the whole array is taken.</li>
+<li>An empty bucket means the corresponding candidate must be infinite rather than an out-of-range read.</li>
+<li>Zero elements change no remainder.</li>
+<li>Duplicates need no special handling; taking the smallest two after sorting is correct for them.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Version</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Greedy with sorting</td><td>n log n</td><td>n</td></tr>
+<tr><td>Greedy tracking the two smallest per bucket</td><td>Linear</td><td>Constant</td></tr>
+<tr><td>Rolling DP</td><td>Linear</td><td>Constant</td></tr>
+</tbody>
+</table>
+
+<p>Both are linear in time. The difference is that the greedy depends on non-negative elements while the DP does not.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Reading the problem as choosing exactly three elements.</li>
+<li>Considering only the single-element discard and missing the two-element one.</li>
+<li>Returning zero from the helper when a bucket is too short, which invents a free discard.</li>
+<li>Taking the first two entries without sorting, or without maintaining the two smallest.</li>
+<li>Omitting the zero-remainder short circuit, which confuses the candidate arithmetic.</li>
+<li>Returning a negative value when no solution exists instead of zero.</li>
+<li>Updating the DP in place, which uses one element twice.</li>
+<li>Initialising the unreachable states to zero.</li>
+<li>Using the maximum integer as infinity in a fixed-width language.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Give the greedy with the reasoning about why only two shapes exist, since that argument is the discriminator. Then the DP as the sign-agnostic fallback, with the snapshot and the negative infinity noted. Then the generalisation: counting divisible subarrays, shortest removals, complementary pairing, and the grid extension.</p>
+
+<h2>Closing</h2>
+
+<p>The difficulty compresses into one conclusion: return the total if the remainder is zero, otherwise subtract the cheaper of one element with remainder r or two with the complement. Only two shapes are needed because in the world of remainders, same-kind pairs cancel and mixed pairs are wasted. Once that is clear the code is ten lines, and the rolling DP reminds you that when the positive precondition breaks, the machine that does not depend on it is the one to use.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-1262-greatest-sum-divisible-by-three/">【LC 1262】可被三整除的最大和：贪心与滚动 dp</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-224-772-basic-calculator',
+    zhSlug: 'lc-224-772-basic-calculator',
+    topicSlug: 'leetcode',
+    title: 'LC 224 and 772, basic calculators: settle immediately, or wait your turn',
+    excerpt:
+      'With only plus and minus there is no precedence, so a running total and a sign suffice and the stack only stores outer debts. Add multiplication and the queueing begins.',
+    date: '2026-09-09',
+    readingTime: 16,
+    html: `
+<h2>The problems</h2>
+
+<p><strong>224:</strong> evaluate an expression with digits, plus, minus, parentheses and spaces. <strong>772:</strong> the same with multiplication and division, truncating division toward zero.</p>
+
+<pre><code>"(1+(4+5+2)-3)+(6+8)"   -&gt; 23
+"1 + 2 - (3 + 4) - 5"   -&gt; -9
+"2*(5+5*2)/3+(6/2+8)"   -&gt; 21
+</code></pre>
+
+<p>These are the degenerate and full versions of one problem. With only addition and subtraction all operators share a precedence and associate left, so nothing waits, and the stack's only job is remembering what the enclosing level owes. Adding multiplication breaks that uniformity, and the waiting begins.</p>
+
+<h2>224: no precedence, so debts only</h2>
+
+<p>Since plus and minus are same-precedence and left-associative, a number's sign is fully determined by the time it is read, so it can be settled immediately. Two variables suffice: a running total for the current level, and the sign for the next number.</p>
+
+<p>Parentheses are the only complication. Everything inside is a separate small expression, but its value is owed to the enclosing level, multiplied by the sign before the opening bracket. So push the outer state, reset the accumulator, and on the closing bracket fold the inner result back in.</p>
+
+<pre><code>def calculate(s: str) -&gt; int:
+    result, sign, stack = 0, 1, []
+    i = 0
+    while i &lt; len(s):
+        c = s[i]
+        if c == ' ':
+            i += 1
+        elif c.isdigit():
+            j = i
+            while j &lt; len(s) and s[j].isdigit():
+                j += 1
+            result += sign * int(s[i:j])
+            i = j
+        elif c == '+':
+            sign = 1; i += 1
+        elif c == '-':
+            sign = -1; i += 1
+        elif c == '(':
+            stack.append((result, sign))
+            result, sign = 0, 1
+            i += 1
+        else:
+            inner = result
+            prev, psign = stack.pop()
+            result = prev + psign * inner
+            i += 1
+    return result
+</code></pre>
+
+<p>What goes on the stack is not an intermediate value but an outer debt: the accumulated total and the sign the bracket as a whole carries. For the second sample, opening the bracket pushes three and minus one, the inside evaluates to seven, and the merge gives three minus seven, which then continues with minus five to reach minus nine.</p>
+
+<table>
+<thead><tr><th>Token</th><th>Action</th><th>Sign</th><th>Total</th><th>Stack</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Add</td><td>+1</td><td>1</td><td>empty</td></tr>
+<tr><td>+</td><td>Record sign</td><td>+1</td><td>1</td><td>empty</td></tr>
+<tr><td>2</td><td>Add</td><td>+1</td><td>3</td><td>empty</td></tr>
+<tr><td>-</td><td>Record sign</td><td>-1</td><td>3</td><td>empty</td></tr>
+<tr><td>(</td><td>Push the debt, reset</td><td>+1</td><td>0</td><td>3, -1</td></tr>
+<tr><td>3</td><td>Add</td><td>+1</td><td>3</td><td>3, -1</td></tr>
+<tr><td>+</td><td>Record sign</td><td>+1</td><td>3</td><td>3, -1</td></tr>
+<tr><td>4</td><td>Add</td><td>+1</td><td>7</td><td>3, -1</td></tr>
+<tr><td>)</td><td>Merge</td><td>+1</td><td>-4</td><td>empty</td></tr>
+<tr><td>-</td><td>Record sign</td><td>-1</td><td>-4</td><td>empty</td></tr>
+<tr><td>5</td><td>Subtract</td><td>-1</td><td>-9</td><td>empty</td></tr>
+</tbody>
+</table>
+
+<p>The animation shows the token strip, the current accumulator with its sign badge and settlement formula, and the bracket context stack below. Two plus frames watch the total climb with no waiting, a bracket frame pushes the outer state and resets, and the closing frame shows the merge formula before the final total turns green.</p>
+
+<h2>772: precedence breaks immediate settlement</h2>
+
+<p>With multiplication the old foundation collapses, because a number may now have to wait for a higher-precedence operator to its right. Two stacks are needed: one for operands and one for operators, the classic shunting-yard arrangement.</p>
+
+<p>The single discipline: when a new operator arrives, pop and apply every operator on top whose precedence is greater than or equal to it, then push the new one.</p>
+
+<p>Using greater-or-equal rather than strictly greater also handles left associativity. For ten minus two minus three, the second minus finds an equal on top and settles the first subtraction, which is correct; with a strict comparison it would be right-associative and wrong.</p>
+
+<p>That discipline maintains a clean invariant: inside each level of brackets, the operator stack holds strictly increasing precedence. So flushing at the end by popping from the top down gives exactly the right order, since low-precedence operators have sunk to the bottom.</p>
+
+<p>An opening bracket is a barrier that stops the arrival comparisons, and a closing bracket settles down to the barrier and then discards it.</p>
+
+<pre><code>def calculate(s: str) -&gt; int:
+    prec = {'+': 1, '-': 1, '*': 2, '/': 2}
+    nums, ops = [], []
+
+    def apply():
+        op, b, a = ops.pop(), nums.pop(), nums.pop()
+        if op == '+': nums.append(a + b)
+        elif op == '-': nums.append(a - b)
+        elif op == '*': nums.append(a * b)
+        else:
+            q = abs(a) // abs(b)
+            nums.append(q if (a &gt;= 0) == (b &gt;= 0) else -q)
+
+    i = 0
+    while i &lt; len(s):
+        c = s[i]
+        if c == ' ':
+            i += 1
+        elif c.isdigit():
+            j = i
+            while j &lt; len(s) and s[j].isdigit():
+                j += 1
+            nums.append(int(s[i:j]))
+            i = j
+        elif c == '(':
+            ops.append(c); i += 1
+        elif c == ')':
+            while ops[-1] != '(':
+                apply()
+            ops.pop()
+            i += 1
+        else:
+            while ops and ops[-1] != '(' and prec[ops[-1]] &gt;= prec[c]:
+                apply()
+            ops.append(c)
+            i += 1
+    while ops:
+        apply()
+    return nums[0]
+</code></pre>
+
+<table>
+<thead><tr><th>Token</th><th>nums</th><th>ops</th><th>Settled</th></tr></thead>
+<tbody>
+<tr><td>2</td><td>2</td><td>empty</td><td>-</td></tr>
+<tr><td>*</td><td>2</td><td>*</td><td>-</td></tr>
+<tr><td>(</td><td>2</td><td>*, (</td><td>-</td></tr>
+<tr><td>5</td><td>2, 5</td><td>*, (</td><td>-</td></tr>
+<tr><td>+</td><td>2, 5</td><td>*, (, +</td><td>Blocked by the barrier</td></tr>
+<tr><td>5</td><td>2, 5, 5</td><td>*, (, +</td><td>-</td></tr>
+<tr><td>*</td><td>2, 5, 5</td><td>*, (, +, *</td><td>Nothing, lower precedence below</td></tr>
+<tr><td>2</td><td>2, 5, 5, 2</td><td>*, (, +, *</td><td>-</td></tr>
+<tr><td>)</td><td>2, 15</td><td>*</td><td>Five times two, then five plus ten</td></tr>
+<tr><td>/</td><td>30</td><td>/</td><td>Two times fifteen, equal precedence, left first</td></tr>
+<tr><td>3</td><td>30, 3</td><td>/</td><td>-</td></tr>
+<tr><td>+</td><td>10</td><td>+</td><td>Thirty divided by three</td></tr>
+<tr><td>(</td><td>10</td><td>+, (</td><td>Barrier pushed</td></tr>
+<tr><td>6</td><td>10, 6</td><td>+, (</td><td>-</td></tr>
+<tr><td>/</td><td>10, 6</td><td>+, (, /</td><td>Blocked</td></tr>
+<tr><td>2</td><td>10, 6, 2</td><td>+, (, /</td><td>-</td></tr>
+<tr><td>+</td><td>10, 3</td><td>+, (, +</td><td>Six divided by two</td></tr>
+<tr><td>8</td><td>10, 3, 8</td><td>+, (, +</td><td>-</td></tr>
+<tr><td>)</td><td>10, 11</td><td>+</td><td>Three plus eight, barrier discarded</td></tr>
+<tr><td>flush</td><td>21</td><td>empty</td><td>Ten plus eleven</td></tr>
+</tbody>
+</table>
+
+<p>The most instructive pair is the closing bracket followed by the division: inside the barrier two layers settle by their own precedence, and outside it the pending multiplication settles before the division is pushed. Each side of the barrier follows its own discipline.</p>
+
+<h2>Variants</h2>
+
+<ul>
+<li><strong>No parentheses, with multiplication:</strong> the same shunting yard without the barrier branch, or the clever one-stack version that defers each number by one step and folds immediately when the pending operator is multiplicative.</li>
+<li><strong>Reverse Polish evaluation:</strong> the output side of the same machinery, where no precedence or parentheses exist and a single stack suffices. Writing it once makes the forward version obvious.</li>
+<li><strong>String decoding:</strong> the same bracket context stack with different payloads, a partial string and a repeat count instead of a total and a sign.</li>
+<li><strong>Recursive descent:</strong> three grammar rules translated into three functions, with precedence encoded in the call depth and brackets in the recursion. Cleaner to read, with an implicit stack.</li>
+<li><strong>Extensions:</strong> function calls, variables and exponentiation all amount to new entries in the operator stack and new rows in the precedence table.</li>
+</ul>
+
+<h2>Java</h2>
+
+<pre><code>public int calculate(String s) {
+    Deque&lt;Long&gt; nums = new ArrayDeque&lt;&gt;();
+    Deque&lt;Character&gt; ops = new ArrayDeque&lt;&gt;();
+    for (int i = 0; i &lt; s.length(); ) {
+        char c = s.charAt(i);
+        if (c == ' ') { i++; }
+        else if (Character.isDigit(c)) {
+            long v = 0;
+            while (i &lt; s.length() &amp;&amp; Character.isDigit(s.charAt(i)))
+                v = v * 10 + (s.charAt(i++) - '0');
+            nums.push(v);
+        } else if (c == '(') { ops.push(c); i++; }
+        else if (c == ')') {
+            while (ops.peek() != '(') apply(nums, ops);
+            ops.pop(); i++;
+        } else {
+            while (!ops.isEmpty() &amp;&amp; ops.peek() != '('
+                    &amp;&amp; rank(ops.peek()) &gt;= rank(c)) apply(nums, ops);
+            ops.push(c); i++;
+        }
+    }
+    while (!ops.isEmpty()) apply(nums, ops);
+    return nums.pop().intValue();
+}
+</code></pre>
+
+<p>Java division already truncates toward zero, unlike Python. Intermediate results are kept as 64-bit values because expressions can overflow a 32-bit integer mid-computation, and the conversion happens only at the end.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>Spaces appear anywhere; skip them while scanning rather than splitting and filtering.</li>
+<li>Multi-digit numbers must be accumulated, not read one digit at a time.</li>
+<li>Single numbers and single brackets are valid and leave exactly one operand at the end.</li>
+<li>Unary minus is not in the official data, but appears in variants. A sign at the start, after an opening bracket, or after another operator is part of the number, not an operator.</li>
+<li>Division must truncate toward zero; Python floor division gives the wrong sign for negatives.</li>
+<li>Division by zero does not occur in the test data.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<p>Both are linear in time and space. The stack depth equals the bracket nesting. The second version's cost deserves a note: one closing bracket can trigger several settlements, which looks quadratic, but each operator is popped exactly once in its lifetime, so the total is the number of operators, the same amortised accounting as the two-stack queue.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Using a strict comparison for precedence, which breaks left associativity on same-precedence chains.</li>
+<li>Using floor division in Python, which rounds the wrong way for negatives.</li>
+<li>Not handling unary minus, which consumes an operand that does not exist.</li>
+<li>Clearing the accumulator before pushing the outer state, which stores the wrong debt.</li>
+<li>Forgetting to discard the barrier after settling to it, which blocks every later comparison.</li>
+<li>Returning without flushing the operator stack.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Ask which switches the problem has: multiplication, brackets, unary signs. Then the simple version: same precedence, settle immediately, a stack only for outer debts. Then why that fails once precedence differs, and the two-stack discipline with the greater-or-equal comparison, the barrier, and the final flush. Then the three details that prove experience: truncation direction, 64-bit intermediates, and unary signs.</p>
+
+<h2>Closing</h2>
+
+<p>The stack family reaches its last piece here: one problem shows the stack storing debts, the other shows it adjudicating order. The mnemonic: equal precedence means settle immediately with a debt stack; unequal precedence means queue in two stacks and settle on arrival.</p>
+
+<p>From bracket matching, through remembering history and flipping direction, to ordering by value and now settling by precedence, the same last-in-first-out structure has worn six faces, and every one was forced by the same reason: something cannot be handled now and cannot be thrown away.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-224-772-basic-calculator/">【LC 224/772】基本计算器：一个来一个结，一个等优先级</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
