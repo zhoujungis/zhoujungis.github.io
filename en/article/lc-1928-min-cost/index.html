@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="One cheap route and one fast route, with no domination between them. Time cannot be compressed into a cost, so the clock becomes a state dimension, and the answer is a minimum over all times." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/lc-1928-min-cost/" />
+    <meta property="og:title" content="LC 1928, cheapest path within a time budget: a layered graph | Stack Frame" />
+    <meta property="og:description" content="One cheap route and one fast route, with no domination between them. Time cannot be compressed into a cost, so the clock becomes a state dimension, and the answer is a minimum over all times." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/lc-1928-min-cost/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="LC 1928, cheapest path within a time budget: a layered graph | Stack Frame" />
+    <meta name="twitter:description" content="One cheap route and one fast route, with no domination between them. Time cannot be compressed into a cost, so the clock becomes a state dimension, and the answer is a minimum over all times." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>LC 1928, cheapest path within a time budget: a layered graph | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/lc-1928-min-cost/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/lc-1928-min-cost/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/lc-1928-min-cost/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>LC 1928, cheapest path within a time budget: a layered graph</h1><div class="ns-meta">2026-09-08 · 16 min · Stack Frame</div><div class="markdown-body">
+<h2>The problem</h2>
+
+<p>Cities are joined by undirected edges carrying a travel time but no cost. Every time you pass through a city you pay its toll, including the first and the last. Find the cheapest route from zero to the last city within a total time budget, or minus one.</p>
+
+<pre><code>edges        [[0,1,10],[1,2,10],[2,5,10],[0,3,1],[3,4,10],[4,5,15]]
+passingFees  [5,1,2,20,20,3]
+
+maxTime 30 -&gt; 11   (0-1-2-5, time 30, tolls 5+1+2+3)
+maxTime 29 -&gt; 48   (0-3-4-5, time 26, tolls 5+20+20+3)
+maxTime 25 -&gt; -1
+</code></pre>
+
+<p>It looks like a shortest path, and the real threshold is counterintuitive: there are two routes, one costing eleven and one costing forty-eight, and the difference is not which is cheaper but which arrives in time. One minute of budget changes the answer completely. That jump is the whole point of this article: why a one-dimensional state must be wrong, and how a layered graph repairs it.</p>
+
+<h2>Definition and transition</h2>
+
+<p>The tempting wrong version runs a shortest path where the cost is the arrival city's toll. It is wrong for a concrete reason: the cheapest route takes thirty minutes and is simply not allowed when the budget is twenty-nine. The one-dimensional state discarded the arrival time and therefore mistook an overtime cheap route for the answer.</p>
+
+<p>The fix is to put time into the state: not the cheapest way to reach a city, but the cheapest way to reach it at a specific moment.</p>
+
+<pre><code>dp[t][v] = the cheapest toll total for arriving at city v exactly at time t
+dp[0][0] = passingFees[0]
+dp[t + et][u] = min(dp[t + et][u], dp[t][v] + passingFees[u])
+answer   = min over t &lt;= maxTime of dp[t][n-1]
+</code></pre>
+
+<pre><code>def minCost(maxTime, edges, passingFees):
+    n = len(passingFees)
+    INF = float("inf")
+    dp = [[INF] * n for _ in range(maxTime + 1)]
+    dp[0][0] = passingFees[0]
+    for t in range(maxTime + 1):
+        for x, y, et in edges:
+            arr = t + et
+            if arr &gt; maxTime:
+                continue
+            if dp[t][x] &lt; INF:
+                dp[arr][y] = min(dp[arr][y], dp[t][x] + passingFees[y])
+            if dp[t][y] &lt; INF:
+                dp[arr][x] = min(dp[arr][x], dp[t][y] + passingFees[x])
+    ans = min(dp[t][n - 1] for t in range(maxTime + 1))
+    return -1 if ans == INF else ans
+</code></pre>
+
+<p>Three details decide it. The base case pays the start city's toll, since passing through includes standing on it. Only reachable cells are relaxed, which is both the meaning of spreading outward layer by layer and a guard against adding to infinity. And any transition arriving late is dropped, because time only moves forward.</p>
+
+<p>One more thing is easy to miss: the answer is the minimum over all times, not the final row. Arriving early and arriving late are separate cells, and earlier is not necessarily cheaper.</p>
+
+<h2>Why the clock must be a state</h2>
+
+<p>The one-dimensional state collapses two genuinely different facts into a single number: the cheap route costing eleven over thirty minutes, and the expensive route costing forty-eight over twenty-six. Keeping only the fare records the first and forgets that it is overtime. Cost and time are not interchangeable, and neither dominates the other, so both must survive into the state.</p>
+
+<pre><code>layer t holds one copy of every city:
+  point = (t, v)      edge = (x, y, time)
+  dp[t][v] = shortest cost to reach the point (t, v)
+</code></pre>
+
+<p>The budget is simply the layer cap, so a path problem with a time window is a shortest path on a graph with a bounded number of layers.</p>
+
+<p>Note also that arriving later can be more expensive, since every step pays the destination's toll, so detouring is not free. Taking the minimum over all times handles that without assuming anything about early versus late.</p>
+
+<h2>The animation</h2>
+
+<p>The first animation is the layered table: rows are times, columns are cities, cells hold the state. Unreached cells are dashed with an infinity, reached ones are green, and the base case is outlined. Each frame relaxes one edge, with a dashed arrow from the source cell to the target and a ring marking the current best cell. A banner shows the concrete arithmetic, alongside counters for the time, the edge, the candidate, the number of pruned transitions and the answer.</p>
+
+<p>Three things to watch: only reached cells produce frames, transitions that would arrive late produce no frame and only bump the pruned counter, and a relaxation that does not improve is called out as both later and more expensive. The answer cell ends up not in the first row but wherever the minimum over times lands.</p>
+
+<p>The second animation compares the two routes on the same graph, laid out by distance from the start. The orange route ignores the clock and takes the cheapest cities; the green route respects the budget. Cards show each route's city sequence, tolls and duration with a verdict, and a strip of state chips walks the predecessor table back from the goal to the start.</p>
+
+<table>
+<thead><tr><th>Time</th><th>Source</th><th>Cities</th><th>Arrival</th><th>Candidate</th><th>Old</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>(0,0) = 5</td><td>1 and 3</td><td>2 and 1</td><td>6 and 25</td><td>infinity</td><td>Both set</td></tr>
+<tr><td>1</td><td>(1,3) = 25</td><td>0 and 4</td><td>2</td><td>30 and 45</td><td>infinity</td><td>Both set</td></tr>
+<tr><td>2</td><td>(2,1) = 6</td><td>0 and 2</td><td>4</td><td>11 and 8</td><td>infinity</td><td>Both set</td></tr>
+<tr><td>2</td><td>(2,4) = 45</td><td>5</td><td>3</td><td>48</td><td>infinity</td><td>Set</td></tr>
+<tr><td>3</td><td>(3,5) = 48</td><td>4</td><td>4</td><td>68</td><td>70</td><td>Improves to 68</td></tr>
+<tr><td>4</td><td>(4,0) = 11</td><td>3</td><td>5</td><td>31</td><td>infinity</td><td>Set</td></tr>
+<tr><td>4</td><td>(4,4) = 68</td><td>5</td><td>5</td><td>71</td><td>infinity</td><td>Set, but not the answer</td></tr>
+</tbody>
+</table>
+
+<p>The final answer is the minimum over the goal column, which lands on the expensive but fast route. The later arrival costs seventy-one, which is exactly why the minimum must span all times. Following predecessors backwards from that cell recovers the city sequence through the expensive route.</p>
+
+<table>
+<thead><tr><th>Route</th><th>Sequence</th><th>Arrivals</th><th>Tolls</th><th>Duration</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Cheapest ignoring time</td><td>0, 1, 2, 5</td><td>0, 2, 4, 6</td><td>11</td><td>6</td><td><strong>Too late</strong></td></tr>
+<tr><td>Cheapest within budget</td><td>0, 3, 4, 5</td><td>0, 1, 2, 3</td><td>48</td><td>3</td><td><strong>Fits</strong></td></tr>
+</tbody>
+</table>
+
+<p>The unconstrained cheapest route is necessarily no more expensive than the constrained one, since ignoring the window only enlarges the search space. Being cheap and being in time are simply different things.</p>
+
+<h2>The family</h2>
+
+<ul>
+<li><strong>Cheapest flight within k stops:</strong> the state is the number of stops used and the city, which is word-for-word the same structure with stops replacing time and airfare replacing tolls.</li>
+<li><strong>Network delay time:</strong> a single-source shortest path with no window at all, answering the latest arrival.</li>
+<li><strong>Path with minimum effort:</strong> the aggregation changes from a sum to a maximum along the path.</li>
+<li><strong>Most probable path:</strong> products instead of sums, maximised instead of minimised.</li>
+<li><strong>Number of ways to arrive:</strong> the same layered graph with addition instead of minimum.</li>
+</ul>
+
+<p>Layers are time, stops or steps; points are cities or states; edge weights may be durations, fares or height differences; the aggregation may be minimum, maximum, product or count; and the window is the layer cap.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int minCost(int maxTime, int[][] edges, int[] passingFees) {
+    int n = passingFees.length;
+    final int INF = Integer.MAX_VALUE / 2;
+    int[][] dp = new int[maxTime + 1][n];
+    for (int[] row : dp) Arrays.fill(row, INF);
+    dp[0][0] = passingFees[0];
+    for (int t = 0; t &lt;= maxTime; t++) {
+        for (int[] e : edges) {
+            int x = e[0], y = e[1], et = e[2];
+            int arr = t + et;
+            if (arr &gt; maxTime) continue;
+            if (dp[t][x] &lt; INF) dp[arr][y] = Math.min(dp[arr][y], dp[t][x] + passingFees[y]);
+            if (dp[t][y] &lt; INF) dp[arr][x] = Math.min(dp[arr][x], dp[t][y] + passingFees[x]);
+        }
+    }
+    int ans = INF;
+    for (int t = 0; t &lt;= maxTime; t++) ans = Math.min(ans, dp[t][n - 1]);
+    return ans &gt;= INF ? -1 : ans;
+}
+</code></pre>
+
+<p>A priority-queue search over states of cost, elapsed time and city is equivalent, and it can terminate as soon as the goal is popped, since the first pop carries the minimum. Adding a predecessor table lets the path itself be reconstructed.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>Unreachable means minus one, not the most expensive route; the window is a hard constraint rather than a penalty.</li>
+<li>A budget smaller than the fastest route's duration always gives minus one.</li>
+<li>A budget larger than any possible duration degenerates to a plain cost shortest path, where the one-dimensional version happens to be correct.</li>
+<li>The start and the end both pay their own tolls, one in the base case and one in each relaxation.</li>
+<li>Edges are undirected, so both directions must be relaxed; adding one is the most common silent error.</li>
+<li>Parallel edges are allowed, and the shortest duration between a pair is the one that matters.</li>
+<li>Self loops are excluded, so every step strictly advances time and no zero-cost same-layer moves exist.</li>
+<li>With two cities the answer is just the two tolls, provided the single edge fits the budget.</li>
+<li>Tolls are positive, so detouring always costs more and the greedy search is valid.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Version</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Layered relaxation</td><td>maxTime times edges</td><td>maxTime times cities</td></tr>
+<tr><td>Priority-queue search over states</td><td>Comparable, often terminating early</td><td>Same table</td></tr>
+<tr><td>With predecessors</td><td>The same</td><td>One more table</td></tr>
+</tbody>
+</table>
+
+<p>The whole table is needed because edges have different durations, so an update can land on any future layer and a single row cannot be kept. Within the stated constraints the total work is on the order of a million operations.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Using the one-dimensional state, which mistakes the overtime cheap route for the answer. The headline trap of this problem, and one minute of budget exposes it.</li>
+<li>Reading the answer from the last row, since arriving at the budget is not required and a later arrival can be more expensive.</li>
+<li>Forgetting that the start and the end pay their tolls.</li>
+<li>Relaxing from unreachable cells, which adds to infinity and can overflow.</li>
+<li>Not pruning transitions that arrive late.</li>
+<li>Adding only one direction for undirected edges.</li>
+<li>Using the maximum integer as infinity, which overflows on the first addition.</li>
+<li>Assuming early arrival is always cheaper, which the table contradicts.</li>
+<li>Keeping the parallel edge with the largest duration instead of the smallest.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Define the state, the base, the transition and the answer, and explain up front why two dimensions are necessary: time cannot be compressed into cost, and the cheaper route may be overtime. Then the three guards, which decide correctness more than speed: only relax from reached cells, drop late transitions, and charge both the start and the end. Then the equivalent priority-queue formulation over cost, elapsed time and city, which terminates when the goal is popped, and note that it is the same machine as the k-stops flight problem.</p>
+
+<h2>Closing</h2>
+
+<p>The difficulty compresses into one counterintuitive fact: time cannot be compressed. Folding the clock into the state spreads the problem into a layered graph, after which everything is ordinary layer-by-layer relaxation. Two reminders remain: both endpoints pay, and the answer is a minimum over all times, because arriving later may cost more.</p>
+
+<p>From the first cell outward to the best arrival, then back along predecessors to the start, is the whole of path planning with a deadline.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>

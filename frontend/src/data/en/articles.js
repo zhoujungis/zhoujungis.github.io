@@ -39223,6 +39223,202 @@ private int partition(int[] a, int left, int right) {
 `,
   },
 
+  {
+    slug: 'lc-1928-min-cost',
+    zhSlug: 'lc-1928-min-cost',
+    topicSlug: 'leetcode',
+    title: 'LC 1928, cheapest path within a time budget: a layered graph',
+    excerpt:
+      'One cheap route and one fast route, with no domination between them. Time cannot be compressed into a cost, so the clock becomes a state dimension, and the answer is a minimum over all times.',
+    date: '2026-09-08',
+    readingTime: 16,
+    html: `
+<h2>The problem</h2>
+
+<p>Cities are joined by undirected edges carrying a travel time but no cost. Every time you pass through a city you pay its toll, including the first and the last. Find the cheapest route from zero to the last city within a total time budget, or minus one.</p>
+
+<pre><code>edges        [[0,1,10],[1,2,10],[2,5,10],[0,3,1],[3,4,10],[4,5,15]]
+passingFees  [5,1,2,20,20,3]
+
+maxTime 30 -&gt; 11   (0-1-2-5, time 30, tolls 5+1+2+3)
+maxTime 29 -&gt; 48   (0-3-4-5, time 26, tolls 5+20+20+3)
+maxTime 25 -&gt; -1
+</code></pre>
+
+<p>It looks like a shortest path, and the real threshold is counterintuitive: there are two routes, one costing eleven and one costing forty-eight, and the difference is not which is cheaper but which arrives in time. One minute of budget changes the answer completely. That jump is the whole point of this article: why a one-dimensional state must be wrong, and how a layered graph repairs it.</p>
+
+<h2>Definition and transition</h2>
+
+<p>The tempting wrong version runs a shortest path where the cost is the arrival city's toll. It is wrong for a concrete reason: the cheapest route takes thirty minutes and is simply not allowed when the budget is twenty-nine. The one-dimensional state discarded the arrival time and therefore mistook an overtime cheap route for the answer.</p>
+
+<p>The fix is to put time into the state: not the cheapest way to reach a city, but the cheapest way to reach it at a specific moment.</p>
+
+<pre><code>dp[t][v] = the cheapest toll total for arriving at city v exactly at time t
+dp[0][0] = passingFees[0]
+dp[t + et][u] = min(dp[t + et][u], dp[t][v] + passingFees[u])
+answer   = min over t &lt;= maxTime of dp[t][n-1]
+</code></pre>
+
+<pre><code>def minCost(maxTime, edges, passingFees):
+    n = len(passingFees)
+    INF = float("inf")
+    dp = [[INF] * n for _ in range(maxTime + 1)]
+    dp[0][0] = passingFees[0]
+    for t in range(maxTime + 1):
+        for x, y, et in edges:
+            arr = t + et
+            if arr &gt; maxTime:
+                continue
+            if dp[t][x] &lt; INF:
+                dp[arr][y] = min(dp[arr][y], dp[t][x] + passingFees[y])
+            if dp[t][y] &lt; INF:
+                dp[arr][x] = min(dp[arr][x], dp[t][y] + passingFees[x])
+    ans = min(dp[t][n - 1] for t in range(maxTime + 1))
+    return -1 if ans == INF else ans
+</code></pre>
+
+<p>Three details decide it. The base case pays the start city's toll, since passing through includes standing on it. Only reachable cells are relaxed, which is both the meaning of spreading outward layer by layer and a guard against adding to infinity. And any transition arriving late is dropped, because time only moves forward.</p>
+
+<p>One more thing is easy to miss: the answer is the minimum over all times, not the final row. Arriving early and arriving late are separate cells, and earlier is not necessarily cheaper.</p>
+
+<h2>Why the clock must be a state</h2>
+
+<p>The one-dimensional state collapses two genuinely different facts into a single number: the cheap route costing eleven over thirty minutes, and the expensive route costing forty-eight over twenty-six. Keeping only the fare records the first and forgets that it is overtime. Cost and time are not interchangeable, and neither dominates the other, so both must survive into the state.</p>
+
+<pre><code>layer t holds one copy of every city:
+  point = (t, v)      edge = (x, y, time)
+  dp[t][v] = shortest cost to reach the point (t, v)
+</code></pre>
+
+<p>The budget is simply the layer cap, so a path problem with a time window is a shortest path on a graph with a bounded number of layers.</p>
+
+<p>Note also that arriving later can be more expensive, since every step pays the destination's toll, so detouring is not free. Taking the minimum over all times handles that without assuming anything about early versus late.</p>
+
+<h2>The animation</h2>
+
+<p>The first animation is the layered table: rows are times, columns are cities, cells hold the state. Unreached cells are dashed with an infinity, reached ones are green, and the base case is outlined. Each frame relaxes one edge, with a dashed arrow from the source cell to the target and a ring marking the current best cell. A banner shows the concrete arithmetic, alongside counters for the time, the edge, the candidate, the number of pruned transitions and the answer.</p>
+
+<p>Three things to watch: only reached cells produce frames, transitions that would arrive late produce no frame and only bump the pruned counter, and a relaxation that does not improve is called out as both later and more expensive. The answer cell ends up not in the first row but wherever the minimum over times lands.</p>
+
+<p>The second animation compares the two routes on the same graph, laid out by distance from the start. The orange route ignores the clock and takes the cheapest cities; the green route respects the budget. Cards show each route's city sequence, tolls and duration with a verdict, and a strip of state chips walks the predecessor table back from the goal to the start.</p>
+
+<table>
+<thead><tr><th>Time</th><th>Source</th><th>Cities</th><th>Arrival</th><th>Candidate</th><th>Old</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>(0,0) = 5</td><td>1 and 3</td><td>2 and 1</td><td>6 and 25</td><td>infinity</td><td>Both set</td></tr>
+<tr><td>1</td><td>(1,3) = 25</td><td>0 and 4</td><td>2</td><td>30 and 45</td><td>infinity</td><td>Both set</td></tr>
+<tr><td>2</td><td>(2,1) = 6</td><td>0 and 2</td><td>4</td><td>11 and 8</td><td>infinity</td><td>Both set</td></tr>
+<tr><td>2</td><td>(2,4) = 45</td><td>5</td><td>3</td><td>48</td><td>infinity</td><td>Set</td></tr>
+<tr><td>3</td><td>(3,5) = 48</td><td>4</td><td>4</td><td>68</td><td>70</td><td>Improves to 68</td></tr>
+<tr><td>4</td><td>(4,0) = 11</td><td>3</td><td>5</td><td>31</td><td>infinity</td><td>Set</td></tr>
+<tr><td>4</td><td>(4,4) = 68</td><td>5</td><td>5</td><td>71</td><td>infinity</td><td>Set, but not the answer</td></tr>
+</tbody>
+</table>
+
+<p>The final answer is the minimum over the goal column, which lands on the expensive but fast route. The later arrival costs seventy-one, which is exactly why the minimum must span all times. Following predecessors backwards from that cell recovers the city sequence through the expensive route.</p>
+
+<table>
+<thead><tr><th>Route</th><th>Sequence</th><th>Arrivals</th><th>Tolls</th><th>Duration</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Cheapest ignoring time</td><td>0, 1, 2, 5</td><td>0, 2, 4, 6</td><td>11</td><td>6</td><td><strong>Too late</strong></td></tr>
+<tr><td>Cheapest within budget</td><td>0, 3, 4, 5</td><td>0, 1, 2, 3</td><td>48</td><td>3</td><td><strong>Fits</strong></td></tr>
+</tbody>
+</table>
+
+<p>The unconstrained cheapest route is necessarily no more expensive than the constrained one, since ignoring the window only enlarges the search space. Being cheap and being in time are simply different things.</p>
+
+<h2>The family</h2>
+
+<ul>
+<li><strong>Cheapest flight within k stops:</strong> the state is the number of stops used and the city, which is word-for-word the same structure with stops replacing time and airfare replacing tolls.</li>
+<li><strong>Network delay time:</strong> a single-source shortest path with no window at all, answering the latest arrival.</li>
+<li><strong>Path with minimum effort:</strong> the aggregation changes from a sum to a maximum along the path.</li>
+<li><strong>Most probable path:</strong> products instead of sums, maximised instead of minimised.</li>
+<li><strong>Number of ways to arrive:</strong> the same layered graph with addition instead of minimum.</li>
+</ul>
+
+<p>Layers are time, stops or steps; points are cities or states; edge weights may be durations, fares or height differences; the aggregation may be minimum, maximum, product or count; and the window is the layer cap.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int minCost(int maxTime, int[][] edges, int[] passingFees) {
+    int n = passingFees.length;
+    final int INF = Integer.MAX_VALUE / 2;
+    int[][] dp = new int[maxTime + 1][n];
+    for (int[] row : dp) Arrays.fill(row, INF);
+    dp[0][0] = passingFees[0];
+    for (int t = 0; t &lt;= maxTime; t++) {
+        for (int[] e : edges) {
+            int x = e[0], y = e[1], et = e[2];
+            int arr = t + et;
+            if (arr &gt; maxTime) continue;
+            if (dp[t][x] &lt; INF) dp[arr][y] = Math.min(dp[arr][y], dp[t][x] + passingFees[y]);
+            if (dp[t][y] &lt; INF) dp[arr][x] = Math.min(dp[arr][x], dp[t][y] + passingFees[x]);
+        }
+    }
+    int ans = INF;
+    for (int t = 0; t &lt;= maxTime; t++) ans = Math.min(ans, dp[t][n - 1]);
+    return ans &gt;= INF ? -1 : ans;
+}
+</code></pre>
+
+<p>A priority-queue search over states of cost, elapsed time and city is equivalent, and it can terminate as soon as the goal is popped, since the first pop carries the minimum. Adding a predecessor table lets the path itself be reconstructed.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>Unreachable means minus one, not the most expensive route; the window is a hard constraint rather than a penalty.</li>
+<li>A budget smaller than the fastest route's duration always gives minus one.</li>
+<li>A budget larger than any possible duration degenerates to a plain cost shortest path, where the one-dimensional version happens to be correct.</li>
+<li>The start and the end both pay their own tolls, one in the base case and one in each relaxation.</li>
+<li>Edges are undirected, so both directions must be relaxed; adding one is the most common silent error.</li>
+<li>Parallel edges are allowed, and the shortest duration between a pair is the one that matters.</li>
+<li>Self loops are excluded, so every step strictly advances time and no zero-cost same-layer moves exist.</li>
+<li>With two cities the answer is just the two tolls, provided the single edge fits the budget.</li>
+<li>Tolls are positive, so detouring always costs more and the greedy search is valid.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Version</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Layered relaxation</td><td>maxTime times edges</td><td>maxTime times cities</td></tr>
+<tr><td>Priority-queue search over states</td><td>Comparable, often terminating early</td><td>Same table</td></tr>
+<tr><td>With predecessors</td><td>The same</td><td>One more table</td></tr>
+</tbody>
+</table>
+
+<p>The whole table is needed because edges have different durations, so an update can land on any future layer and a single row cannot be kept. Within the stated constraints the total work is on the order of a million operations.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Using the one-dimensional state, which mistakes the overtime cheap route for the answer. The headline trap of this problem, and one minute of budget exposes it.</li>
+<li>Reading the answer from the last row, since arriving at the budget is not required and a later arrival can be more expensive.</li>
+<li>Forgetting that the start and the end pay their tolls.</li>
+<li>Relaxing from unreachable cells, which adds to infinity and can overflow.</li>
+<li>Not pruning transitions that arrive late.</li>
+<li>Adding only one direction for undirected edges.</li>
+<li>Using the maximum integer as infinity, which overflows on the first addition.</li>
+<li>Assuming early arrival is always cheaper, which the table contradicts.</li>
+<li>Keeping the parallel edge with the largest duration instead of the smallest.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Define the state, the base, the transition and the answer, and explain up front why two dimensions are necessary: time cannot be compressed into cost, and the cheaper route may be overtime. Then the three guards, which decide correctness more than speed: only relax from reached cells, drop late transitions, and charge both the start and the end. Then the equivalent priority-queue formulation over cost, elapsed time and city, which terminates when the goal is popped, and note that it is the same machine as the k-stops flight problem.</p>
+
+<h2>Closing</h2>
+
+<p>The difficulty compresses into one counterintuitive fact: time cannot be compressed. Folding the clock into the state spreads the problem into a layered graph, after which everything is ordinary layer-by-layer relaxation. Two reminders remain: both endpoints pay, and the answer is a minimum over all times, because arriving later may cost more.</p>
+
+<p>From the first cell outward to the best arrival, then back along predecessors to the start, is the whole of path planning with a deadline.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
