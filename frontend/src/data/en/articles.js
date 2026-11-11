@@ -40287,6 +40287,322 @@ def kth_largest(nums, k, dedupe=False):
 `,
   },
 
+  {
+    slug: 'django-anon-like-dedup',
+    zhSlug: 'django-anon-like-dedup',
+    topicSlug: 'django',
+    title: 'Why I let anonymous visitors like: five layers of anti-abuse',
+    excerpt:
+      'Opening a write endpoint to the whole internet takes more than a counter. Identity must live server-side, counting must be atomic, and the dedup table must not grow forever.',
+    date: '2026-09-02',
+    readingTime: 13,
+    html: `
+<h2>The setup</h2>
+
+<p>The like endpoint on this blog is anonymous: a POST to the article like route, no login. The previous article argued that rendering untrusted input is safe here; this one argues that accepting writes from the internet is equally deliberate.</p>
+
+<p>If a like is just a counter increment, four questions arise immediately. Can someone spam it without logging in, can two simultaneous clicks lose one, does clearing the browser reset the limit, and can a forged header bypass it?</p>
+
+<p>The point is that this is not solved by adding a check. It is a system problem of identity, concurrency correctness and layered throttling, and each layer solves exactly one failure.</p>
+
+<h2>Layer one: why not cookies</h2>
+
+<p>The intuitive answer is a cookie: mark the browser after a like and refuse a second one. But the frontend and backend here are deployed separately on different origins, so any cookie needs a same-site and secure configuration, credentials on the client, and a CORS allowlist to all agree at once. Any browser quirk, whether tracking prevention, an in-app webview or private mode, drops the cookie, and the dedup silently stops working.</p>
+
+<p>Worse, a cookie is stored by the user. Clearing browser state resets the identity. Using a credential the user controls as the basis for preventing that same user from cheating is a trust inversion.</p>
+
+<p>So the decision recorded in the code is that dedup state lives on the server.</p>
+
+<h2>Layer two: a server-side dedup table</h2>
+
+<pre><code>class ArticleLike(models.Model):
+    article = models.ForeignKey(
+        Article, on_delete=models.CASCADE, related_name="like_records",
+        verbose_name="article",
+    )
+    ip = models.CharField(max_length=64, verbose_name="client ip")
+    ua = models.CharField(max_length=255, verbose_name="user agent")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="liked at")
+</code></pre>
+
+<pre><code>since = timezone.now() - timezone.timedelta(hours=24)
+already = ArticleLike.objects.filter(
+    article=article, ip=ip, ua=ua, created_at__gte=since
+).exists()
+if already:
+    article.refresh_from_db(fields=["likes_count"])
+    return Response({"likes_count": article.likes_count, "liked": True},
+                    status=status.HTTP_200_OK)
+</code></pre>
+
+<p>Three design points. The window slides rather than being permanent, so a client may like again after a day; a permanent uniqueness constraint would grow the table without bound and would punish users on dynamic addresses. The repeated like returns success with the current count, because a duplicate request is a known state rather than an error, which keeps the client simple. And the fingerprint combines address and user agent, since an address alone merges an entire office behind one NAT and a user agent alone merges the whole internet behind one browser.</p>
+
+<p>This does not stop a determined operation with a proxy pool and randomised agents, but the threat model for a personal blog is a bored person rather than a commercial farm, and the investment should match the threat.</p>
+
+<h2>The real bug: reading the forwarded header wrongly</h2>
+
+<p>The backend sits behind a proxy, so the client address arrives in the forwarded header as a comma-separated list: the claimed client first, then each proxy in order. The leftmost entry is whatever the client chose to write, and only the rightmost was appended by the trusted proxy.</p>
+
+<p>The old code read the leftmost, which meant an attacker could supply a random address per request and never match the dedup table. The door was locked and the key was hanging on it.</p>
+
+<pre><code>xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+if xff:
+    ip = xff.split(",")[-1].strip()
+else:
+    ip = request.META.get("REMOTE_ADDR", "")
+</code></pre>
+
+<p>The lesson generalises: anything a client can control, whether a header, a cookie or a body field, cannot be a trust anchor. Trust comes only from infrastructure you operate.</p>
+
+<h2>Layer three: atomic counting</h2>
+
+<pre><code>article.likes_count += 1
+article.save()
+</code></pre>
+
+<p>That is read, modify, write. Two simultaneous clicks read the same old value, each add one, and each write back, so two likes produce one increment. Low frequency makes it unlikely but not impossible, and a popular post is exactly where the collision happens.</p>
+
+<pre><code>with transaction.atomic():
+    ArticleLike.objects.create(article=article, ip=ip, ua=ua)
+    Article.objects.filter(pk=article.pk).update(likes_count=F("likes_count") + 1)
+</code></pre>
+
+<p>The expression pushes the increment into the database, where writes are serialised, so no increment can be lost. The transaction makes recording the dedup row and bumping the counter succeed or fail together.</p>
+
+<p>View counts have the same problem and the same fix.</p>
+
+<h2>Layer four: throttling</h2>
+
+<pre><code>'DEFAULT_THROTTLE_RATES': {
+    'anon': '30/minute',
+    'user': '100/minute',
+    'comment': '3/minute',
+    'subscribe': '5/hour',
+    'upload': '100/hour',
+},
+</code></pre>
+
+<p>The dedup table stops the same fingerprint repeating, but the attacker can rotate addresses and agents, so a rate layer caps total requests regardless of identity.</p>
+
+<p>Note that the rates are graded by risk. Liking allows thirty a minute, comment creation three, subscriptions five an hour. The closer an action is to amplified writes or external cost, the tighter the quota, because each kind of abuse has a real price: polluted data, polluted content, burnt SMTP quota, blacklisting.</p>
+
+<p>Dedup and throttling are complementary: dedup governs accuracy and throttling governs speed. Fingerprints can be forged, but forging costs money and time, and capping the rate per minute makes the economics fail.</p>
+
+<h2>Layer five: bounded storage</h2>
+
+<p>Every like adds a row. Left alone for years, the table grows to hundreds of thousands of rows and each check scans more.</p>
+
+<p>Since the window is a day, anything older than forty-eight hours is useless. A scheduled command prunes in batches: select a batch of primary keys older than the cutoff, then delete by key. Deleting hundreds of thousands of rows at once locks the table for a long time, especially on SQLite, and batching spreads the cost. Selecting keys first also avoids relying on a delete-with-limit feature that not every database supports.</p>
+
+<pre><code>indexes = [
+    models.Index(
+        fields=["article", "ip", "ua", "created_at"],
+        name="articlelike_dedup_idx",
+    ),
+],
+</code></pre>
+
+<p>The index columns follow the query's order, so the lookup is a range scan on the index rather than a full table scan. Schema, index and cleanup policy are three faces of one decision: do not create a table you are unwilling to prune.</p>
+
+<h2>The whole chain</h2>
+
+<table>
+<thead><tr><th>Layer</th><th>Mechanism</th><th>Attack it stops</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Anonymous throttle, thirty per minute</td><td>Rotating fingerprints, script floods</td></tr>
+<tr><td>2</td><td>Address plus agent, twenty-four hour window</td><td>Browser resets, ordinary repeats</td></tr>
+<tr><td>3</td><td>Rightmost forwarded entry</td><td>Header forgery bypassing dedup</td></tr>
+<tr><td>4</td><td>Atomic increment in a transaction</td><td>Lost updates, half-written state</td></tr>
+<tr><td>5</td><td>Cleanup plus composite index</td><td>Table growth slowing queries</td></tr>
+</tbody>
+</table>
+
+<p>The method matches the previous article's defence: trust nothing from the client, give each layer one job, and assume the layer above has already fallen.</p>
+
+<h2>When to reach for Redis</h2>
+
+<table>
+<thead><tr><th>Approach</th><th>How</th><th>Suitable for</th></tr></thead>
+<tbody>
+<tr><td>Current: database dedup</td><td>Existence check plus composite index</td><td>Thousands of daily users, single SQLite box, no operations burden</td></tr>
+<tr><td>Redis dedup</td><td>Conditional set with expiry, nil returned on a repeat</td><td>High-frequency likes, atomic test and expiry in one call</td></tr>
+<tr><td>Redis counters</td><td>Atomic increment, periodic flush</td><td>Traffic the database cannot absorb</td></tr>
+<tr><td>HyperLogLog</td><td>Approximate distinct count</td><td>Only the rough number of likers is needed</td></tr>
+</tbody>
+</table>
+
+<p>But do not optimise ahead of need. Redis means another component, another failure mode and a consistency problem between cache and database. At this scale, a small indexed table with scheduled cleanup is accurate, stable and sufficient. Architecture follows the threat model and the load, not the fashion.</p>
+
+<h2>Closing</h2>
+
+<p>Opening a write to anonymous users is not courage; it is each layer knowing what it defends. Dedup state on the server, because the trust boundary matters. The rightmost forwarded entry, because trust comes only from your own infrastructure. Atomic increments, because concurrency cannot rely on luck. Graded throttling, because every abuse must have a cost. Cleanup and aligned indexes, because schema design is feature design.</p>
+
+<p>Three questions for any endpoint that accepts anonymous writes: whose hands does the identity rest in, is the data still correct under concurrency and replay, and will tables and quotas blow up in the worst case.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a>.</p>
+`,
+  },
+
+  {
+    slug: 'django-subscribe-mass-mail',
+    zhSlug: 'django-subscribe-mass-mail',
+    topicSlug: 'django',
+    title: 'Do not let one bad address poison a whole mail run',
+    excerpt:
+      'Validation, state transitions, batching and triggering. Each link in the chain has poisoned the batch at least once, and the worst failures are the ones that log nothing.',
+    date: '2026-09-01',
+    readingTime: 13,
+    html: `
+<h2>The chain</h2>
+
+<p>The blog has an email subscription: readers leave an address and new posts are mailed out. The path runs from the subscribe endpoint, to the subscriber table, through a post-save signal, into a mass mail call. It sounds simple, and every link has failed at least once.</p>
+
+<p>The most dramatic failure: the old validation only checked that the string contained an at sign, so malformed addresses got stored, and on send day the mass mail call raised on the first bad address, failing the entire batch. One careless entry poisoned notifications for hundreds of legitimate readers.</p>
+
+<h2>Link one: the entrance</h2>
+
+<pre><code>if "@" not in email:
+    return Response({"error": "invalid email"}, status=400)
+</code></pre>
+
+<table>
+<thead><tr><th>Input</th><th>Old check</th><th>Real validator</th></tr></thead>
+<tbody>
+<tr><td>a at b</td><td>Passes</td><td><strong>Rejected</strong>, no top-level domain</td></tr>
+<tr><td>just an at sign</td><td>Passes</td><td><strong>Rejected</strong></td></tr>
+<tr><td>x at</td><td>Passes</td><td><strong>Rejected</strong></td></tr>
+<tr><td>not an email</td><td>Rejected</td><td>Rejected</td></tr>
+<tr><td>one-letter domain suffix</td><td>Passes</td><td><strong>Rejected</strong></td></tr>
+<tr><td>plus-tagged address</td><td>Passes</td><td>Passes, which is correct</td></tr>
+</tbody>
+</table>
+
+<p>The two-part address is the most deceptive: it looks like an address to a human and bounces at the first delivery attempt. And the mail call raises on a bounce, so one bad address in the first position kills the remaining forty-nine.</p>
+
+<pre><code>email = (request.data.get("email") or "").strip().lower()
+if not email:
+    return Response({"error": "invalid email"}, status=status.HTTP_400_BAD_REQUEST)
+try:
+    validate_email(email)
+except DjangoValidationError:
+    return Response({"error": "invalid email"}, status=status.HTTP_400_BAD_REQUEST)
+</code></pre>
+
+<p>The first line does three things and needs all of them. The default guards against a missing field, since stripping nothing raises. Trimming matters because pasted addresses carry whitespace and would bounce later. And lowercasing matters because addresses differ only by case being the same address, so without normalisation the uniqueness constraint on the column is worthless.</p>
+
+<p>A second gate is throttling, with its own scope rather than the general anonymous rate: five subscriptions per hour, the strictest quota in the system. Why strictest: a like flood only makes numbers look bad, and a comment flood only pollutes content, both inside the database and reversible. A subscription flood is an external cost, since each junk address becomes a real send, burning quota and sender reputation that takes months to rebuild. Tightness follows the cost of abuse, not the popularity of the endpoint.</p>
+
+<h2>Link two: three requests, three status codes</h2>
+
+<pre><code>class Subscriber(models.Model):
+    email = models.EmailField(unique=True, verbose_name="email")
+    is_active = models.BooleanField(default=True, verbose_name="active")
+    subscribed_at = models.DateTimeField(auto_now_add=True, verbose_name="subscribed at")
+</code></pre>
+
+<p>Uniqueness combined with normalisation guarantees one row per address, and a flag rather than a delete keeps unsubscription traceable.</p>
+
+<pre><code>sub, created = Subscriber.objects.get_or_create(email=email)
+if not created and not sub.is_active:
+    sub.is_active = True
+    sub.save(update_fields=["is_active"])
+    return Response({"detail": "subscribed"}, status=status.HTTP_201_CREATED)
+</code></pre>
+
+<p>This fixed a real bug: unsubscribing only flips the flag, so the row still exists and the fetch returns not-created. The old code answered already-subscribed, so a reader who explicitly asked to resubscribe never received anything again. Note the partial update, which leaves the original subscription timestamp intact and avoids rewriting the whole row.</p>
+
+<p>A repeat submission from an active address answers two hundred rather than two hundred one, which is the same philosophy as the like endpoint: a duplicate request is not an error, and the status code tells the caller whether anything changed.</p>
+
+<p>Soft rather than hard deletion matters for two reasons. The revival path needs a row to flip, and deleting would let the same bad address re-enter indefinitely, whereas an inactive row at least records that it was seen.</p>
+
+<h2>Link three: sending</h2>
+
+<p>The post-save signal does the mailing, and it only works if the module is imported at startup. If a refactor ever removes that import, mailing stops silently: nothing raises, readers simply stop receiving.</p>
+
+<pre><code>if instance.status != Article.Status.PUBLISHED:
+    return
+if instance.notification_sent:
+    return
+</code></pre>
+
+<p>Two gates, both defaulting to silence. Drafts and archives do not trigger, and an already-notified article does not trigger again when edited. Sending should always require an explicit reason.</p>
+
+<pre><code>batch_size = 50
+
+for sub in subscribers_qs.iterator(chunk_size=200):
+    batch.append((subject, plain_body, from_email, [sub.email]))
+    if len(batch) >= batch_size:
+        send_mass_mail(batch, fail_silently=False)
+        sent_count += len(batch)
+        Article.objects.filter(pk=instance.pk).update(notification_sent=True)
+        batch = []
+</code></pre>
+
+<table>
+<thead><tr><th>Batch</th><th>Recipients</th><th>Outcome</th><th>Flag</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>1 to 50</td><td>Sent</td><td>Set</td></tr>
+<tr><td>2</td><td>51 to 100</td><td>Sent</td><td>Set</td></tr>
+<tr><td>3</td><td>101 to 150</td><td>SMTP raises mid-flight</td><td>Stays as set by batches one and two</td></tr>
+<tr><td>Retry on next save</td><td>From batch three</td><td>Only the remainder</td><td>-</td></tr>
+</tbody>
+</table>
+
+<p>Be honest about the semantics: the flag is per article, not a per-batch cursor, so retries start from the beginning of the recipient list, and what prevents duplicate mail is that successful batches already flipped the flag within that call. The design goal is that delivered mail is not re-sent, and the cost is that a failed batch waits for the next save. In a mailing context that trade always holds: nobody unsubscribes for a one-hour delay, and everybody unsubscribes after the third copy.</p>
+
+<p>Two details are easy to miss. The iterator is cursor-based so memory stays constant, where materialising the whole list would exhaust memory once the list is large. And with zero subscribers the flag is still set, because the semantics are has-been-processed rather than has-been-sent, which avoids re-checking the table on every save.</p>
+
+<p>The subject is built from the article title so the content and the mail share one source of truth. The body is a plain-text template. A styled HTML template exists in the repository but the sender only renders plain text, since the batch call does not support multipart; the HTML version is reserved for a future alternative sender. Get the plain-text path working first.</p>
+
+<h2>The trap that ties it together</h2>
+
+<pre><code>for article in due:
+    article.status = Article.Status.PUBLISHED
+    article.save()
+</code></pre>
+
+<p>The scheduled publishing command carries a warning that it must save per article rather than using a bulk update, because a bulk update bypasses signals entirely.</p>
+
+<pre><code># never do this
+Article.objects.filter(
+    status=Article.Status.SCHEDULED, scheduled_at__lte=now
+).update(status=Article.Status.PUBLISHED)
+</code></pre>
+
+<p>With that version the articles go live, the scheduling works, the logs are clean, and no subscriber receives anything. It is the most insidious class of bug: every part works, they are simply not connected. Debugging proceeds through SMTP, then the signal, before reaching the missing method call.</p>
+
+<table>
+<thead><tr><th>Style</th><th>SQL</th><th>Signal</th><th>Notification</th></tr></thead>
+<tbody>
+<tr><td>Model save</td><td>One update per row</td><td>Fires</td><td>Sent</td></tr>
+<tr><td>Bulk update</td><td>One batched update, faster</td><td><strong>Bypassed</strong></td><td><strong>Silently lost</strong></td></tr>
+</tbody>
+</table>
+
+<p>The better fix is to funnel publishing through a single model method used by both the scheduler and the admin, so the signal becomes a notification rather than the only trigger.</p>
+
+<h2>Four checklists</h2>
+
+<table>
+<thead><tr><th>Link</th><th>Mechanism</th><th>Accident it prevents</th></tr></thead>
+<tbody>
+<tr><td>Entrance</td><td>Real validation, trim, lowercase, strictest throttle</td><td>Bad addresses poisoning the batch, list pollution</td></tr>
+<tr><td>State</td><td>Revival of inactive rows, status semantics, partial writes</td><td>Resubscribers receiving nothing, caller confusion</td></tr>
+<tr><td>Sending</td><td>Streaming read, batches of fifty, per-batch flag, marking even when empty</td><td>Out of memory, whole-run failure, duplicate mail, read amplification</td></tr>
+<tr><td>Trigger</td><td>Per-row save in scheduled jobs, wired imports</td><td>Silently swallowed notifications</td></tr>
+</tbody>
+</table>
+
+<p>Four questions for the next time you collect user data and process it in bulk: can the worst downstream link survive the dirtiest input the entrance allows, does the system recognise a state that went backwards and forwards again, does a partial run re-disturb people who already succeeded, and is there anywhere in the trigger path that looks equivalent but silently does not fire.</p>
+
+<h2>Closing</h2>
+
+<p>Every link has its own failure mode, and the dangerous ones are silent. Validate with a real validator and normalise before storing, keep unsubscribed rows so the state can be revived, batch with streaming reads and a per-article flag, and remember that a bulk update bypasses the very signal the notification depends on.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
