@@ -33677,6 +33677,247 @@ def numIslands_bfs(grid):
 `,
   },
 
+  {
+    slug: 'lc-207-course-schedule',
+    zhSlug: 'lc-207-course-schedule',
+    topicSlug: 'leetcode',
+    title: 'LC 207, course schedule: in-degrees and a queue, or three colours and a back edge',
+    excerpt:
+      'A prerequisite relation is a directed edge, a valid course order is a topological order, and a cycle is an order that never finishes. Two equivalent machines for the same sentence.',
+    date: '2026-10-07',
+    readingTime: 15,
+    html: `
+<h2>The problem</h2>
+
+<p>Given a number of courses and a list of prerequisite pairs, decide whether all courses can be completed. Each pair says the second course must be taken before the first.</p>
+
+<pre><code>numCourses = 4, prerequisites = [[1,0],[2,0],[3,1],[3,2]]
+-&gt; true, and a valid order is [0,1,2,3] or [0,2,1,3]
+
+numCourses = 2, prerequisites = [[1,0],[0,1]]
+-&gt; false, since each waits for the other
+</code></pre>
+
+<p>Pin the direction first, which is the biggest trap here. A pair listing a then b means b must come first, so the edge runs from b to a, from prerequisite to dependent. Getting that backwards is not cosmetic; it decides the correctness of every in-degree and every order that follows.</p>
+
+<p>With that fixed, the whole problem is one sentence: a course order is a topological order of the directed graph, and completing everything is possible exactly when the graph has no cycle.</p>
+
+<p>What remains is two machines for detecting cycles and producing an order: in-degree peeling with a queue, and three-colour depth-first search.</p>
+
+<h2>Topological order and cycles</h2>
+
+<p>A topological order is a linear arrangement where every edge points from earlier to later. That is precisely a valid course order, with every prerequisite ahead of what depends on it.</p>
+
+<ul>
+<li><strong>A topological order exists exactly when the graph is acyclic.</strong> With a cycle, the courses on it wait for each other, so there is no answer.</li>
+<li><strong>The order is usually not unique.</strong> The example admits both listed orders, because courses one and two are independent.</li>
+<li><strong>An isolated course is always available first</strong>, since its in-degree is zero.</li>
+</ul>
+
+<p>Two mirror approaches. Peeling repeatedly takes any course with in-degree zero, then decrements its dependents, which naturally emits a topological order. Colouring walks the edges, and an edge back into the recursion stack signals a cycle, while reversing the post-order yields the order.</p>
+
+<h2>In-degree peeling</h2>
+
+<p>The in-degree of a course is how many prerequisites it still waits on, so zero means it is available now. The algorithm: take every course with in-degree zero, then relax its dependents.</p>
+
+<pre><code>from collections import deque
+
+def canFinish(numCourses, prerequisites):
+    adj = [[] for _ in range(numCourses)]
+    indegree = [0] * numCourses
+    for a, b in prerequisites:
+        adj[b].append(a)
+        indegree[a] += 1
+    q = deque(v for v in range(numCourses) if indegree[v] == 0)
+    order = []
+    while q:
+        cur = q.popleft()
+        order.append(cur)
+        for nxt in adj[cur]:
+            indegree[nxt] -= 1
+            if indegree[nxt] == 0:
+                q.append(nxt)
+    return len(order) == numCourses
+</code></pre>
+
+<p>The criterion is that the number of courses emitted equals the total. If only courses on a cycle remain, their in-degrees never reach zero, the queue runs dry early, and the emitted count falls short.</p>
+
+<h2>Three colours</h2>
+
+<p>White means unvisited, grey means currently on the recursion stack, black means finished and known safe. Walking an edge to white descends; to black it is skipped, since that route was already verified; to grey it means the edge points back into the current stack, so a cycle is caught.</p>
+
+<pre><code>def canFinish_dfs(numCourses, prerequisites):
+    adj = [[] for _ in range(numCourses)]
+    for a, b in prerequisites:
+        adj[b].append(a)
+    color = [0] * numCourses
+    order = []
+
+    def dfs(v):
+        color[v] = 1
+        for nxt in adj[v]:
+            if color[nxt] == 1:
+                return False
+            if color[nxt] == 0 and not dfs(nxt):
+                return False
+        color[v] = 2
+        order.append(v)
+        return True
+
+    for v in range(numCourses):
+        if color[v] == 0 and not dfs(v):
+            return False
+    return True
+</code></pre>
+
+<p>Two things matter. Grey and black must be distinguished, because a single visited flag treats a black neighbour, which is a safe convergence, as a cycle and reports a false positive. And the order is the reversal of the post-order, since a node is appended after all its dependents, so prerequisites land at the end and move to the front when reversed.</p>
+
+<p>Note that the two machines produce different orders, and both are correct. Topological orders are not unique; each machine simply picked a different valid one.</p>
+
+<h2>The animations</h2>
+
+<p>The first animation shows peeling. The course graph occupies the top, with nodes labelled by their current in-degree, and below it sit the queue of available courses and the order of completed ones. Watch three things: how every zero in-degree course enters the queue immediately, how each completed course decrements its dependents on the spot, and how only a course whose count reaches zero is enqueued. The end state, a full order, means the courses can be finished.</p>
+
+<p>The second animation shows the colouring on the same graph. White, grey and black are marked, the recursion stack at the lower left is the current grey path, and the post-order list at the lower right records nodes as they turn black. Watch when grey becomes black, which happens only after all successors are done, and on a cyclic graph the grey back edge is highlighted, which is the cycle. Reversing the post-order gives the topological order.</p>
+
+<h2>The traces</h2>
+
+<p>With four courses and edges zero to one, zero to two, one to three and two to three, the initial in-degrees are zero, one, one and two.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Action</th><th>Relaxation</th><th>Queue</th><th>Order</th></tr></thead>
+<tbody>
+<tr><td>init</td><td>Enqueue the only zero</td><td>-</td><td>0</td><td>empty</td></tr>
+<tr><td>pop</td><td>Finish zero</td><td>One and two drop to zero</td><td>1, 2</td><td>0</td></tr>
+<tr><td>pop</td><td>Finish one</td><td>Three drops to one</td><td>2</td><td>0, 1</td></tr>
+<tr><td>pop</td><td>Finish two</td><td>Three drops to zero</td><td>3</td><td>0, 1, 2</td></tr>
+<tr><td>pop</td><td>Finish three</td><td>None</td><td>empty</td><td>0, 1, 2, 3</td></tr>
+<tr><td>done</td><td>Four emitted of four</td><td>-</td><td>-</td><td>true</td></tr>
+</tbody>
+</table>
+
+<p>The detail to notice is that course three waits on two prerequisites, so its count reaches zero only after both are finished. That is the literal reading of the definition.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Action</th><th>Stack</th><th>Post-order</th></tr></thead>
+<tbody>
+<tr><td>init</td><td>All white</td><td>empty</td><td>empty</td></tr>
+<tr><td>enter</td><td>Zero becomes grey</td><td>0</td><td>empty</td></tr>
+<tr><td>enter</td><td>One becomes grey</td><td>0, 1</td><td>empty</td></tr>
+<tr><td>enter</td><td>Three becomes grey</td><td>0, 1, 3</td><td>empty</td></tr>
+<tr><td>finish</td><td>Three has no successors, becomes black</td><td>0, 1</td><td>3</td></tr>
+<tr><td>finish</td><td>One done, becomes black</td><td>0</td><td>3, 1</td></tr>
+<tr><td>enter</td><td>Back at zero, descend into two</td><td>0, 2</td><td>3, 1</td></tr>
+<tr><td>finish</td><td>Two sees three already black, skipped</td><td>0</td><td>3, 1, 2</td></tr>
+<tr><td>finish</td><td>Zero becomes black</td><td>empty</td><td>3, 1, 2, 0</td></tr>
+<tr><td>done</td><td>No grey back edge, reversed order 0, 2, 1, 3</td><td>-</td><td>-</td></tr>
+</tbody>
+</table>
+
+<p>Compare those two behaviours: when two reaches three, three is black, which is a skip rather than a cycle report. A cycle is reported only when the neighbour is grey, meaning it is still on the stack.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public boolean canFinish(int numCourses, int[][] prerequisites) {
+        List&lt;List&lt;Integer&gt;&gt; adj = new ArrayList&lt;&gt;();
+        for (int i = 0; i &lt; numCourses; i++) adj.add(new ArrayList&lt;&gt;());
+        int[] indegree = new int[numCourses];
+        for (int[] p : prerequisites) {
+            adj.get(p[1]).add(p[0]);
+            indegree[p[0]]++;
+        }
+        Deque&lt;Integer&gt; queue = new ArrayDeque&lt;&gt;();
+        for (int v = 0; v &lt; numCourses; v++) {
+            if (indegree[v] == 0) queue.offer(v);
+        }
+        int done = 0;
+        while (!queue.isEmpty()) {
+            int cur = queue.poll();
+            done++;
+            for (int nxt : adj.get(cur)) {
+                if (--indegree[nxt] == 0) queue.offer(nxt);
+            }
+        }
+        return done == numCourses;
+    }
+}
+</code></pre>
+
+<p>The colouring version keeps an array of three states, returns false on a grey neighbour, and sets black after the loop. Recursion depth is bounded by the number of courses, which is fine at two thousand and would need an explicit stack beyond that. The version that returns an order appends on completion and reverses at the end.</p>
+
+<h2>The family</h2>
+
+<ul>
+<li><strong>Course schedule two.</strong> Return the order: the dequeue sequence directly, or the reversed post-order.</li>
+<li><strong>Alien dictionary.</strong> Build edges between letters from the first differing position of adjacent words, then sort. The graph construction is the difficulty, not the sort.</li>
+<li><strong>Minimum height trees.</strong> On an undirected graph, repeatedly peel degree-one leaves, the same idea as peeling in-degrees, and the one or two survivors are the roots.</li>
+<li><strong>Find eventual safe states.</strong> Peel out-degree-zero nodes on the reversed graph; whatever remains is on or behind a cycle. This is the mirror image of peeling in-degrees.</li>
+<li><strong>Sort items by groups.</strong> Two topological sorts, one within groups and one between them.</li>
+<li><strong>Sequence reconstruction.</strong> Decide whether the order is unique, which happens exactly when the queue never holds more than one candidate.</li>
+</ul>
+
+<p>Line them up and the template never changes: compute degrees, repeatedly remove zero-degree nodes, or colour the graph. What differs is where the edges come from, prerequisites or letters or a reversed graph, and what is returned at the end.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>A self-loop leaves a course waiting on itself, so its in-degree never drops and the answer is false.</li>
+<li>Duplicate edges inflate the in-degree, which is relaxed twice and still arrives at zero, so the result is correct but worth knowing.</li>
+<li>An isolated course is available immediately and changes nothing.</li>
+<li>One course with no prerequisites returns true, with order consisting of that course.</li>
+<li>With no prerequisites at all, the identity order is already a valid topological order.</li>
+<li>Multiple components are handled naturally by the queue, while the depth-first version must start from every unvisited node.</li>
+<li>A branch hanging off a cycle is also stuck, since it waits on a prerequisite on the cycle. The criterion is the emitted count, not a direct detection of nodes on the cycle.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Approach</th><th>Time</th><th>Space</th><th>Character</th></tr></thead>
+<tbody>
+<tr><td>Peeling</td><td>Vertices plus edges</td><td>Vertices plus edges</td><td>Direct, emits the order naturally</td></tr>
+<tr><td>Three colours</td><td>Vertices plus edges</td><td>Vertices plus edges</td><td>Cycle detection falls out, order by reversal</td></tr>
+</tbody>
+</table>
+
+<p>Building the graph is linear in the number of pairs, and each node and edge is processed once. Early exit on a cycle does not change the worst case.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Reversing the edge direction, which flips the entire order.</li>
+<li>Forgetting to decrement dependents, or enqueueing them before the count reaches zero.</li>
+<li>Using an empty queue as the cycle test. It empties after a successful run too; the criterion is the emitted count.</li>
+<li>Using a single visited flag in the depth-first version, which misreports safe convergences as cycles.</li>
+<li>Returning the post-order without reversing it.</li>
+<li>Deep recursion on a chain-shaped graph; use an explicit stack or the queue version.</li>
+<li>Returning a partial order when a cycle exists, without checking the count first.</li>
+<li>Mixing duplicate-edge handling with set-based graph construction, which changes the in-degrees.</li>
+<li>Starting the depth-first search from one node only, which misses other components.</li>
+<li>Assuming the topological order is unique. Uniqueness is a separate problem, decided by whether the queue ever holds two candidates.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Give the translation first: the question is whether a directed graph has a cycle. Fix the edge direction from the pairs, then pick a machine, peeling zero in-degree courses and counting the emitted total, or colouring and reporting a grey back edge. Both are linear.</p>
+
+<p>Then volunteer the order-returning variant, which is where candidates separate: the dequeue sequence is an order, and the reversed post-order is the other. Note that the order is not unique, and give an example, which shows you understand that a valid order is not a unique one.</p>
+
+<p>Then connect the follow-ups: uniqueness, graph construction from letters, leaf peeling on an undirected graph, and out-degree peeling on the reversed graph.</p>
+
+<p>Close with one sentence: the course order is a topological order, finishing is acyclicity, and in-degree peeling and grey back edges are two equivalent machines for saying that.</p>
+
+<h2>Closing</h2>
+
+<p>The whole difficulty collapses into one translation. Prerequisites are directed edges, a valid order is a topological order, and a cycle is a set of courses that can never be finished. Peeling makes the currently available courses explicit in a queue, and colouring makes the unfinished path explicit in a stack, and both reach the same criterion: peel or walk everything and there is no cycle.</p>
+
+<p>What separates answers is three small things: the direction must not be reversed, grey and black must be distinguished, and the post-order must be reversed.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-207-course-schedule/">【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

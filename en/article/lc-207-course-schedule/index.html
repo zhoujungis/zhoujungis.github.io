@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A prerequisite relation is a directed edge, a valid course order is a topological order, and a cycle is an order that never finishes. Two equivalent machines for the same sentence." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/lc-207-course-schedule/" />
+    <meta property="og:title" content="LC 207, course schedule: in-degrees and a queue, or three colours and a back edge | Stack Frame" />
+    <meta property="og:description" content="A prerequisite relation is a directed edge, a valid course order is a topological order, and a cycle is an order that never finishes. Two equivalent machines for the same sentence." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/lc-207-course-schedule/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="LC 207, course schedule: in-degrees and a queue, or three colours and a back edge | Stack Frame" />
+    <meta name="twitter:description" content="A prerequisite relation is a directed edge, a valid course order is a topological order, and a cycle is an order that never finishes. Two equivalent machines for the same sentence." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>LC 207, course schedule: in-degrees and a queue, or three colours and a back edge | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/lc-207-course-schedule/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/lc-207-course-schedule/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/lc-207-course-schedule/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>LC 207, course schedule: in-degrees and a queue, or three colours and a back edge</h1><div class="ns-meta">2026-10-07 · 15 min · Stack Frame</div><div class="markdown-body">
+<h2>The problem</h2>
+
+<p>Given a number of courses and a list of prerequisite pairs, decide whether all courses can be completed. Each pair says the second course must be taken before the first.</p>
+
+<pre><code>numCourses = 4, prerequisites = [[1,0],[2,0],[3,1],[3,2]]
+-&gt; true, and a valid order is [0,1,2,3] or [0,2,1,3]
+
+numCourses = 2, prerequisites = [[1,0],[0,1]]
+-&gt; false, since each waits for the other
+</code></pre>
+
+<p>Pin the direction first, which is the biggest trap here. A pair listing a then b means b must come first, so the edge runs from b to a, from prerequisite to dependent. Getting that backwards is not cosmetic; it decides the correctness of every in-degree and every order that follows.</p>
+
+<p>With that fixed, the whole problem is one sentence: a course order is a topological order of the directed graph, and completing everything is possible exactly when the graph has no cycle.</p>
+
+<p>What remains is two machines for detecting cycles and producing an order: in-degree peeling with a queue, and three-colour depth-first search.</p>
+
+<h2>Topological order and cycles</h2>
+
+<p>A topological order is a linear arrangement where every edge points from earlier to later. That is precisely a valid course order, with every prerequisite ahead of what depends on it.</p>
+
+<ul>
+<li><strong>A topological order exists exactly when the graph is acyclic.</strong> With a cycle, the courses on it wait for each other, so there is no answer.</li>
+<li><strong>The order is usually not unique.</strong> The example admits both listed orders, because courses one and two are independent.</li>
+<li><strong>An isolated course is always available first</strong>, since its in-degree is zero.</li>
+</ul>
+
+<p>Two mirror approaches. Peeling repeatedly takes any course with in-degree zero, then decrements its dependents, which naturally emits a topological order. Colouring walks the edges, and an edge back into the recursion stack signals a cycle, while reversing the post-order yields the order.</p>
+
+<h2>In-degree peeling</h2>
+
+<p>The in-degree of a course is how many prerequisites it still waits on, so zero means it is available now. The algorithm: take every course with in-degree zero, then relax its dependents.</p>
+
+<pre><code>from collections import deque
+
+def canFinish(numCourses, prerequisites):
+    adj = [[] for _ in range(numCourses)]
+    indegree = [0] * numCourses
+    for a, b in prerequisites:
+        adj[b].append(a)
+        indegree[a] += 1
+    q = deque(v for v in range(numCourses) if indegree[v] == 0)
+    order = []
+    while q:
+        cur = q.popleft()
+        order.append(cur)
+        for nxt in adj[cur]:
+            indegree[nxt] -= 1
+            if indegree[nxt] == 0:
+                q.append(nxt)
+    return len(order) == numCourses
+</code></pre>
+
+<p>The criterion is that the number of courses emitted equals the total. If only courses on a cycle remain, their in-degrees never reach zero, the queue runs dry early, and the emitted count falls short.</p>
+
+<h2>Three colours</h2>
+
+<p>White means unvisited, grey means currently on the recursion stack, black means finished and known safe. Walking an edge to white descends; to black it is skipped, since that route was already verified; to grey it means the edge points back into the current stack, so a cycle is caught.</p>
+
+<pre><code>def canFinish_dfs(numCourses, prerequisites):
+    adj = [[] for _ in range(numCourses)]
+    for a, b in prerequisites:
+        adj[b].append(a)
+    color = [0] * numCourses
+    order = []
+
+    def dfs(v):
+        color[v] = 1
+        for nxt in adj[v]:
+            if color[nxt] == 1:
+                return False
+            if color[nxt] == 0 and not dfs(nxt):
+                return False
+        color[v] = 2
+        order.append(v)
+        return True
+
+    for v in range(numCourses):
+        if color[v] == 0 and not dfs(v):
+            return False
+    return True
+</code></pre>
+
+<p>Two things matter. Grey and black must be distinguished, because a single visited flag treats a black neighbour, which is a safe convergence, as a cycle and reports a false positive. And the order is the reversal of the post-order, since a node is appended after all its dependents, so prerequisites land at the end and move to the front when reversed.</p>
+
+<p>Note that the two machines produce different orders, and both are correct. Topological orders are not unique; each machine simply picked a different valid one.</p>
+
+<h2>The animations</h2>
+
+<p>The first animation shows peeling. The course graph occupies the top, with nodes labelled by their current in-degree, and below it sit the queue of available courses and the order of completed ones. Watch three things: how every zero in-degree course enters the queue immediately, how each completed course decrements its dependents on the spot, and how only a course whose count reaches zero is enqueued. The end state, a full order, means the courses can be finished.</p>
+
+<p>The second animation shows the colouring on the same graph. White, grey and black are marked, the recursion stack at the lower left is the current grey path, and the post-order list at the lower right records nodes as they turn black. Watch when grey becomes black, which happens only after all successors are done, and on a cyclic graph the grey back edge is highlighted, which is the cycle. Reversing the post-order gives the topological order.</p>
+
+<h2>The traces</h2>
+
+<p>With four courses and edges zero to one, zero to two, one to three and two to three, the initial in-degrees are zero, one, one and two.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Action</th><th>Relaxation</th><th>Queue</th><th>Order</th></tr></thead>
+<tbody>
+<tr><td>init</td><td>Enqueue the only zero</td><td>-</td><td>0</td><td>empty</td></tr>
+<tr><td>pop</td><td>Finish zero</td><td>One and two drop to zero</td><td>1, 2</td><td>0</td></tr>
+<tr><td>pop</td><td>Finish one</td><td>Three drops to one</td><td>2</td><td>0, 1</td></tr>
+<tr><td>pop</td><td>Finish two</td><td>Three drops to zero</td><td>3</td><td>0, 1, 2</td></tr>
+<tr><td>pop</td><td>Finish three</td><td>None</td><td>empty</td><td>0, 1, 2, 3</td></tr>
+<tr><td>done</td><td>Four emitted of four</td><td>-</td><td>-</td><td>true</td></tr>
+</tbody>
+</table>
+
+<p>The detail to notice is that course three waits on two prerequisites, so its count reaches zero only after both are finished. That is the literal reading of the definition.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Action</th><th>Stack</th><th>Post-order</th></tr></thead>
+<tbody>
+<tr><td>init</td><td>All white</td><td>empty</td><td>empty</td></tr>
+<tr><td>enter</td><td>Zero becomes grey</td><td>0</td><td>empty</td></tr>
+<tr><td>enter</td><td>One becomes grey</td><td>0, 1</td><td>empty</td></tr>
+<tr><td>enter</td><td>Three becomes grey</td><td>0, 1, 3</td><td>empty</td></tr>
+<tr><td>finish</td><td>Three has no successors, becomes black</td><td>0, 1</td><td>3</td></tr>
+<tr><td>finish</td><td>One done, becomes black</td><td>0</td><td>3, 1</td></tr>
+<tr><td>enter</td><td>Back at zero, descend into two</td><td>0, 2</td><td>3, 1</td></tr>
+<tr><td>finish</td><td>Two sees three already black, skipped</td><td>0</td><td>3, 1, 2</td></tr>
+<tr><td>finish</td><td>Zero becomes black</td><td>empty</td><td>3, 1, 2, 0</td></tr>
+<tr><td>done</td><td>No grey back edge, reversed order 0, 2, 1, 3</td><td>-</td><td>-</td></tr>
+</tbody>
+</table>
+
+<p>Compare those two behaviours: when two reaches three, three is black, which is a skip rather than a cycle report. A cycle is reported only when the neighbour is grey, meaning it is still on the stack.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public boolean canFinish(int numCourses, int[][] prerequisites) {
+        List&lt;List&lt;Integer&gt;&gt; adj = new ArrayList&lt;&gt;();
+        for (int i = 0; i &lt; numCourses; i++) adj.add(new ArrayList&lt;&gt;());
+        int[] indegree = new int[numCourses];
+        for (int[] p : prerequisites) {
+            adj.get(p[1]).add(p[0]);
+            indegree[p[0]]++;
+        }
+        Deque&lt;Integer&gt; queue = new ArrayDeque&lt;&gt;();
+        for (int v = 0; v &lt; numCourses; v++) {
+            if (indegree[v] == 0) queue.offer(v);
+        }
+        int done = 0;
+        while (!queue.isEmpty()) {
+            int cur = queue.poll();
+            done++;
+            for (int nxt : adj.get(cur)) {
+                if (--indegree[nxt] == 0) queue.offer(nxt);
+            }
+        }
+        return done == numCourses;
+    }
+}
+</code></pre>
+
+<p>The colouring version keeps an array of three states, returns false on a grey neighbour, and sets black after the loop. Recursion depth is bounded by the number of courses, which is fine at two thousand and would need an explicit stack beyond that. The version that returns an order appends on completion and reverses at the end.</p>
+
+<h2>The family</h2>
+
+<ul>
+<li><strong>Course schedule two.</strong> Return the order: the dequeue sequence directly, or the reversed post-order.</li>
+<li><strong>Alien dictionary.</strong> Build edges between letters from the first differing position of adjacent words, then sort. The graph construction is the difficulty, not the sort.</li>
+<li><strong>Minimum height trees.</strong> On an undirected graph, repeatedly peel degree-one leaves, the same idea as peeling in-degrees, and the one or two survivors are the roots.</li>
+<li><strong>Find eventual safe states.</strong> Peel out-degree-zero nodes on the reversed graph; whatever remains is on or behind a cycle. This is the mirror image of peeling in-degrees.</li>
+<li><strong>Sort items by groups.</strong> Two topological sorts, one within groups and one between them.</li>
+<li><strong>Sequence reconstruction.</strong> Decide whether the order is unique, which happens exactly when the queue never holds more than one candidate.</li>
+</ul>
+
+<p>Line them up and the template never changes: compute degrees, repeatedly remove zero-degree nodes, or colour the graph. What differs is where the edges come from, prerequisites or letters or a reversed graph, and what is returned at the end.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>A self-loop leaves a course waiting on itself, so its in-degree never drops and the answer is false.</li>
+<li>Duplicate edges inflate the in-degree, which is relaxed twice and still arrives at zero, so the result is correct but worth knowing.</li>
+<li>An isolated course is available immediately and changes nothing.</li>
+<li>One course with no prerequisites returns true, with order consisting of that course.</li>
+<li>With no prerequisites at all, the identity order is already a valid topological order.</li>
+<li>Multiple components are handled naturally by the queue, while the depth-first version must start from every unvisited node.</li>
+<li>A branch hanging off a cycle is also stuck, since it waits on a prerequisite on the cycle. The criterion is the emitted count, not a direct detection of nodes on the cycle.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Approach</th><th>Time</th><th>Space</th><th>Character</th></tr></thead>
+<tbody>
+<tr><td>Peeling</td><td>Vertices plus edges</td><td>Vertices plus edges</td><td>Direct, emits the order naturally</td></tr>
+<tr><td>Three colours</td><td>Vertices plus edges</td><td>Vertices plus edges</td><td>Cycle detection falls out, order by reversal</td></tr>
+</tbody>
+</table>
+
+<p>Building the graph is linear in the number of pairs, and each node and edge is processed once. Early exit on a cycle does not change the worst case.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Reversing the edge direction, which flips the entire order.</li>
+<li>Forgetting to decrement dependents, or enqueueing them before the count reaches zero.</li>
+<li>Using an empty queue as the cycle test. It empties after a successful run too; the criterion is the emitted count.</li>
+<li>Using a single visited flag in the depth-first version, which misreports safe convergences as cycles.</li>
+<li>Returning the post-order without reversing it.</li>
+<li>Deep recursion on a chain-shaped graph; use an explicit stack or the queue version.</li>
+<li>Returning a partial order when a cycle exists, without checking the count first.</li>
+<li>Mixing duplicate-edge handling with set-based graph construction, which changes the in-degrees.</li>
+<li>Starting the depth-first search from one node only, which misses other components.</li>
+<li>Assuming the topological order is unique. Uniqueness is a separate problem, decided by whether the queue ever holds two candidates.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Give the translation first: the question is whether a directed graph has a cycle. Fix the edge direction from the pairs, then pick a machine, peeling zero in-degree courses and counting the emitted total, or colouring and reporting a grey back edge. Both are linear.</p>
+
+<p>Then volunteer the order-returning variant, which is where candidates separate: the dequeue sequence is an order, and the reversed post-order is the other. Note that the order is not unique, and give an example, which shows you understand that a valid order is not a unique one.</p>
+
+<p>Then connect the follow-ups: uniqueness, graph construction from letters, leaf peeling on an undirected graph, and out-degree peeling on the reversed graph.</p>
+
+<p>Close with one sentence: the course order is a topological order, finishing is acyclicity, and in-degree peeling and grey back edges are two equivalent machines for saying that.</p>
+
+<h2>Closing</h2>
+
+<p>The whole difficulty collapses into one translation. Prerequisites are directed edges, a valid order is a topological order, and a cycle is a set of courses that can never be finished. Peeling makes the currently available courses explicit in a queue, and colouring makes the unfinished path explicit in a stack, and both reach the same criterion: peel or walk everything and there is no cycle.</p>
+
+<p>What separates answers is three small things: the direction must not be reversed, grey and black must be distinguished, and the post-order must be reversed.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-207-course-schedule/">【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）</a>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/lc-207-course-schedule/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/lc-207-course-schedule/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>
