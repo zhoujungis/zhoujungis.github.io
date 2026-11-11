@@ -37323,6 +37323,547 @@ words[word] &amp;= ~(1 &lt;&lt; bit)
 `,
   },
 
+  {
+    slug: 'lc-lcs-one-mismatch',
+    zhSlug: 'lc-lcs-one-mismatch',
+    topicSlug: 'leetcode',
+    title: 'Longest common substring allowing one mismatch: the quota only comes from the clean state',
+    excerpt:
+      'Two states, because a path that already spent its error cannot be extended into a second one. Writing the mismatch transition from the dirty state inflates the answer on sixty percent of inputs.',
+    date: '2026-09-17',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Given two strings, find the length of the longest common contiguous substring, allowing at most one mismatched position inside it.</p>
+
+<pre><code>s = "abcdef", t = "abcdxf"
+only the fifth position differs, so the whole six characters count
+-&gt; 6
+</code></pre>
+
+<p>The realistic settings are DNA alignment with a single mutation, spell correction with one typo, and log alignment with one noisy character. In interviews the lesson is not the DP itself but whether you split the state.</p>
+
+<h2>Contiguous means substring, not subsequence</h2>
+
+<table>
+<thead><tr><th></th><th>Substring</th><th>Subsequence</th></tr></thead>
+<tbody>
+<tr><td>May skip</td><td><strong>No</strong>, strictly contiguous</td><td>Yes</td></tr>
+<tr><td>Alignment</td><td>Only along the diagonal</td><td>Right, down or diagonal</td></tr>
+<tr><td>The recurrence</td><td>Only looks up-left</td><td>Looks left, up and up-left</td></tr>
+</tbody>
+</table>
+
+<p>The longest common subsequence problem allows skipping, so its recurrence contains a maximum over three neighbours. Here the path is diagonal only. Mixing them up is the first trap: once skipping is allowed, the word contiguous no longer applies and the problem is a different one.</p>
+
+<h2>Two states: one clean, one carrying the quota</h2>
+
+<p>Two questions differ. How long can a run ending here be if it matches everywhere? And how long can it be with at most one mismatch? The second may already have spent its single error somewhere earlier, and if it were extended while spending again the quota would be meaningless. So the clean state exists purely to be consumed when a mismatch occurs.</p>
+
+<pre><code>equal:
+    f[i][j] = f[i-1][j-1] + 1
+    g[i][j] = g[i-1][j-1] + 1
+different:
+    f[i][j] = 0
+    g[i][j] = max(f[i-1][j-1] + 1, 1)
+</code></pre>
+
+<p>The mismatch line is the watershed. The quota can only be taken from the clean state; taking it from the dirty state lets one position spend it repeatedly and the answer inflates. The maximum with one allows a mismatched pair of unrelated characters to still count as a length-one answer.</p>
+
+<pre><code>def lcs1(s: str, t: str) -&gt; int:
+    n, m = len(s), len(t)
+    f = [[0] * (m + 1) for _ in range(n + 1)]
+    g = [[0] * (m + 1) for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            if s[i - 1] == t[j - 1]:
+                f[i][j] = f[i - 1][j - 1] + 1
+                g[i][j] = g[i - 1][j - 1] + 1
+            else:
+                f[i][j] = 0
+                g[i][j] = max(f[i - 1][j - 1] + 1, 1)
+    return max(max(row) for row in g) if n and m else 0
+</code></pre>
+
+<p>The answer is the largest value anywhere in the second table, not the bottom-right cell, since the substring may end anywhere.</p>
+
+<h2>The animation</h2>
+
+<p>The first animation fills both tables row by row. Each cell shows the dirty value large and the clean value small in the corner, with the current row tinted, the explaining cell gold and the best cell green, beside a panel writing out the equation in words.</p>
+
+<p>The interesting frame is the mismatch: the clean value breaks to zero while the dirty one takes four from the clean diagonal and adds one, giving five. That frame is the only place the origin of the quota is visible.</p>
+
+<p>The second animation contrasts two paths on one diagram: the correct solution runs along a subdiagonal where every character matches and climbs to five, while the wrong one runs along the main diagonal where six positions differ and, by reading the dirty diagonal, climbs all the way to six.</p>
+
+<table>
+<thead><tr><th>Row</th><th>Character</th><th>Dirty values</th><th>Row maximum</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>a against a</td><td>1 1 1 1 1 1</td><td>1</td></tr>
+<tr><td>2</td><td>b against b</td><td>1 2 1 1 1 1</td><td>2</td></tr>
+<tr><td>3</td><td>c against c</td><td>1 1 3 1 1 1</td><td>3</td></tr>
+<tr><td>4</td><td>d against d</td><td>1 1 1 4 1 1</td><td>4</td></tr>
+<tr><td>5</td><td>e against x</td><td>1 1 1 1 <strong>5</strong> 1</td><td>5</td></tr>
+<tr><td>6</td><td>f against f</td><td>1 1 1 1 1 <strong>6</strong></td><td><strong>6</strong></td></tr>
+</tbody>
+</table>
+
+<p>Two counterexamples expose the bug. Reversed two-character strings answer one correctly and two wrongly. And the six-character rotation of the sample answers five correctly and six wrongly, because six mismatched positions are treated as a single error. Exhaustive comparison over all short inputs shows the wrong version differs from the correct one on about sixty-two percent of cases, so this is not an edge case.</p>
+
+<h2>Rolling arrays</h2>
+
+<pre><code>def lcs1_rolling(s: str, t: str) -&gt; int:
+    if len(s) &lt; len(t):
+        s, t = t, s
+    f_prev = [0] * (len(t) + 1)
+    g_prev = [0] * (len(t) + 1)
+    best = 0
+    for i in range(1, len(s) + 1):
+        f_cur = [0] * (len(t) + 1)
+        g_cur = [0] * (len(t) + 1)
+        for j in range(1, len(t) + 1):
+            f_diag = f_prev[j - 1]
+            g_diag = g_prev[j - 1]
+            if s[i - 1] == t[j - 1]:
+                f_cur[j] = f_diag + 1
+                g_cur[j] = g_diag + 1
+            else:
+                f_cur[j] = 0
+                g_cur[j] = max(f_diag + 1, 1)
+            best = max(best, g_cur[j])
+        f_prev, g_prev = f_cur, g_cur
+    return best
+</code></pre>
+
+<p>The line that bites is capturing the diagonal before the previous row is overwritten. If the two rows alternate in one buffer, the diagonal reference silently reads the wrong value and the answer comes out slightly small, with no crash and no out-of-range access, which is the worst kind of bug to find.</p>
+
+<p>Exhaustive comparison between the rolling and two-dimensional versions over more than a hundred thousand short inputs shows agreement everywhere.</p>
+
+<h2>Implementation notes</h2>
+
+<ul>
+<li>The answer is the maximum over the table, not the bottom-right corner.</li>
+<li>Empty strings return zero, in all three combinations.</li>
+<li>Two unrelated characters answer one, guaranteed by the maximum with one.</li>
+<li>The answer never exceeds the shorter length, which allows trimming prefixes and suffixes that cannot participate.</li>
+<li>Reconstructing the actual substring requires walking back from the best cell until the clean value is zero, and where that walk stops is precisely the mismatch.</li>
+</ul>
+
+<h2>Generalising to k mismatches</h2>
+
+<pre><code>equal:      g[i][j][e] = g[i-1][j-1][e] + 1
+different:  g[i][j][e] = g[i-1][j-1][e-1] + 1
+            g[i][j][0] = 0
+</code></pre>
+
+<p>The invariant survives: the quota comes from a cleaner level, which prevents spending twice at one position, and k of zero degenerates to the ordinary longest common substring.</p>
+
+<p>The effect of the quota is strongly non-linear.</p>
+
+<table>
+<thead><tr><th>Input</th><th>k = 0</th><th>k = 1</th><th>k = 2</th></tr></thead>
+<tbody>
+<tr><td>abcdef against abcdxf</td><td>4</td><td><strong>6</strong></td><td>6</td></tr>
+<tr><td>abcdef against abxyef</td><td>3</td><td>3</td><td><strong>6</strong></td></tr>
+<tr><td>kitten against sitting</td><td>3</td><td>5</td><td><strong>6</strong></td></tr>
+</tbody>
+</table>
+
+<p>The middle row is instructive: one extra error changes nothing, and two take the answer from three to six. So k is not a quantity where more is never worse, and saying that is worth a note.</p>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th></th><th>Two-dimensional</th><th>Rolling</th><th>k mismatches</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>n times m</td><td>n times m</td><td>n times m times k plus one</td></tr>
+<tr><td>Space</td><td>n times m</td><td>the smaller length</td><td>m times k plus one</td></tr>
+</tbody>
+</table>
+
+<p>At a thousand characters the table is a million integers, a few megabytes, which is fine; at a hundred thousand the table no longer fits and the running time is hopeless, so the answer becomes a different family of algorithms entirely.</p>
+
+<h2>Five mistakes, each of which passes the samples</h2>
+
+<ol>
+<li>Taking the mismatch transition from the dirty diagonal, which spends the quota twice and diverges on about sixty percent of inputs.</li>
+<li>Omitting the maximum with one, which undercounts whenever the run starts with a mismatch.</li>
+<li>Failing to capture the diagonal in the rolling version, which silently returns an answer that is too small.</li>
+<li>Writing the subsequence recurrence, which includes left and up terms. The test is simple: if left or up appears, skipping is allowed and the problem has changed.</li>
+<li>Treating "at most one" as "exactly one", which returns zero for two identical strings.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>The short version: two states, clean and dirty, both extending along the diagonal on a match, with the clean one resetting on a mismatch while the dirty one takes the clean diagonal plus one, floored at one, and the answer being the largest dirty value anywhere. Linear in the product of the lengths, reducible to the smaller length in space. Then add the quota invariant, the rolling-array trap, and the non-linearity of k.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-lcs-one-mismatch/">【动态规划】允许一个错的最长公共连续子串：额度只能从干净的 f 接</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-33-153-rotated-binary-search',
+    zhSlug: 'lc-33-153-rotated-binary-search',
+    topicSlug: 'leetcode',
+    title: 'LC 33 and 153, rotated sorted arrays: one cliff, two opposite comparisons',
+    excerpt:
+      'A rotated array is two ascending runs with a cliff between them. Binary search needs one answer per step, which side of the cliff the midpoint is on, and the two problems compare against opposite ends.',
+    date: '2026-09-16',
+    readingTime: 14,
+    html: `
+<h2>The problems</h2>
+
+<p><strong>153:</strong> find the minimum in a rotated sorted array. <strong>33:</strong> search for a target in one, in logarithmic time.</p>
+
+<p>Both share one picture: two ascending runs separated by a cliff, with the minimum standing at the start of the right-hand run. Binary search over it must answer one question per step: which side of the cliff is the midpoint on?</p>
+
+<p>Curiously, the two problems compare against opposite ends, and each has a reason, which is the content of this piece.</p>
+
+<pre><code>values: 4 5 6 7 | 0 1 2
+                 ^
+              the cliff
+</code></pre>
+
+<h2>153: compare with the right end</h2>
+
+<pre><code>def findMin(nums):
+    l, r = 0, len(nums) - 1
+    while l &lt; r:
+        mid = (l + r) // 2
+        if nums[mid] &gt; nums[r]:
+            l = mid + 1
+        else:
+            r = mid
+    return nums[l]
+</code></pre>
+
+<p>If the midpoint is larger than the current right end, the cliff lies to its right, since otherwise the run would ascend to the right end and not exceed it. So the minimum is further right and the midpoint is eliminated.</p>
+
+<p>If the midpoint is smaller, it is on the right-hand run, or the cliff is at the midpoint itself, so the minimum lies at or left of it, and the midpoint cannot be discarded, which is why the right bound becomes the midpoint rather than one past it.</p>
+
+<p>The loop runs while the bounds differ, stopping when a single element remains.</p>
+
+<p>Why not compare with the left end: if the midpoint exceeds the left end, it may be on the first run, or the array may not be rotated at all, and one comparison cannot distinguish them, so the direction is undetermined. Comparing with the right end has no such ambiguity, since equality only occurs when the interval has shrunk to one or two elements, which does not affect the decision.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Interval</th><th>mid</th><th>Comparison</th><th>After</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>0 to 6</td><td>-</td><td>-</td><td>0 to 6</td></tr>
+<tr><td>1</td><td>0 to 6</td><td>3</td><td>seven above two, first run</td><td>4 to 6</td></tr>
+<tr><td>2</td><td>4 to 6</td><td>5</td><td>one below two, second run</td><td>4 to 5</td></tr>
+<tr><td>3</td><td>4 to 5</td><td>4</td><td>zero below one</td><td>4 to 4</td></tr>
+<tr><td>4</td><td>-</td><td>-</td><td>Bounds meet</td><td>minimum is zero</td></tr>
+</tbody>
+</table>
+
+<p>The second frame shows why the bound must not step past the midpoint: writing the right bound as midpoint minus one would discard the very candidate that turns out to be the minimum, and the algorithm breaks.</p>
+
+<h2>33: compare with the left end, to find the sorted half</h2>
+
+<p>The midpoint splits the interval, and the cliff lies entirely in one half, so the other half is fully sorted. Whether the left half is sorted is decided in one step by asking whether the left end is at most the midpoint, with the equality included because a single-element interval must count as sorted.</p>
+
+<pre><code>def search(nums, target):
+    l, r = 0, len(nums) - 1
+    while l &lt;= r:
+        mid = (l + r) // 2
+        if nums[mid] == target:
+            return mid
+        if nums[l] &lt;= nums[mid]:
+            if nums[l] &lt;= target &lt; nums[mid]:
+                r = mid - 1
+            else:
+                l = mid + 1
+        else:
+            if nums[mid] &lt; target &lt;= nums[r]:
+                l = mid + 1
+            else:
+                r = mid - 1
+    return -1
+</code></pre>
+
+<p>So why does one problem use the left end and the other the right? Because the quantities differ. The minimum problem needs to know which side of the cliff the midpoint occupies, which the right end answers unambiguously. The search problem needs to know which half is sorted, which the left end answers in one comparison.</p>
+
+<p>One cliff, two problems, opposite comparisons, because the questions differ.</p>
+
+<p>The two range tests are half-open and closed for different reasons. The left half is open at the upper end since equality with the midpoint already returned. The right half is closed at the upper end because the right endpoint itself may be the target. Getting either wrong loses a solution when the target is exactly an endpoint, which is why both endpoints belong in the self-test.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Interval</th><th>mid</th><th>Decision</th><th>After</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>0 to 6</td><td>-</td><td>-</td><td>0 to 6</td></tr>
+<tr><td>1</td><td>0 to 6</td><td>3</td><td>Left half sorted, range excludes the target</td><td>4 to 6</td></tr>
+<tr><td>2</td><td>4 to 6</td><td>5</td><td>Left half sorted, range includes the target</td><td>4 to 4</td></tr>
+<tr><td>3</td><td>4 to 4</td><td>4</td><td>Hit</td><td>-</td></tr>
+<tr><td>4</td><td>-</td><td>-</td><td>Index four</td><td>-</td></tr>
+</tbody>
+</table>
+
+<p>Entering the unsorted half sounds risky and is proven safe by the range test: if the target were in the sorted half it would have to fall inside that half's range, so failure to fall inside leaves only the other half.</p>
+
+<h2>Two classic traps</h2>
+
+<p>The minimum problem needs the right bound to become the midpoint, paired with a loop condition that stops when the bounds meet. Substituting midpoint minus one with an inclusive condition is a different and wrong algorithm that skips the minimum.</p>
+
+<p>The search problem needs the equality in the sortedness test. With a strict comparison, a single-element interval is judged unsorted and the logic goes the wrong way.</p>
+
+<p>A frequent follow-up: does an unrotated array break the test? No. Every step finds the left half sorted and the range check works normally, so rotation only moves which half is sorted. The same holds for the minimum problem, which reduces to walking to the first element.</p>
+
+<h2>Complexity</h2>
+
+<p>Logarithmic time, since each step halves the interval, and constant space. A linear scan is unnecessary because the two-run structure carries enough information, which is why both statements ask for the logarithmic bound. Note the caveat: this depends on distinct elements.</p>
+
+<h2>With duplicates</h2>
+
+<p>Duplicates break exactly one case in each problem, and both are repaired by retreating one step.</p>
+
+<ul>
+<li><strong>Search with duplicates:</strong> when the left end equals the midpoint, which half is sorted cannot be determined. The only safe move is to advance the left bound, discarding an element that is certainly not the target, since equality there would already have returned. The worst case, all elements equal, degrades to linear, while the average stays logarithmic.</li>
+<li><strong>Minimum with duplicates:</strong> when the midpoint equals the right end, the cliff direction is undetermined, so retreat the right bound. Even if that element is the minimum, it equals the midpoint, so discarding it cannot discard the answer's value. Also linear in the worst case.</li>
+</ul>
+
+<p>Those two retreats are the only deterministic actions left once duplicates exist, and explaining when and why the bound degrades is worth more than writing the distinct version.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int findMin(int[] nums) {
+    int l = 0, r = nums.length - 1;
+    while (l &lt; r) {
+        int mid = (l + r) &gt;&gt;&gt; 1;
+        if (nums[mid] &gt; nums[r]) l = mid + 1;
+        else r = mid;
+    }
+    return nums[l];
+}
+
+public int search(int[] nums, int target) {
+    int l = 0, r = nums.length - 1;
+    while (l &lt;= r) {
+        int mid = (l + r) &gt;&gt;&gt; 1;
+        if (nums[mid] == target) return mid;
+        if (nums[l] &lt;= nums[mid]) {
+            if (nums[l] &lt;= target &amp;&amp; target &lt; nums[mid]) r = mid - 1;
+            else l = mid + 1;
+        } else {
+            if (nums[mid] &lt; target &amp;&amp; target &lt;= nums[r]) l = mid + 1;
+            else r = mid - 1;
+        }
+    }
+    return -1;
+}
+</code></pre>
+
+<h2>The family</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>What changes</th><th>How to think about it</th></tr></thead>
+<tbody>
+<tr><td>Search with duplicates</td><td>Duplicates allowed</td><td>Retreat one step on equality, linear worst case</td></tr>
+<tr><td>Minimum with duplicates</td><td>Duplicates allowed</td><td>The same retreat on the right</td></tr>
+<tr><td>Find peak</td><td>No cliff, just neighbours</td><td>Climb toward the higher neighbour</td></tr>
+<tr><td>Search a sorted matrix</td><td>Rows concatenate into one sorted order</td><td>One binary search by index mapping, or two</td></tr>
+</tbody>
+</table>
+
+<h2>How to answer it</h2>
+
+<p>Draw the picture first, since every test follows from it. Then the minimum problem: compare with the right end, keep the midpoint, loop while the bounds differ. Then the search problem: compare with the left end including equality, then a range test with one open and one closed boundary. Then the contrast, which is the discriminator: the two problems compare against opposite ends because they ask different questions. Self-test on the two endpoint targets.</p>
+
+<h2>Closing</h2>
+
+<p>Rotated-array binary search is ordinary binary search plus one extra question per step, and the answer grows out of the choice of comparison target.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-33-153-rotated-binary-search/">【LC 33/153】旋转排序数组：同一断崖，比法相反</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-72-edit-distance',
+    zhSlug: 'lc-72-edit-distance',
+    topicSlug: 'leetcode',
+    title: 'LC 72, edit distance: prefix against prefix, and the rolling row',
+    excerpt:
+      'Three operations map to three neighbours. Compressing the table is easy; noticing that the diagonal is the one neighbour your own write destroys is the actual question.',
+    date: '2026-09-15',
+    readingTime: 15,
+    html: `
+<h2>The problem</h2>
+
+<p>Return the minimum number of insertions, deletions and substitutions needed to turn one word into another.</p>
+
+<pre><code>horse -&gt; ros
+horse -&gt; rorse   (substitute h for r)
+rorse -&gt; rose    (delete r)
+rose  -&gt; ros     (delete e)
+-&gt; 3
+</code></pre>
+
+<h2>Two anchors: prefix against prefix</h2>
+
+<p>The previous article's anchor was the ending index. This problem needs two anchors at once: the state is the minimum cost of turning the first i characters of one string into the first j characters of the other.</p>
+
+<p>Why prefixes rather than endings: edit operations insert and delete at arbitrary positions, so the last step cares not about which character ends the string but about how much of each remains. Only a pair of prefix lengths fully describes the work still to do, which is the fork between single-sequence and two-sequence problems.</p>
+
+<p>With both anchors placed, the transition only needs to consider the final pair of characters, since everything before is absorbed into the table.</p>
+
+<p>The initialisation is not zero. Turning an empty string into j characters costs j insertions, and turning i characters into nothing costs i deletions. The first row and column are not filler, they are the semantics, and filling them with zero breaks the official sample outright.</p>
+
+<h2>Three operations, three neighbours</h2>
+
+<table>
+<thead><tr><th>Last operation</th><th>Meaning</th><th>Remaining work</th><th>Cost</th></tr></thead>
+<tbody>
+<tr><td>Substitute</td><td>Change the current character of one into the other</td><td>Prefixes one shorter on both sides</td><td>The diagonal plus one</td></tr>
+<tr><td>Delete</td><td>Remove a character from the first string</td><td>First prefix one shorter, second unchanged</td><td>The cell above plus one</td></tr>
+<tr><td>Insert</td><td>Add a character to the first string</td><td>First prefix unchanged, second one shorter</td><td>The cell to the left plus one</td></tr>
+</tbody>
+</table>
+
+<pre><code>def minDistance(word1: str, word2: str) -&gt; int:
+    m, n = len(word1), len(word2)
+    a, b = list(word1), list(word2)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    for j in range(n + 1):
+        dp[0][j] = j
+    for i in range(1, m + 1):
+        dp[i][0] = i
+        for j in range(1, n + 1):
+            if a[i - 1] == b[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1]
+            else:
+                dp[i][j] = 1 + min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1])
+    return dp[m][n]
+</code></pre>
+
+<p>A compact form merges the branch: the diagonal plus one if the characters differ, then the minimum with the two neighbours plus one.</p>
+
+<p>One fact worth stating: swapping the labels of insertion and deletion changes no number, since the minimum is over the same set of neighbours. It only matters when the operation sequence must be printed, because the labels decide the reconstruction. Harmless numerically, fatal for reconstruction, which is the common trap of every symmetric transition.</p>
+
+<h2>The animation</h2>
+
+<p>A table lit cell by cell, with one colour rule: three operations, three neighbours, three colours. The current cell is gold and carries a code for which operation won, and the moment it is filled, the diagonal, the cell above and the cell to the left light up in their colours with the winner ringed. When the characters match, only the diagonal lights, since the other two are strictly worse and need not be considered.</p>
+
+<table>
+<thead><tr><th></th><th>empty</th><th>r</th><th>o</th><th>s</th></tr></thead>
+<tbody>
+<tr><td>empty</td><td>0</td><td>1</td><td>2</td><td>3</td></tr>
+<tr><td>h</td><td>1</td><td><strong>1</strong></td><td>2</td><td>3</td></tr>
+<tr><td>o</td><td>2</td><td>2</td><td><strong>1</strong></td><td>2</td></tr>
+<tr><td>r</td><td>3</td><td><strong>2</strong></td><td>2</td><td>2</td></tr>
+<tr><td>s</td><td>4</td><td>3</td><td>3</td><td><strong>2</strong></td></tr>
+<tr><td>e</td><td>5</td><td>4</td><td>4</td><td><strong>3</strong></td></tr>
+</tbody>
+</table>
+
+<p>Four cells deserve attention. The first shows substitution beating the alternatives, so a matching rule that only permits insert and delete would cost two here. The second is a free diagonal copy on equal characters. The third shows a boundary cell participating in a real transition, which is why the first column must be correct. And the last cell's minimum happens to be the cell above, which is the clue for both the compression and the bug in it.</p>
+
+<h2>Compressing to one row</h2>
+
+<p>Each entry depends only on the previous row and its left neighbour in the current row, so earlier rows can be discarded.</p>
+
+<table>
+<thead><tr><th>Neighbour</th><th>Where it lives</th><th>Survives</th></tr></thead>
+<tbody>
+<tr><td>Above</td><td>The buffer slot before it is written</td><td>Yes, just in time</td></tr>
+<tr><td>Left</td><td>The previous slot, already written</td><td>Yes, same row</td></tr>
+<tr><td><strong>Diagonal</strong></td><td>The previous slot's <strong>old</strong> value</td><td><strong>No</strong>, already overwritten</td></tr>
+</tbody>
+</table>
+
+<pre><code>def minDistance(word1: str, word2: str) -&gt; int:
+    m, n = len(word1), len(word2)
+    a, b = list(word1), list(word2)
+    buf = list(range(n + 1))
+    for i in range(1, m + 1):
+        prev = buf[0]
+        buf[0] = i
+        for j in range(1, n + 1):
+            tmp = buf[j]
+            if a[i - 1] == b[j - 1]:
+                buf[j] = prev
+            else:
+                buf[j] = 1 + min(prev, buf[j], buf[j - 1])
+            prev = tmp
+    return buf[n]
+</code></pre>
+
+<p>Two save-before-write positions matter: the row start and each cell. The instant before an overwrite is the only chance to read the old value.</p>
+
+<p>Swapping so the shorter string is the column gives space proportional to the shorter length, which is legal because edit distance is symmetric.</p>
+
+<p>The second animation shows the compression itself, with the full table faded in the background and the previous row being erased cell by cell while the live buffer below receives the new row. The gold dashed cell is the overwritten diagonal, and the small chip labelled with the previous value holds what it used to contain.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int minDistance(String word1, String word2) {
+    char[] a = word1.toCharArray();
+    char[] b = word2.toCharArray();
+    int m = a.length, n = b.length;
+    int[] buf = new int[n + 1];
+    for (int j = 0; j &lt;= n; j++) buf[j] = j;
+    for (int i = 1; i &lt;= m; i++) {
+        int prev = buf[0];
+        buf[0] = i;
+        for (int j = 1; j &lt;= n; j++) {
+            int tmp = buf[j];
+            if (a[i - 1] == b[j - 1]) {
+                buf[j] = prev;
+            } else {
+                buf[j] = 1 + Math.min(prev, Math.min(buf[j], buf[j - 1]));
+            }
+            prev = tmp;
+        }
+    }
+    return buf[n];
+}
+</code></pre>
+
+<p>Write the two-dimensional version first and then convert live, since the transition is identical and the audience can see why the diagonal is recoverable.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>One empty string answers the other's length, which the rolling version handles because the inner loop never runs.</li>
+<li>Identical strings answer zero, and every cell takes the free branch.</li>
+<li>Single characters show substitution, deletion and insertion each costing one.</li>
+<li>The distance is symmetric, which is the basis for choosing the shorter column.</li>
+<li>Non-BMP characters must be split by code point, or one emoji counts as two characters.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Version</th><th>Time</th><th>Space</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Full table</td><td>Product of lengths</td><td>Product of lengths</td><td>Allows reconstructing the operations</td></tr>
+<tr><td>Rolling row</td><td>Same</td><td>Linear in the column</td><td>The shorter string as column gives the minimum</td></tr>
+</tbody>
+</table>
+
+<p>Printing the operations needs the full table or a divide-and-conquer scheme that trades time for space, and saying that the value and the path have different storage needs is worth a note.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Scanning the inner loop backwards out of knapsack habit, which reads the previous row where the current row is needed. The official sample still returns three, because the winning neighbour is precisely the one that remains correct under a backwards scan. A three-character identity case exposes it immediately.</li>
+<li>Charging for equal characters, which makes even identical strings cost something.</li>
+<li>Filling the boundary row or column with zeroes instead of the semantic values.</li>
+<li>Omitting substitution, which turns the problem into insert-and-delete only.</li>
+<li>Updating the saved diagonal at the wrong moment, which turns the current cell's fresh value into the next cell's diagonal.</li>
+<li>Expecting a single row to reconstruct the operation sequence.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Place both anchors and justify prefixes. Map the three operations onto the three neighbours. State the symmetry between insert and delete and its consequence for reconstruction. Then the compression: only the diagonal is destroyed by your own write, so one scalar suffices, plus one save at each row start. Then the counterexample to the backwards scan and why the sample hides it. Then the variants: deletions only, longest common subsequence as the same table with different bookkeeping, and reconstruction from the full table.</p>
+
+<h2>Closing</h2>
+
+<p>The first question tests whether you dare place two anchors, prefix against prefix, after which the recurrence writes itself. The second tests whether you know which of the three dependencies is fragile. Both moves are the same as before: pin the state down, then optimise. And the real trap is never in the recurrence but in the order of iteration, where the official sample happens to place the minimum on the only neighbour a backwards scan leaves intact.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-72-edit-distance/">【LC 72】编辑距离：前缀对前缀，与滚动数组</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
