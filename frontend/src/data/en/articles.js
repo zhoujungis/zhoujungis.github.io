@@ -35925,6 +35925,730 @@ private void dfs(String s, int pos, List&lt;String&gt; path, List&lt;String&gt; 
 `,
   },
 
+  {
+    slug: 'lc-704-69-binary-search-and-sqrt',
+    zhSlug: 'lc-704-69-binary-search-and-sqrt',
+    topicSlug: 'leetcode',
+    title: 'LC 704 and 69: binary search on an array, binary search on the answer',
+    excerpt:
+      'One invariant, one convention, three rules. The first problem stops the moment it hits; the second records a candidate and keeps going right, because the target is a boundary.',
+    date: '2026-09-25',
+    readingTime: 14,
+    html: `
+<h2>The problems</h2>
+
+<p><strong>704:</strong> search a sorted array for a target and return its index, or minus one, in logarithmic time.</p>
+
+<pre><code>[-1,0,3,5,9,12], target 9  -&gt;  4
+[-1,0,3,5,9,12], target 2  -&gt;  -1
+</code></pre>
+
+<p><strong>69:</strong> return the integer part of the square root of a non-negative integer.</p>
+
+<pre><code>x = 8   -&gt;  2     (2.828 truncated)
+x = 16  -&gt;  4
+</code></pre>
+
+<p>These are the textbook and the graduation exam. The first searches a real array for a value. In the second no array exists: the sorted domain is an integer interval you invent, and the thing being sought is not a value but a predicate boundary.</p>
+
+<h2>704: binary search is invariant maintenance</h2>
+
+<p>Most people remember the midpoint comparison, which is the surface. The essence is an invariant: if the target is present, its index always lies inside the closed interval.</p>
+
+<p>Each probe has three outcomes. Equality closes the case. A smaller midpoint value eliminates that index and everything left of it, since the array is sorted. A larger one eliminates that index and everything right of it. Each round discards half and never violates the invariant, because the discarded half cannot contain the answer. When the interval empties, the contrapositive gives the answer directly.</p>
+
+<p>So there are three rules, and all of them follow from the closed-interval convention. Mixing conventions is the root of most binary search bugs.</p>
+
+<pre><code>def search(nums, target):
+    left, right = 0, len(nums) - 1
+    while left &lt;= right:
+        mid = left + ((right - left) &gt;&gt; 1)
+        if nums[mid] == target:
+            return mid
+        if nums[mid] &lt; target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return -1
+</code></pre>
+
+<p>The loop condition matches an empty closed interval, which is exactly left exceeding right. The midpoint is computed as left plus half the span, which avoids overflow in fixed-width integer languages. And the bounds move past the midpoint because that index has already been examined.</p>
+
+<p>Reframe it in your head: you are not halving an array, you are discarding half the suspects each round without ever discarding the culprit.</p>
+
+<h2>69: the answer is a predicate boundary</h2>
+
+<p>There is no array, but there is a predicate: k squared is at most x, over the integer interval from zero to x. The predicate is monotone, true then false, and the integer part of the root is exactly the last true index.</p>
+
+<pre><code>def mySqrt(x):
+    lo, hi, ans = 0, x, 0
+    while lo &lt;= hi:
+        mid = lo + ((hi - lo) &gt;&gt; 1)
+        if mid * mid &lt;= x:
+            ans = mid
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return ans
+</code></pre>
+
+<table>
+<thead><tr><th></th><th>Search for a value</th><th>Search for a boundary</th></tr></thead>
+<tbody>
+<tr><td>On success</td><td>Return immediately</td><td><strong>Record and move right</strong></td></tr>
+<tr><td>When it ends</td><td>On a hit</td><td>Only when the interval empties</td></tr>
+<tr><td>The answer</td><td>The matching index</td><td>The last recorded candidate</td></tr>
+</tbody>
+</table>
+
+<p>There is a free property at the end: the answer equals both the low bound minus one and the high bound, since the high pointer comes to rest on the last true value. That is the red-blue boundary view: the low pointer is the first false, the high pointer is the last true, and the answer lives in the crack between them.</p>
+
+<p>Binary searching the answer space is the real lesson. The answer need not live in an existing array; construct a monotone predicate and the range of possible values becomes your array. Banana eating, package shipping within a day limit, and the first bad version are all this sentence wearing different clothes.</p>
+
+<p>Newton iteration is the other road: repeatedly set k to the average of k and x over k, which converges quadratically. For eight it goes eight, four, three, two. Theoretically faster, and fewer than one candidate in ten writes it, partly because proving that the integer variant lands on the floor rather than the ceiling takes extra argument. The binary version wins because every step follows the discipline above.</p>
+
+<h2>The animations</h2>
+
+<p>The 704 animation shows the array with the current window normal and the eliminated region greyed, the midpoint outlined in gold, and pointers above and below. A banner shows the comparison and the action, and a panel tracks the interval size and the running count of eliminated elements, so halving becomes visible. The default finds index nine in four probes.</p>
+
+<p>The 69 animation shows the candidate interval with each cell holding k above and k squared below, tinted by whether the predicate holds, so the boundary is the colour change. The midpoint is gold, the current candidate is green, and the banner shows the predicate result with the action, either record and move right or move the high bound left. For eight, four probes leave the answer at two.</p>
+
+<h2>The traces</h2>
+
+<table>
+<thead><tr><th>Probe</th><th>left</th><th>right</th><th>mid</th><th>Value</th><th>Action</th><th>Remaining</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>0</td><td>11</td><td>5</td><td>12</td><td>Too small, move left</td><td>6 through 11</td></tr>
+<tr><td>2</td><td>6</td><td>11</td><td>8</td><td>26</td><td>Too small, move left</td><td>9 through 11</td></tr>
+<tr><td>3</td><td>9</td><td>11</td><td>10</td><td>38</td><td>Too large, move right</td><td>9 through 9</td></tr>
+<tr><td>4</td><td>9</td><td>9</td><td>9</td><td>31</td><td>Hit</td><td>-</td></tr>
+</tbody>
+</table>
+
+<p>Twelve, six, three, one, hit. For a miss, the fourth probe moves the right bound past the left one, and that crossing is the proof that the target is absent.</p>
+
+<table>
+<thead><tr><th>Probe</th><th>lo</th><th>hi</th><th>mid</th><th>Square</th><th>Holds</th><th>Action</th><th>ans</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>0</td><td>8</td><td>4</td><td>16</td><td>false</td><td>Move hi to 3</td><td>0</td></tr>
+<tr><td>2</td><td>0</td><td>3</td><td>1</td><td>1</td><td>true</td><td>Record, move lo to 2</td><td>1</td></tr>
+<tr><td>3</td><td>2</td><td>3</td><td>2</td><td>4</td><td>true</td><td>Record, move lo to 3</td><td>2</td></tr>
+<tr><td>4</td><td>3</td><td>3</td><td>3</td><td>9</td><td>false</td><td>Move hi to 2</td><td>2</td></tr>
+</tbody>
+</table>
+
+<p>Probes two and three are the fingerprint: the predicate holds and the search does not stop. That is the difference between seeking a boundary and seeking a value.</p>
+
+<h2>The family</h2>
+
+<ul>
+<li><strong>Search insert position.</strong> Delete the return on a hit and return the low bound afterwards, which on a miss is the first element at least as large as the target.</li>
+<li><strong>First and last position of an element.</strong> Two boundary searches, one for at least and one for at most.</li>
+<li><strong>Smallest letter greater than the target.</strong> The same predicate with a different comparison.</li>
+<li><strong>First bad version, guess number.</strong> The canonical demonstrations of searching the answer space, with the predicate supplied by the system.</li>
+<li><strong>Minimum eating speed, ship within days.</strong> Answer search with an inner simulation computing the predicate, which is only usable once monotonicity is established.</li>
+<li><strong>Valid perfect square.</strong> The same shape as the root problem, asking for exactness instead of a floor.</li>
+<li><strong>Find peak, minimum in a rotated array.</strong> Binary search without a total order, where the midpoint's relation to its neighbours still tells you which half contains the answer.</li>
+<li><strong>Search a 2D matrix.</strong> A staircase search from the top right, eliminating a row or a column per step.</li>
+</ul>
+
+<p>One way to see the lineage: 704 is learning the alphabet, the insert and range problems are writing sentences, the answer-search problems are essays, and the peak and rotation problems are reading comprehension.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int search(int[] nums, int target) {
+    int left = 0, right = nums.length - 1;
+    while (left &lt;= right) {
+        int mid = left + ((right - left) &gt;&gt; 1);
+        if (nums[mid] == target) return mid;
+        if (nums[mid] &lt; target) left = mid + 1;
+        else right = mid - 1;
+    }
+    return -1;
+}
+
+public int mySqrt(int x) {
+    int lo = 0, hi = x, ans = 0;
+    while (lo &lt;= hi) {
+        int mid = lo + ((hi - lo) &gt;&gt; 1);
+        if ((long) mid * mid &lt;= x) {
+            ans = mid;
+            lo = mid + 1;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    return ans;
+}
+</code></pre>
+
+<p>Widening to a long before multiplying is the standard fix. The alternative is dividing instead, which is equivalent under integer division but needs a guard for a zero midpoint.</p>
+
+<h2>Edges</h2>
+
+<p>For the search: an empty array leaves the loop unentered and returns minus one naturally; a single element works whether it matches or not; a target smaller or larger than everything shrinks from one side for the full logarithmic number of probes. Duplicates are excluded by the problem, and this template returns whichever match it happens to hit rather than the leftmost, which is a different problem.</p>
+
+<p>For the root: zero and one return themselves; the maximum 32-bit input is the classic overflow minefield, where the answer changes by one exactly across the boundary; and for x at least two the high bound can start at half the value plus one, saving a probe.</p>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Version</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>704</td><td>Logarithmic in length</td><td>Constant</td></tr>
+<tr><td>69, binary</td><td>Logarithmic in the value</td><td>Constant</td></tr>
+<tr><td>69, Newton</td><td>Log of the log</td><td>Constant</td></tr>
+<tr><td>Linear scan, for contrast</td><td>Length, or the root of the value</td><td>Constant</td></tr>
+</tbody>
+</table>
+
+<p>Note that in the root problem the logarithm is over the value rather than the input length, so it is technically pseudopolynomial. Worth mentioning only in passing.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Using a strict loop condition with a closed interval, which skips the single-element case.</li>
+<li>Moving a bound to the midpoint without stepping past it, which stops shrinking and loops forever.</li>
+<li>Adding both bounds before halving, which overflows in fixed-width languages.</li>
+<li>Squaring the midpoint in the root problem without widening, which turns the value negative and inverts the predicate.</li>
+<li>Forgetting to prove monotonicity before copying the template; halving is only valid on a predicate that is true then false.</li>
+<li>Calling the language square root function, which is safe for small inputs and exactly what the question is not asking for.</li>
+<li>Counting iterations in Newton instead of testing the square, since the integer iteration may overshoot by one.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>For the search, state the invariant, then the three rules tied to the closed interval, then the return value when the interval empties, noting that the low bound is the insertion point. For the root, construct the predicate, show that the answer is its last true value, and contrast the single behavioural difference from the previous template. Then the overflow countermeasures, and Newton as a bonus. If asked why the loop condition is inclusive, derive it on the spot: a single-element closed interval still contains one unchecked element, which an exclusive condition would skip.</p>
+
+<h2>Closing</h2>
+
+<p>This pair reduces binary search from a trick to a discipline: one invariant, one convention, three rules. One teaches stopping on a hit; the other teaches not stopping on a hit, because the thing sought was never an element but the line between true and false. Once that boundary is firm, the rest of the family is the same sentence repeated.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-704-69-binary-search-and-sqrt/">【LC 704/69】二分查找 &amp; 平方根：命中返回 vs 还向右</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-61-poker-straight',
+    zhSlug: 'lc-61-poker-straight',
+    topicSlug: 'leetcode',
+    title: 'Poker straight: jokers fill gaps, never duplicates',
+    excerpt:
+      'Five cards, one question about sorted differences. Both official samples pass all three classic wrong answers, so the self-test needs counterexamples of its own.',
+    date: '2026-09-24',
+    readingTime: 12,
+    html: `
+<h2>The problem</h2>
+
+<p>Given five cards numbered one to thirteen, decide whether they form a straight. The follow-up adds jokers, written as zero, usable as any card.</p>
+
+<pre><code>[1,2,3,4,5]      -&gt; true
+[0,0,1,2,5]      -&gt; true    (the jokers become three and four)
+</code></pre>
+
+<p>Ten lines of code, and all the marks are in the details: duplicates, what the jokers may and may not do, and the boundary. The official samples are only two, and they happen to let all three common wrong answers through.</p>
+
+<h2>Collapse the question into differences</h2>
+
+<p>Do not ask whether the five cards are a straight; ask how far apart neighbours are after sorting. In a straight every gap is one, and a joker can fill a gap of any size, one hole per joker.</p>
+
+<pre><code>sort, count jokers, check adjacent gaps,
+spend jokers on the holes, succeed if the budget covers them
+</code></pre>
+
+<p>One constraint hides in the statement and is the one most often missed: a straight consists of five distinct numbers. A joker can supply a missing number and cannot remove a duplicate. Two twos stay two twos no matter how many jokers are in hand.</p>
+
+<p>So: no duplicates plus a small enough span means a straight, and the jokers merely loosen the span by their count.</p>
+
+<p>Without jokers, five distinct cards form a straight exactly when every adjacent gap is one, equivalently when the maximum minus the minimum is four. Note that it is exactly four, not at most: a span of five looks almost right and is genuinely missing one card in the middle.</p>
+
+<h2>With jokers</h2>
+
+<pre><code>def is_straight(cards: list[int]) -&gt; bool:
+    if len(cards) != 5:
+        raise ValueError("exactly five cards")
+    s = sorted(cards)
+    jokers = s.count(0)
+    rest = s[jokers:]
+    for i in range(1, len(rest)):
+        if rest[i] == rest[i - 1]:
+            return False
+        if rest[i] - rest[i - 1] &gt; 1:
+            jokers -= rest[i] - rest[i - 1] - 1
+            if jokers &lt; 0:
+                return False
+    return True
+</code></pre>
+
+<p>Three steps: sort so the jokers float to the front, count them as the budget, and spend the budget on holes. The duplicate test comes before spending, because the two failure reasons are independent and neither can rescue the other.</p>
+
+<p>There is a cleaner equivalent criterion, one line long: with the non-jokers distinct, their span must be under five.</p>
+
+<pre><code>def is_straight(cards: list[int]) -&gt; bool:
+    s = sorted(cards)
+    rest = [c for c in s if c != 0]
+    if len(set(rest)) != len(rest):
+        return False
+    return True if not rest else max(rest) - min(rest) &lt; 5
+</code></pre>
+
+<p>Why the threshold works: with m non-jokers the number of holes is the span minus m minus one, and having enough jokers reduces exactly to a span of at most four. With no jokers it tightens automatically to exactly four, since five distinct numbers span at least four. One criterion covers both versions.</p>
+
+<h2>The animation</h2>
+
+<p>The first animation walks the process on a shuffled hand. After sorting, the joker floats to the front, then each adjacent pair is examined: one gap is natural, another gap of two is a single missing card, and the only joker is spent, leaving a budget of exactly zero. The layout shows the current phase, the sorted hand with the joker in gold, a ledger of adjacent pairs with a chip each, the assembled straight with filled cells marked, and the verdict with the joker usage.</p>
+
+<p>The frame worth watching is the pair that spends the joker: the missing card is highlighted, the budget drops from one to zero, and there is no margin between enough and not enough.</p>
+
+<p>The second animation shows three counterexamples where the official samples stay silent, each with the correct verdict beside the wrong one. All three wrong answers fail in the same direction: they let a non-straight through.</p>
+
+<table>
+<thead><tr><th>Adjacent pair</th><th>Gap</th><th>Action</th><th>Jokers left</th></tr></thead>
+<tbody>
+<tr><td>3 to 4</td><td>1</td><td>Natural</td><td>1</td></tr>
+<tr><td>4 to 5</td><td>1</td><td>Natural</td><td>1</td></tr>
+<tr><td>5 to 7</td><td>2</td><td>Spend one for the six</td><td>0</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Input</th><th>Result</th><th>Reason</th></tr></thead>
+<tbody>
+<tr><td>1,2,3,4,5</td><td>true</td><td>Official sample, no jokers</td></tr>
+<tr><td>0,0,1,2,5</td><td>true</td><td>Official sample, two jokers for three and four</td></tr>
+<tr><td>1,2,3,4,6</td><td>false</td><td>Missing five, no joker</td></tr>
+<tr><td>1,2,2,3,4</td><td>false</td><td>Duplicate two, jokers cannot help</td></tr>
+<tr><td>0,1,2,4,6</td><td>false</td><td>Two holes, one joker</td></tr>
+<tr><td>0,0,1,2,13</td><td>false</td><td>A span of twelve against two jokers</td></tr>
+<tr><td>0,0,2,2,5</td><td>false</td><td>Duplicate plus holes</td></tr>
+<tr><td>0,0,0,0,0</td><td>true</td><td>All jokers</td></tr>
+</tbody>
+</table>
+
+<h2>Java</h2>
+
+<pre><code>public class PokerStraight {
+    public static boolean isStraight(int[] cards) {
+        if (cards == null || cards.length != 5) {
+            throw new IllegalArgumentException("exactly five cards");
+        }
+        Arrays.sort(cards);
+        int jokers = 0;
+        while (jokers &lt; 5 &amp;&amp; cards[jokers] == 0) {
+            jokers++;
+        }
+        for (int i = jokers + 1; i &lt; 5; i++) {
+            if (cards[i] == cards[i - 1]) {
+                return false;
+            }
+            jokers -= cards[i] - cards[i - 1] - 1;
+            if (jokers &lt; 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+</code></pre>
+
+<p>There is no overflow risk here, so the traps are all in initialisation. Initialising the minimum to zero makes the span one too large and rejects a genuine straight; including the jokers when computing the span makes it larger still, and rejects the second sample. Both share one lesson: a joker is not a card with the value zero, it is a card whose value is undecided, so it plays no part in span or duplicate checks and appears only when filling holes.</p>
+
+<h2>Variants</h2>
+
+<p>With a wraparound ace, where ten through ace also counts, test both identities: if an ace is present, substitute fourteen and test again, accepting if either reading works. Hands like ace, ten, eleven, twelve, thirteen succeed under the second reading; thirteen, ace, two, three, four fail under both.</p>
+
+<p>More than two jokers changes nothing in the algorithm, since the count is just a number. A real deck holds two, so more than that is invalid input and a defensive check is worth mentioning.</p>
+
+<p>Choosing five cards from a larger hand turns the decision into a search: look for a window of five consecutive ranks containing at least five distinct cards plus jokers.</p>
+
+<p>A flush adds a suit dimension: group by suit first, then apply the same test inside the group.</p>
+
+<h2>Complexity</h2>
+
+<p>Constant time and space, since a five-card sort is bounded. The interesting axis is correctness rather than efficiency. As a sanity check on the criterion, exhaustive enumeration confirms the counts: nine straights out of twelve hundred eighty-seven jokerless combinations, thirty-seven of seven hundred fifteen with one joker, and fifty-eight of two hundred eighty-six with two, so jokers make straights roughly thirty times more likely than without.</p>
+
+<h2>Three bugs the official samples miss</h2>
+
+<p>Checking only the span and not duplicates lets a hand with two twos through, since its span is small. Writing the span test as at most five instead of strictly under five lets through a hand missing a middle card with no joker. And iterating the gaps from index one, over the jokers as well, subtracts one per adjacent joker pair, which cancels a real hole: a hand with two jokers and three genuine holes passes the ledger while being impossible.</p>
+
+<p>Keep those three counterexamples on hand. Note also the two mistakes from the Java section, which fail in the opposite direction by rejecting valid hands, and which the official samples do catch. Sample coverage is biased, so it cannot be the only test.</p>
+
+<h2>How to answer it</h2>
+
+<p>The short version: sort with jokers first, count the budget, compare adjacent gaps, spend one joker per missing card, reject duplicates outright, and fail when the budget runs out. Constant time and space. If there is time, add the equivalent one-line criterion, the three counterexamples, and the variant notes about the ace and about invalid inputs.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-61-poker-straight/">【扑克】5 张牌判断顺子：王只补缺失，补不了重复</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-5-longest-palindromic-substring',
+    zhSlug: 'lc-5-longest-palindromic-substring',
+    topicSlug: 'leetcode',
+    title: 'LC 5, longest palindromic substring: two n minus one centres',
+    excerpt:
+      'A palindrome is determined by a centre and a radius, so enumerate centres rather than substrings. The count is two n minus one, and forgetting the gaps loses every even palindrome.',
+    date: '2026-09-23',
+    readingTime: 12,
+    html: `
+<h2>The problem</h2>
+
+<p>Find the longest palindromic substring.</p>
+
+<pre><code>"babad"  -&gt;  "bab"    ("aba" is equally valid)
+"cbbd"   -&gt;  "bb"
+</code></pre>
+
+<h2>Enumerate centres, not substrings</h2>
+
+<p>Count the brute force first: quadratically many substrings, each verified in linear time, so cubic overall, which is a billion operations at a thousand characters.</p>
+
+<p>Change the viewpoint. A palindrome is symmetric about a centre, so it is fully determined by the centre and the radius. The answer is therefore the longest expansion over all centres, and there are only twice n minus one of them, each expanding in linear time at worst. That gives quadratic time and constant space.</p>
+
+<p>Why not n centres: palindromes come in two parities.</p>
+
+<table>
+<thead><tr><th>Centre type</th><th>Example</th><th>Count</th></tr></thead>
+<tbody>
+<tr><td><strong>Character centre</strong></td><td>Odd palindromes</td><td>n</td></tr>
+<tr><td><strong>Gap centre</strong></td><td>Even palindromes, symmetric about the seam between two characters</td><td>n minus one</td></tr>
+</tbody>
+</table>
+
+<p>Enumerating only character centres loses every even palindrome, since the centre of a four-letter palindrome is not on any character. That is the classic bug in this problem.</p>
+
+<h2>The expansion</h2>
+
+<pre><code>def expand(s, l, r):
+    while l &gt; 0 and r &lt; len(s) - 1 and s[l - 1] == s[r + 1]:
+        l -= 1
+        r += 1
+    return l, r
+</code></pre>
+
+<p>The loop assumes the centre is already valid and tests whether the next pair outward matches, comparing the characters one step outside the current bounds, with guards preventing an out-of-range read.</p>
+
+<pre><code>def longestPalindrome(s: str) -&gt; str:
+    n = len(s)
+    best_l, best_r = 0, 0
+
+    for i in range(n):
+        l, r = expand(s, i, i)
+        if r - l &gt; best_r - best_l:
+            best_l, best_r = l, r
+        if i + 1 &lt; n and s[i] == s[i + 1]:
+            l, r = expand(s, i, i + 1)
+            if r - l &gt; best_r - best_l:
+                best_l, best_r = l, r
+
+    return s[best_l:best_r + 1]
+</code></pre>
+
+<p>Two details. The gap centre is only expanded when the two adjacent characters are equal, since otherwise even the smallest even palindrome is impossible. And equal-length candidates keep the first found, which makes the result predictable rather than dependent on enumeration order.</p>
+
+<h2>The animation</h2>
+
+<p>A row of characters scanned across all nine centres of the five-letter example, alternating types. A character centre is outlined with the expanded range tinted. A gap centre is marked by a vertical dashed line between two cells, and in this example every gap fails immediately because the neighbours differ, so the dashes flash past. The best range carries a gold underline as it advances, and the final frame colours it green.</p>
+
+<p>The empty scans at gaps are not waste: they are what guarantees no even palindrome is missed.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Centre</th><th>Type</th><th>Range</th><th>Palindrome</th><th>Best</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>index 0</td><td>character</td><td>0 to 0</td><td>b</td><td>b</td></tr>
+<tr><td>2</td><td>gap 0</td><td>gap</td><td>no</td><td>-</td><td>b</td></tr>
+<tr><td>3</td><td>index 1</td><td>character</td><td>0 to 2</td><td><strong>bab</strong></td><td>bab</td></tr>
+<tr><td>4</td><td>gap 1</td><td>gap</td><td>no</td><td>-</td><td>bab</td></tr>
+<tr><td>5</td><td>index 2</td><td>character</td><td>1 to 3</td><td>aba</td><td>bab, unchanged</td></tr>
+<tr><td>6</td><td>gap 2</td><td>gap</td><td>no</td><td>-</td><td>bab</td></tr>
+<tr><td>7</td><td>index 3</td><td>character</td><td>3 to 3</td><td>a</td><td>bab</td></tr>
+<tr><td>8</td><td>gap 3</td><td>gap</td><td>no</td><td>-</td><td>bab</td></tr>
+<tr><td>9</td><td>index 4</td><td>character</td><td>4 to 4</td><td>d</td><td>bab</td></tr>
+</tbody>
+</table>
+
+<p>For the four-letter example the character centres all give length one and the gap between the two middle letters expands to the pair, which is where the second sample answer comes from. For a four-letter palindrome the gap expands outward further, reaching the full string.</p>
+
+<h2>Comparisons</h2>
+
+<pre><code>def longestPalindrome(s: str) -&gt; str:
+    n = len(s)
+    dp = [[False] * n for _ in range(n)]
+    best_l, best_r = 0, 0
+    for i in range(n - 1, -1, -1):
+        for j in range(i, n):
+            dp[i][j] = s[i] == s[j] and (j - i &lt; 2 or dp[i + 1][j - 1])
+            if dp[i][j] and j - i &gt; best_r - best_l:
+                best_l, best_r = i, j
+    return s[best_l:best_r + 1]
+</code></pre>
+
+<p>The interval DP has the same time and quadratic space, so centre expansion wins on memory while the DP offers a different lens, that larger palindromes grow from smaller ones. Mention it and write the other.</p>
+
+<p>Manacher runs in linear time by inserting separators to unify the parities and reusing already computed radii. It is low value to hand-write in an interview; naming it and its two ideas is enough unless the role demands it.</p>
+
+<table>
+<thead><tr><th>Problem</th><th>What changes</th></tr></thead>
+<tbody>
+<tr><td>Count palindromic substrings</td><td>The same centres, counting instead of taking the maximum</td></tr>
+<tr><td>Longest palindromic subsequence</td><td>Subsequences may skip characters, so centre expansion fails and interval DP takes over</td></tr>
+<tr><td>Palindrome partitioning</td><td>A precomputed palindrome table plus backtracking</td></tr>
+</tbody>
+</table>
+
+<p>The family rule: contiguous means enumerate centres, and subsequence means interval DP. The dividing line is whether an inside-out extension can derive the answer.</p>
+
+<h2>Java</h2>
+
+<pre><code>public String longestPalindrome(String s) {
+    int n = s.length(), bestL = 0, bestR = 0;
+    for (int i = 0; i &lt; n; i++) {
+        int[] odd = expand(s, i, i);
+        if (odd[1] - odd[0] &gt; bestR - bestL) { bestL = odd[0]; bestR = odd[1]; }
+        if (i + 1 &lt; n &amp;&amp; s.charAt(i) == s.charAt(i + 1)) {
+            int[] even = expand(s, i, i + 1);
+            if (even[1] - even[0] &gt; bestR - bestL) { bestL = even[0]; bestR = even[1]; }
+        }
+    }
+    return s.substring(bestL, bestR + 1);
+}
+
+private int[] expand(String s, int l, int r) {
+    while (l &gt; 0 &amp;&amp; r &lt; s.length() - 1 &amp;&amp; s.charAt(l - 1) == s.charAt(r + 1)) {
+        l--; r++;
+    }
+    return new int[]{l, r};
+}
+</code></pre>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Point</th></tr></thead>
+<tbody>
+<tr><td>one character</td><td>itself</td><td>A single centre</td></tr>
+<tr><td>two distinct characters</td><td>the first</td><td>No palindrome beyond length one</td></tr>
+<tr><td>two equal characters</td><td>both</td><td>The gap centre</td></tr>
+<tr><td>a four-letter palindrome</td><td>the whole string</td><td>The gap keeps expanding</td></tr>
+<tr><td>all identical</td><td>the whole string</td><td>Expansion runs to the boundary</td></tr>
+<tr><td>non-BMP characters</td><td>by code point</td><td>Split by code point, not by code unit</td></tr>
+</tbody>
+</table>
+
+<h2>Complexity</h2>
+
+<p>Quadratic time for the centres and their expansions, constant space, which is an order of magnitude better than the DP and the practical reason to prefer it.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Enumerating only character centres, which answers a single character for the even samples. Self-test on the four-letter even case.</li>
+<li>Comparing the current bounds instead of the next pair outward, which walks off the string because the centre pair trivially matches itself.</li>
+<li>Updating equal-length candidates, which makes the result drift with enumeration order.</li>
+<li>Treating a failing gap as a candidate, which records an interval that is not a palindrome. Test the two characters first.</li>
+<li>Getting the DP base case off by one, which misclassifies a two-character palindrome, and filling the table in the wrong order.</li>
+<li>Splitting by UTF-16 code units in JavaScript, which breaks emoji apart so that identical characters compare unequal.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Characterise first: a palindrome is determined by centre and radius, so enumerate the twice-n-minus-one centres. State that number explicitly, with the split into character centres and gap centres, and note that omitting gaps loses every even palindrome. Then the brute-force accounting and how centre expansion folds verification into enumeration. Then the comparisons with the DP and with Manacher, and finally the edge cases.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-5-longest-palindromic-substring/">【LC 5】最长回文子串：枚举中心 —— 2n-1 个中心，别漏了间隙</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-121-122-best-time-to-buy-and-sell-stock',
+    zhSlug: 'lc-121-122-best-time-to-buy-and-sell-stock',
+    topicSlug: 'leetcode',
+    title: 'LC 121 and 122: one trade, and unlimited trades',
+    excerpt:
+      'The first is a patient minimum waiting to be redeemed; the second is a two-state machine, and its greedy shortcut collapses into the sum of positive differences.',
+    date: '2026-09-22',
+    readingTime: 14,
+    html: `
+<h2>The problems</h2>
+
+<p><strong>121:</strong> given daily prices, choose one buy and one later sell to maximise profit, or zero if no profit exists.</p>
+
+<pre><code>[7,1,5,3,6,4]  -&gt;  5    (buy at 1, sell at 6)
+[7,6,4,3,1]    -&gt;  0    (declining, do nothing)
+</code></pre>
+
+<p><strong>122:</strong> the same prices, unlimited trades, but still buy before sell and hold at most one share.</p>
+
+<pre><code>[7,1,5,3,6,4]  -&gt;  7    (1 to 5 gives 4, 3 to 6 gives 3)
+[1,2,3,4,5]    -&gt;  4    (holding throughout is equivalent)
+</code></pre>
+
+<p>Both share one state machine. The first is a single-pass scan with one variable; the second is a two-state DP that collapses into a greedy rule, the sum of all positive differences. Once these two machines are clear, the follow-ups about cooldowns, fees, two trades and k trades are equation edits, not new ideas.</p>
+
+<h2>121: waiting for the cheapest yesterday</h2>
+
+<p>Brute force enumerates every buy and sell pair, which is quadratic. The compression comes from changing the question: instead of asking which day to buy, ask each day how much selling today would earn.</p>
+
+<p>Selling on day d, the buy must be the cheapest day before it, so only two variables are needed: the historical minimum up to yesterday, and the best profit among all sells-today candidates.</p>
+
+<pre><code>def maxProfit(prices):
+    min_price, best = prices[0], 0
+    for p in prices[1:]:
+        best = max(best, p - min_price)
+        min_price = min(min_price, p)
+    return best
+</code></pre>
+
+<p>Both variables are monotone: the minimum only steps down, the best only climbs, and most days neither moves. When prices fall throughout, every candidate is negative and the best stays at zero, which is exactly the semantics of choosing not to trade, and the boundary between maximum profit and maximum difference.</p>
+
+<p>One sentence: this problem is not about finding the lowest price, it is about waiting for that price to be redeemed by a later high.</p>
+
+<h2>122: eating every slope</h2>
+
+<p>With unlimited trades there are two routes. The greedy one takes every upward slope and sits out every downward one, so the answer is the sum of positive adjacent differences.</p>
+
+<pre><code>def maxProfit(prices):
+    return sum(max(0, b - a) for a, b in zip(prices, prices[1:]))
+</code></pre>
+
+<p>For the sample the differences are minus six, plus four, minus two, plus three, minus two, and the positive total is seven. Taking daily profits does not violate the one-share limit because adjacent positive differences join seamlessly: splitting a continuous rise into daily trades does not change the sum.</p>
+
+<p>The other route is the state machine: after each close the world has two states, holding no share and holding a share, and each transitions from yesterday's values.</p>
+
+<pre><code>cash = max(cash, hold + price)      # stay, or sell today
+hold = max(hold, cash - price)      # stay, or buy today
+</code></pre>
+
+<p>Initially cash is zero and the holding state is minus the first price, because opening a position converts money into a share at a loss. The answer is the cash state, since an unrealised position is not profit.</p>
+
+<pre><code>def maxProfit(prices):
+    cash, hold = 0, -prices[0]
+    for p in prices[1:]:
+        cash = max(cash, hold + p)
+        hold = max(hold, cash - p)
+    return cash
+</code></pre>
+
+<p>The two routes agree frame by frame, which is not a coincidence: unfolding the recurrence shows that each improvement in cash is exactly the day's positive difference. Greedy is the special case where a decision is made every day, and the DP is the proof of that greedy rule.</p>
+
+<h2>The animations</h2>
+
+<p>The 121 animation shows the price row with the current day outlined and the historical minimum marked in green. A banner scores selling today against the best, and a panel tracks the three numbers. Watch the minimum only stepping down and the best only climbing. In the default series the minimum breaks once and the best improves twice.</p>
+
+<p>The 122 animation adds difference badges between adjacent cells, green for upward and grey for downward, so it is visible whether the greedy rule takes the segment. Two state boxes show the cash and hold transitions with the winning side highlighted. The panel lists the greedy total beside the two states, and the first two columns agree on every frame. The default series eats plus four and plus three.</p>
+
+<h2>The traces</h2>
+
+<table>
+<thead><tr><th>Day</th><th>Price</th><th>Candidate</th><th>Best</th><th>Minimum</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>7</td><td>-</td><td>0</td><td>7</td><td>Initialise</td></tr>
+<tr><td>1</td><td>1</td><td>-6</td><td>0</td><td>1</td><td>Minimum steps down</td></tr>
+<tr><td>2</td><td>5</td><td>4</td><td>4</td><td>1</td><td><strong>Best improves</strong></td></tr>
+<tr><td>3</td><td>3</td><td>2</td><td>4</td><td>1</td><td>Pass</td></tr>
+<tr><td>4</td><td>6</td><td>5</td><td>5</td><td>1</td><td><strong>Best improves</strong></td></tr>
+<tr><td>5</td><td>4</td><td>3</td><td>5</td><td>1</td><td>Pass</td></tr>
+</tbody>
+</table>
+
+<table>
+<thead><tr><th>Day</th><th>Price</th><th>Diff</th><th>Greedy</th><th>Sell branch</th><th>Buy branch</th><th>Cash</th><th>Hold</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>7</td><td>-</td><td>0</td><td>-</td><td>-</td><td>0</td><td>-7</td></tr>
+<tr><td>1</td><td>1</td><td>-6</td><td>0</td><td>-6</td><td>-1</td><td>0</td><td>-1</td></tr>
+<tr><td>2</td><td>5</td><td>+4</td><td>4</td><td>4</td><td>-5</td><td>4</td><td>-1</td></tr>
+<tr><td>3</td><td>3</td><td>-2</td><td>4</td><td>2</td><td>1</td><td>4</td><td>1</td></tr>
+<tr><td>4</td><td>6</td><td>+3</td><td>7</td><td>7</td><td>-2</td><td>7</td><td>1</td></tr>
+<tr><td>5</td><td>4</td><td>-2</td><td>7</td><td>5</td><td>3</td><td>7</td><td>3</td></tr>
+</tbody>
+</table>
+
+<p>Three things hold simultaneously: the greedy and cash columns agree everywhere, cash is never below hold, and the holding state is refreshed on down days by buying a cheaper entry, which shows the DP is not idle when prices fall.</p>
+
+<h2>The follow-up chain</h2>
+
+<ul>
+<li><strong>With a fee:</strong> subtract it on the sell branch, or on the greedy side only take differences larger than the fee. Charge it once.</li>
+<li><strong>With a cooldown:</strong> a sale blocks buying the next day, so open a third state for having just sold. Buying is then only allowed from the resting state, and the resting state decays into cash.</li>
+<li><strong>At most two trades:</strong> duplicate the two states per trade and update them in dependency order: first buy, first sell, second buy, second sell.</li>
+<li><strong>At most k trades:</strong> arrays of buy and sell states, quadratic in k per day. When k exceeds half the length, trades are effectively unlimited and the problem collapses back to the greedy rule, which is the only real trap in that problem.</li>
+</ul>
+
+<p>The general form is the textbook three-dimensional machine indexed by day, number of trades and holding status. The first problem is one trade, the second is unlimited, the third is two, and the cooldown and fee variants attach side effects to the transitions. Asked a follow-up, draw the two circles and edit the arrows in place.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int maxProfit(int[] prices) {
+    int minPrice = prices[0], best = 0;
+    for (int i = 1; i &lt; prices.length; i++) {
+        best = Math.max(best, prices[i] - minPrice);
+        minPrice = Math.min(minPrice, prices[i]);
+    }
+    return best;
+}
+
+public int maxProfitUnlimited(int[] prices) {
+    int cash = 0, hold = -prices[0];
+    for (int i = 1; i &lt; prices.length; i++) {
+        cash = Math.max(cash, hold + prices[i]);
+        hold = Math.max(hold, cash - prices[i]);
+    }
+    return cash;
+}
+</code></pre>
+
+<p>The cooldown variant keeps a third state, updated from the previous day's values so that selling today cannot also buy today. The two-trade variant keeps four variables updated along the dependency chain.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>A single day yields zero, since there is no tomorrow to sell.</li>
+<li>A decline throughout yields zero, because not trading is always legal.</li>
+<li>Constant prices yield zero, since no difference is positive.</li>
+<li>A monotone rise yields the full span, and daily trading equals holding, which is the greedy rule in miniature.</li>
+<li>The ordering trap: a series whose largest absolute difference is illegal because the low comes after the high. The minimum must be tracked as you go, since a sale can only happen later.</li>
+<li>For k trades, when k is at least half the length, switch to the unlimited solution rather than computing unused layers.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>121, two variables</td><td>Linear</td><td>Constant</td></tr>
+<tr><td>121, brute force</td><td>Quadratic</td><td>Constant</td></tr>
+<tr><td>122, greedy or states</td><td>Linear</td><td>Constant</td></tr>
+<tr><td>With fee, cooldown, two trades</td><td>Linear</td><td>Constant</td></tr>
+<tr><td>k trades</td><td>Linear in n times k</td><td>Linear in k</td></tr>
+</tbody>
+</table>
+
+<p>The space optimisation is the same everywhere: transitions depend only on yesterday, so rolling that dimension away leaves a handful of integers.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Computing the maximum minus the minimum without regard to order, which produces an illegal answer whenever the low comes later.</li>
+<li>Forgetting that not trading is allowed, which makes a declining series return a negative rather than zero.</li>
+<li>Summing raw differences instead of clipping them at zero, which amounts to eating the downslopes too.</li>
+<li>Initialising the holding state to zero, which is a free share, or equivalently permission to short.</li>
+<li>Returning the holding state, since an unrealised position is not profit.</li>
+<li>Forgetting the cooldown constraint and reusing the two-state equations, which makes the cooldown invisible.</li>
+<li>Charging the fee on both sides of a trade.</li>
+<li>Updating the four two-trade variables out of order, which allows the second buy to precede the first sell.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>For the first: change the question to selling today, argue that the buy is the minimum so far, reduce the pair enumeration to two monotone variables, note that zero is the floor and that this is an ordered maximum difference rather than a range. For the second: give the greedy rule with the seamless-tiling argument, then the state machine, then the equivalence, since stating it is the difference between a correct answer and a complete one. For the follow-ups: do not change the problem, change the equation.</p>
+
+<h2>Closing</h2>
+
+<p>The first teaches waiting: the historical minimum is a patience variable whose entire meaning is to be redeemed by a later high. The second teaches restraint: no position on the way down, no complaint about small gains on the way up. Further along the chain, cooldowns, fees and trade counts all edit the same two lines, because the machine holds and the problems are costume changes.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-121-122-best-time-to-buy-and-sell-stock/">【LC 121/122】买卖股票 I &amp; II：等低点与吃上坡</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
