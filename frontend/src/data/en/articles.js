@@ -34627,6 +34627,966 @@ assert maxSubarraySumCircular([-3,-2,-3]) == -2
 `,
   },
 
+  {
+    slug: 'lc-189-rotate-array',
+    zhSlug: 'lc-189-rotate-array',
+    topicSlug: 'leetcode',
+    title: 'LC 189, rotate an array: three reversals, because reversal is its own inverse',
+    excerpt:
+      'Reversing the whole array swaps the two segments into place while inverting their internals; reversing each back restores order. Two passes, two jobs, and one Python trap at k of zero.',
+    date: '2026-10-02',
+    readingTime: 12,
+    html: `
+<h2>The problem</h2>
+
+<p>Rotate an array right by k positions, in place, in constant extra space.</p>
+
+<pre><code>[1,2,3,4,5,6,7], k = 3  -&gt;  [5,6,7,1,2,3,4]
+</code></pre>
+
+<p>The constant-space requirement rules out copying into a new array, which leaves the three-reversal technique as the main character. It needs no number theory and finishes in six swaps.</p>
+
+<h2>Modulo first, and one Python trap</h2>
+
+<p>Take k modulo n before anything else, since rotating by n is no rotation at all and k may exceed n. After that k lies between zero and n minus one, and a zero means return immediately.</p>
+
+<p>A one-liner popular in Python is <code>nums[:] = nums[-k:] + nums[:-k]</code>, and it is wrong at k of zero, because minus zero is zero and the slice is the whole array, so the result is the array concatenated with itself. Fixing it means taking the modulus first, or writing the split with n minus k, which degenerates correctly.</p>
+
+<pre><code>def rotate(nums, k):
+    n = len(nums)
+    k %= n
+    if k == 0:
+        return
+    nums[:] = nums[n - k:] + nums[:n - k]
+</code></pre>
+
+<p>Note that slice assignment modifies the original list in place, but the right-hand side builds a new list, so the extra space is still linear. It only looks in place.</p>
+
+<h2>Three reversals</h2>
+
+<p>Rotating by k means cutting at n minus k and exchanging the two segments. Doing that directly needs a buffer, but reversing the whole array accomplishes the exchange while inverting each segment internally, and reversing each segment restores the internal order.</p>
+
+<pre><code>[1,2,3,4,5,6,7]  reverse all  -&gt;  [7,6,5 | 4,3,2,1]
+[7,6,5] -&gt; [5,6,7]      [4,3,2,1] -&gt; [1,2,3,4]
+-&gt; [5,6,7,1,2,3,4]
+</code></pre>
+
+<p>The reason it works is that reversal is its own inverse: applying it twice is the identity. The first pass handles positions and damages order, the second pass repairs order and leaves positions alone. The two jobs do not interfere.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Step</th><th>Swaps</th><th>Array</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>-</td><td>1,2,3,4,5,6,7</td></tr>
+<tr><td>1-3</td><td>reverse all</td><td>(0,6) (1,5) (2,4)</td><td>7,6,5,4,3,2,1</td></tr>
+<tr><td>4</td><td>reverse the first k</td><td>(0,2)</td><td>5,6,7,4,3,2,1</td></tr>
+<tr><td>5-6</td><td>reverse the last n minus k</td><td>(3,6) (4,5)</td><td>5,6,7,1,2,3,4</td></tr>
+<tr><td>7</td><td>done</td><td>-</td><td>the answer</td></tr>
+</tbody>
+</table>
+
+<p>The number of swaps in a segment is half its length rounded down, so three, one and two here, six in total, and each element moves at most once.</p>
+
+<h2>Why the space is constant</h2>
+
+<p>Every pass is two indices closing in from the ends, swapping and stepping, stopping when they meet. One temporary variable is all the state there is.</p>
+
+<p>Time is linear overall, since each pass touches half a segment and each element is read and written a constant number of times.</p>
+
+<table>
+<thead><tr><th>Approach</th><th>Idea</th><th>Time</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td><strong>Three reversals</strong></td><td>All, then the first k, then the rest</td><td>Linear</td><td>No arithmetic, easiest to write</td></tr>
+<tr><td>Cyclic replacement</td><td>Follow the cycle of index plus k modulo n, starting a new cycle per orbit</td><td>Linear</td><td>Needs the gcd, easy to get wrong</td></tr>
+<tr><td>Shift one at a time</td><td>Move the last element to the front, k times</td><td>Quadratic in k</td><td>Teaching only</td></tr>
+</tbody>
+</table>
+
+<p>The cyclic version depends on the gcd partitioning the indices into permutation cycles, which is elegant and error-prone. Offer the reversals first and mention the cycle version as an aside.</p>
+
+<pre><code>class Solution {
+    public void rotate(int[] nums, int k) {
+        int n = nums.length;
+        k %= n;
+        reverse(nums, 0, n - 1);
+        reverse(nums, 0, k - 1);
+        reverse(nums, k, n - 1);
+    }
+
+    private void reverse(int[] a, int i, int j) {
+        while (i &lt; j) {
+            int t = a[i]; a[i] = a[j]; a[j] = t;
+            i++; j--;
+        }
+    }
+}
+</code></pre>
+
+<p>When k is zero after the modulus, the three ranges are empty or single, so each loop does nothing. That is the advantage over the slice version: the slice version genuinely breaks at zero, while this one simply idles.</p>
+
+<h2>Edges and mistakes</h2>
+
+<ol>
+<li>Forgetting the modulus, which reads out of range when k exceeds n.</li>
+<li>Getting the segment bounds wrong: the first pass covers the whole array, the second ends at k minus one, and the third starts at k. One index off produces either a sliver of unrotated data or an infinite loop.</li>
+<li>Degenerate inputs are safe here, since the second range can be empty and the loop simply does not run.</li>
+<li>Rotating left is equivalent to rotating right by n minus the modulus, so convert rather than rewrite.</li>
+</ol>
+
+<h2>The same idea elsewhere</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>What changes</th><th>How to think about it</th></tr></thead>
+<tbody>
+<tr><td>Reverse the words in a string</td><td>A string instead of an array, word order instead of rotation</td><td>The same three passes: reverse everything, then each word</td></tr>
+<tr><td>Rotate a linked list</td><td>A list instead of an array</td><td>No random access, so form a cycle and cut it instead</td></tr>
+<tr><td>Flip a string to monotone</td><td>Flipping prefixes rather than rotating</td><td>State changes, so prefix counts</td></tr>
+<tr><td>Rotate an image</td><td>Ninety degrees in two dimensions</td><td>Transpose then reverse each row, still reversals composed</td></tr>
+</tbody>
+</table>
+
+<p>The family principle: when the goal is rearranging positions, ask whether the transformation decomposes into a composition of reversals, which are the most basic in-place constant-space operation.</p>
+
+<h2>How to answer it</h2>
+
+<p>List the options first to show breadth: copying, shifting one at a time, cyclic replacement, three reversals. Then write the reversals, starting with the modulus. Then explain the principle, that reversal is its own inverse so positions and order can be restored separately. Then mention the traps, including the k of zero case that breaks the slice idiom and does not affect this one. Self-check with the sample, with two elements rotated by five, and with three elements rotated by three, which is unchanged.</p>
+
+<p>One line: rotation is exchanging two segments, which is a full reversal followed by a reversal of each segment.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-189-rotate-array/">【LC 189】轮转数组：三次翻转 —— 反转是自己的逆运算</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-165-compare-version-numbers',
+    zhSlug: 'lc-165-compare-version-numbers',
+    topicSlug: 'leetcode',
+    title: 'LC 165, compare version numbers: normalise, then compare column by column',
+    excerpt:
+      'Leading zeros and missing revisions are the same instruction: normalise first. Once stripped, longer means larger, and equal lengths compare lexicographically.',
+    date: '2026-10-01',
+    readingTime: 11,
+    html: `
+<h2>The problem</h2>
+
+<p>Compare two dotted version strings. Revisions are compared left to right, leading zeros are ignored, and missing revisions count as zero. Return one, minus one or zero.</p>
+
+<pre><code>"1.01"  vs "1.001"  -&gt; 0   (both normalise to 1.1)
+"1.0"   vs "1.0.0"  -&gt; 0   (missing revision is zero)
+"1.2"   vs "1.10"   -&gt; -1  (2 below 10, though the character 2 is above 1)
+</code></pre>
+
+<h2>Normalise, then compare</h2>
+
+<p>The rules look numerous, and both of the interesting ones point at the same action: normalise each revision, stripping leading zeros and defaulting a missing one to zero, and then compare column by column, moving on when equal and short-circuiting on the first difference.</p>
+
+<p>As with string addition, the idea is elimination: rule out the shortcuts, and one approach remains. Converting to numbers works and has a trap covered below; avoiding conversion requires a fact worth remembering.</p>
+
+<h2>The fact after normalisation</h2>
+
+<pre><code>def strip_zeros(s: str) -&gt; str:
+    i = 0
+    while i &lt; len(s) - 1 and s[i] == '0':
+        i += 1
+    return s[i:]
+</code></pre>
+
+<p>The guard leaves at least one character, so an all-zero revision becomes a single zero rather than an empty string. Then, with no leading zeros remaining, two facts hold: a longer string is a larger number, and equal lengths compare identically whether by character or by value.</p>
+
+<pre><code>def cmp_norm(a: str, b: str) -&gt; int:
+    if len(a) != len(b):
+        return -1 if len(a) &lt; len(b) else 1
+    if a == b:
+        return 0
+    return -1 if a &lt; b else 1
+</code></pre>
+
+<p>So comparing two revisions needs no numeric conversion at all, and that is what makes it immune to the precision trap in the next section.</p>
+
+<pre><code>def compareVersion(version1: str, version2: str) -&gt; int:
+    rev1 = version1.split('.')
+    rev2 = version2.split('.')
+    cols = max(len(rev1), len(rev2))
+
+    for i in range(cols):
+        v1 = strip_zeros(rev1[i]) if i &lt; len(rev1) else '0'
+        v2 = strip_zeros(rev2[i]) if i &lt; len(rev2) else '0'
+        c = cmp_norm(v1, v2)
+        if c != 0:
+            return c
+    return 0
+</code></pre>
+
+<h2>The animation</h2>
+
+<p>Two rows of revisions, compared left to right. The current column is tinted; equal columns advance; the deciding column is outlined and the banner shows the normalised comparison, with the zeros stripped on that frame. Columns consumed by the shorter version appear as grey placeholders holding a zero. The final frame colours the deciding column green and shows the return value.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Column</th><th>Raw left</th><th>Raw right</th><th>Normalised</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>init</td><td>-</td><td>-</td><td>-</td><td>-</td><td>Split into three and three</td></tr>
+<tr><td>compare</td><td>1</td><td>"1"</td><td>"1"</td><td>"1" vs "1"</td><td>equal</td></tr>
+<tr><td>compare</td><td>2</td><td>"02"</td><td>"2"</td><td>"2" vs "2"</td><td>equal, <strong>zeros stripped here</strong></td></tr>
+<tr><td>compare</td><td>3</td><td>"3"</td><td>"10"</td><td>"3" vs "10"</td><td>less, <strong>by length</strong></td></tr>
+<tr><td>done</td><td>3</td><td>-</td><td>-</td><td>-</td><td>return minus one</td></tr>
+</tbody>
+</table>
+
+<p>Column three is the point of the problem: the lengths differ, one against two, so the longer one wins without any character comparison, and a character comparison would have said the opposite.</p>
+
+<h2>The precision trap, and the in-place variant</h2>
+
+<pre><code>def compareVersion(version1: str, version2: str) -&gt; int:
+    rev1 = version1.split('.')
+    rev2 = version2.split('.')
+    n = max(len(rev1), len(rev2))
+    for i in range(n):
+        a = int(rev1[i]) if i &lt; len(rev1) else 0
+        b = int(rev2[i]) if i &lt; len(rev2) else 0
+        if a != b:
+            return -1 if a &lt; b else 1
+    return 0
+</code></pre>
+
+<p>In Python the conversion is arbitrary precision, so this is fine. In JavaScript or Java, revisions can be arbitrarily long, and beyond the safe integer range two different revisions collapse to the same value. A pair of twenty-one digit revisions differing only in the last digit both parse to the same double and compare equal, when the correct answer is minus one. Saying that out loud in an interview is worth more than the shortest version.</p>
+
+<p>A pointer version scans the original strings without splitting, accumulating a value per column, which saves the arrays at the cost of a fiddly end-of-string condition. Mention it and write the split version, whose clarity is worth the space.</p>
+
+<table>
+<thead><tr><th>Problem</th><th>Shared technique</th></tr></thead>
+<tbody>
+<tr><td>String addition, negative variant</td><td>Compare magnitudes by length first, then lexicographically</td></tr>
+<tr><td>String to integer</td><td>Same scan, but it must convert because it clamps</td></tr>
+<tr><td>Simplify path</td><td>Split on a delimiter and normalise each piece</td></tr>
+</tbody>
+</table>
+
+<h2>Java</h2>
+
+<pre><code>public int compareVersion(String version1, String version2) {
+    String[] rev1 = version1.split("\\\\.");
+    String[] rev2 = version2.split("\\\\.");
+    int cols = Math.max(rev1.length, rev2.length);
+
+    for (int i = 0; i &lt; cols; i++) {
+        String v1 = i &lt; rev1.length ? stripZeros(rev1[i]) : "0";
+        String v2 = i &lt; rev2.length ? stripZeros(rev2[i]) : "0";
+        int c = cmpNorm(v1, v2);
+        if (c != 0) return c;
+    }
+    return 0;
+}
+
+private String stripZeros(String s) {
+    int i = 0;
+    while (i &lt; s.length() - 1 &amp;&amp; s.charAt(i) == '0') i++;
+    return s.substring(i);
+}
+
+private int cmpNorm(String a, String b) {
+    if (a.length() != b.length()) return a.length() &lt; b.length() ? -1 : 1;
+    int c = a.compareTo(b);
+    return c &lt; 0 ? -1 : c &gt; 0 ? 1 : 0;
+}
+</code></pre>
+
+<p>The split argument is a regular expression, so the dot must be escaped unlike in Python, and equal lengths compare naturally by string ordering.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Point</th></tr></thead>
+<tbody>
+<tr><td>"1.01" vs "1.001"</td><td>0</td><td>Leading zeros</td></tr>
+<tr><td>"1.0" vs "1.0.0"</td><td>0</td><td>Missing revision as zero</td></tr>
+<tr><td>"1.2" vs "1.10"</td><td>-1</td><td>Value order is not character order</td></tr>
+<tr><td>"10.4" vs "1.04"</td><td>1</td><td>The first column decides</td></tr>
+<tr><td>"0.0" vs "0"</td><td>0</td><td>All zeros plus padding</td></tr>
+<tr><td>"1" vs "1.0.0.0"</td><td>0</td><td>Padded columns all equal</td></tr>
+<tr><td>"1.000.0001" vs "1.0.1"</td><td>0</td><td>Multiple leading zeros</td></tr>
+</tbody>
+</table>
+
+<h2>Complexity</h2>
+
+<p>Time is linear in the combined length, since splitting scans once and the column comparison scans again. Space is linear for the split arrays, or constant with the pointer version.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Comparing strings directly, which gets the two against ten case backwards once revisions have different digit counts.</li>
+<li>Converting long revisions to fixed-width numbers, which loses precision and makes distinct revisions equal.</li>
+<li>Stripping zeros without the length guard, which can empty the string and then miscompare lengths.</li>
+<li>Not padding the missing revisions, or using the difference in column counts as the answer, when it is the value in that column that matters.</li>
+<li>Forgetting to escape the dot in a Java split, which returns an empty array because the dot matches everything.</li>
+<li>Failing to short-circuit, or building the result from a sign that was inverted somewhere along the line.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Characterise first: both rules point at normalising before comparing. Then the fact that after stripping, comparison is by length and then by characters, with no conversion. Then the precision trap and why the string form avoids it. Then the edge list, then the complexity, and finally the extension for suffixes such as a hyphenated prerelease tag, where the numeric part is compared first and the suffix afterwards.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-165-compare-version-numbers/">【LC 165】比较版本号：归一化后逐列比</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-70-climbing-stairs',
+    zhSlug: 'lc-70-climbing-stairs',
+    topicSlug: 'leetcode',
+    title: 'LC 70, climbing stairs: the recurrence is easy, the follow-up is n equals eighty',
+    excerpt:
+      'Two ways to arrive at the last step, so the counts add. Then the interesting part: growth is multiplicative and type widths are fixed, so the int breaks at step forty-six.',
+    date: '2026-09-30',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Climbing n steps, taking one or two at a time, count the distinct ways to reach the top.</p>
+
+<pre><code>n = 3  -&gt;  3    (three ones, one then two, two then one)
+</code></pre>
+
+<p>This is the first problem in most DP textbooks, and everyone can write the recurrence. The interview follow-up is a single question: what about eighty. That question is not about the recurrence, it is about knowing that a default integer stopped fitting at step forty-six.</p>
+
+<h2>Two ways to arrive at the last step</h2>
+
+<p>The final step onto stair i comes either from i minus one by a single step, or from i minus two by a double. That classification is mutually exclusive and complete, and only such a classification may be summed, which is the addition principle and the first lesson of counting DP.</p>
+
+<pre><code>dp[i] = dp[i-1] + dp[i-2]
+</code></pre>
+
+<p>This is the same trick as anchoring on the ending index in the longest increasing subsequence: compress an entangled global problem into a decision at one boundary. Here it is even more extreme, since only the last step matters, and it has exactly two origins.</p>
+
+<p>The base values are derived, not invented: zero steps is one way, the empty plan, and one step is one way. Filling the zeroth entry with zero makes the table wrong from the second entry onwards.</p>
+
+<p>The recurrence also relies on the problem having no after-effect: the number of ways to reach stair i never changes because of what happens later. So the table can be filled left to right and never revised. With only two one-step decisions this holds automatically; a constraint such as no two consecutive doubles would break it and require an extra dimension.</p>
+
+<pre><code>def climbStairs(n: int) -&gt; int:
+    if n &lt;= 1:
+        return 1
+    dp = [0] * (n + 1)
+    dp[0], dp[1] = 1, 1
+    for i in range(2, n + 1):
+        dp[i] = dp[i - 1] + dp[i - 2]
+    return dp[n]
+</code></pre>
+
+<p>The sequence is one, one, two, three, five, eight, and so on: Fibonacci. The number of ways at n is the Fibonacci number at n plus one, so the two problems share a recurrence with different stories. That is not a coincidence; the two-origins classification and the Fibonacci recurrence are the same sentence.</p>
+
+<pre><code>def climbStairs(n: int) -&gt; int:
+    a, b = 1, 1
+    for _ in range(2, n + 1):
+        a, b = b, a + b
+    return b if n &gt;= 1 else a
+</code></pre>
+
+<p>Space compresses to two variables with no trap here, unlike the edit distance problem, because the dependencies are only the two immediate predecessors.</p>
+
+<h2>The animation</h2>
+
+<p>The first animation fills the table for ten steps. Each cell lights up in turn, with a green arc from the previous cell and an orange arc from the one before, and the two values added. Before a cell is computed it is a dashed shell, the current cell is outlined, and the moment the value lands it turns gold. The completed row reads one, one, two, three, five, eight, thirteen, twenty-one, thirty-four, fifty-five, eighty-nine.</p>
+
+<p>The frame worth watching is the second cell, where the orange arc consumes the zeroth entry. That is why it must be one rather than zero.</p>
+
+<table>
+<thead><tr><th>i</th><th>0</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th></tr></thead>
+<tbody>
+<tr><td>ways</td><td>1</td><td>1</td><td>2</td><td>3</td><td>5</td><td>8</td><td>13</td><td>21</td><td>34</td><td>55</td><td>89</td></tr>
+</tbody>
+</table>
+
+<p>Check the semantics for ten: using k doubles and ten minus twice k singles, the number of arrangements is a binomial, and summing over k gives one plus nine plus twenty-eight plus thirty-five plus fifteen plus one, which is eighty-nine, matching the recurrence term by term.</p>
+
+<h2>The recursion tree, and why the int breaks at eighty</h2>
+
+<p>Written backwards, the recurrence is the naive recursion calling itself on both predecessors. Expanded, it is a tree, and the exponential bound stops being a slogan. For six steps the tree has twenty-five nodes and thirteen leaves, but only seven distinct arguments, so the subproblem for two steps is computed five separate times and the one for one step eight times. The leaves number thirteen because each root-to-leaf path is one of the ways to decompose six into ones and twos.</p>
+
+<p>The call count is one less than twice the Fibonacci number, which means forty steps need three hundred and thirty million calls and fifty steps forty billion. A memo array reduces twenty-five calls to seven, which is the entire content of going from exponential to linear.</p>
+
+<p>Then the follow-up. The algorithm is unchanged but the answer no longer fits the default type. The boundaries can be computed exactly.</p>
+
+<table>
+<thead><tr><th>Type</th><th>Limit</th><th>Last that fits</th><th>First that overflows</th></tr></thead>
+<tbody>
+<tr><td>32-bit integer</td><td>2147483647</td><td>ways(45) = 1836311903</td><td>ways(46) = 2971215073</td></tr>
+<tr><td>64-bit integer</td><td>9223372036854775807</td><td>ways(91) = 7540113804746346429</td><td>ways(92) = 12200160415121876738</td></tr>
+<tr><td>Double, safe integers</td><td>2 to the 53rd</td><td>ways(77) = 8944394323791464</td><td>ways(78), beyond exact integers</td></tr>
+</tbody>
+</table>
+
+<p>So eighty is 37889062373143906: the thirty-two-bit type overflowed long ago, and the sixty-four-bit one holds it but would not hold ninety-two. The three-step answer is that the default integer fails, the wide integer barely works, and beyond that you need arbitrary precision or a modulus.</p>
+
+<p>Why types cannot keep up: the count multiplies by roughly the golden ratio each step, while a type has a fixed width, so a multiplicative quantity collides with a linear capacity at step forty-six.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int climbStairs(int n) {
+    int a = 1, b = 1;
+    for (int i = 2; i &lt;= n; i++) {
+        int next = a + b;
+        a = b;
+        b = next;
+    }
+    return n &gt;= 1 ? b : a;
+}
+
+public long climbStairsLong(int n) {
+    long a = 1, b = 1;
+    for (int i = 2; i &lt;= n; i++) {
+        long next = a + b;
+        a = b;
+        b = next;
+    }
+    return n &gt;= 1 ? b : a;
+}
+
+public BigInteger climbStairsBig(int n) {
+    BigInteger a = BigInteger.ONE, b = BigInteger.ONE;
+    for (int i = 2; i &lt;= n; i++) {
+        BigInteger next = a.add(b);
+        a = b;
+        b = next;
+    }
+    return n &gt;= 1 ? b : BigInteger.ONE;
+}
+</code></pre>
+
+<p>With a modulus, take it on every step rather than at the end, since the intermediate sum overflows long before the final reduction.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>Zero steps answers one, the empty plan, and that convention is genuinely consumed by the recurrence rather than being decorative.</li>
+<li>The one and two step cases answer one and two, worth stating first so both sides agree that one plus one and a single double are different ways.</li>
+<li>The two-variable version must return the first variable when the loop never runs.</li>
+<li>JavaScript numbers become inexact from the seventy-eighth step, so eighty needs big integers or an accepted loss of precision.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Version</th><th>Time</th><th>Space</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Naive recursion</td><td>Exponential, exactly twice Fibonacci minus one calls</td><td>Linear stack</td><td>Forty steps is three hundred million calls</td></tr>
+<tr><td>Memoised or tabulated</td><td>Linear</td><td>Linear</td><td>One addition per step</td></tr>
+<tr><td>Two variables</td><td>Linear</td><td>Constant</td><td>No trap here</td></tr>
+<tr><td>Matrix power</td><td>Logarithmic multiplications</td><td>Constant</td><td>Only worthwhile for enormous n</td></tr>
+</tbody>
+</table>
+
+<p>An honest footnote: with arbitrary precision the linear bound softens, since at eighty steps each value spans about ninety-six bits, so addition is no longer constant and the true cost grows. Saying that is worth more than reciting a table.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Integer overflow, which the official samples cannot show because they use tiny n. The bug is in the type, not the algorithm.</li>
+<li>Naive recursion without memoisation, which hangs at forty steps.</li>
+<li>Filling the zeroth entry with zero, which breaks from the second entry onwards.</li>
+<li>Updating the two rolling variables in the wrong order, which turns the recurrence into a different sequence. As with the edit distance problem, the moment before overwriting is the only chance to read the old value.</li>
+<li>Taking the modulus once at the end in a modulus variant, when it must be taken every step.</li>
+<li>Memorising the Fibonacci recurrence without the reasoning: why addition, why no coefficient, and why eighty overflows. Missing any of the three means the problem was not really done.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Establish the classification first: two origins for the last step, mutually exclusive and complete, so the counts add, with the empty plan as one. Note in passing that this is Fibonacci shifted by one. Then explain where the exponential bound comes from, with the node counts for six steps and the duplicate subproblems, and that a memo makes it linear. Then the constant-space compression. Then the eighty case with exact numbers for the three type boundaries, and the three answers of wide integers, arbitrary precision, or a modulus taken every step. Then the variants: minimum cost climbing, taking up to m steps, constraints on consecutive doubles that need a second dimension, and matrix exponentiation.</p>
+
+<h2>Closing</h2>
+
+<p>Three layers, in order. The addition principle, because only a mutually exclusive and complete classification may be summed. The recursion tree, because the exponential bound is not a slogan but eighteen duplicate nodes out of twenty-five. And the type, because growth is multiplicative and width is linear, so they collide at forty-six.</p>
+
+<p>Every DP begins with a recurrence worth asking one question about: why does this classification neither double-count nor miss anything. And when an interviewer smiles and says eighty, the thought that should cross your mind is the width of the type.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-70-climbing-stairs/">【LC 70】爬楼梯：递推人人会写，美团考的是 n=80</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-415-add-strings',
+    zhSlug: 'lc-415-add-strings',
+    topicSlug: 'leetcode',
+    title: 'LC 415, add strings: translating long addition into code',
+    excerpt:
+      'Not an algorithm problem but a translation one. Three details decide completeness: carry propagation, padding by index, and the third clause in the loop condition.',
+    date: '2026-09-29',
+    readingTime: 12,
+    html: `
+<h2>The problem</h2>
+
+<p>Add two non-negative integers given as strings, returning a string, without using any big-integer library or converting the whole string to a number.</p>
+
+<pre><code>"456" + "77"  -&gt;  "533"
+</code></pre>
+
+<h2>Elimination, not obstruction</h2>
+
+<p>The prohibition is not a trick: it removes the shortcut of converting to numbers, leaving only the column addition learned in primary school. What the interviewer wants to see is whether a procedure you already know can be translated into code without losing anything.</p>
+
+<pre><code>    1 1
+    4 5 6
++     7 7
+-------
+  5 3 3
+</code></pre>
+
+<p>Units: six plus seven is thirteen, write three and carry one. Tens: five plus seven plus one is thirteen, write three and carry one. Hundreds: four plus zero plus one, with num2 having no hundreds digit, write five and stop.</p>
+
+<p>Three phrases: start at the units, write the digit and carry the rest, and treat a missing position as zero. In code that is two pointers from the ends plus a carry variable.</p>
+
+<h2>Three implementation points</h2>
+
+<p>For alignment, pad the shorter string or decide by index. Indexing avoids the copy and one line handles it, and the key reading is that a used-up side contributes zero for that column rather than being skipped.</p>
+
+<pre><code>sum   = a + b + carry
+out   = sum % 10
+carry = 1 if sum &gt;= 10 else 0
+</code></pre>
+
+<p>The carry can only be zero or one, because nine plus nine plus one is nineteen, which never reaches twenty. That is a property of adding two non-negative decimal digits and can be exploited rather than generalised.</p>
+
+<p>Then the loop condition, which is the easiest thing to omit:</p>
+
+<pre><code>while i &gt;= 0 or j &gt;= 0 or carry &gt; 0:
+</code></pre>
+
+<p>The first two clauses cover remaining digits, and the third covers a final carry that has to grow a new digit. For "999" plus "1" the two strings are exhausted while the carry is still one, so omitting it yields "000" instead of "1000".</p>
+
+<pre><code>def addStrings(num1: str, num2: str) -&gt; str:
+    i, j = len(num1) - 1, len(num2) - 1
+    carry = 0
+    res_low_to_high = []
+
+    while i &gt;= 0 or j &gt;= 0 or carry &gt; 0:
+        a = ord(num1[i]) - 48 if i &gt;= 0 else 0
+        b = ord(num2[j]) - 48 if j &gt;= 0 else 0
+        s = a + b + carry
+        res_low_to_high.append(s % 10)
+        carry = 1 if s &gt;= 10 else 0
+        i -= 1
+        j -= 1
+
+    return ''.join(map(str, reversed(res_low_to_high)))
+</code></pre>
+
+<p>Two implementation details. Digit characters are contiguous in their encoding, so subtracting the code for zero converts one character at a time, which is not the forbidden whole-string conversion. And the result is appended low to high and reversed at the end, since column addition naturally produces digits in that order; inserting at the front instead would make each step linear and the whole thing quadratic.</p>
+
+<h2>The animation</h2>
+
+<p>A long-addition layout: two right-aligned rows with the shorter one's missing columns drawn as grey placeholders, a rule, and a result row with one extra column reserved for a final carry.</p>
+
+<p>The current column is tinted, with both pointers resting on the digits used. A padded side shows a grey zero. A small carry marker sits above the next column, exactly as one would write it by hand. The freshly written result digit is outlined. The final frame turns the result row green.</p>
+
+<p>Two things to watch: the grey zeros, which show that a missing position contributes zero while the column still runs, and the overflow cell at the far left, which turns from a dashed placeholder into a one only when the last column produces a carry.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Column</th><th>i</th><th>j</th><th>a</th><th>b</th><th>carry in</th><th>sum</th><th>written</th><th>carry out</th></tr></thead>
+<tbody>
+<tr><td>init</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>0</td></tr>
+<tr><td>digit</td><td>units</td><td>2</td><td>1</td><td>6</td><td>7</td><td>0</td><td>13</td><td>3</td><td>1</td></tr>
+<tr><td>digit</td><td>tens</td><td>1</td><td>0</td><td>5</td><td>7</td><td>1</td><td>13</td><td>3</td><td>1</td></tr>
+<tr><td>digit</td><td>hundreds</td><td>0</td><td>-1</td><td>4</td><td>0, padded</td><td>1</td><td>5</td><td>5</td><td>0</td></tr>
+<tr><td>done</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>reversed gives 533</td></tr>
+</tbody>
+</table>
+
+<p>The third row shows a padded zero with the column still processed, the second and third show the carry passing forward, and the loop terminates because the final carry is zero. Had it been one, there would be a fourth row.</p>
+
+<h2>Variants</h2>
+
+<p>With signs, the skeleton is unchanged and a dispatch layer wraps it. Split sign from magnitude, and if the signs agree, add the magnitudes and keep the sign. If they differ, compare magnitudes first by length and then lexicographically, subtract the smaller from the larger, and take the sign of the larger magnitude.</p>
+
+<p>Subtraction mirrors addition with one extra idea, borrowing, where a negative intermediate adds ten and sets the borrow. It also produces leading zeros, which must be stripped on return, keeping a single zero when everything cancels.</p>
+
+<p>For multiplication, the digit at position i of one string times the digit at position j of the other lands at position i plus j plus one in the result, which is the whole trick, and carries accumulate the same way. The multiplication problem is this problem with several layers per column.</p>
+
+<pre><code>def multiply(num1: str, num2: str) -&gt; str:
+    if num1 == "0" or num2 == "0":
+        return "0"
+    m, n = len(num1), len(num2)
+    res = [0] * (m + n)
+    for i in range(m - 1, -1, -1):
+        for j in range(n - 1, -1, -1):
+            mul = (ord(num1[i]) - 48) * (ord(num2[j]) - 48)
+            p1, p2 = i + j, i + j + 1
+            total = mul + res[p2]
+            res[p2] = total % 10
+            res[p1] += total // 10
+    k = 0
+    while k &lt; len(res) - 1 and res[k] == 0:
+        k += 1
+    return ''.join(map(str, res[k:]))
+</code></pre>
+
+<table>
+<thead><tr><th>Problem</th><th>What changes</th><th>One line</th></tr></thead>
+<tbody>
+<tr><td>Binary addition</td><td>Base ten becomes two</td><td>Parameterise the base and the same skeleton works</td></tr>
+<tr><td>Add two numbers in lists</td><td>Digits live in linked lists</td><td>Lists are stored from the units already, so no reversal is needed</td></tr>
+<tr><td>Multiply strings</td><td>Several layers per column</td><td>The index sum placement plus the same carry handling</td></tr>
+</tbody>
+</table>
+
+<p>The family rule: digit-by-digit processing, a carry or borrow variable, and the three-clause loop condition constitute the whole big-number family. Only the base, the storage direction and the work per column vary.</p>
+
+<pre><code>public String addStrings(String num1, String num2) {
+    int i = num1.length() - 1, j = num2.length() - 1, carry = 0;
+    StringBuilder sb = new StringBuilder();
+
+    while (i &gt;= 0 || j &gt;= 0 || carry &gt; 0) {
+        int a = i &gt;= 0 ? num1.charAt(i) - '0' : 0;
+        int b = j &gt;= 0 ? num2.charAt(j) - '0' : 0;
+        int s = a + b + carry;
+        sb.append(s % 10);
+        carry = s &gt;= 10 ? 1 : 0;
+        i--; j--;
+    }
+    return sb.reverse().toString();
+}
+</code></pre>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Point</th></tr></thead>
+<tbody>
+<tr><td>"0" and "0"</td><td>"0"</td><td>A single zero, not empty and not two zeros</td></tr>
+<tr><td>"999" and "1"</td><td>"1000"</td><td>Repeated carries and a final overflow</td></tr>
+<tr><td>"1" and "9999"</td><td>"10000"</td><td>Alignment across a large length gap</td></tr>
+<tr><td>"100" and "0"</td><td>"100"</td><td>Adding zero</td></tr>
+<tr><td>"584" and "9845"</td><td>"10429"</td><td>Unequal lengths plus overflow</td></tr>
+</tbody>
+</table>
+
+<h2>Complexity</h2>
+
+<p>Linear in the longer length, one addition per column plus possibly one more for the carry. Extra space is constant, since only a carry and two pointers exist, with the result string being the required output rather than an auxiliary structure.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Omitting the carry clause, which loses the final digit for inputs like nine hundred ninety-nine plus one.</li>
+<li>Skipping the exhausted side instead of contributing zero, which drops the longer string's remainder and the carry with it.</li>
+<li>Using the character directly in arithmetic, which is a type error, or converting the whole string, which the problem forbids.</li>
+<li>Building the result by inserting at the front, which is quadratic; append and reverse instead.</li>
+<li>Not stripping leading zeros in the subtraction and multiplication variants, remembering to keep one zero when everything cancels.</li>
+<li>Applying the digit conversion to a sign character, which silently computes a negative digit. Split the sign before entering the digit loop.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Characterise it as elimination rather than obstruction. Then state the three implementation points before writing, with the loop condition third and emphasised, since that is the sentence worth the most. Then offer the overflow example to show awareness that a carry can grow a digit. Then the complexity, and finally the two extensions, signed addition and multiplication, with the placement formula.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-415-add-strings/">【LC 415】字符串相加：把竖式翻译成代码</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-56-merge-intervals',
+    zhSlug: 'lc-56-merge-intervals',
+    topicSlug: 'leetcode',
+    title: 'LC 56, merge intervals: sorting collapses the pairwise checks',
+    excerpt:
+      'Brute force compares every pair. Sorted by start, a new interval can only touch the current merged one, which is one comparison per interval and a monotone sweep.',
+    date: '2026-09-28',
+    readingTime: 12,
+    html: `
+<h2>The problem</h2>
+
+<p>Given a list of intervals, merge all overlapping ones and return the minimal non-overlapping set.</p>
+
+<pre><code>[[1,3],[2,6],[8,10],[15,18]]  -&gt;  [[1,6],[8,10],[15,18]]
+</code></pre>
+
+<p>This is the entry point of the interval family, and its template, sort by an endpoint and scan once, leads directly to the removal problem, the arrow problem, the insertion problem and more.</p>
+
+<h2>Why brute force is slow</h2>
+
+<p>Two intervals overlap exactly when one starts before the other ends and vice versa, which is one comparison. The difficulty is the number of pairs: n intervals give n times n minus one over two pairs, and merging changes the comparison targets as you go, so the naive version is both awkward and quadratic.</p>
+
+<p>The breakthrough is to ask whether two unrelated intervals need comparing at all.</p>
+
+<h2>The structural gift of sorting</h2>
+
+<p>Sort by left endpoint. When the sweep reaches an interval, the previously merged block is already known, and the key property is that the current start is the largest seen so far. If it exceeds the block's end, it cannot overlap any earlier interval either, because those all ended no later than the block does, or they would already have been absorbed.</p>
+
+<p>So comparing against everything collapses into comparing against the current block once: if the start reaches the end, extend with the maximum of the two ends; otherwise close the block, emit it, and open a new one.</p>
+
+<p>Each interval participates in one comparison, so the sweep is linear and the cost is entirely in the sort. The sorting buys the validity of every subsequent comparison.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Phase</th><th>Current block</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>-</td><td>The input, sorted next</td></tr>
+<tr><td>1</td><td>sort</td><td>-</td><td>Already ordered here</td></tr>
+<tr><td>2</td><td>start</td><td>1 to 3</td><td>First block seated</td></tr>
+<tr><td>3</td><td>extend</td><td>1 to 6</td><td>Start two reaches three, so extend</td></tr>
+<tr><td>4</td><td>close</td><td>8 to 10</td><td>Eight exceeds six, so emit and open</td></tr>
+<tr><td>5</td><td>close</td><td>15 to 18</td><td>Fifteen exceeds ten, same</td></tr>
+<tr><td>6</td><td>done</td><td>-</td><td>Final block emitted, three intervals</td></tr>
+</tbody>
+</table>
+
+<p>Two moments matter. The extend frame shows the new end taken as the maximum, not copied. And the close frame shows why a block is final once closed: later starts only grow, so nothing can ever reach back to it.</p>
+
+<h2>Three traps</h2>
+
+<p><strong>Touching endpoints count as overlap.</strong> An interval ending at four and one starting at four must merge, so the test is inclusive. Using a strict comparison splits them wrongly, and the official samples happen to contain no touching pair, so they cannot catch it. Self-test with that pair.</p>
+
+<p><strong>Extending must take a maximum.</strong> If the current block runs to six and a nested interval ending at three arrives, assigning its end shrinks the block and later splits a genuinely attached interval. Use the maximum, and note the invariant that every processed interval is always covered by the current block or the emitted results.</p>
+
+<p><strong>Emit new arrays.</strong> If results hold references into the input and are later mutated, the caller's data changes. In Python, sorting in place also mutates the input order, so copy first when that matters.</p>
+
+<h2>Why a closed block is final</h2>
+
+<p>Inductively: the first block covers everything processed so far. Each extension uses the maximum, so coverage is preserved. And each close happens because the current start exceeds the block's end, and sorting guarantees later starts are larger still, so no future interval can reach the block or anything it covers. Its boundary is therefore immune to the rest of the input and can be emitted.</p>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Item</th><th>Value</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>Linearithmic</td><td>The sweep is linear, the sort dominates</td></tr>
+<tr><td>Space</td><td>Logarithmic to linear</td><td>Sorting overhead, excluding output</td></tr>
+</tbody>
+</table>
+
+<p>There is no general faster method: merging depends on the intervals being ordered by start, which requires a comparison sort unless the endpoint range is bounded.</p>
+
+<pre><code>class Solution {
+    public int[][] merge(int[][] intervals) {
+        Arrays.sort(intervals, (a, b) -&gt; Integer.compare(a[0], b[0]));
+        List&lt;int[]&gt; result = new ArrayList&lt;&gt;();
+        int curStart = intervals[0][0], curEnd = intervals[0][1];
+        for (int i = 1; i &lt; intervals.length; i++) {
+            int s = intervals[i][0], e = intervals[i][1];
+            if (s &lt;= curEnd) {
+                curEnd = Math.max(curEnd, e);
+            } else {
+                result.add(new int[]{curStart, curEnd});
+                curStart = s;
+                curEnd = e;
+            }
+        }
+        result.add(new int[]{curStart, curEnd});
+        return result.toArray(new int[0][]);
+    }
+}
+</code></pre>
+
+<h2>The family</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>What changes</th><th>How to think about it</th></tr></thead>
+<tbody>
+<tr><td>Insert an interval</td><td>The input is sorted and one interval is added</td><td>Copy the left part, absorb the middle, append the right</td></tr>
+<tr><td>Remove the fewest to make all disjoint</td><td>The inverse question</td><td>Sort by right endpoint and greedily keep the smallest end</td></tr>
+<tr><td>Fewest arrows to burst balloons</td><td>An arrow hits every interval containing its point</td><td>Sort by right endpoint and shoot at the current rightmost</td></tr>
+<tr><td>Intersection of two sorted lists</td><td>Two sorted lists</td><td>Two pointers, the overlap is the max of starts to the min of ends</td></tr>
+<tr><td>Summary ranges</td><td>No merging, just formatting</td><td>The same sweep with a different closing rule</td></tr>
+</tbody>
+</table>
+
+<p>The family question is always which endpoint to sort by: the left one here, because merging must cover everything; the right one for the greedy problems, which want maximum room; and none where the input arrives sorted.</p>
+
+<p>The insertion problem is worth expanding. Its input is already ordered, so sorting is free, and the new interval becomes the initial block: intervals entirely to its left are copied, ones that touch it are absorbed, and the rest are appended.</p>
+
+<pre><code>def insert(intervals, new):
+    i, n = 0, len(intervals)
+    out = []
+    while i &lt; n and intervals[i][1] &lt; new[0]:
+        out.append(intervals[i]); i += 1
+    while i &lt; n and intervals[i][0] &lt;= new[1]:
+        new[0] = min(new[0], intervals[i][0])
+        new[1] = max(new[1], intervals[i][1])
+        i += 1
+    out.append(new)
+    while i &lt; n:
+        out.append(intervals[i]); i += 1
+    return out
+</code></pre>
+
+<p>Seen against the merge, insertion is the merge with the sort skipped and the first block replaced by the new interval, which is why the two are asked together.</p>
+
+<h2>How to answer it</h2>
+
+<p>Start with the sort and why it buys validity. Then the sweep: one comparison, extend with the maximum or close and open. Then the two details worth volunteering, that touching endpoints count and that results must be fresh arrays. Self-test with the sample and with a pair of touching intervals. Close with the observation that sorting is not convention here, it is the algorithm.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-56-merge-intervals/">【LC 56】合并区间：排序把重叠压成只比当前</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-347-top-k-frequent-elements',
+    zhSlug: 'lc-347-top-k-frequent-elements',
+    topicSlug: 'leetcode',
+    title: 'LC 347, top k frequent elements: frequency is a bucket index',
+    excerpt:
+      'A count is always between one and n, so the key being sorted lives in a small known integer range. That makes the sort free, and the whole thing linear.',
+    date: '2026-09-28',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Return the k most frequent values, in better than linearithmic time.</p>
+
+<pre><code>[1,1,1,2,2,3], k = 2  -&gt;  [1,2]
+</code></pre>
+
+<p>The previous article handled top-k on the value axis with quickselect. This one changes the axis: the key becomes the frequency, and that change brings a structural gift quickselect never had.</p>
+
+<p>Counting first is linear and needs no cleverness. The remaining question is selecting the top k by frequency, which is again a top-k problem. Sorting the pairs would be linearithmic, which the problem forbids, leaving two candidates: a size-k min-heap at k log n, or bucket sort, which is linear and is the intended answer.</p>
+
+<p>Note the semantics, because it mirrors the kth-largest problem exactly: here the result is k distinct values, each appearing once, not k positions.</p>
+
+<h2>Frequency as an index</h2>
+
+<p>After counting, a frequency is at least one and at most n, the case where every element is the same. So the key being sorted always lies in a small known integer range, which is precisely the precondition for counting sort.</p>
+
+<p>Build n plus one buckets, drop each value into the bucket indexed by its frequency, and collect by scanning from the highest index down until k values are gathered. No comparisons at all.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Phase</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>Count, bucket, collect</td></tr>
+<tr><td>1-3</td><td>count</td><td>One appears three times, two twice, three once</td></tr>
+<tr><td>4</td><td>bucket</td><td>One into bucket three</td></tr>
+<tr><td>5</td><td>bucket</td><td>Two into bucket two</td></tr>
+<tr><td>6</td><td>bucket</td><td>Three into bucket one</td></tr>
+<tr><td>7-9</td><td>collect</td><td>Buckets six, five and four are empty, skipped</td></tr>
+<tr><td>10</td><td>collect</td><td>Bucket three yields one</td></tr>
+<tr><td>11</td><td>collect</td><td>Bucket two yields two, reaching k</td></tr>
+<tr><td>12</td><td>done</td><td>The answer</td></tr>
+</tbody>
+</table>
+
+<p>The empty buckets are not waste; they are the scan made literal. Frequencies six, five and four have no values, which shows the index and the frequency correspond exactly.</p>
+
+<pre><code>from collections import Counter
+
+def topKFrequent(nums, k):
+    freq = Counter(nums)
+    buckets = [[] for _ in range(len(nums) + 1)]
+    for v, f in freq.items():
+        buckets[f].append(v)
+    ans = []
+    for f in range(len(nums), 0, -1):
+        for v in buckets[f]:
+            ans.append(v)
+            if len(ans) == k:
+                return ans
+    return ans
+</code></pre>
+
+<p>All three steps are linear, so the total is linear, one notch below the required bound. The costs are linear bucket space and the precondition that the key is an integer with a known range.</p>
+
+<h2>The heap version</h2>
+
+<pre><code>import heapq
+
+def topKFrequent(nums, k):
+    freq = {}
+    for x in nums:
+        freq[x] = freq.get(x, 0) + 1
+    heap = []
+    for v, f in freq.items():
+        heapq.heappush(heap, (f, v))
+        if len(heap) > k:
+            heapq.heappop(heap)
+    return [v for f, v in heap]
+</code></pre>
+
+<p>Maintain a size-k min-heap of pairs, so the root is the weakest of the current candidates and a newcomer must beat it to enter. Same idea as the kth-largest problem, with the comparator moved from values to counts.</p>
+
+<table>
+<thead><tr><th></th><th>Bucket sort</th><th>Min-heap</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td><strong>Linear</strong></td><td>Logarithmic in k per element</td></tr>
+<tr><td>Space</td><td>Linear in n, the buckets</td><td>Linear in k</td></tr>
+<tr><td>Precondition</td><td><strong>The key is a small integer with a known range</strong></td><td>None, any comparable key</td></tr>
+<tr><td>Large k</td><td>Unaffected</td><td>Degrades toward a full sort</td></tr>
+</tbody>
+</table>
+
+<p>Buckets win on asymptotics and constants; the heap wins on generality and memory, and it is the only choice when the key has no range guarantee.</p>
+
+<table>
+<thead><tr><th>Version</th><th>Time</th><th>Space</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Count and sort</td><td>Linearithmic in distinct count</td><td>Linear</td><td>Blocked by the required bound</td></tr>
+<tr><td>Count and heap</td><td>Logarithmic in k per element</td><td>Linear in k</td><td>General and stream friendly</td></tr>
+<tr><td><strong>Count and bucket</strong></td><td><strong>Linear</strong></td><td>Linear</td><td>Requires the frequency range</td></tr>
+</tbody>
+</table>
+
+<p>The linear total has three linear parts: counting, bucketing each distinct value, and scanning at most n plus one buckets. What is saved relative to the heap is exactly the logarithm that having a bounded key range buys.</p>
+
+<h2>The large-scale variant</h2>
+
+<p>Asked to find the most frequent items in a huge dataset, the extra difficulty is that even the deduplicated table may not fit in memory. A billion log lines may contain hundreds of millions of distinct URLs, which at fifty bytes each is several gigabytes, so the counting map itself cannot be built.</p>
+
+<p>The standard answer is hash partitioning into shards, local counting, then a merge. Partition by a hash of each element so that identical elements always land in the same shard, which is what makes the approach correct. Count each shard independently and keep its local top k, then merge those candidates globally.</p>
+
+<p>This is the divide-and-conquer frame of external sorting with the sort replaced by a selection. Compare it with the billion-number problem, which needs no partitioning because numbers are comparable and only k candidates must fit in memory. The dividing line in large-scale questions is always what must fit in memory: k candidates means a heap works, an entire distinct set means partitioning is unavoidable.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public int[] topKFrequent(int[] nums, int k) {
+        Map&lt;Integer, Integer&gt; freq = new HashMap&lt;&gt;();
+        for (int x : nums) freq.merge(x, 1, Integer::sum);
+
+        List&lt;List&lt;Integer&gt;&gt; buckets = new ArrayList&lt;&gt;();
+        for (int i = 0; i &lt;= nums.length; i++) buckets.add(new ArrayList&lt;&gt;());
+        for (Map.Entry&lt;Integer, Integer&gt; e : freq.entrySet()) {
+            buckets.get(e.getValue()).add(e.getKey());
+        }
+
+        int[] ans = new int[k];
+        int idx = 0;
+        for (int f = nums.length; f &gt;= 1 &amp;&amp; idx &lt; k; f--) {
+            for (int v : buckets.get(f)) {
+                ans[idx++] = v;
+                if (idx == k) break;
+            }
+        }
+        return ans;
+    }
+}
+</code></pre>
+
+<p>The heap version uses a priority queue ordered by frequency ascending, offering each pair and evicting when the size exceeds k.</p>
+
+<h2>Edges and traps</h2>
+
+<ol>
+<li>Forgetting ties. Values with equal frequency share a bucket and are collected in insertion order; the problem guarantees a unique answer so it does not bite here, but a variant that breaks ties lexicographically needs a sort inside the bucket.</li>
+<li>Reversing the comparator in the heap version, which turns it into a max-heap that evicts the most frequent element.</li>
+<li>Allocating buckets by the maximum observed frequency rather than by n. The bound is n, so there are n plus one buckets, and index zero is always empty.</li>
+<li>Sorting the distinct list after counting, which is still linearithmic in the worst case and misses the bound, which is exactly why buckets or a heap are expected.</li>
+</ol>
+
+<h2>Variants</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>What changes</th><th>How to think about it</th></tr></thead>
+<tbody>
+<tr><td>Top k frequent words</td><td>Ties broken lexicographically</td><td>Add a second comparator, or sort inside the bucket</td></tr>
+<tr><td>Sort characters by frequency</td><td>Everything, not just the top k</td><td>The same buckets without stopping early</td></tr>
+<tr><td>Median from a stream</td><td>The target moves</td><td>Two heaps facing each other</td></tr>
+<tr><td>Kth largest element</td><td>The key is a value with no bounded range</td><td>Quickselect</td></tr>
+</tbody>
+</table>
+
+<p>One decision rule: a small integer key range means bucket sort; an arbitrary key with only the top k wanted means a heap; a static full ordering means quickselect.</p>
+
+<h2>How to answer it</h2>
+
+<p>Give the frame first: count in linear time, then select the top k by frequency, which is a top-k problem. Then the intended answer with the structural precondition stated explicitly, that a frequency is always between one and n. Then the heap as the general fallback, which needs no range and works on streams. Then the large-scale variant with partitioning, and the dividing line about what must fit in memory. Close with the one-liner: when the key being sorted is a small integer range, the sort is free.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-347-top-k-frequent-elements/">【LC 347】前 K 个高频元素：频率是天然的桶下标</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
