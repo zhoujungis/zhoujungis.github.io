@@ -40779,6 +40779,503 @@ Article.objects.filter(
 `,
   },
 
+  {
+    slug: 'english-site-without-js',
+    zhSlug: 'english-site-without-js',
+    topicSlug: 'projects',
+    title: 'From three seconds to a first paint in milliseconds',
+    excerpt:
+      'Six requests, 220 KB of JavaScript, and a Vue mount before anything appears. Removing the SPA from the English edition cut the payload to 12.9 KB gzip and the script to 792 bytes inline.',
+    date: '2026-11-12',
+    readingTime: 13,
+    html: `
+<h2>Three seconds of blank screen, and no single file to blame</h2>
+
+<p>Shortly after the English edition went live, someone reported that it took over three seconds to open.</p>
+
+<p>The first guess was a slow CDN, so I measured the build output: 22.9 KB of HTML, 30.5 KB of CSS (6.0 KB gzip), a 79.9 KB entry script (30.2 KB gzip). Nothing looked wrong. Not one file was unusually large.</p>
+
+<p>The problem was that these files form a sequence that has to execute in order.</p>
+
+<pre><code>HTML -&gt; 30 KB CSS -&gt; 79.9 KB entry -&gt; 63.5 KB Vue runtime -&gt; 45.6 KB client
+     -&gt; route chunk -&gt; Vue clears #app and re-renders -&gt; the page appears
+</code></pre>
+
+<p>Six requests and 220 KB of raw bytes, 78.3 KB gzipped, where each step waits for the one before. First paint is not the download time of the largest file. It is the sum of the chain.</p>
+
+<h2>Counting the chain</h2>
+
+<p>A hundred-line script reads the build output directly instead of estimating. Run against the SPA shell:</p>
+
+<pre><code>files 5 | raw 220.1 KB | gzip 78.3 KB
+   /assets/index-DQvGHmaK.js                    79.9 KB | gzip 30.2 KB
+   /assets/_plugin-vue_export-helper-tRUQJj3d.js 63.5 KB | gzip 24.6 KB
+   /assets/rolldown-runtime-QTnfLwEv.js          0.7 KB | gzip  0.4 KB
+   /assets/client-DDSzq_-U.js                   45.6 KB | gzip 17.1 KB
+   /assets/index.DnfPoa2_.css                   30.5 KB | gzip  6.0 KB
+</code></pre>
+
+<p>Five files, six requests counting the HTML. And that is only the first paint: the route chunk is fetched by <code>import()</code> after the entry script runs.</p>
+
+<p>For parse and compile, the script builds a <code>vm.SourceTextModule</code> without instantiating it, seven runs, median:</p>
+
+<pre><code>entry bundle 79.9 KB -&gt; 3.4 ms
+inline shell  0.8 KB -&gt; 0.01 ms
+</code></pre>
+
+<p>Three milliseconds is not much, and that is the point: it is only compilation. Download, execution, DOM construction, style calculation and third-party tags are all on top. On a real device the first paint is three phases added together.</p>
+
+<table>
+<thead><tr><th>Phase</th><th>What decides it</th><th>Effect of the change</th></tr></thead>
+<tbody>
+<tr><td>Download</td><td>220 KB at the available bandwidth, six round trips</td><td>12.9 KB gzip, two requests</td></tr>
+<tr><td>Parse and compile</td><td>JavaScript bytes</td><td>3.4 ms to 0.01 ms</td></tr>
+<tr><td>Execute and render</td><td>Vue mount, route match, API call</td><td>entire phase gone</td></tr>
+</tbody>
+</table>
+
+<p>At one megabit per second, transfer alone is 78.3 KB times eight divided by 1024, about 0.61 s, before six serial round trips, the Vue mount, an analytics-style ad script and a backend <code>preconnect</code> that nothing used. Three seconds is not surprising; one second would be.</p>
+
+<p>The conclusion: the problem was never a file that was too big. The problem was that this page had no business being rendered by a single-page app.</p>
+
+<h2>Which pages may be static</h2>
+
+<p>Every page on the English edition has one property: its content is fully determined at build time.</p>
+
+<ul>
+<li>The article list comes from a registry read during the build.</li>
+<li>An article page is HTML generated at build time, with no comment box and no editor.</li>
+<li>Topic pages and pagination are derived from the same data.</li>
+</ul>
+
+<p>There is no runtime state. The three things that genuinely need JavaScript are tiny: toggling the theme from <code>localStorage</code>, opening the mobile menu, and following links that could have been static in the first place.</p>
+
+<p>The Chinese edition cannot be treated this way. It has search, comments, an admin area, Live2D and dynamic routing. The criterion is not whether you want speed. It is whether the page contains anything that can only be known at runtime.</p>
+
+<h2>The replacement: a twenty-three line shell</h2>
+
+<pre><code>== /en/ static shell ==
+html raw 22.9 KB | gzip 6.9 KB
+external scripts 0 | external css 1
+inline js bytes 792 | lines 23
+css /assets/index.DfnPoa2_.css 30.5 KB | gzip 6.0 KB
+</code></pre>
+
+<p>Zero external scripts. The whole page is HTML, one stylesheet, and 792 bytes of inline JavaScript. That script restores the theme and binds the menu button, and it shares the same <code>localStorage</code> key as the Vue toggle, otherwise switching between editions would flip the theme.</p>
+
+<pre><code>&lt;script&gt;
+  (function () {
+    var t = localStorage.getItem('theme')
+    if (t === 'dark' || (!t &amp;&amp; matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.dataset.theme = 'dark'
+    }
+  })()
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-menu-toggle]')
+    if (btn) {
+      var nav = document.querySelector('[data-nav]')
+      var open = nav.classList.toggle('is-open')
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false')
+    }
+  })
+&lt;/script&gt;
+</code></pre>
+
+<p>Three rules keep it honest. The theme script runs synchronously in the head and touches only the root element, because waiting for DOMContentLoaded shows a white flash first. No module system is used, since <code>type="module"</code> adds another scheduling step. And nothing is mounted: the moment a framework mounts, it clears the container and rebuilds what was already painted.</p>
+
+<h2>What else went away</h2>
+
+<table>
+<thead><tr><th>Removed</th><th>What it cost</th></tr></thead>
+<tbody>
+<tr><td><code>modulepreload</code> hints</td><td>Competed for bandwidth on chunks the first paint never used</td></tr>
+<tr><td>Auto ads</td><td>A third-party script plus its own subresources, on its own schedule</td></tr>
+<tr><td>A backend <code>preconnect</code></td><td>An early handshake for a request the English pages never make</td></tr>
+</tbody>
+</table>
+
+<p>The last one is the clearest: <code>preconnect</code> is a promise that something is about to be needed. Keeping it means asking the browser to negotiate a connection for a request that never happens.</p>
+
+<h2>Pagination has to move into the build</h2>
+
+<p>Once the pages are static, every list must exist on disk. The English list holds twelve posts per page across seven pages:</p>
+
+<pre><code>/en/articles/
+/en/articles/page/2/ … /en/articles/page/7/
+</code></pre>
+
+<p>Three rules are hard-coded in the build script. Each page carries a self-referential canonical, because pointing page two at page one keeps it out of the index forever. Pages after the first put the number in the title, so seven pages do not share one title. And every page URL goes into the sitemap, since a crawler can otherwise only find them by following links.</p>
+
+<p>This is the easiest thing to miss: under an SPA, pagination is state. After static generation, pagination is pages.</p>
+
+<h2>The cost: comments no longer mount</h2>
+
+<p>Static generation is not free. The article pages used to mount a Vue comment component, and with no mount there is no comment box.</p>
+
+<p>Rather than loading a second lightweight comment widget, I put one line at the end of each article pointing to the Chinese edition.</p>
+
+<p>The reasoning is simple arithmetic. Comments are a low-frequency interaction and the first paint is the high-frequency path. Slowing every reader down by 220 KB to serve one percent of them is a bad trade.</p>
+
+<p>If comments ever do come back, the right shape is on demand: render a static button, and only import the comment bundle when it is clicked. That keeps it outside the first paint and unchanged from the numbers here.</p>
+
+<h2>Before and after</h2>
+
+<table>
+<thead><tr><th>Metric</th><th>SPA</th><th>Static shell</th><th>Change</th></tr></thead>
+<tbody>
+<tr><td>First-paint JS</td><td>220.1 KB in five files</td><td>0.8 KB inline</td><td>effectively zero</td></tr>
+<tr><td>Requests</td><td>6</td><td>2</td><td>-67%</td></tr>
+<tr><td>Gzip bytes</td><td>78.3 KB</td><td>12.9 KB</td><td>-84%</td></tr>
+<tr><td>Parse and compile</td><td>3.4 ms</td><td>0.01 ms</td><td>two orders of magnitude</td></tr>
+<tr><td>Vue mount and route match</td><td>yes</td><td>none</td><td>entire phase gone</td></tr>
+</tbody>
+</table>
+
+<p>To reproduce the byte accounting: <code>node --experimental-vm-modules tools/bench_static_shell.cjs</code>. The flag only exists so that <code>SourceTextModule</code> can compile without executing.</p>
+
+<h2>Checklist</h2>
+
+<ul>
+<li>No external <code>script src</code> in the first-paint HTML unless genuinely required.</li>
+<li>The theme script runs synchronously in the head and shares its storage key with the framework side.</li>
+<li>Navigation links are real URLs generated at build time, not router paths.</li>
+<li>Each paginated page has its own canonical and a numbered title.</li>
+<li>Every paginated URL is in the sitemap.</li>
+<li>Unneeded preconnect, modulepreload and third-party tags are deleted.</li>
+<li>The page renders completely with JavaScript disabled, verified with <code>curl</code> or a no-JS browser.</li>
+<li>Theme switching is checked against the framework edition for flashes.</li>
+</ul>
+
+<h2>Questions that come up</h2>
+
+<p><strong>Can the English site still be searched?</strong> It has no search today. Adding one means shipping a small client-side index, which is far cheaper than restoring the SPA.</p>
+
+<p><strong>Why not staticise the Chinese site too?</strong> It has an editor, comments, an admin area and dynamic routes. Staticising it means rewriting the product. Content pages can be static; application pages cannot.</p>
+
+<p><strong>Does inline JavaScript break a content security policy?</strong> It would. The site has no strict policy today; if one arrives, this script needs a nonce or a hash.</p>
+
+<p><strong>Why not defer or async?</strong> The theme has to be decided before style calculation. Deferring shows a white frame.</p>
+
+<p><strong>Does the Chinese edition benefit?</strong> Indirectly. The English pages no longer download the Vue runtime, and both editions share the same stylesheet, so switching between them hits a warm cache.</p>
+
+<h2>Closing</h2>
+
+<p>The turning point was not learning to write static HTML. It was accepting an unintuitive fact: a slow first paint is not fixed by shrinking a file.</p>
+
+<p>Those 220 KB were spread across five files, none of them large, yet together they formed a chain that had to run end to end, and the length of the chain was the length of the blank screen. The only way to make the first paint depend on HTML and CSS alone is to delete the chain, not to shorten it.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/english-site-without-js/">从 3 秒到毫秒首屏：英文站去 JS 化</a>.</p>
+`,
+  },
+
+  {
+    slug: 'sqlite-group-commit',
+    zhSlug: 'sqlite-group-commit',
+    topicSlug: 'database',
+    title: 'One fsync for a thousand rows: measuring SQLite commit strategies',
+    excerpt:
+      'A commit costs a flush, not a row. Row by row this machine manages 148 rows per second; batched 1000 at a time it reaches 123,829. Measured on the same disk, same table, same data.',
+    date: '2026-11-12',
+    readingTime: 11,
+    html: `
+<h2>Twenty thousand rows took 136 seconds</h2>
+
+<p>An ordinary script writes twenty thousand events into SQLite.</p>
+
+<pre><code>for row in events:
+    conn.execute("INSERT INTO t (i, kind, payload) VALUES (?, ?, ?)", row)
+    conn.commit()          # this line is the problem
+</code></pre>
+
+<p>It felt stuck. The arithmetic explains why: committing per row means twenty thousand fsyncs, and one fsync on this machine measures 1.996 milliseconds. That alone is forty seconds. With the extra writes and deletes of a rollback journal the real figure is 6.82 ms per commit, which is 136 seconds for twenty thousand rows.</p>
+
+<p>The same twenty thousand rows inside a single transaction: 0.036 seconds.</p>
+
+<p>Same machine, same table, same data, a factor of several thousand. This article is the accounting: what a flush actually costs, what batching amortises, and when batching is the wrong answer.</p>
+
+<h2>The price of a flush</h2>
+
+<pre><code>fd = tempfile.mkstemp()
+os.write(fd, b"x" * 4096)
+for _ in range(200):
+    os.write(fd, b"y" * 4096)
+    os.fsync(fd)
+</code></pre>
+
+<p>Median across runs: 1.996 ms. That single number decides everything that follows. Committing per row means one flush per row, which caps throughput near five hundred rows per second. Committing a thousand rows at a time pays the same flush once, which puts the ceiling near half a million.</p>
+
+<p>That is group commit in one sentence: the number of flushes is bound to the number of commits, not to the number of rows.</p>
+
+<h2>Four points on the curve</h2>
+
+<p>Fixed at two hundred commits, 120 bytes of payload per row, median of three runs.</p>
+
+<p><strong>Rollback journal with synchronous set to full:</strong></p>
+
+<table>
+<thead><tr><th>Rows per commit</th><th>Wall time</th><th>Rows</th><th>Throughput</th><th>Per row</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>1.351 s</td><td>200</td><td>148 rows/s</td><td>6754.9 us</td></tr>
+<tr><td>10</td><td>1.313 s</td><td>2,000</td><td>1,524 rows/s</td><td>656.3 us</td></tr>
+<tr><td>100</td><td>1.366 s</td><td>20,000</td><td>14,642 rows/s</td><td>68.3 us</td></tr>
+<tr><td>1000</td><td>1.615 s</td><td>200,000</td><td>123,829 rows/s</td><td>8.1 us</td></tr>
+<tr><td>20,000 in one transaction</td><td>0.036 s</td><td>20,000</td><td>552,811 rows/s</td><td>1.8 us</td></tr>
+</tbody>
+</table>
+
+<p><strong>WAL with synchronous set to full:</strong></p>
+
+<table>
+<thead><tr><th>Rows per commit</th><th>Wall time</th><th>Rows</th><th>Throughput</th><th>Per row</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>0.401 s</td><td>200</td><td>499 rows/s</td><td>2005.0 us</td></tr>
+<tr><td>10</td><td>0.400 s</td><td>2,000</td><td>5,001 rows/s</td><td>200.0 us</td></tr>
+<tr><td>100</td><td>0.404 s</td><td>20,000</td><td>49,509 rows/s</td><td>20.2 us</td></tr>
+<tr><td>1000</td><td>0.712 s</td><td>200,000</td><td>280,906 rows/s</td><td>3.6 us</td></tr>
+<tr><td>20,000 in one transaction</td><td>0.032 s</td><td>20,000</td><td>625,274 rows/s</td><td>1.6 us</td></tr>
+</tbody>
+</table>
+
+<p>Three things are visible at a glance. Ten times more rows per commit gives roughly ten times the throughput, until a hundred rows per batch, where the flush stops being the bottleneck and insertion itself takes over. WAL is 3.4 times faster than the rollback journal when committing per row, because each commit writes the log sequentially instead of creating, syncing and deleting a journal file. And one transaction for the whole batch is 3,734 times faster than per-row commits under the rollback journal, 1,254 times faster under WAL.</p>
+
+<p>That last difference is worth reading carefully. WAL gains less because its per-row commits were never as bad: two milliseconds against 6.8. Part of the headroom had already been taken.</p>
+
+<h2>Why the rollback journal costs more</h2>
+
+<p>The rollback journal path roughly looks like this: create or truncate the journal, write the original pages into it, flush the journal, write the new pages back to the database, flush the database, delete the journal. Two flushes plus file creation and deletion on every commit.</p>
+
+<p>Measured per-commit cost is 6.82 ms against a single flush at 2.0 ms, so about 2.8 ms goes to the file lifecycle and the second sync.</p>
+
+<p>The WAL path appends the new pages to the log and flushes once. Measured 2.005 ms per commit, which is essentially the price of one flush. That also explains why WAL reaches 499 rows per second even when committing every row: the bottleneck is exactly the number of flushes.</p>
+
+<p>One side effect is easy to forget: the log file grows until a checkpoint. Writing two hundred thousand rows in a batch makes it noticeably larger, and that is the space being traded for commit speed.</p>
+
+<h2>When batching is wrong</h2>
+
+<p>This matters most, because putting everything in one transaction is frequently a mistake in production.</p>
+
+<p><strong>The transaction boundary is the business boundary.</strong> A transaction covering twenty thousand rows means all of them succeed or none do. If each row is an independent business event, an order, a credit, a payment, commit per event rather than fusing them for speed.</p>
+
+<p><strong>Long transactions hold locks.</strong> A write transaction keeps its lock until commit, so twenty thousand rows block every other writer for that entire window. SQLite makes this vivid, since it has a single writer. The gain from batching is often eaten by the loss of concurrency.</p>
+
+<p><strong>A crash rolls back the whole batch.</strong> Committing per row means a failure at row ten thousand leaves 9,999 safe. Committing the batch means a failure at the last moment discards everything. For a data import that is fine, since you rerun it. For live traffic it is an incident.</p>
+
+<p><strong>Memory and log growth.</strong> Larger batches mean a larger log and a heavier checkpoint. A thousand rows per batch is usually the sweet spot: throughput is already close to the single-transaction figure, while memory and log growth stay bounded.</p>
+
+<h2>The same arithmetic elsewhere</h2>
+
+<ul>
+<li><strong>PostgreSQL:</strong> with synchronous commit on, every commit waits for the write-ahead log to reach disk. A bulk copy is an order of magnitude faster for exactly this reason.</li>
+<li><strong>InnoDB:</strong> flushing the log at each commit means one fsync per transaction. Relaxing it to flush once per second trades up to a second of committed data for throughput.</li>
+<li><strong>Kafka:</strong> acknowledgements from all replicas and a flush interval per partition are the same trade, with the same shape of risk.</li>
+</ul>
+
+<p>So when a benchmark says batched writes are a hundred times faster, the database is not being slow. You are paying per flush, and the row count is almost incidental.</p>
+
+<h2>Reproducing it</h2>
+
+<pre><code>set PYTHONIOENCODING=utf-8 &amp;&amp; python tools/bench_sqlite_commit.py
+</code></pre>
+
+<p>The script measures the raw fsync price first, then runs one, ten, a hundred and a thousand rows per commit plus a single transaction over twenty thousand rows, three runs each, median reported, once for the rollback journal and once for WAL. Raw output is kept next to it.</p>
+
+<p>Three methodological notes so the numbers are read correctly. Commit count is fixed rather than row count, so every row of the table performs the same number of flushes and the throughput difference is attributable. Each row carries 120 bytes, because empty rows let page compression hide the difference. And the database lives on the same physical disk in a temporary directory; a network volume would make flushes an order of magnitude more expensive without changing the ratios.</p>
+
+<h2>Checklist</h2>
+
+<ul>
+<li>Bulk imports use one transaction per N rows, not a commit per row.</li>
+<li>The batch size is chosen where flush cost meets insertion cost, a thousand rows here.</li>
+<li>Transaction boundaries line up with business boundaries rather than throughput targets.</li>
+<li>Lock hold time is evaluated against concurrency.</li>
+<li>WAL is enabled, with the log file growth accepted.</li>
+<li>The synchronous setting is a deliberate choice: full does not lose committed transactions, normal may lose recent ones after a power cut without corrupting the database.</li>
+<li>Replays after a rolled-back batch are idempotent.</li>
+</ul>
+
+<h2>Questions that come up</h2>
+
+<p><strong>What exactly does normal lose?</strong> Under WAL, normal does not flush on every commit, so an operating system crash or power loss can drop the most recent committed transactions. The database file itself stays consistent. Only full guarantees that a commit is durable.</p>
+
+<p><strong>Why a thousand and not two thousand?</strong> At a thousand rows the flush is already off the critical path, so further growth buys little while lock time and log size keep growing.</p>
+
+<p><strong>Does executemany batch the commits for me?</strong> No. It reduces round trips on the client side only. The number of commits is the number of times you commit.</p>
+
+<p><strong>Is moving the commit out of the loop always safe?</strong> It is faster, and the pending changes accumulate in memory and the log. Once the volume no longer fits, you are back to batches.</p>
+
+<p><strong>Why do databases not default to this?</strong> Defaults have to answer for correctness. The benefit of batching belongs to the application, and only someone who knows the business boundary can choose it.</p>
+
+<h2>Closing</h2>
+
+<p>Everyone knows batched writes are faster. Far fewer have done the arithmetic: one flush here is two milliseconds, twenty thousand per-row commits take 136 seconds, and one transaction takes 0.036.</p>
+
+<p>A gap of several thousand times comes from a single variable: how many times you flushed. So next time something feels slow, ask how many commits you issued. That number matters far more than how many rows you wrote.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/sqlite-group-commit/">一次 fsync 摊薄 1000 行：SQLite 提交实测</a>.</p>
+`,
+  },
+
+  {
+    slug: 'build-time-image-cache',
+    zhSlug: 'build-time-image-cache',
+    topicSlug: 'backend',
+    title: 'A four minute build, three and a half of it re-encoding 94 images',
+    excerpt:
+      'Cold build: 191.3 seconds, of which 181.9 re-encoded covers that had not changed. Caching the encoder output outside dist took the image phase to 0.1 seconds and the build to 21.',
+    date: '2026-11-12',
+    readingTime: 10,
+    html: `
+<h2>The build is slow, and you do not know where</h2>
+
+<p>The build is unremarkable on paper.</p>
+
+<pre><code>{
+  "scripts": {
+    "build": "vite build &amp;&amp; node scripts/prerender.mjs",
+    "postbuild": "node scripts/compress-images.mjs"
+  }
+}
+</code></pre>
+
+<p>Vite bundles the frontend, the prerender script writes one static page per article, and the postbuild step encodes 94 cover images into WebP and AVIF.</p>
+
+<p>It felt like three minutes, and it felt like three minutes every time, even when the only change was a line of CSS with no image touched.</p>
+
+<p>The instinct is to blame the bundler or the prerender step. Then you time the three phases separately.</p>
+
+<pre><code>vite build     : 1.75 s
+prerender      : ~16 s   (146 pages, API + file writes)
+image postbuild: 181.9 s (94 encoded, 0 cached)
+TOTAL          : 191.3 s
+</code></pre>
+
+<p>Ninety-five percent of the build re-encodes files that never changed.</p>
+
+<h2>Time the phases before optimising</h2>
+
+<p>A forty-line wrapper runs the build once and extracts three numbers from the output.</p>
+
+<pre><code>const t0 = Date.now()
+const res = spawnSync('npm', ['run', 'build'], { cwd: FRONTEND, shell: true, encoding: 'utf8' })
+const total = (Date.now() - t0) / 1000
+
+const vite = out.match(/built in ([\\d.]+)s/)
+const compress = out.match(/Done: (\\d+) images, (\\d+) encoded, (\\d+) cached, ([\\d.]+)s/)
+</code></pre>
+
+<table>
+<thead><tr><th>Phase</th><th>Time</th><th>Share</th></tr></thead>
+<tbody>
+<tr><td>Vite build</td><td>1.75 s</td><td>0.9%</td></tr>
+<tr><td>Prerender, 146 pages</td><td>~16 s</td><td>8.4%</td></tr>
+<tr><td>Image encoding, 94 images, two formats</td><td><strong>181.9 s</strong></td><td><strong>95.1%</strong></td></tr>
+<tr><td>Total</td><td>191.3 s</td><td>100%</td></tr>
+</tbody>
+</table>
+
+<p>1.94 seconds per image is reasonable, since AVIF is genuinely expensive to encode. What is unreasonable is paying it for an unchanged file.</p>
+
+<h2>Why the first cache attempt did nothing</h2>
+
+<p>The obvious fix is to record what has been encoded and skip it. My first attempt stored the manifest at <code>frontend/dist/.image-cache.json</code> and skipped when the source size and modification time matched and both outputs existed.</p>
+
+<p>Run on its own, the script behaved perfectly: 94 images, 0 encoded, 94 cached, 0.1 seconds. Inside the build it always reported 94 encoded.</p>
+
+<p>The reason is Vite's default behaviour: <code>emptyOutDir</code> wipes <code>dist/</code> at the start of every build, taking the manifest and the cached outputs with it.</p>
+
+<p>The cache was in the wrong place. An output directory means exactly that, and anything with a lifetime longer than one build has to live elsewhere.</p>
+
+<pre><code>frontend/
+  .cache/images/            ← survives builds, git ignored
+    manifest.json
+    lc-1-cover.webp
+    lc-1-cover.avif
+  dist/photos/              ← rewritten every build
+</code></pre>
+
+<h2>Hit the cache, copy the file</h2>
+
+<pre><code>const hit = await cachedOutputs(src, manifest[src], srcStat)
+if (hit) {
+  await copy(hit.webp, distWebp)
+  await copy(hit.avif, distAvif)
+} else {
+  await sharp(src).webp({ quality: 80 }).toFile(cacheWebp)
+  await sharp(src).avif({ quality: 60 }).toFile(cacheAvif)
+  await copy(cacheWebp, distWebp)
+  await copy(cacheAvif, distAvif)
+}
+</code></pre>
+
+<p>Three conditions decide a hit, and all three are needed. The source size must match, which catches the common case of a different image saved under the same name. The modification time must match, which catches a re-export that happens to have the same size. And both cached outputs must exist and be non-empty, which catches a half-cleared cache directory.</p>
+
+<p>The manifest also carries the encoder options:</p>
+
+<pre><code>{ "options": "webp80-avif60-max2400", "entries": { ... } }
+</code></pre>
+
+<p>Changing quality or the maximum dimension invalidates the whole manifest, which prevents a subtle failure where new settings silently apply only to images encoded after the change.</p>
+
+<h2>191 seconds to 21</h2>
+
+<table>
+<thead><tr><th>Metric</th><th>Cold</th><th>Warm</th><th>Change</th></tr></thead>
+<tbody>
+<tr><td>Image phase</td><td><strong>181.9 s</strong>, 94 encoded</td><td><strong>0.1 s</strong>, 94 cached</td><td>-99.9%</td></tr>
+<tr><td>Full build</td><td><strong>191.3 s</strong></td><td><strong>21.0 s</strong></td><td>-89%</td></tr>
+<tr><td>Per image</td><td>1.94 s</td><td>about 1 ms to copy</td><td></td></tr>
+</tbody>
+</table>
+
+<p>A realistic case: change one cover, rebuild, and only that image is encoded. The image phase takes about two seconds while the other 93 are copied from cache.</p>
+
+<p>Cold builds still take three minutes, which is unavoidable since something has to be encoded the first time. But daily builds going from three minutes to twenty seconds decides whether you are willing to rebuild the site to fix a typo.</p>
+
+<h2>What could still be faster</h2>
+
+<p><strong>Parallel encoding</strong> is the biggest win left. The loop is serial: 94 images at 1.94 seconds each. Four workers would put it near fifty seconds. Sharp wraps libvips and is safe to call concurrently, so batching with <code>Promise.all</code> is enough.</p>
+
+<p><strong>Producing AVIF only where it is used</strong> matters too. AVIF encoding costs several times what WebP does, and images that only appear in the feed or an archive page do not need both formats.</p>
+
+<p><strong>Incremental prerendering</strong> is the last one. The prerender script already caches article details, but it still rewrites all 146 pages. Rewriting only pages whose article changed would take the sixteen seconds down to a few, though it is smaller than the image win.</p>
+
+<p>Order matters: remove duplicated work first, then parallelise. The cache eliminates ninety-five percent of the duplication, which is what makes parallelism worth doing at all.</p>
+
+<h2>Checklist</h2>
+
+<ul>
+<li>Build caches live outside the output directory, or <code>emptyOutDir</code> deletes them.</li>
+<li>The cache key includes source size and modification time.</li>
+<li>The cache key includes encoder settings, and changing them invalidates everything.</li>
+<li>A hit is only accepted when the cached outputs exist and are non-empty.</li>
+<li>A force flag exists for when the encoder, the fonts or your trust in the cache changes.</li>
+<li>The cache directory is git ignored and is not inside <code>dist</code>.</li>
+<li>CI caches that directory, otherwise CI is always cold.</li>
+<li>The cold path still works, since the first build on a fresh machine has no cache.</li>
+</ul>
+
+<h2>Questions that come up</h2>
+
+<p><strong>Why not commit the encoded files?</strong> You could, and 94 images in two formats would add several hundred megabytes of binary to the repository, then need another commit whenever quality changes. The cache is a local and CI concern; the repository keeps sources.</p>
+
+<p><strong>Are modification times stable in CI?</strong> No. A fresh clone stamps every file with checkout time, so CI is cold by definition. Cache the directory in CI rather than relying on timestamps.</p>
+
+<p><strong>Could the cache serve a stale image?</strong> Only if size and modification time both match while the content differs, which is vanishingly rare. The force flag exists for that day.</p>
+
+<p><strong>Why is compression a postbuild step?</strong> A prebuild step would write into a directory that the bundler then wipes.</p>
+
+<p><strong>Why is AVIF so much slower?</strong> It uses a costlier intra-frame codec, and in exchange produces files thirty to fifty percent smaller than WebP at comparable quality.</p>
+
+<h2>Closing</h2>
+
+<p>No application code changed. A step that ran every build but had nothing to do became incremental.</p>
+
+<p>The number worth keeping is the split: of 191.3 seconds, 181.9 were spent re-encoding the same 94 images. When a build feels slow, time the phases before replacing the toolchain. The problem is rarely that the build is slow; it is that you keep rebuilding the same thing.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/build-time-image-cache/">构建 4 分钟，3 分半在压 94 张图</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

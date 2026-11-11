@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="从 3 秒到毫秒首屏：英文站去 JS 化 适用读者：手上有一个 SPA 站点，知道它&quot;首屏慢&quot;但说不清慢在哪的人 技术栈：Vue 3 + Vite 构建的 SPA，GitHub…" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/english-site-without-js/" />
+    <meta property="og:title" content="从 3 秒到毫秒首屏：英文站去 JS 化" />
+    <meta property="og:description" content="从 3 秒到毫秒首屏：英文站去 JS 化 适用读者：手上有一个 SPA 站点，知道它&quot;首屏慢&quot;但说不清慢在哪的人 技术栈：Vue 3 + Vite 构建的 SPA，GitHub…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/english-site-without-js/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/english-site-without-js-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/english-site-without-js-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="从 3 秒到毫秒首屏：英文站去 JS 化 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="从 3 秒到毫秒首屏：英文站去 JS 化" />
+    <meta name="twitter:description" content="从 3 秒到毫秒首屏：英文站去 JS 化 适用读者：手上有一个 SPA 站点，知道它&quot;首屏慢&quot;但说不清慢在哪的人 技术栈：Vue 3 + Vite 构建的 SPA，GitHub…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/english-site-without-js-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>从 3 秒到毫秒首屏：英文站去 JS 化 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CqGfxZfE.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+      <meta property="article:section" content="项目实战" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/english-site-without-js/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/english-site-without-js/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/english-site-without-js/" />
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-11T11:36:33.054965+08:00" />
+        <meta property="article:modified_time" content="2026-11-11T11:36:33.054965+08:00" />
+        <meta property="article:tag" content="前端架构" />
+    <meta property="article:tag" content="性能优化" />
+    <meta property="article:tag" content="构建" />
+    <meta property="article:tag" content="静态站点" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/english-site-without-js/#article","url":"https://blog.zhoujun.dev/article/english-site-without-js/","headline":"从 3 秒到毫秒首屏：英文站去 JS 化","description":"从 3 秒到毫秒首屏：英文站去 JS 化 适用读者：手上有一个 SPA 站点，知道它\"首屏慢\"但说不清慢在哪的人 技术栈：Vue 3 + Vite 构建的 SPA，GitHub…","image":"https://blog.zhoujun.dev/photos/english-site-without-js-cover.png","datePublished":"2026-11-11T11:36:33.054965+08:00","dateModified":"2026-11-11T11:36:33.054965+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/english-site-without-js/"},"articleSection":"项目实战","keywords":"前端架构, 性能优化, 构建, 静态站点","inLanguage":"zh-CN","wordCount":2456},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/english-site-without-js/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"从 3 秒到毫秒首屏：英文站去 JS 化","item":"https://blog.zhoujun.dev/article/english-site-without-js/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"english-site-without-js","title":"从 3 秒到毫秒首屏：英文站去 JS 化","created_at":"2026-11-11T11:36:33.054965+08:00","updated_at":"2026-11-11T11:36:33.054995+08:00","author":null,"category":{"id":14,"name":"项目实战","slug":"projects"},"tags":[{"id":204,"name":"前端架构","slug":"frontend-architecture"},{"id":114,"name":"性能优化","slug":"performance"},{"id":205,"name":"构建","slug":"build"},{"id":203,"name":"静态站点","slug":"static-site"}],"cover_image":"/photos/english-site-without-js-cover.png","excerpt":"从 3 秒到毫秒首屏：英文站去 JS 化 适用读者：手上有一个 SPA 站点，知道它\"首屏慢\"但说不清慢在哪的人 技术栈：Vue 3 + Vite 构建的 SPA，GitHub Pages 托管；英文站单独走预渲染静态壳 阅读时间：约 18 分钟 | 难度：中等 | 收获：一份可复算的首屏字节账、一次把 220 KB ","reading_time":10,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>从 3 秒到毫秒首屏：英文站去 JS 化</span></nav><h1>从 3 秒到毫秒首屏：英文站去 JS 化</h1><div class="ns-meta">2026/11/11 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/projects/">项目实战</a> · 标签：前端架构 <a href="https://blog.zhoujun.dev/tags/performance/">性能优化</a> 构建 静态站点</p><nav class="ns-series"><p><strong>本系列 · 项目实战</strong>（11 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li><a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/aidevops-terminal-client/">【开源】aidevops 技术拆解：研发数据关联与可解释风险</a></li><li><a href="https://blog.zhoujun.dev/article/halo-music-square-architecture/">Halo 音乐广场技术拆解：多音源在线音乐应用</a></li><li><a href="https://blog.zhoujun.dev/article/happy-games-24-games-zero-framework-guide/">快乐小游戏：24 款零框架小游戏的全栈实践</a></li><li><a href="https://blog.zhoujun.dev/article/google-matter-smart-home-dev-guide/">谷歌 Matter 智能家居开发完全指南：从入门到认证</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/projects/">查看项目实战专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：手上有一个 SPA 站点，知道它"首屏慢"但说不清慢在哪的人
+技术栈：Vue 3 + Vite 构建的 SPA，GitHub Pages 托管；英文站单独走预渲染静态壳
+阅读时间：约 18 分钟 | 难度：中等 | 收获：一份可复算的首屏字节账、一次把 220 KB JS 降到 0 的改造、以及"哪些页面可以静态化"的判断标准
+</blockquote>
+<h2>前言：3 秒白屏，但每个文件都不大</h2>
+
+英文站上线后收到一条反馈：<strong>打开要等三秒以上</strong>。
+
+第一反应是 CDN 慢。于是先量产物：HTML 22.9 KB、CSS 30.5 KB(gzip 6.0 KB)、入口 JS 79.9 KB(gzip 30.2 KB)……单看每个文件都很正常，没有任何一个"异常大"。
+
+问题在<strong>它们是一串必须按顺序执行的步骤</strong>：
+<div class="codehilite"><pre><span></span><code>HTML → 30 KB CSS → 79.9 KB 入口 JS → 63.5 KB Vue 运行时 → 45.6 KB 客户端
+     → 路由 chunk → Vue 清空 #app 重新渲染 → 页面才出现
+</code></pre></div>
+
+
+六个请求、220 KB 原始字节（gzip 后 78.3 KB），每一步都要等上一步完成。<strong>首屏时间不是最大的那个文件的下载时间，是这条链路的总和。</strong>
+
+这篇文章只做一件事：把这条链路拆成可复算的字节账，然后证明英文站根本不需要它。
+<h2>一、先算账：一次首屏到底下载和执行了什么</h2>
+
+我用一个 100 行的脚本（<code>tools/bench_static_shell.cjs</code>）直接读构建产物，不猜、不估：
+<div class="codehilite"><pre><span></span><code><span class="o">==</span><span class="w"> </span><span class="n">SPA</span><span class="w"> </span><span class="err">首屏引导（中文站同构）</span><span class="w"> </span><span class="o">==</span>
+<span class="n">files</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">raw</span><span class="w"> </span><span class="mf">220.1</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">gzip</span><span class="w"> </span><span class="mf">78.3</span><span class="w"> </span><span class="n">KB</span>
+<span class="w">   </span><span class="o">/</span><span class="n">assets</span><span class="o">/</span><span class="n">index</span><span class="o">-</span><span class="n">DQvGHmaK</span><span class="o">.</span><span class="n">js</span><span class="w">                    </span><span class="mf">79.9</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">gzip</span><span class="w"> </span><span class="mf">30.2</span><span class="w"> </span><span class="n">KB</span>
+<span class="w">   </span><span class="o">/</span><span class="n">assets</span><span class="o">/</span><span class="n">_plugin</span><span class="o">-</span><span class="n">vue_export</span><span class="o">-</span><span class="n">helper</span><span class="o">-</span><span class="n">tRUQJj3d</span><span class="o">.</span><span class="n">js</span><span class="w"> </span><span class="mf">63.5</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">gzip</span><span class="w"> </span><span class="mf">24.6</span><span class="w"> </span><span class="n">KB</span>
+<span class="w">   </span><span class="o">/</span><span class="n">assets</span><span class="o">/</span><span class="n">rolldown</span><span class="o">-</span><span class="n">runtime</span><span class="o">-</span><span class="n">QTnfLwEv</span><span class="o">.</span><span class="n">js</span><span class="w">          </span><span class="mf">0.7</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">gzip</span><span class="w">  </span><span class="mf">0.4</span><span class="w"> </span><span class="n">KB</span>
+<span class="w">   </span><span class="o">/</span><span class="n">assets</span><span class="o">/</span><span class="n">client</span><span class="o">-</span><span class="n">DDSzq_</span><span class="o">-</span><span class="n">U</span><span class="o">.</span><span class="n">js</span><span class="w">                   </span><span class="mf">45.6</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">gzip</span><span class="w"> </span><span class="mf">17.1</span><span class="w"> </span><span class="n">KB</span>
+<span class="w">   </span><span class="o">/</span><span class="n">assets</span><span class="o">/</span><span class="n">index</span><span class="o">.</span><span class="n">DnfPoa2_</span><span class="o">.</span><span class="n">css</span><span class="w">                   </span><span class="mf">30.5</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">gzip</span><span class="w">  </span><span class="mf">6.0</span><span class="w"> </span><span class="n">KB</span>
+</code></pre></div>
+
+
+五个文件、六个请求（HTML 也算一个）。<strong>这还只是首屏</strong>——路由 chunk 在 JS 执行后才会被 <code>import()</code> 拉下来。
+
+再看解析 + 编译成本。用 <code>vm.SourceTextModule</code> 只编译不执行，跑 7 次取中位数：
+<div class="codehilite"><pre><span></span><code><span class="n">entry</span><span class="w"> </span><span class="n">bundle</span><span class="w"> </span><span class="o">/</span><span class="n">assets</span><span class="o">/</span><span class="nf">index</span><span class="o">-</span><span class="n">DQvGHmaK</span><span class="p">.</span><span class="n">js</span><span class="w"> </span><span class="mf">79.9</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="mf">3.4</span><span class="w"> </span><span class="n">ms</span>
+<span class="n">inline</span><span class="w"> </span><span class="n">shell</span><span class="w"> </span><span class="n">inline</span><span class="w"> </span><span class="mf">0.8</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="mf">0.01</span><span class="w"> </span><span class="n">ms</span>
+</code></pre></div>
+
+
+3.4 ms 听起来不多——<strong>因为它只是"编译"，不含下载、执行、DOM 构建、样式计算、广告脚本</strong>。真实设备上一次首屏是三段相加：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>决定因素</th>
+<th>这次改造的影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>下载</td>
+<td>220 KB / 带宽，6 个 RTT</td>
+<td>降到 12.9 KB gzip、2 个请求</td>
+</tr>
+<tr>
+<td>解析编译</td>
+<td>JS 字节数</td>
+<td>3.4 ms → 0.01 ms</td>
+</tr>
+<tr>
+<td>执行 + 渲染</td>
+<td>Vue 挂载、路由匹配、接口请求</td>
+<td>整段消失</td>
+</tr>
+</tbody>
+</table></div>
+
+按 1 Mbps 的冷启动估算，光传输就是 78.3 KB × 8 / 1024 ≈ <strong>0.61 s</strong>，再加上六个串行 RTT、Vue 挂载、以及当时还有的 AdSense 脚本和一次后端 <code>preconnect</code>——<strong>3 秒不奇怪，1 秒才奇怪</strong>。
+
+关键结论：<strong>这不是"某个文件太大"，是"这个页面根本不该用 SPA 渲染"。</strong>
+<h2>二、判断标准：哪些页面可以静态化</h2>
+
+英文站的页面有一个特征：<strong>内容在构建期就完全确定</strong>。
+<ul>
+<li>文章列表：来自构建时读取的文章注册表，不会在运行时新增；</li>
+<li>文章详情：正文是构建期生成的 HTML，没有评论框、没有编辑器；</li>
+<li>专题页、分页：全部由同一份数据推导。</li>
+</ul>
+
+也就是说，这些页面<strong>没有任何运行时状态</strong>。唯一需要 JS 的三件事其实很小：
+<ol>
+<li>主题切换（读 <code>localStorage.theme</code>，切一个 class）；</li>
+<li>移动端菜单（切一个布尔值）；</li>
+<li>分页/导航（构建期就能生成静态链接，根本不需要 JS）。</li>
+</ol>
+
+反过来说，中文站不能这么砍：它有搜索、评论、后台入口、Live2D、动态路由。<strong>判断标准不是"想不想快"，而是"这个页面有没有非构建期才能确定的内容"。</strong>
+<h2>三、改法：一个 23 行的静态壳</h2>
+
+改造后的英文站首页，构建产物是这样的：
+<div class="codehilite"><pre><span></span><code>== /en/ 静态壳 ==
+html raw 22.9 KB | gzip 6.9 KB
+external scripts 0 | external css 1
+inline js bytes 792 | lines 23
+css /assets/index.DfnPoa2_.css 30.5 KB | gzip 6.0 KB
+</code></pre></div>
+
+
+<strong>外部脚本 0 个</strong>。全站只剩三个文件：HTML、CSS、以及 HTML 里内联的 792 字节 JS。
+
+内联脚本只做两件事——恢复主题、绑定菜单按钮，并且<strong>与 Vue 的 ThemeToggle 共用同一个 <code>localStorage</code> key</strong>，否则用户在两个站之间来回切会出现主题跳变：
+<div class="codehilite"><pre><span></span><code><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span>
+<span class="w">  </span><span class="c1">// 1) 首帧之前定主题，避免闪白</span>
+<span class="w">  </span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">getItem</span><span class="p">(</span><span class="s1">&#39;theme&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;dark&#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">t</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">matchMedia</span><span class="p">(</span><span class="s1">&#39;(prefers-color-scheme: dark)&#39;</span><span class="p">).</span><span class="nx">matches</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nb">document</span><span class="p">.</span><span class="nx">documentElement</span><span class="p">.</span><span class="nx">dataset</span><span class="p">.</span><span class="nx">theme</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;dark&#39;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">})()</span>
+<span class="w">  </span><span class="c1">// 2) 菜单开关：一个 class + aria-expanded</span>
+<span class="w">  </span><span class="nb">document</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s1">&#39;click&#39;</span><span class="p">,</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">btn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">e</span><span class="p">.</span><span class="nx">target</span><span class="p">.</span><span class="nx">closest</span><span class="p">(</span><span class="s1">&#39;[data-menu-toggle]&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">btn</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="kd">var</span><span class="w"> </span><span class="nx">nav</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s1">&#39;[data-nav]&#39;</span><span class="p">)</span>
+<span class="w">      </span><span class="kd">var</span><span class="w"> </span><span class="nx">open</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">nav</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nx">toggle</span><span class="p">(</span><span class="s1">&#39;is-open&#39;</span><span class="p">)</span>
+<span class="w">      </span><span class="nx">btn</span><span class="p">.</span><span class="nx">setAttribute</span><span class="p">(</span><span class="s1">&#39;aria-expanded&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">open</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s1">&#39;true&#39;</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;false&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">})</span>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+
+三条纪律：
+<ol>
+<li><strong>脚本放在 <code>&lt;head&gt;</code> 里同步执行</strong>，且只碰 <code>documentElement</code> 的 class——如果等 DOMContentLoaded 再定主题，用户会先看到一帧白底再变黑；</li>
+<li><strong>不引入任何模块系统</strong>，<code>type="module"</code> 也会带来一次额外的调度与 CORS 语义，能不用就不用；</li>
+<li><strong>不挂载任何框架</strong>：一旦挂载，Vue 会清空 <code>#app</code> 重建，首屏内容等于"白等一次"。</li>
+</ol>
+<h2>四、连带删掉的东西，比删 JS 更值钱</h2>
+
+改造时一起清掉的还有三类"看起来无害"的东西，它们对首屏的影响不比 JS 小：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>删掉的</th>
+<th>原来的代价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>modulepreload</code> 预加载</td>
+<td>提前抢占带宽，且预加载的是首屏根本用不到的 chunk</td>
+</tr>
+<tr>
+<td>AdSense 自动广告</td>
+<td>第三方脚本 + 若干子请求，且加载时机不受控</td>
+</tr>
+<tr>
+<td>后端 <code>preconnect</code></td>
+<td>英文站首屏根本不请求 API，等于白建一条连接</td>
+</tr>
+</tbody>
+</table></div>
+
+第三条尤其典型：<strong><code>preconnect</code> 是"我马上要用"的承诺</strong>，留着它相当于让浏览器为一个永远不会发生的请求提前握手。
+<h2>五、分页必须回到构建期</h2>
+
+静态化的直接后果：<strong>所有列表必须提前存在</strong>。英文站的分页是 12 篇一页，共 7 页，产物长这样：
+<div class="codehilite"><pre><span></span><code>/en/articles/
+/en/articles/page/2/ … /en/articles/page/7/
+</code></pre></div>
+
+
+三条规则写死在构建脚本里：
+<ol>
+<li>每页独立 <code>canonical</code> 指向自己（第 2 页<strong>不能</strong>指回第 1 页，否则第 2 页永远进不了索引）；</li>
+<li>首页之外的页码写进 <code>&lt;title&gt;</code>（<code>Articles, page 3 | Stack Frame</code>），避免 7 个页面标题完全一样；</li>
+<li>分页 URL 全部进 sitemap——否则爬虫只能靠翻页链接发现它们。</li>
+</ol>
+
+这一条是静态化最容易漏的地方：<strong>SPA 时代分页是"状态"，静态化之后分页是"页面"。</strong>
+<h2>六、代价：评论没法挂载了</h2>
+
+诚实地说，静态化不是免费的。
+
+英文文章页原本挂着一个 Vue 评论组件，静态化之后 <code>#app</code> 不再被挂载，评论框自然消失。我选的方案不是"再塞一个轻量评论区"，而是在文章末尾放一行说明：
+<blockquote>
+
+Comments live on the Chinese edition — 去中文站讨论
+</blockquote>
+
+理由很直接：<strong>评论是低频互动，首屏是高频路径。</strong> 为 1% 的交互把 100% 的用户拖回 220 KB JS，账算不过来。
+
+如果哪天一定要在英文站加评论，正确的做法是<strong>按需加载</strong>：先渲染一个静态按钮，点击时才 <code>import()</code> 评论 bundle。它在首屏之外，不影响这里的任何数字。
+<h2>七、实测对照</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>改造前（SPA）</th>
+<th>改造后（静态壳）</th>
+<th>变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>首屏 JS</td>
+<td>220.1 KB（5 文件）</td>
+<td>0.8 KB（内联）</td>
+<td><strong>≈ 0</strong></td>
+</tr>
+<tr>
+<td>首屏请求数</td>
+<td>6</td>
+<td>2</td>
+<td>−67%</td>
+</tr>
+<tr>
+<td>首屏 gzip 字节</td>
+<td>78.3 KB</td>
+<td>12.9 KB</td>
+<td>−84%</td>
+</tr>
+<tr>
+<td>JS 解析 + 编译</td>
+<td>3.4 ms</td>
+<td>0.01 ms</td>
+<td>两个数量级</td>
+</tr>
+<tr>
+<td>Vue 挂载 / 路由匹配</td>
+<td>有</td>
+<td>无</td>
+<td>整段消失</td>
+</tr>
+</tbody>
+</table></div>
+
+复现：
+<div class="codehilite"><pre><span></span><code>node<span class="w"> </span>--experimental-vm-modules<span class="w"> </span>tools/bench_static_shell.cjs
+</code></pre></div>
+
+
+（<code>--experimental-vm-modules</code> 只是为了能构造 <code>SourceTextModule</code> 做"只编译不执行"的测量，不需要它也能跑字节统计。）
+<h2>八、上线 Checklist</h2>
+<ul>
+<li>[ ] 首屏 HTML 里没有任何外部 <code>&lt;script src&gt;</code>（除确有必要的第三方）</li>
+<li>[ ] 主题脚本在 <code>&lt;head&gt;</code> 同步执行，且与框架侧共用同一个 <code>localStorage</code> key</li>
+<li>[ ] 静态壳的导航链接全部是构建期生成的真实 URL，不依赖 JS 路由</li>
+<li>[ ] 分页每页独立 canonical，页码进 <code>&lt;title&gt;</code></li>
+<li>[ ] 分页 URL 全部进 sitemap</li>
+<li>[ ] 删掉不再需要的 <code>preconnect</code> / <code>modulepreload</code> / 第三方广告</li>
+<li>[ ] 用无 JS 模式（或 <code>curl</code>）验证首屏内容完整</li>
+<li>[ ] 与框架站对照一次主题切换，确认没有闪白</li>
+</ul>
+<h2>九、高频 FAQ</h2>
+
+<strong>Q：静态化之后还能搜索吗？</strong>
+A：英文站没有搜索。真要加，加载 10 KB 的客户端索引比恢复整个 SPA 便宜得多。
+
+<strong>Q：为什么不干脆把中文站也静态化？</strong>
+A：中文站有编辑器、评论、后台和动态路由，静态化等于重写一遍产品。<strong>能静态化的是"内容页"，不是"应用页"。</strong>
+
+<strong>Q：<code>inline JS</code> 会不会破坏 CSP？</strong>
+A：会。当前站点没有严格 CSP；如果将来加，需要给这段脚本一个 <code>nonce</code> 或 <code>hash</code>。
+
+<strong>Q：为什么不用 <code>defer</code> / <code>async</code>？</strong>
+A：这段脚本必须在样式计算前决定主题，<code>defer</code> 会晚一帧导致闪白。
+
+<strong>Q：这样改对中文站有收益吗？</strong>
+A：有间接收益：英文站不再加载 Vue 运行时，两个站共用同一份 CSS，缓存在切换站点时能命中。
+<h2>写在最后</h2>
+
+这次改造真正的转折点不是"会写静态 HTML"，而是<strong>接受一个反直觉的事实：首屏慢不是把某个文件变小就能解决的</strong>。
+
+220 KB JS 分散在五个文件里，每一个都不"大"；但它们构成一条必须串行执行的链，链的长度就是白屏的长度。要让首屏变成"HTML + CSS 就够"，只能把这条链整段删掉——而不是把它优化得更短。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/sqlite-group-commit/">一次 fsync 摊薄 1000 行：SQLite 提交实测</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/build-time-image-cache/">构建 4 分钟，3 分半在压 94 张图</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+  </body>
+</html>

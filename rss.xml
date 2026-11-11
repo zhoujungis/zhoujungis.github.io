@@ -5,8 +5,778 @@
     <link>https://blog.zhoujun.dev/</link>
     <description>尘世栈帧 — 技术、编程、AI 与科学</description>
     <language>zh-CN</language>
-    <lastBuildDate>Wed, 11 Nov 2026 02:48:12 GMT</lastBuildDate>
+    <lastBuildDate>Wed, 11 Nov 2026 03:41:02 GMT</lastBuildDate>
     <atom:link href="https://blog.zhoujun.dev/rss.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>构建 4 分钟，3 分半在压 94 张图</title>
+      <link>https://blog.zhoujun.dev/article/build-time-image-cache/</link>
+      <guid isPermaLink="true">https://blog.zhoujun.dev/article/build-time-image-cache/</guid>
+      <pubDate>Wed, 11 Nov 2026 03:38:40 GMT</pubDate>
+      <description>构建 4 分钟，3 分半在压 94 张图 适用读者：本地构建越来越慢、或者 CI 每次都在重复做同一件事的人 技术栈：Node 脚本 + sharp， postbuild 钩子；思路与语言无关 阅读时间：约 12 分钟 | 难度：简单 | 收获：一次完整的构建耗时解剖、一个 95% 时间被浪费掉的现场、以及把 191 </description>
+      <category>后端架构</category>
+      <category>CI</category>
+      <category>工程效率</category>
+      <category>性能优化</category>
+      <category>构建</category>
+      <content:encoded><![CDATA[<h1>构建 4 分钟，3 分半在压 94 张图</h1>
+<blockquote>
+
+适用读者：本地构建越来越慢、或者 CI 每次都在重复做同一件事的人
+技术栈：Node 脚本 + sharp，<code>postbuild</code> 钩子；思路与语言无关
+阅读时间：约 12 分钟 | 难度：简单 | 收获：一次完整的构建耗时解剖、一个 95% 时间被浪费掉的现场、以及把 191 秒压到 21 秒的增量缓存
+</blockquote>
+<h2>前言：构建慢，但你不知道慢在哪</h2>
+
+这个博客的构建脚本很朴素：
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;scripts&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;build&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vite build &amp;&amp; node scripts/prerender.mjs&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;postbuild&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;node scripts/compress-images.mjs&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>vite build</code> 打前端、<code>prerender.mjs</code> 给每篇文章生成静态页，<code>postbuild</code> 把 <code>public/photos</code> 里的 94 张封面压成 WebP + AVIF。
+
+体感三分钟起步，而且<strong>每次都是三分钟</strong>——哪怕只改了一行 CSS，一张图都没动。
+
+直觉上会说"<code>vite build</code> 慢"或"预渲染慢"。直到把三个阶段分别计时：
+<div class="codehilite"><pre><span></span><code>vite build     : 1.75 s
+prerender      : ~16 s（146 个页面，走 API + 写文件）
+image postbuild: 181.9 s (94 encoded, 0 cached)
+TOTAL          : 191.3 s
+</code></pre></div>
+
+
+<strong>95% 的时间在压图</strong>，而且压的是同一批从来没变过的文件。
+<h2>一、先把三个阶段分开计时</h2>
+
+不要凭感觉优化。写一个 40 行的包装脚本，把 <code>npm run build</code> 跑一遍并从输出里抽三个数字：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">t0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Date</span><span class="p">.</span><span class="nx">now</span><span class="p">()</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">spawnSync</span><span class="p">(</span><span class="s1">&#39;npm&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;run&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;build&#39;</span><span class="p">],</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">cwd</span><span class="o">:</span><span class="w"> </span><span class="nx">FRONTEND</span><span class="p">,</span><span class="w"> </span><span class="nx">shell</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nx">encoding</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;utf8&#39;</span><span class="w"> </span><span class="p">})</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nb">Date</span><span class="p">.</span><span class="nx">now</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">t0</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1000</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">vite</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">out</span><span class="p">.</span><span class="nx">match</span><span class="p">(</span><span class="sr">/built in ([\d.]+)s/</span><span class="p">)</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">compress</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">out</span><span class="p">.</span><span class="nx">match</span><span class="p">(</span><span class="sr">/Done: (\d+) images, (\d+) encoded, (\d+) cached, ([\d.]+)s/</span><span class="p">)</span>
+</code></pre></div>
+
+
+三条信息立刻出来了：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>耗时</th>
+<th>占比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vite build</td>
+<td>1.75 s</td>
+<td>0.9%</td>
+</tr>
+<tr>
+<td>prerender（146 页）</td>
+<td>~16 s</td>
+<td>8.4%</td>
+</tr>
+<tr>
+<td>图片压缩（94 张 × 2 格式）</td>
+<td><strong>181.9 s</strong></td>
+<td><strong>95.1%</strong></td>
+</tr>
+<tr>
+<td>合计</td>
+<td>191.3 s</td>
+<td>100%</td>
+</tr>
+</tbody>
+</table></div>
+
+单张图 1.94 秒。这个数字本身合理——AVIF 编码本来就贵；不合理的是<strong>为什么明明没变还要重压</strong>。
+<h2>二、第一版缓存为什么没用</h2>
+
+第一反应当然是加缓存：产物存在就先跳过。我一开始把清单写在 <code>frontend/dist/.image-cache.json</code>，逻辑是"源文件 size + mtime 没变、两个产物文件也在，就跳过"。
+
+单跑脚本是对的：
+<div class="codehilite"><pre><span></span><code>$<span class="w"> </span>npm<span class="w"> </span>run<span class="w"> </span>precompress
+Done:<span class="w"> </span><span class="m">94</span><span class="w"> </span>images,<span class="w"> </span><span class="m">0</span><span class="w"> </span>encoded,<span class="w"> </span><span class="m">94</span><span class="w"> </span>cached,<span class="w"> </span><span class="m">0</span>.1s.
+</code></pre></div>
+
+
+但一放进 <code>npm run build</code> 就失效，永远 <code>94 encoded</code>。原因在 Vite 的默认行为：
+<div class="codehilite"><pre><span></span><code>vite build 开始 → emptyOutDir 清空 dist/ → 缓存清单和产物一起被删
+</code></pre></div>
+
+
+<strong>缓存放错了地方。</strong> 构建产物目录本来就是"每次重建"的语义，往里塞跨构建的状态一定会被清掉。
+
+修法很直接：缓存搬到 <code>frontend/.cache/images/</code>，dist 只作为输出的中转站。
+<div class="codehilite"><pre><span></span><code>frontend/
+  .cache/images/            ← 跨构建的编码结果（git 忽略）
+    manifest.json
+    lc-1-cover.webp
+    lc-1-cover.avif
+  dist/photos/              ← 每次构建重新拷贝
+</code></pre></div>
+
+<h2>三、增量逻辑：命中就只拷文件</h2>
+
+每张图处理成两条路径：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">hit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">cachedOutputs</span><span class="p">(</span><span class="nx">src</span><span class="p">,</span><span class="w"> </span><span class="nx">manifest</span><span class="p">[</span><span class="nx">src</span><span class="p">],</span><span class="w"> </span><span class="nx">srcStat</span><span class="p">)</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">hit</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">copy</span><span class="p">(</span><span class="nx">hit</span><span class="p">.</span><span class="nx">webp</span><span class="p">,</span><span class="w"> </span><span class="nx">distWebp</span><span class="p">)</span><span class="w">   </span><span class="c1">// 命中：只拷贝，~10ms</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">copy</span><span class="p">(</span><span class="nx">hit</span><span class="p">.</span><span class="nx">avif</span><span class="p">,</span><span class="w"> </span><span class="nx">distAvif</span><span class="p">)</span>
+<span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">sharp</span><span class="p">(</span><span class="nx">src</span><span class="p">).</span><span class="nx">webp</span><span class="p">({</span><span class="w"> </span><span class="nx">quality</span><span class="o">:</span><span class="w"> </span><span class="mf">80</span><span class="w"> </span><span class="p">}).</span><span class="nx">toFile</span><span class="p">(</span><span class="nx">cacheWebp</span><span class="p">)</span><span class="w">  </span><span class="c1">// 未命中：编码一次</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">sharp</span><span class="p">(</span><span class="nx">src</span><span class="p">).</span><span class="nx">avif</span><span class="p">({</span><span class="w"> </span><span class="nx">quality</span><span class="o">:</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="p">}).</span><span class="nx">toFile</span><span class="p">(</span><span class="nx">cacheAvif</span><span class="p">)</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">copy</span><span class="p">(</span><span class="nx">cacheWebp</span><span class="p">,</span><span class="w"> </span><span class="nx">distWebp</span><span class="p">)</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">copy</span><span class="p">(</span><span class="nx">cacheAvif</span><span class="p">,</span><span class="w"> </span><span class="nx">distAvif</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+三个判定条件缺一不可：
+<ol>
+<li><strong>源文件 size 相同</strong>——挡掉"换了一张同名图"的最常见情况；</li>
+<li><strong>源文件 mtime 相同</strong>——挡掉"重新导出、大小恰好一样"；</li>
+<li><strong>两个缓存产物都存在且非空</strong>——挡掉"缓存目录被手工清过一半"。</li>
+</ol>
+
+清单里还写了 <code>options</code> 字段：
+<div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="w"> </span><span class="nt">&quot;options&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;webp80-avif60-max2400&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;entries&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;frontend/public/photos/lc-1-cover.png&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="err">...</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+
+
+<strong>改了质量参数或最大尺寸，整张清单自动失效</strong>——否则你会得到"新的 quality 对旧图不生效"这种极难发现的 bug。
+<h2>四、实测：191 秒 → 21 秒</h2>
+
+同一份内容（136 篇文章、94 张封面），冷热两次完整构建：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>冷缓存</th>
+<th>热缓存</th>
+<th>变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>图片压缩阶段</td>
+<td><strong>181.9 s</strong>（94 encoded）</td>
+<td><strong>0.1 s</strong>（94 cached）</td>
+<td><strong>−99.9%</strong></td>
+</tr>
+<tr>
+<td>完整构建</td>
+<td><strong>191.3 s</strong></td>
+<td><strong>21.0 s</strong></td>
+<td><strong>−89%</strong></td>
+</tr>
+<tr>
+<td>单张图成本</td>
+<td>1.94 s</td>
+<td>~1 ms（拷贝）</td>
+<td>—</td>
+</tr>
+</tbody>
+</table></div>
+
+再补一个真实场景：改了一篇封面后重新构建，只有那一张重新编码，其余 93 张命中缓存，压缩阶段约 <strong>2 秒</strong>（一张 AVIF + WebP 的实际成本）。
+
+冷启动仍然要 3 分钟——这是不可避免的，第一次总得压一遍。但<strong>日常构建从"三分钟"变成"二十秒"</strong>，这个差别直接决定了你会不会愿意为了改一个错别字重新构建。
+<h2>五、还能更快吗</h2>
+
+三个方向，按性价比排序。
+
+<strong>1. 并行编码（收益最大）</strong>
+现在是一张一张串行压。94 张图、每张 1.94 秒，开 4 个 worker 理论能到 ~50 秒。<code>sharp</code> 是 libvips 封装，本身线程安全，用 <code>Promise.all</code> 分批就能做。
+
+<strong>2. 只给需要的图产 AVIF</strong>
+AVIF 编码比 WebP 贵得多（大约 3–4 倍）。如果某些图只在 RSS 或归档页出现，没必要两种格式都产。
+
+<strong>3. 预渲染增量</strong>
+<code>prerender.mjs</code> 已经带了详情缓存（<code>.cache/prerender-details.json</code>），但每次仍会重写全部 146 个页面。改成"只重写 <code>updated_at</code> 变化的文章"能把 16 秒压到几秒——收益比不过图片，但也不难。
+
+注意优先级：<strong>先消灭"重复劳动"，再谈"并行"</strong>。缓存把 95% 的重复劳动消灭掉了，并行才有意义。
+<h2>六、上线 Checklist</h2>
+<ul>
+<li>[ ] 构建缓存放在产物目录<strong>之外</strong>（否则 <code>emptyOutDir</code> 会删掉它）</li>
+<li>[ ] 缓存键包含源文件 size + mtime</li>
+<li>[ ] 缓存键包含<strong>编码参数</strong>（quality / max dimension），参数变更要整体失效</li>
+<li>[ ] 命中时校验产物存在且非空</li>
+<li>[ ] 提供 <code>--force</code> 全量重建入口（换库、换字体、怀疑缓存脏时用）</li>
+<li>[ ] 缓存目录进 <code>.gitignore</code>，但不进 <code>dist</code></li>
+<li>[ ] CI 单独缓存 <code>.cache/images/</code>（否则 CI 永远是冷的）</li>
+<li>[ ] 冷启动路径仍然可用（第一次构建不能报错）</li>
+</ul>
+<h2>七、高频 FAQ</h2>
+
+<strong>Q：为什么不直接提交压好的 webp/avif 到仓库？</strong>
+A：可以，但 94 张 × 2 格式会往 git 里塞几百 MB 二进制，且换质量参数时要重新提交一批。缓存是"本地/CI 侧"的解法，仓库只留源图。
+
+<strong>Q：mtime 在 CI 上稳定吗？</strong>
+A：<code>git clone</code> 出来的 mtime 是 checkout 时间，每次都是新的 → CI 首次必然全量。所以 CI 要缓存 <code>.cache/images/</code>，而不是指望 mtime。
+
+<strong>Q：缓存会不会导致"改了图没更新"？</strong>
+A：size 和 mtime 同时相同、且内容不同，属于极小概率事件。真遇到就 <code>--force</code>。
+
+<strong>Q：为什么压缩放在 <code>postbuild</code> 而不是 <code>prebuild</code>？</strong>
+A：<code>prebuild</code> 时 dist 还没生成，压出来的文件会被 <code>vite build</code> 清掉。
+
+<strong>Q：<code>sharp</code> 的 AVIF 为什么这么慢？</strong>
+A：AVIF 用的是更贵的帧内编码（AV1），同等质量下体积比 WebP 小 30–50%，慢是换来的。
+<h2>写在最后</h2>
+
+这次优化没有改任何业务代码，只是把一个"每次都要做、但其实没变化"的步骤变成了增量。
+
+值得记住的是那三个数字：<strong>191.3 秒里有 181.9 秒在压同一批图。</strong> 构建慢的时候，先别急着换工具链——把阶段拆开计时，答案往往难看到令人发笑：真正的问题从来不是"构建慢"，而是"你在重复构建同一件东西"。]]></content:encoded>
+    </item>
+    <item>
+      <title>一次 fsync 摊薄 1000 行：SQLite 提交实测</title>
+      <link>https://blog.zhoujun.dev/article/sqlite-group-commit/</link>
+      <guid isPermaLink="true">https://blog.zhoujun.dev/article/sqlite-group-commit/</guid>
+      <pubDate>Wed, 11 Nov 2026 03:37:22 GMT</pubDate>
+      <description>一次 fsync 摊薄 1000 行：SQLite 提交实测 适用读者：写过&quot;循环里 insert 几万行&quot;的脚本，跑完发现要等一两分钟的人 技术栈：Python 标准库 sqlite3 + 真实落盘；结论对 SQLite / PostgreSQL / MySQL 的 group commit 通用 阅读时间：约 15</description>
+      <category>数据库内核</category>
+      <category>SQLite</category>
+      <category>WAL</category>
+      <category>性能优化</category>
+      <category>数据库</category>
+      <content:encoded><![CDATA[<h1>一次 fsync 摊薄 1000 行：SQLite 提交实测</h1>
+<blockquote>
+
+适用读者：写过"循环里 insert 几万行"的脚本，跑完发现要等一两分钟的人
+技术栈：Python 标准库 <code>sqlite3</code> + 真实落盘；结论对 SQLite / PostgreSQL / MySQL 的 group commit 通用
+阅读时间：约 15 分钟 | 难度：中等 | 收获：fsync 的真实价格、四种提交策略的吞吐对照、以及"什么时候不能批量提交"
+</blockquote>
+<h2>前言：2 万行写了 136 秒</h2>
+
+一个很普通的脚本：把 2 万条事件写进 SQLite。
+<div class="codehilite"><pre><span></span><code><span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">events</span><span class="p">:</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">&quot;INSERT INTO t (i, kind, payload) VALUES (?, ?, ?)&quot;</span><span class="p">,</span> <span class="n">row</span><span class="p">)</span>
+    <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>          <span class="c1"># ← 问题就在这一行</span>
+</code></pre></div>
+
+
+体感上它"卡住了"。拆开算一下就明白：<strong>逐条提交时，2 万行就是 2 万次 fsync</strong>。这台机器上一次 fsync 实测 <strong>1.996 ms</strong>，光落盘就是 40 秒起步；再加上回滚日志的额外写与删除，实测是 <strong>6.82 ms/commit</strong>，2 万行就是 <strong>136 秒</strong>。
+
+而同样的 2 万行，<strong>放进一个事务里提交，实测 0.036 秒</strong>。
+
+同一台机器、同一个表、同一批数据，差了三千多倍。这篇文章就是把这三笔账算清楚：fsync 到底多贵、批量提交摊薄了什么、以及什么时候不能摊薄。
+<h2>一、先量 fsync 的价格</h2>
+
+不量这个数，后面所有讨论都是猜。用纯标准库直接打：
+<div class="codehilite"><pre><span></span><code><span class="n">fd</span><span class="p">,</span> <span class="n">path</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">mkstemp</span><span class="p">()</span>
+<span class="n">os</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;x&quot;</span> <span class="o">*</span> <span class="mi">4096</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">200</span><span class="p">):</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="sa">b</span><span class="s2">&quot;y&quot;</span> <span class="o">*</span> <span class="mi">4096</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">fsync</span><span class="p">(</span><span class="n">fd</span><span class="p">)</span>
+</code></pre></div>
+
+
+取中位数：
+<div class="codehilite"><pre><span></span><code>fsync median: 1.996 ms
+</code></pre></div>
+
+
+<strong>一次落盘 2 毫秒</strong>。这个数字决定了后面的一切：
+<ul>
+<li>逐行提交 = 每行 2 ms 起 → 上限约 <strong>500 行/秒</strong>；</li>
+<li>1000 行合并成一次提交 = 每 1000 行 2 ms → 上限约 <strong>50 万行/秒</strong>。</li>
+</ul>
+
+这就是 group commit 的全部原理：<strong>fsync 的次数跟"提交了几次"绑定，跟"写了多少行"没关系。</strong>
+<h2>二、四组对照：提交粒度决定吞吐</h2>
+
+固定 200 次提交、每行 120 字节负载、3 轮取中位数，跑两组日志模式。
+
+<strong>rollback journal（SQLite 默认）+ <code>synchronous=FULL</code>：</strong>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>每批行数</th>
+<th>墙钟</th>
+<th>行数</th>
+<th>吞吐</th>
+<th>每行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>1.351 s</td>
+<td>200</td>
+<td>148 rows/s</td>
+<td>6754.9 µs</td>
+</tr>
+<tr>
+<td>10</td>
+<td>1.313 s</td>
+<td>2,000</td>
+<td>1,524 rows/s</td>
+<td>656.3 µs</td>
+</tr>
+<tr>
+<td>100</td>
+<td>1.366 s</td>
+<td>20,000</td>
+<td>14,642 rows/s</td>
+<td>68.3 µs</td>
+</tr>
+<tr>
+<td>1000</td>
+<td>1.615 s</td>
+<td>200,000</td>
+<td>123,829 rows/s</td>
+<td>8.1 µs</td>
+</tr>
+<tr>
+<td>2 万行一个事务</td>
+<td>0.036 s</td>
+<td>20,000</td>
+<td>552,811 rows/s</td>
+<td>1.8 µs</td>
+</tr>
+</tbody>
+</table></div>
+
+<strong>WAL + <code>synchronous=FULL</code>：</strong>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>每批行数</th>
+<th>墙钟</th>
+<th>行数</th>
+<th>吞吐</th>
+<th>每行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0.401 s</td>
+<td>200</td>
+<td>499 rows/s</td>
+<td>2005.0 µs</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0.400 s</td>
+<td>2,000</td>
+<td>5,001 rows/s</td>
+<td>200.0 µs</td>
+</tr>
+<tr>
+<td>100</td>
+<td>0.404 s</td>
+<td>20,000</td>
+<td>49,509 rows/s</td>
+<td>20.2 µs</td>
+</tr>
+<tr>
+<td>1000</td>
+<td>0.712 s</td>
+<td>200,000</td>
+<td>280,906 rows/s</td>
+<td>3.6 µs</td>
+</tr>
+<tr>
+<td>2 万行一个事务</td>
+<td>0.032 s</td>
+<td>20,000</td>
+<td>625,274 rows/s</td>
+<td>1.6 µs</td>
+</tr>
+</tbody>
+</table></div>
+
+三件事一眼可见：
+<ol>
+<li><strong>每批行数翻 10 倍，吞吐也接近翻 10 倍</strong>，200 行一批时开始偏离——因为此时 fsync 已经不是瓶颈，插入本身成为瓶颈；</li>
+<li><strong>WAL 比 rollback journal 快 3.4 倍</strong>（1 行/次提交时：499 vs 148 rows/s），因为每次提交只写一次顺序日志；</li>
+<li><strong>整批一个事务比逐行提交快 3,734 倍</strong>（rollback）/ <strong>1,254 倍</strong>（WAL）。</li>
+</ol>
+
+注意第三项的差别：WAL 的加速比更小，不是因为它更差，而是因为<strong>它的逐行提交本来就没那么糟</strong>（2 ms vs 6.8 ms）。优化空间被 WAL 提前吃掉了一部分。
+<h2>三、为什么回滚日志更贵：一次提交要碰几个文件</h2>
+
+rollback journal 的提交路径大致是：
+<div class="codehilite"><pre><span></span><code><span class="mf">1.</span><span class="w"> </span><span class="n">建</span><span class="w"> </span><span class="n">journal</span><span class="w"> </span><span class="n">文件</span><span class="err">（</span><span class="n">或</span><span class="w"> </span><span class="n">truncate</span><span class="err">）</span>
+<span class="mf">2.</span><span class="w"> </span><span class="n">把原页写进</span><span class="w"> </span><span class="n">journal</span>
+<span class="mf">3.</span><span class="w"> </span><span class="n">fsync</span><span class="w"> </span><span class="n">一次</span><span class="w"> </span><span class="n">journal</span>
+<span class="mf">4.</span><span class="w"> </span><span class="n">把新页写回主库</span>
+<span class="mf">5.</span><span class="w"> </span><span class="n">fsync</span><span class="w"> </span><span class="n">一次主库</span>
+<span class="mf">6.</span><span class="w"> </span><span class="n">删除</span><span class="w"> </span><span class="n">journal</span>
+</code></pre></div>
+
+
+<strong>两次 fsync</strong>，再加上文件创建/删除的元数据操作。实测 6.82 ms/commit，而单次 fsync 是 2.0 ms——多出来的 2.8 ms 就是"建/删文件 + 两次落盘"的余量。
+
+WAL 的提交路径是：
+<div class="codehilite"><pre><span></span><code><span class="mf">1.</span><span class="w"> </span><span class="n">把新页追加到</span><span class="w"> </span><span class="o">-</span><span class="n">wal</span><span class="w"> </span><span class="n">文件</span>
+<span class="mf">2.</span><span class="w"> </span><span class="n">fsync</span><span class="w"> </span><span class="n">一次</span><span class="w"> </span><span class="o">-</span><span class="n">wal</span>
+</code></pre></div>
+
+
+<strong>一次 fsync，顺序写</strong>。实测 2.005 ms/commit，几乎就是一次 fsync 的价格。这也解释了为什么 WAL 下"1 行/次提交"就能做到 499 rows/s——瓶颈严格等于落盘次数。
+
+一个容易忽略的副作用：WAL 模式下的 <code>-wal</code> 文件会越长越大，直到 checkpoint。批量写 20 万行时 <code>-wal</code> 会明显膨胀，这是"用空间换提交速度"的直接体现。
+<h2>四、什么时候<strong>不能</strong>批量提交</h2>
+
+这条最重要，因为"全部塞进一个事务"在生产里经常是错的。
+
+<strong>1. 事务边界就是业务边界</strong>
+一次事务覆盖 2 万行，意味着这 2 万行要么全成功要么全失败。如果每行代表一笔独立业务（订单、积分、扣款），你应该<strong>按业务单位提交</strong>，而不是图快合成一个巨型事务。
+
+<strong>2. 长事务会持锁</strong>
+写事务持有锁直到提交。2 万行一起提交时，整个库在这段时间里对其它写者是阻塞的——SQLite 尤其明显（单写者模型）。<strong>批量的收益，常常被并发度下降吃掉。</strong>
+
+<strong>3. 崩溃会回滚一整批</strong>
+逐行提交时崩在第 1 万行，前 9999 行是安全的；整批提交时崩在最后一刻，<strong>全部回滚</strong>。做数据导入这没问题（重跑即可），做在线业务就是事故。
+
+<strong>4. 内存与 WAL 膨胀</strong>
+批量越大，<code>-wal</code> 越大，checkpoint 越重。<strong>1000 行一批</strong>通常是甜点：吞吐已经接近整批，而内存和 WAL 增长可控。
+<h2>五、这笔账在别的数据库上也成立</h2>
+
+这不是 SQLite 的特性，是<strong>持久化语义</strong>的共性：
+<ul>
+<li><strong>PostgreSQL</strong>：<code>synchronous_commit=on</code> 时每次提交等 WAL 落盘；批量 <code>COPY</code> 快一个数量级，原理完全一样。</li>
+<li><strong>MySQL InnoDB</strong>：<code>innodb_flush_log_at_trx_commit=1</code> 时每事务一次 fsync；改成 <code>=2</code> 是"每秒落盘"，本质是用"可能丢 1 秒"换吞吐。</li>
+<li><strong>Kafka</strong>：<code>acks=all</code> + <code>flush.messages</code> 的取舍也是同一件事——<strong>批量越大，单位落盘成本越低，但丢一批的影响面越大。</strong></li>
+</ul>
+
+所以看到"批量写入比逐条快 100 倍"时，别急着骂库慢，先看清楚：<strong>你付的是落盘的次数，不是行数。</strong>
+<h2>六、实测复现</h2>
+<div class="codehilite"><pre><span></span><code><span class="nb">set</span><span class="w"> </span><span class="nv">PYTHONIOENCODING</span><span class="o">=</span>utf-8<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python<span class="w"> </span>tools/bench_sqlite_commit.py
+</code></pre></div>
+
+
+脚本做的事：先测原始 <code>os.fsync</code> 的价格，再对 <code>1 / 10 / 100 / 1000 行每次提交</code> 和 <code>2 万行一个事务</code> 各跑 3 轮取中位数，rollback journal 与 WAL 各一遍。原始输出存在 <code>tools/bench_sqlite_commit_output.txt</code>。
+
+三个方法论说明，避免把数字读歪：
+<ol>
+<li><strong>固定提交次数（200 次）而不是固定行数</strong>——这样每一档的 fsync 次数可比，吞吐差异才归因清楚；</li>
+<li><strong>每行带 120 字节负载</strong>——空行会让页内压缩掩盖差异，看起来所有策略一样快；</li>
+<li><strong>数据库建在临时目录</strong>，同一块盘；换盘（比如网络盘）fsync 会贵一个数量级，但<strong>比例关系不变</strong>。</li>
+</ol>
+<h2>七、上线 Checklist</h2>
+<ul>
+<li>[ ] 批量导入用"一个事务 N 行提交"，而不是逐行 <code>commit()</code></li>
+<li>[ ] 批量大小按"落盘成本 ≈ 插入成本"取平衡点（本例 1000 行）</li>
+<li>[ ] 事务边界与业务边界对齐，不为了吞吐合并无关业务</li>
+<li>[ ] 评估写锁持有时间对并发的影响</li>
+<li>[ ] 打开 WAL（<code>PRAGMA journal_mode=WAL</code>），并接受 <code>-wal</code> 文件增长</li>
+<li>[ ] 想清楚 <code>synchronous</code>：<code>FULL</code> 不丢已提交事务，<code>NORMAL</code> 在断电时可能丢最近若干事务（但库不损坏）</li>
+<li>[ ] 崩溃重跑是否幂等（批量回滚后重放不能产生重复数据）</li>
+</ul>
+<h2>八、高频 FAQ</h2>
+
+<strong>Q：<code>synchronous=NORMAL</code> 到底丢什么？</strong>
+A：WAL 模式下，<code>NORMAL</code> 不保证每次提交都落盘，操作系统崩溃或断电时可能丢掉最近的一批已提交事务；但<strong>数据库文件本身不会损坏</strong>。<code>FULL</code> 才保证"提交即持久"。
+
+<strong>Q：为什么 1000 行一批不是 2000 行一批？</strong>
+A：本例中 1000 行一批已到 123,829 rows/s，再往上 fsync 不再是瓶颈，收益迅速衰减，而锁持有时间和 WAL 体积线性增长。
+
+<strong>Q：<code>executemany</code> 会替我批量提交吗？</strong>
+A：不会。<code>executemany</code> 只减少 Python 侧往返，<strong>提交次数还是你 <code>commit()</code> 的次数</strong>。它和事务边界是两件事。
+
+<strong>Q：把 <code>commit()</code> 从循环里挪出来，还能更快吗？</strong>
+A：能，但要注意内存——2 万行的改动都在内存/WAL 里攒着。数据量大到放不下时，就要分批提交。
+
+<strong>Q：为什么不是每个数据库都默认批量提交？</strong>
+A：因为默认值要对<strong>正确性</strong>负责。批量的收益属于应用层，得由知道业务边界的人来定。
+<h2>写在最后</h2>
+
+"批量写入快"是常识，但常识背后的数字经常没算过：这台机器上一次 fsync 是 2 ms，逐行提交 2 万行要 136 秒，整批提交 0.036 秒。<strong>三千多倍的差距，全部来自"落盘次数"这一个变量。</strong>
+
+所以下次看到类似的慢，先问一句：<strong>我到底提交了多少次？</strong> 这个数字比"我写了多少行"重要得多。]]></content:encoded>
+    </item>
+    <item>
+      <title>从 3 秒到毫秒首屏：英文站去 JS 化</title>
+      <link>https://blog.zhoujun.dev/article/english-site-without-js/</link>
+      <guid isPermaLink="true">https://blog.zhoujun.dev/article/english-site-without-js/</guid>
+      <pubDate>Wed, 11 Nov 2026 03:36:33 GMT</pubDate>
+      <description>从 3 秒到毫秒首屏：英文站去 JS 化 适用读者：手上有一个 SPA 站点，知道它&quot;首屏慢&quot;但说不清慢在哪的人 技术栈：Vue 3 + Vite 构建的 SPA，GitHub Pages 托管；英文站单独走预渲染静态壳 阅读时间：约 18 分钟 | 难度：中等 | 收获：一份可复算的首屏字节账、一次把 220 KB </description>
+      <category>项目实战</category>
+      <category>前端架构</category>
+      <category>性能优化</category>
+      <category>构建</category>
+      <category>静态站点</category>
+      <content:encoded><![CDATA[<h1>从 3 秒到毫秒首屏：英文站去 JS 化</h1>
+<blockquote>
+
+适用读者：手上有一个 SPA 站点，知道它"首屏慢"但说不清慢在哪的人
+技术栈：Vue 3 + Vite 构建的 SPA，GitHub Pages 托管；英文站单独走预渲染静态壳
+阅读时间：约 18 分钟 | 难度：中等 | 收获：一份可复算的首屏字节账、一次把 220 KB JS 降到 0 的改造、以及"哪些页面可以静态化"的判断标准
+</blockquote>
+<h2>前言：3 秒白屏，但每个文件都不大</h2>
+
+英文站上线后收到一条反馈：<strong>打开要等三秒以上</strong>。
+
+第一反应是 CDN 慢。于是先量产物：HTML 22.9 KB、CSS 30.5 KB(gzip 6.0 KB)、入口 JS 79.9 KB(gzip 30.2 KB)……单看每个文件都很正常，没有任何一个"异常大"。
+
+问题在<strong>它们是一串必须按顺序执行的步骤</strong>：
+<div class="codehilite"><pre><span></span><code>HTML → 30 KB CSS → 79.9 KB 入口 JS → 63.5 KB Vue 运行时 → 45.6 KB 客户端
+     → 路由 chunk → Vue 清空 #app 重新渲染 → 页面才出现
+</code></pre></div>
+
+
+六个请求、220 KB 原始字节（gzip 后 78.3 KB），每一步都要等上一步完成。<strong>首屏时间不是最大的那个文件的下载时间，是这条链路的总和。</strong>
+
+这篇文章只做一件事：把这条链路拆成可复算的字节账，然后证明英文站根本不需要它。
+<h2>一、先算账：一次首屏到底下载和执行了什么</h2>
+
+我用一个 100 行的脚本（<code>tools/bench_static_shell.cjs</code>）直接读构建产物，不猜、不估：
+<div class="codehilite"><pre><span></span><code><span class="o">==</span><span class="w"> </span><span class="n">SPA</span><span class="w"> </span><span class="err">首屏引导（中文站同构）</span><span class="w"> </span><span class="o">==</span>
+<span class="n">files</span><span class="w"> </span><span class="mi">5</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">raw</span><span class="w"> </span><span class="mf">220.1</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">gzip</span><span class="w"> </span><span class="mf">78.3</span><span class="w"> </span><span class="n">KB</span>
+<span class="w">   </span><span class="o">/</span><span class="n">assets</span><span class="o">/</span><span class="n">index</span><span class="o">-</span><span class="n">DQvGHmaK</span><span class="o">.</span><span class="n">js</span><span class="w">                    </span><span class="mf">79.9</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">gzip</span><span class="w"> </span><span class="mf">30.2</span><span class="w"> </span><span class="n">KB</span>
+<span class="w">   </span><span class="o">/</span><span class="n">assets</span><span class="o">/</span><span class="n">_plugin</span><span class="o">-</span><span class="n">vue_export</span><span class="o">-</span><span class="n">helper</span><span class="o">-</span><span class="n">tRUQJj3d</span><span class="o">.</span><span class="n">js</span><span class="w"> </span><span class="mf">63.5</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">gzip</span><span class="w"> </span><span class="mf">24.6</span><span class="w"> </span><span class="n">KB</span>
+<span class="w">   </span><span class="o">/</span><span class="n">assets</span><span class="o">/</span><span class="n">rolldown</span><span class="o">-</span><span class="n">runtime</span><span class="o">-</span><span class="n">QTnfLwEv</span><span class="o">.</span><span class="n">js</span><span class="w">          </span><span class="mf">0.7</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">gzip</span><span class="w">  </span><span class="mf">0.4</span><span class="w"> </span><span class="n">KB</span>
+<span class="w">   </span><span class="o">/</span><span class="n">assets</span><span class="o">/</span><span class="n">client</span><span class="o">-</span><span class="n">DDSzq_</span><span class="o">-</span><span class="n">U</span><span class="o">.</span><span class="n">js</span><span class="w">                   </span><span class="mf">45.6</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">gzip</span><span class="w"> </span><span class="mf">17.1</span><span class="w"> </span><span class="n">KB</span>
+<span class="w">   </span><span class="o">/</span><span class="n">assets</span><span class="o">/</span><span class="n">index</span><span class="o">.</span><span class="n">DnfPoa2_</span><span class="o">.</span><span class="n">css</span><span class="w">                   </span><span class="mf">30.5</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">gzip</span><span class="w">  </span><span class="mf">6.0</span><span class="w"> </span><span class="n">KB</span>
+</code></pre></div>
+
+
+五个文件、六个请求（HTML 也算一个）。<strong>这还只是首屏</strong>——路由 chunk 在 JS 执行后才会被 <code>import()</code> 拉下来。
+
+再看解析 + 编译成本。用 <code>vm.SourceTextModule</code> 只编译不执行，跑 7 次取中位数：
+<div class="codehilite"><pre><span></span><code><span class="n">entry</span><span class="w"> </span><span class="n">bundle</span><span class="w"> </span><span class="o">/</span><span class="n">assets</span><span class="o">/</span><span class="nf">index</span><span class="o">-</span><span class="n">DQvGHmaK</span><span class="p">.</span><span class="n">js</span><span class="w"> </span><span class="mf">79.9</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="mf">3.4</span><span class="w"> </span><span class="n">ms</span>
+<span class="n">inline</span><span class="w"> </span><span class="n">shell</span><span class="w"> </span><span class="n">inline</span><span class="w"> </span><span class="mf">0.8</span><span class="w"> </span><span class="n">KB</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="mf">0.01</span><span class="w"> </span><span class="n">ms</span>
+</code></pre></div>
+
+
+3.4 ms 听起来不多——<strong>因为它只是"编译"，不含下载、执行、DOM 构建、样式计算、广告脚本</strong>。真实设备上一次首屏是三段相加：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>决定因素</th>
+<th>这次改造的影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>下载</td>
+<td>220 KB / 带宽，6 个 RTT</td>
+<td>降到 12.9 KB gzip、2 个请求</td>
+</tr>
+<tr>
+<td>解析编译</td>
+<td>JS 字节数</td>
+<td>3.4 ms → 0.01 ms</td>
+</tr>
+<tr>
+<td>执行 + 渲染</td>
+<td>Vue 挂载、路由匹配、接口请求</td>
+<td>整段消失</td>
+</tr>
+</tbody>
+</table></div>
+
+按 1 Mbps 的冷启动估算，光传输就是 78.3 KB × 8 / 1024 ≈ <strong>0.61 s</strong>，再加上六个串行 RTT、Vue 挂载、以及当时还有的 AdSense 脚本和一次后端 <code>preconnect</code>——<strong>3 秒不奇怪，1 秒才奇怪</strong>。
+
+关键结论：<strong>这不是"某个文件太大"，是"这个页面根本不该用 SPA 渲染"。</strong>
+<h2>二、判断标准：哪些页面可以静态化</h2>
+
+英文站的页面有一个特征：<strong>内容在构建期就完全确定</strong>。
+<ul>
+<li>文章列表：来自构建时读取的文章注册表，不会在运行时新增；</li>
+<li>文章详情：正文是构建期生成的 HTML，没有评论框、没有编辑器；</li>
+<li>专题页、分页：全部由同一份数据推导。</li>
+</ul>
+
+也就是说，这些页面<strong>没有任何运行时状态</strong>。唯一需要 JS 的三件事其实很小：
+<ol>
+<li>主题切换（读 <code>localStorage.theme</code>，切一个 class）；</li>
+<li>移动端菜单（切一个布尔值）；</li>
+<li>分页/导航（构建期就能生成静态链接，根本不需要 JS）。</li>
+</ol>
+
+反过来说，中文站不能这么砍：它有搜索、评论、后台入口、Live2D、动态路由。<strong>判断标准不是"想不想快"，而是"这个页面有没有非构建期才能确定的内容"。</strong>
+<h2>三、改法：一个 23 行的静态壳</h2>
+
+改造后的英文站首页，构建产物是这样的：
+<div class="codehilite"><pre><span></span><code>== /en/ 静态壳 ==
+html raw 22.9 KB | gzip 6.9 KB
+external scripts 0 | external css 1
+inline js bytes 792 | lines 23
+css /assets/index.DfnPoa2_.css 30.5 KB | gzip 6.0 KB
+</code></pre></div>
+
+
+<strong>外部脚本 0 个</strong>。全站只剩三个文件：HTML、CSS、以及 HTML 里内联的 792 字节 JS。
+
+内联脚本只做两件事——恢复主题、绑定菜单按钮，并且<strong>与 Vue 的 ThemeToggle 共用同一个 <code>localStorage</code> key</strong>，否则用户在两个站之间来回切会出现主题跳变：
+<div class="codehilite"><pre><span></span><code><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span>
+<span class="w">  </span><span class="c1">// 1) 首帧之前定主题，避免闪白</span>
+<span class="w">  </span><span class="p">(</span><span class="kd">function</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">getItem</span><span class="p">(</span><span class="s1">&#39;theme&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;dark&#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">t</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">matchMedia</span><span class="p">(</span><span class="s1">&#39;(prefers-color-scheme: dark)&#39;</span><span class="p">).</span><span class="nx">matches</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nb">document</span><span class="p">.</span><span class="nx">documentElement</span><span class="p">.</span><span class="nx">dataset</span><span class="p">.</span><span class="nx">theme</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;dark&#39;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">})()</span>
+<span class="w">  </span><span class="c1">// 2) 菜单开关：一个 class + aria-expanded</span>
+<span class="w">  </span><span class="nb">document</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s1">&#39;click&#39;</span><span class="p">,</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">var</span><span class="w"> </span><span class="nx">btn</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">e</span><span class="p">.</span><span class="nx">target</span><span class="p">.</span><span class="nx">closest</span><span class="p">(</span><span class="s1">&#39;[data-menu-toggle]&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">btn</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="kd">var</span><span class="w"> </span><span class="nx">nav</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelector</span><span class="p">(</span><span class="s1">&#39;[data-nav]&#39;</span><span class="p">)</span>
+<span class="w">      </span><span class="kd">var</span><span class="w"> </span><span class="nx">open</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">nav</span><span class="p">.</span><span class="nx">classList</span><span class="p">.</span><span class="nx">toggle</span><span class="p">(</span><span class="s1">&#39;is-open&#39;</span><span class="p">)</span>
+<span class="w">      </span><span class="nx">btn</span><span class="p">.</span><span class="nx">setAttribute</span><span class="p">(</span><span class="s1">&#39;aria-expanded&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">open</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s1">&#39;true&#39;</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;false&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">})</span>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+</code></pre></div>
+
+
+三条纪律：
+<ol>
+<li><strong>脚本放在 <code>&lt;head&gt;</code> 里同步执行</strong>，且只碰 <code>documentElement</code> 的 class——如果等 DOMContentLoaded 再定主题，用户会先看到一帧白底再变黑；</li>
+<li><strong>不引入任何模块系统</strong>，<code>type="module"</code> 也会带来一次额外的调度与 CORS 语义，能不用就不用；</li>
+<li><strong>不挂载任何框架</strong>：一旦挂载，Vue 会清空 <code>#app</code> 重建，首屏内容等于"白等一次"。</li>
+</ol>
+<h2>四、连带删掉的东西，比删 JS 更值钱</h2>
+
+改造时一起清掉的还有三类"看起来无害"的东西，它们对首屏的影响不比 JS 小：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>删掉的</th>
+<th>原来的代价</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>modulepreload</code> 预加载</td>
+<td>提前抢占带宽，且预加载的是首屏根本用不到的 chunk</td>
+</tr>
+<tr>
+<td>AdSense 自动广告</td>
+<td>第三方脚本 + 若干子请求，且加载时机不受控</td>
+</tr>
+<tr>
+<td>后端 <code>preconnect</code></td>
+<td>英文站首屏根本不请求 API，等于白建一条连接</td>
+</tr>
+</tbody>
+</table></div>
+
+第三条尤其典型：<strong><code>preconnect</code> 是"我马上要用"的承诺</strong>，留着它相当于让浏览器为一个永远不会发生的请求提前握手。
+<h2>五、分页必须回到构建期</h2>
+
+静态化的直接后果：<strong>所有列表必须提前存在</strong>。英文站的分页是 12 篇一页，共 7 页，产物长这样：
+<div class="codehilite"><pre><span></span><code>/en/articles/
+/en/articles/page/2/ … /en/articles/page/7/
+</code></pre></div>
+
+
+三条规则写死在构建脚本里：
+<ol>
+<li>每页独立 <code>canonical</code> 指向自己（第 2 页<strong>不能</strong>指回第 1 页，否则第 2 页永远进不了索引）；</li>
+<li>首页之外的页码写进 <code>&lt;title&gt;</code>（<code>Articles, page 3 | Stack Frame</code>），避免 7 个页面标题完全一样；</li>
+<li>分页 URL 全部进 sitemap——否则爬虫只能靠翻页链接发现它们。</li>
+</ol>
+
+这一条是静态化最容易漏的地方：<strong>SPA 时代分页是"状态"，静态化之后分页是"页面"。</strong>
+<h2>六、代价：评论没法挂载了</h2>
+
+诚实地说，静态化不是免费的。
+
+英文文章页原本挂着一个 Vue 评论组件，静态化之后 <code>#app</code> 不再被挂载，评论框自然消失。我选的方案不是"再塞一个轻量评论区"，而是在文章末尾放一行说明：
+<blockquote>
+
+Comments live on the Chinese edition — 去中文站讨论
+</blockquote>
+
+理由很直接：<strong>评论是低频互动，首屏是高频路径。</strong> 为 1% 的交互把 100% 的用户拖回 220 KB JS，账算不过来。
+
+如果哪天一定要在英文站加评论，正确的做法是<strong>按需加载</strong>：先渲染一个静态按钮，点击时才 <code>import()</code> 评论 bundle。它在首屏之外，不影响这里的任何数字。
+<h2>七、实测对照</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>改造前（SPA）</th>
+<th>改造后（静态壳）</th>
+<th>变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>首屏 JS</td>
+<td>220.1 KB（5 文件）</td>
+<td>0.8 KB（内联）</td>
+<td><strong>≈ 0</strong></td>
+</tr>
+<tr>
+<td>首屏请求数</td>
+<td>6</td>
+<td>2</td>
+<td>−67%</td>
+</tr>
+<tr>
+<td>首屏 gzip 字节</td>
+<td>78.3 KB</td>
+<td>12.9 KB</td>
+<td>−84%</td>
+</tr>
+<tr>
+<td>JS 解析 + 编译</td>
+<td>3.4 ms</td>
+<td>0.01 ms</td>
+<td>两个数量级</td>
+</tr>
+<tr>
+<td>Vue 挂载 / 路由匹配</td>
+<td>有</td>
+<td>无</td>
+<td>整段消失</td>
+</tr>
+</tbody>
+</table></div>
+
+复现：
+<div class="codehilite"><pre><span></span><code>node<span class="w"> </span>--experimental-vm-modules<span class="w"> </span>tools/bench_static_shell.cjs
+</code></pre></div>
+
+
+（<code>--experimental-vm-modules</code> 只是为了能构造 <code>SourceTextModule</code> 做"只编译不执行"的测量，不需要它也能跑字节统计。）
+<h2>八、上线 Checklist</h2>
+<ul>
+<li>[ ] 首屏 HTML 里没有任何外部 <code>&lt;script src&gt;</code>（除确有必要的第三方）</li>
+<li>[ ] 主题脚本在 <code>&lt;head&gt;</code> 同步执行，且与框架侧共用同一个 <code>localStorage</code> key</li>
+<li>[ ] 静态壳的导航链接全部是构建期生成的真实 URL，不依赖 JS 路由</li>
+<li>[ ] 分页每页独立 canonical，页码进 <code>&lt;title&gt;</code></li>
+<li>[ ] 分页 URL 全部进 sitemap</li>
+<li>[ ] 删掉不再需要的 <code>preconnect</code> / <code>modulepreload</code> / 第三方广告</li>
+<li>[ ] 用无 JS 模式（或 <code>curl</code>）验证首屏内容完整</li>
+<li>[ ] 与框架站对照一次主题切换，确认没有闪白</li>
+</ul>
+<h2>九、高频 FAQ</h2>
+
+<strong>Q：静态化之后还能搜索吗？</strong>
+A：英文站没有搜索。真要加，加载 10 KB 的客户端索引比恢复整个 SPA 便宜得多。
+
+<strong>Q：为什么不干脆把中文站也静态化？</strong>
+A：中文站有编辑器、评论、后台和动态路由，静态化等于重写一遍产品。<strong>能静态化的是"内容页"，不是"应用页"。</strong>
+
+<strong>Q：<code>inline JS</code> 会不会破坏 CSP？</strong>
+A：会。当前站点没有严格 CSP；如果将来加，需要给这段脚本一个 <code>nonce</code> 或 <code>hash</code>。
+
+<strong>Q：为什么不用 <code>defer</code> / <code>async</code>？</strong>
+A：这段脚本必须在样式计算前决定主题，<code>defer</code> 会晚一帧导致闪白。
+
+<strong>Q：这样改对中文站有收益吗？</strong>
+A：有间接收益：英文站不再加载 Vue 运行时，两个站共用同一份 CSS，缓存在切换站点时能命中。
+<h2>写在最后</h2>
+
+这次改造真正的转折点不是"会写静态 HTML"，而是<strong>接受一个反直觉的事实：首屏慢不是把某个文件变小就能解决的</strong>。
+
+220 KB JS 分散在五个文件里，每一个都不"大"；但它们构成一条必须串行执行的链，链的长度就是白屏的长度。要让首屏变成"HTML + CSS 就够"，只能把这条链整段删掉——而不是把它优化得更短。]]></content:encoded>
+    </item>
     <item>
       <title>Z Bot：本地优先的私人 AI 助理怎么搭</title>
       <link>https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/</link>
@@ -737,348 +1507,6 @@ NanoAPI 的实现思路可以压缩成三句话：把渲染交给系统 WebView2
       <category>大模型</category>
       <category>数据管道</category>
       <category>爬虫</category>
-      <content:encoded><![CDATA[<blockquote>
-
-适用读者：想用 GitHub Actions 做长期数据采集、又不想买服务器的人；正在设计「抓取、去重、渲染、LLM 归纳」流水线的人；好奇免费额度下怎样把一次分析拆成多天跑完的人
-结论先行：InterviewAtlas 的难点不在写爬虫，而在三件事——把增量判断做在请求之前、把落盘做成幂等、把模型调用做成可预算可缓存的两阶段流水线。真正拖住它的也不是反爬，而是两处静默失败：采集端吞掉异常，分析端被 Python 3.11 的 f-string 限制挡在编译期。
-阅读时间：约 28 分钟 | 难度：进阶 | 收获：一条零服务器数据流水线的完整拆解、十余个真实故障的现象与代价、一套可照搬的增量、去重与预算设计
-</blockquote>
-
-<strong>目录</strong>
-<ul>
-<li>项目缘起：把面经变成一份可查询的数据集</li>
-<li>整体架构：一条采集链，一条分析链</li>
-<li>数据模型：一条记录与三层归一化</li>
-<li>采集层：三个站点，三套打法</li>
-<li>增量采集：把请求省在去重之前</li>
-<li>存储与渲染：分片、幂等与写放大</li>
-<li>LLM 归纳：两阶段 map-reduce</li>
-<li>缓存、预算与失效</li>
-<li>GitHub Actions：无人值守的流水线</li>
-<li>故障复盘一：面试鸭的「0 个题库，0 条记录」</li>
-<li>故障复盘二：LLM 分析永远停在 0/237</li>
-<li>问题清单：截断、脏字符与重复</li>
-<li>问题清单：100MB、额度与源下线</li>
-<li>实测数据与已知限制</li>
-<li>小结</li>
-<li>相关阅读</li>
-</ul>
-<hr>
-<h2>项目缘起：把面经变成一份可查询的数据集</h2>
-
-面经是一种半衰期很短的数据。2026 年秋招的面经，到春招只剩流程骨架还有参考价值，具体题目和面试官风格早已换了一轮。它又散落在互不联通的地方：牛客的讨论区、掘金的专栏、面试鸭的题库，各自有搜索、各自有登录墙，站内搜索还经常只能回答「包含这个关键词」，回答不了「这家公司这个岗位最近问了什么」。
-
-InterviewAtlas 想解决的就是这个信息聚合问题：每天自动从三个站点采集面经，做公司、岗位归一化，按 URL 去重合并，渲染成 README 与按公司岗位拆分的 Markdown，再用大模型归纳成「面试流程、高频考点、典型题目、准备建议」四节报告。整套东西跑在 GitHub Actions 上，没有服务器、没有数据库，模型走 GitHub Models 的免费额度。
-
-到本文写作时，仓库里是 41,771 条记录、157 家公司、1,634 个公司岗位文件；<code>data/interviews</code> 下有 158 个 <code>.json.gz</code>（35.9 MB），<code>interviews/</code> 下有 1,791 个 Markdown（92.3 MB）；源码 22 个 Python 文件，运行期依赖只有 <code>requests</code>、<code>bs4</code>、<code>lxml</code>、<code>PyYAML</code> 四个。下文不复述功能清单，只讲实现思路和真实踩过的坑。
-<h2>整体架构：一条采集链，一条分析链</h2>
-
-<code>src/main.py</code> 里没有采集逻辑，它只做编排：按配置顺序调用各数据源，把结果交给归一化、存储、渲染，最后打印本次新增条数与耗时。真正的代码分布在两层：
-<div class="codehilite"><pre><span></span><code>src/main.py                 编排与计时
-  ├─ sources/nowcoder.py    牛客：搜索 + 详情
-  ├─ sources/mianshiya.py   面试鸭：题库 → 题目
-  ├─ sources/juejin.py      掘金：深分页 + 正文
-  ├─ normalize.py           公司/岗位识别、正文清洗、相关性判断
-  ├─ storage.py             去重合并、按公司分片落盘
-  └─ render.py              README 与分文件 Markdown
-src/analyze.py              独立进程：读落盘数据，调 GitHub Models
-</code></pre></div>
-
-
-分析被拆成独立进程，而不是接在采集函数后面，有三个原因。第一是隔离：模型接口限流、额度耗尽、返回空内容，都不应该让已经采到的数据烂在内存里。第二是运行时间：采集本身要跑三十分钟，分析在免费额度下可能跑不完，必须允许它第二天接着跑。第三是缓存：分析结果要写进 <code>analysis/</code> 并提交，和采集数据一样是仓库状态，不该依赖一次运行的内存。
-
-不用数据库也是同一个思路。Actions 的 runner 是一次性的，状态只能落在 git 里；41,771 条记录全量读进内存也远没到需要索引的程度。这个选择的代价会在「写放大」一节展开。
-
-编排层还承担一个容易被忽略的职责：把每个源的耗时单独打出来。日更日志里能看到牛客、面试鸭、掘金各自的条数与秒数，这既是性能观测，也是故障线索。面试鸭只有 1 秒，与另外两个源十几分钟的耗时形成刺眼对比，这个对比本身就是异常信号；如果只看总时长，少掉的这段时间混在三十分钟里，很难察觉。
-<h2>数据模型：一条记录与三层归一化</h2>
-
-一条面经在仓库里是一个 JSON 对象，字段不多，但每个都有明确用途：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>字段</th>
-<th>含义</th>
-<th>用途</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>id</code></td>
-<td>URL 摘要或来源加外部 ID</td>
-<td>稳定标识</td>
-</tr>
-<tr>
-<td><code>source</code></td>
-<td>nowcoder、mianshiya、juejin</td>
-<td>来源统计与展示</td>
-</tr>
-<tr>
-<td><code>external_id</code></td>
-<td>站点内部 ID</td>
-<td>面试鸭跨题库合并</td>
-</tr>
-<tr>
-<td><code>title</code> / <code>url</code></td>
-<td>标题与原始链接</td>
-<td>展示、去重键</td>
-</tr>
-<tr>
-<td><code>company</code> / <code>position</code></td>
-<td>归一化后的公司与岗位</td>
-<td>分片、分组分析</td>
-</tr>
-<tr>
-<td><code>content</code></td>
-<td>清洗后的正文</td>
-<td>去重、喂模型</td>
-</tr>
-<tr>
-<td><code>published_at</code></td>
-<td>发布日期</td>
-<td>样本「最新一半」排序</td>
-</tr>
-<tr>
-<td><code>kind</code></td>
-<td>面经、面试题、题库</td>
-<td>区分内容形态</td>
-</tr>
-<tr>
-<td><code>first_seen</code> / <code>last_seen</code></td>
-<td>首次与最近出现</td>
-<td>保留期裁剪</td>
-</tr>
-</tbody>
-</table></div>
-
-归一化分三层。第一层是公司别名，<code>COMPANY_ALIASES</code> 按字符串长度从长到短匹配，避免「阿里」抢在「阿里云」前面命中；第二层是岗位，按预设顺序识别后端、前端、算法、测试、产品等，识别不出就落到「其他岗位」；第三层是兜底，公司和岗位都归到「其他公司」「其他岗位」，这两类不进入 LLM 分析，因为它们无法支撑有意义的归纳。最终 157 家公司、1,634 个公司岗位组合，就是这三层过滤后的结果。
-
-别名表看着笨，却是整个数据集可用的前提。同一家公司在三个站点会写成「字节」「字节跳动」「bytedance」，不统一就只能得到三份各自很薄的统计；而「阿里云」和「阿里巴巴」又必须分开，否则阿里云的岗位会被集团总部的面经稀释。按长度倒序匹配解决的正是这类包含关系：先试长别名，命中就停，短别名只在前者都不匹配时才有机会。
-<h2>采集层：三个站点，三套打法</h2>
-
-三个站点的接口形态完全不同，采集策略也必须不同：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>来源</th>
-<th>入口</th>
-<th>翻页上限</th>
-<th>正文来源</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>牛客</td>
-<td><code>POST gw-c.nowcoder.com/api/sparta/pc/search</code></td>
-<td>单关键词 3 页 × 20 条</td>
-<td>搜索接口截断，详情接口补全</td>
-</tr>
-<tr>
-<td>掘金</td>
-<td><code>search_api</code> 的 cursor 深分页</td>
-<td>可一直翻到没有下一页</td>
-<td>搜索接口里的 <code>web_html_content</code></td>
-</tr>
-<tr>
-<td>面试鸭</td>
-<td>题库列表 → 题目列表</td>
-<td>单查询 5 页硬上限</td>
-<td>题干 + 题库描述</td>
-</tr>
-</tbody>
-</table></div>
-
-牛客的覆盖面靠关键词矩阵堆出来：10 个通用词，加上 157 家公司乘 2 个模板（「公司 面经」「公司 面试经验」），一共三百多个查询，每个查询最多三页。这个做法必然产生大量重复，但搜索接口不提供稳定的全量游标，只能靠关键词交叉覆盖。搜索返回的正文是被截断的，所以真正入库前还要对每条没见过的记录再发一次详情请求；详情用 6 个线程、线程级 0.2 秒间隔，既压住总时长，也不至于把站点打疼。
-
-掘金支持 cursor 深分页，翻页本身不是瓶颈，麻烦在正文格式：搜索接口返回的 <code>web_html_content</code> 是一段转义过的字符串，引号、换行、反斜杠都套了一层，标准 JSON 解码拿不到可直接用的 HTML。代码里为此写了一个手写的反转义流程，按转义序列逐段还原，再交给统一的清洗函数。这一步没有现成库可用，因为字符串里的转义和 JSON 自身的转义叠在一起，直接再解一次会把正文里的合法反斜杠吃掉；只能按平台输出的固定形态逐段处理，属于「知道它长什么样才敢写」的代码。
-
-面试鸭是另一种形态：先遍历题库列表，再对每个题库展开题目。题目接口有一个硬限制——同一个查询最多只能翻 5 页。为了多拿数据，采集器对每个题库跑三个变体：不带筛选、<code>difficulty:1</code>、<code>difficulty:3</code>，用难度分组把「单查询 5 页」变成「三组各 5 页」。代价是请求数变成三倍，而且三组结果之间仍有重叠，需要在本地按题目 ID 去重。这个绕法也只缓解了上限，没有真正解决它。
-
-反爬策略是统一的：Chrome/124 的 User-Agent、按站点设置 Referer、<code>Retry(total=3, backoff_factor=1.0, status_forcelist=[429, 5xx])</code>、全局请求间隔 0.5 秒。没有用浏览器，也没有处理登录态，因此只覆盖公开可见的内容；这是能力边界，也是不被封的前提。
-<h2>增量采集：把请求省在去重之前</h2>
-
-每天全量重抓三个站点是不可能的：牛客三百多个关键词、掘金十几页深分页、面试鸭上千个题库，光请求数就超过预算。流水线的第一件事是 <code>load_records()</code> 把历史数据全量读回来，构造两个集合：<code>known_urls</code> 和 <code>known_content</code>（正文长度达到 300 字才进正文集合）。
-
-采集器拿到一条搜索结果时，先算规范化 URL。命中 <code>known_urls</code> 就直接跳过，连详情请求都不发；URL 没命中、但正文与历史某条完全一致，也跳过。这一步省掉的是最贵的详情请求，而不是搜索请求——搜索仍然要翻，但详情调用只落在新增或正文不完整的内容上。
-
-合并阶段按 URL 合并，<code>merge_records()</code> 的行为是「旧记录为主、新记录补空」：标题、来源、公司、岗位缺失才用新值覆盖，正文只在新的更长时替换；<code>last_seen</code> 不是每天刷新，而是隔三十天才刷一次，避免所有分片因为一个时间戳字段日日重写。返回的 <code>new_count</code> 与 <code>new_records</code> 供 README 的「本次更新」区块使用。保留期 <code>retention_days: 365</code>，超过一年没再出现过的记录会被裁掉。
-
-去重一共三层。第一层是 URL 规范化：去掉 <code>#</code> 锚点、去掉查询串、去掉尾部斜杠、统一小写，同一个帖子的分享链接、带跟踪参数的链接会收敛成同一个键。第二层是面试鸭的跨题库合并：同一道题可能被多个题库收录，按 <code>external_id</code> 合并，并优先保留能识别出公司的那个题库归属。第三层发生在喂模型之前：<code>_dedupe()</code> 按「标题 + 正文前 120 字」再筛一遍，因为不同来源可能转载同一篇面经，URL 不同但内容几乎一样，前两层拦不住。
-<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">record_key</span><span class="p">(</span><span class="n">record</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-    <span class="n">url</span> <span class="o">=</span> <span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;url&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;#&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;?&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">url</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">url</span>
-    <span class="n">source</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;source&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span>
-    <span class="n">external_id</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;external_id&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span>
-    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">external_id</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">if</span> <span class="p">(</span><span class="n">source</span> <span class="ow">or</span> <span class="n">external_id</span><span class="p">)</span> <span class="k">else</span> <span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
-</code></pre></div>
-
-
-这套设计的收益很直接：日更只处理增量，详情请求只花在真正的新帖上。代价是每次运行都要把 35.9 MB 压缩数据全部解压、反序列化、建索引，启动成本固定；数据再涨一个量级，就得考虑按公司分片懒加载了。
-
-还有一个细节决定了「增量」是否可靠：正文集合只收长度达到 300 字的记录。太短的正文本身可能是截断产物，拿它当「已抓过」的证据，会把一条残缺记录永久锁在库里，后续再遇到同一 URL 也不会补全文。阈值放在 300，是为了让不完整的记录不进入「已知」集合，给详情补全留出机会。
-<h2>存储与渲染：分片、幂等与写放大</h2>
-
-存储层按公司分片，每家公司一个 <code>.json.gz</code>，而不是一个全量 JSON。原因很现实：GitHub 对单文件有 100 MB 上限，41,771 条记录塞进一个文件迟早会顶到线；分片后每个文件都很小，<code>_meta.json</code> 只存总数与公司数。<code>load_records()</code> 同时兼容旧的单文件格式和新的目录格式，读取时优先选 <code>.json.gz</code>，避免迁移期同一公司被读两遍。
-
-写入做了两层幂等。第一层是 <code>_write_if_changed()</code>：内容相同就不落盘，不产生新的 git 变更。第二层是 <code>gzip.compress(raw, mtime=0)</code>：固定压缩头里的时间戳，保证「同样的内容」生成「同样的字节」，否则每次压缩出来的二进制都不同，git 每天都会认为所有分片被改过。
-<div class="codehilite"><pre><span></span><code><span class="n">raw</span> <span class="o">=</span> <span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">,</span> <span class="s2">&quot;:&quot;</span><span class="p">))</span> <span class="o">+</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
-<span class="n">data</span> <span class="o">=</span> <span class="n">gzip</span><span class="o">.</span><span class="n">compress</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="n">mtime</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>   <span class="c1"># 同内容同字节，避免无意义 diff</span>
-<span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">and</span> <span class="n">path</span><span class="o">.</span><span class="n">read_bytes</span><span class="p">()</span> <span class="o">==</span> <span class="n">data</span><span class="p">:</span>
-    <span class="k">return</span>
-</code></pre></div>
-
-
-渲染层生成两类产物：根目录 README，以及 <code>interviews/&lt;公司&gt;/&lt;岗位&gt;.md</code>。README 是索引页，包含公司列表、岗位列表、总数、来源统计和「本次更新」；分文件是给人读的正文页。问题在于 README 是每天全量重排的：一条新记录可能改变公司排序、岗位计数和更新时间，于是整页都要重写。日更实测 README 的 diff 约 3,404 行，这个数字比数据本身的增量大得多。
-
-写放大是这套仓库最贵的隐性成本。日更提交是 53,614 行新增、41,513 行删除；周更因为 <code>--full</code> 重抓，达到 541,773 行新增、372,746 行删除；首版一次提交就有 203 万行。仓库 348 MB，而当前快照只有约 128 MB，差额基本都是历史里被反复整文件重写的 blob。git 会压缩，但不会忘记。
-
-值得强调的是，这些 diff 里真正的新信息很少。一天新增几百条面经，落到文件上可能只有几百行；剩下五万多行是排序位置变化、计数变化、时间戳变化导致的整段搬移。git 的 diff 算法会把它们记成删除加新增，历史因此越滚越大。幂等只能保证「内容没变就不写文件」，管不住「内容变了一点、整页重排」。
-<h2>LLM 归纳：两阶段 map-reduce</h2>
-
-分析的门槛是 <code>min_records: 20</code>：一个公司岗位组合至少二十条面经才值得归纳，否则模型只能编。满足条件的组先做组级报告，再把组级报告汇总成岗位级报告，是典型的 map-reduce。
-
-这里没有选「把所有面经一次性塞给模型」的省事做法。41,771 条正文按平均长度算远超任何模型的上下文，即便能塞下，成本和延迟也不可控。map-reduce 把问题拆成「每家公司每个岗位看八条」和「每个岗位看十六家公司的摘要」，两次输入都被压在可预算的范围内；代价是信息在两层截断中损耗，组级报告没写到的细节，岗位级永远拿不到。
-
-组级 prompt 的输入是有选择的：公司、岗位、总条数、样本时间跨度，加最多 8 条样本。样本一半取正文最长的（信息密度高），一半取最新的（流程更贴近当下）；每条截断到 1,200 字，整段样本不超过 16,000 字。prompt 强制四节标题，并要求材料不足时写「样本不足」，不许补全不存在的流程、薪资和轮次。
-<div class="codehilite"><pre><span></span><code>要求：
-1. 只依据给定材料，不要编造公司流程、薪资、面试轮次或材料中没有出现的题目；材料不足时直接写「样本不足」。
-2. 使用二级标题（##），依次输出以下四节：面试流程与轮次、高频考点、典型题目、难度与准备建议。
-3. 「典型题目」用无序列表列出 5-10 条，尽量保留原题的表述。
-</code></pre></div>
-
-
-调用参数是 <code>temperature: 0.3</code>、<code>max_tokens: 1600</code>。低温度让同一批材料两次运行的输出更接近，也方便缓存判断；1600 个 token 刚好够四节 400 到 800 字，也限制了模型跑题。截断函数 <code>_clip()</code> 按段落边界切，优先找换行、句号、叹号、问号，切完补一句「（后文略）」，避免把一句话拦腰截断。
-
-质量兜底有两层。<code>_missing_sections()</code> 检查四个二级标题是否齐全；缺节就带着「必须严格包含这四个标题」的追加指令重试一次；重试后仍缺，不再重试，而是在正文前加一行注记，说明本次生成缺了哪几节，让读者知道这是降级产物，而不是完整报告。
-
-岗位级是第二阶段：按岗位收集各公司的组级报告，每份截断到 700 字，最多纳入 16 家公司，少于 3 家就放弃这个岗位。它不再看原始面经，只看已经归纳过的摘要，这样既控制了输入长度，也避免第二阶段把同一批原文再读一遍。
-
-样本选择还有一个兜底：按「最长一半 + 最新一半」取完之后，如果还不够 8 条，就从剩下的最长记录里继续补，直到上限。这样小样本组不会因为「最新的一半」里全是短帖而只喂进去两三条；同时补入顺序仍然是长度优先，信息密度不会掉得太厉害。8 条、1,200 字、16,000 字这三个上限不是拍脑袋：它们共同决定了单次 prompt 的 token 量，也决定了 100 次调用能覆盖多少个组。
-<h2>缓存、预算与失效</h2>
-
-分析结果不是每次重算。<code>analysis/manifest.json</code> 记录 <code>PROMPT_VERSION</code>、模型名、每个组的条数与生成时间。<code>PROMPT_VERSION</code> 当前是 <code>2026-10-29.1</code>；只要提示词版本或模型名任一变化，整份缓存失效，全部重算。这个设计很粗暴，但正确：提示词改了，旧报告就不再代表当前口径，局部复用只会让仓库里同时存在两套标准。
-
-单组的重算条件是 <code>refresh_after_days: 30</code>，或者条数增长达到 <code>max(5, 10%)</code>。前者防止材料过期，后者保证新增样本足够多时才值得再花一次调用；只有一两条新面经时，重算的收益低于成本。
-
-预算是另一条硬约束。免费额度大约 15 RPM，配置里保守设成 <code>rpm: 12</code>、<code>workers: 2</code>、<code>max_calls_per_run: 100</code>。100 次调用意味着一天只能覆盖一部分组，剩下顺延到次日。为此有一个组预算分配：先给岗位级汇总留出 <code>reserve = min(岗位数, max_calls // 6)</code> 次调用，剩下的才分给公司组，避免公司组把额度吃光、岗位报告永远排不上。
-
-失败处理按状态码分流。429 先看 <code>x-ratelimit-remaining</code>，为 0 说明当日额度用尽，抛 <code>QuotaExceeded</code> 立即停整轮，不再做无谓重试；不为 0 则读 <code>Retry-After</code>，最多等 60 秒再试。403 且响应体含 rate limit，同样按额度耗尽处理；401、403 的其他情况按权限错误处理，提示检查 <code>models: read</code> 权限。5xx 走指数退避，最多三次。这套分流的意义是把「等一等还能好」和「今天别再试了」区分开。
-
-缓存判断发生在调用之前，顺序是：先读 manifest，比提示词版本与模型名；再逐组比条数与生成日期；只有两项都满足复用条件才跳过。这个顺序保证「版本变了」时不会因为条数没变而误用旧报告。manifest 同时是观测面：它记录了哪些组分析过、用的什么模型、什么时候生成的，出问题时不用去翻 Actions 日志。
-<h2>GitHub Actions：无人值守的流水线</h2>
-
-两条工作流，一条日更、一条周更。日更 <code>daily.yml</code> 的 cron 是 <code>0 1 * * *</code>，即北京时间 09:00，<code>timeout-minutes: 60</code>；周更 <code>weekly-full.yml</code> 在周日 10:00 跑，带 <code>--full --limit 150</code>，超时 180 分钟。<code>--full</code> 打开更多翻页与更多公司查询模板，<code>--limit</code> 把每个来源的详情补全数量压住，避免周更把额度一次打空。
-
-权限只有两项：<code>contents: write</code> 用于提交，<code>models: read</code> 用于 GitHub Models。凭据只用仓库自带的 <code>GITHUB_TOKEN</code>，不额外配 secret，这样 fork 和 PR 都不会拿到写权限。并发用 <code>group: interview-crawl</code> 加 <code>cancel-in-progress: false</code>，日更和周更撞车时排队而不是互相取消——采集是幂等的，但中途取消会留下半套数据。
-<div class="codehilite"><pre><span></span><code><span class="nt">permissions</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">contents</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">write</span>
-<span class="w">  </span><span class="nt">models</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">read</span>
-<span class="nt">concurrency</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">interview-crawl</span>
-<span class="w">  </span><span class="nt">cancel-in-progress</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
-</code></pre></div>
-
-
-提交步骤先 <code>git status --porcelain -- README.md data/ interviews/ analysis/</code>，没有变更就 <code>exit 0</code>；有变更才 <code>git add</code> 这四类路径并提交。注意它没有用 <code>git add -A</code>，避免把临时文件、日志、本地配置带进仓库。分析步骤标了 <code>continue-on-error: true</code>，理由是额度或权限异常不该阻断已采数据的提交——这个决定本身合理，但它后来成了第二起事故的放大器。
-
-步骤顺序也有讲究：先采集、再分析、最后统一提交。这样即使分析失败，采集结果仍然会被提交；如果反过来，分析失败可能让整次运行提前结束，连数据一起丢。代价是分析和采集共用同一个 job，分析的实际耗时挤在采集之后，60 分钟的作业超时对两者是共享的。日更目前 30 分钟出头，余量够，但不是一个可以无限加源的结构。
-<h2>故障复盘一：面试鸭的「0 个题库，0 条记录」</h2>
-<h3>现象</h3>
-
-某天的 Actions 运行（run 41792215767）里，面试鸭的日志只有两行：<code>面试鸭共 0 个题库，开始展开题目</code> 和 <code>面试鸭完成：0 个题库共 0 条记录</code>。从提交 <code>116976f8</code> 之后，这条日志每天都出现，连续多日。更迷惑的是整条流水线是绿色的：没有失败步骤，没有告警，README 照常更新，来源统计里面试鸭仍然显示 1,962 条。
-
-排查是从「不像」开始的：一次正常的全量题库遍历不可能在 1 秒内结束，而日更总时长仍然有三十分钟，说明另外两个源在正常工作，只有面试鸭这一段空转。向上翻历史日志，发现同样的两行从某个提交之后每天重复；用 commit hash 去查，落点在面试鸭相关的改动范围内。再对照代码路径，请求失败、捕获、break、返回空列表，链条完整，但没有任何一处会让作业失败。
-<h3>原因</h3>
-
-直接原因是题库列表接口返回 567 Server Error。<code>MianshiyaSource.fetch()</code> 对题库列表的请求包在 <code>try/except Exception</code> 里，捕获后只写一条 warning 然后 <code>break</code>，函数继续往下走，<code>banks</code> 为空，<code>fetch()</code> 返回空列表。上游 <code>main.py</code> 把「返回空列表」当成正常结果，继续合并、渲染、提交。历史数据不会被删除，于是 README 的来源统计继续沿用旧的 1,962 条，页面上完全看不出这个源已经停更。
-
-真正的问题是错误语义：采集器用「空结果」同时表达了两种完全不同的状态——「这个源今天确实没有新内容」和「这个源坏了」。前者应该成功，后者应该失败，但代码把它们压成了同一个返回值。再加上 <code>except Exception</code> 把 HTTP 错误、解析错误、结构变化全都吃掉，日志里只剩一行 warning，运行层面没有任何断言去检查「题库数大于 0」这个最基本的健康条件。
-<h3>解决与现状</h3>
-
-从记录看，接口侧的问题仍未恢复，代码侧的静默 <code>break</code> 也仍然在，所以现状是：面试鸭继续每天返回 0 条，历史数据继续留在仓库里，README 的数字看起来没变。这不是「已修复」，而是一个被记录下来的未修复缺陷。
-
-应当落地的改法是三条。第一，采集器的异常不再吞掉：题库列表第一页失败就抛 <code>SourceError</code>，让 <code>main.py</code> 捕获并标记该源 failed，而不是返回空列表。第二，给每个源加最低产出断言，比如题库数大于 0、题目数大于 0，不满足就记为异常；「今天没新内容」应该是「请求成功但新增为 0」，而不是「请求失败所以为 0」。第三，README 增加每个源的最后成功时间与本次状态，让停更在页面上可见，而不是只藏在日志里。
-<h3>代价</h3>
-
-停更期间缺失的数据不会自动回来，只能靠一次 <code>--full</code> 重跑补，而重跑的请求量和时间都远高于日更。更贵的代价是信任：一个每天绿色、数字不变的流水线，会让维护者和读者都以为一切正常。这类静默失败发现得越晚，回填成本越高，且中间这段时间的所有统计口径都带着一个已知的缺口。
-<h2>故障复盘二：LLM 分析永远停在 0/237</h2>
-<h3>现象</h3>
-
-<code>analysis/README.md</code> 长期显示「已分析 0/237」，<code>analysis/</code> 下没有任何公司报告。Actions 里名为 Analyze with GitHub Models 的步骤，每次都以 0 秒、成功状态结束。237 是满足 <code>min_records: 20</code> 的组数，说明数据侧没有问题，问题在分析侧从来没真正启动过。
-
-排查顺序是反的：先怀疑模型、再怀疑额度，最后才怀疑代码有没有跑。日志里没有一条模型请求记录，没有 401、没有 429、没有超时，连「跳过缓存」的日志都没有，这不符合任何调用失败的特征；0 秒的耗时也不符合「遍历 237 个组、逐个判断缓存」的预期。把同一份代码在本地跑 <code>python -m src.analyze</code>，才拿到真正的错误：SyntaxError，位置在 <code>_dedupe()</code> 的那行 f-string。错误不在运行期，而在导入期，所以所有运行期日志都不会出现。
-<h3>原因</h3>
-
-根因在 <code>src/analyze.py</code> 的 <code>_dedupe()</code>：
-<div class="codehilite"><pre><span></span><code><span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s2">|</span><span class="si">{</span><span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\s+&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;content&#39;</span><span class="p">)</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">)[:</span><span class="mi">120</span><span class="p">])</span><span class="si">}</span><span class="s2">&quot;</span>
-</code></pre></div>
-
-
-这行在 Python 3.12 起合法，在 3.11 不合法：3.11 的 f-string 表达式里不允许出现反斜杠，<code>r'\s+'</code> 会让整个模块在编译期报 <code>SyntaxError</code>。workflow 固定 <code>python-version: "3.11"</code>，所以 <code>python -m src.analyze</code> 连第一行业务代码都没执行就退出了。
-
-为什么一直没被发现：分析步骤设了 <code>continue-on-error: true</code>，编译失败被当成「可忽略的分析异常」，作业仍然是绿色；0 秒的耗时又容易被当成「没有需要分析的组，快速返回」。本地如果用的是更新的 Python，同一行代码完全正常，环境差异把这个错误藏得更深。三个因素叠在一起，一个编译期错误伪装成了「分析任务正常但无结果」。
-<h3>解决与现状</h3>
-
-当前仍未修复，<code>_dedupe()</code> 里的写法还在，workflow 仍是 3.11，分析步骤仍标着 <code>continue-on-error: true</code>。修法有两条，任选其一即可：把 workflow 升到 3.12；或者把 <code>re.sub</code> 提到 f-string 外面先算好。
-<div class="codehilite"><pre><span></span><code><span class="n">normalized</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;\s+&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;content&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)[:</span><span class="mi">120</span><span class="p">])</span>
-<span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s2">|</span><span class="si">{</span><span class="n">normalized</span><span class="si">}</span><span class="s2">&quot;</span>
-</code></pre></div>
-
-
-但只改这一行还不够。<code>continue-on-error</code> 的初衷是「模型挂了也别丢数据」，这个诉求应当保留，只是不能让失败以「0 秒成功」的形式消失。更稳的做法是把分析拆成独立 job，失败时照常提交已有数据，同时让 job 标红并在 summary 里写明失败原因；或者在同一个 job 里读取 <code>steps.analyze.outcome</code>，失败时输出注解。核心是：可以允许失败，但不能允许失败不可见。
-<h3>代价</h3>
-
-237 个组的调用一次都没发出，免费额度没有被消耗，但「LLM 归纳」这个核心功能等于不存在；README 长期展示 0，读者会误以为数据不满足分析条件。更隐蔽的成本是排障时间：0 秒成功、无日志、无产物，这三个特征指向「没有工作可做」，而真实原因在另一层——代码根本没被加载。一个被 <code>continue-on-error</code> 包住的步骤，失败信号会沿着最不希望的方向衰减。
-<h2>问题清单：截断、脏字符与重复</h2>
-<h3>搜索接口的正文截断</h3>
-
-现象：部分面经入库后正文只有一两百字，结尾带省略号；有些帖子干脆从结果里消失。原因：牛客搜索接口返回的是摘要而非全文，只有详情接口才有完整正文。归一化里有一个 <code>_is_truncated()</code> 判断，把「正文少于 300 字且以省略号结尾」视为抓取失败并直接丢弃，这个启发式能挡住大部分残缺数据，但也会误伤真正短小、恰好以省略号结尾的帖子。
-
-解决：对没见过的记录补一次详情请求，拿全文后再判断；已经抓过的记录用正文集合跳过，不重复请求。现状是这套机制已经落地，日更里 2,900 多次详情请求、18 分 46 秒，主要时间就花在这里。代价是「短而完整」的内容仍有被误删的可能，且丢弃没有单独计数，属于看不见的损失。
-<h3>同一个帖子被收了三次</h3>
-
-现象：同一篇面经在结果里出现多次，公司岗位计数虚高，喂给模型的样本也重复。原因有三：关键词矩阵本身交叉覆盖；分享链接带 <code>#</code>、查询参数、尾斜杠等变体；面试鸭同一道题被多个题库收录。解决是前面说的三层去重：URL 规范化、跨题库按 <code>external_id</code> 合并、喂模型前按「标题 + 正文前 120 字」再筛。代价是规范化如果过激，可能把查询参数确实代表不同内容的页面合并掉；标题加开头 120 字的判据，也可能把两篇开头相同、后文不同的面经误判为一篇。
-<h3>看不见的字符</h3>
-
-现象：正文里出现 <code>&amp;nbsp;</code>、零宽空格、连续空行，句子被 <code>&lt;br&gt;</code> 粘在一起。原因：三个站点返回的都是 HTML 片段或富文本，标签、实体、平台注入的不可见字符混在一起。解决是统一的 <code>clean_content</code>：先把 <code>&lt;br&gt;</code>、<code>&lt;/p&gt;</code> 之类的换行标签替换成换行，再做 <code>html.unescape</code>，清掉 <code>\u200b</code> 和 <code>\xa0</code>，最后压缩空白。代价是清洗顺序很敏感：先反转义再删标签，会把原本只想显示的文字当成真标签删掉；清洗又发生在去重之前，清洗规则一改，正文哈希与去重结果都会变。
-<h2>问题清单：100MB、额度与源下线</h2>
-<h3>单文件逼近 100MB</h3>
-
-现象：早期所有记录存在一个 JSON 里，随着条数增长，文件体积逼近 GitHub 的 100 MB 单文件硬上限，一旦超过，push 会被直接拒绝。原因不只是当前体积，还有 git 的历史：每次整文件重写都会留下一个新 blob，仓库膨胀速度远高于数据增长速度。解决是改成按公司分片，每家公司一个 <code>.json.gz</code>，落到 158 个文件、35.9 MB；读取兼容旧的单文件，写入后删除不再存在的公司分片。代价是每次运行要打开 158 个文件，公司名 slug 冲突需要加摘要后缀，分片的增删逻辑本身也成了新的故障面。
-<h3>免费额度的硬边界</h3>
-
-现象：分析跑到一半停止，后半段组没有结果；偶尔连续 429，重试也无效。原因：GitHub Models 免费档大约 15 RPM，237 个组远超单日预算。解决是 <code>max_calls_per_run: 100</code>、<code>rpm: 12</code>、<code>workers: 2</code>，加 429 的 <code>Retry-After</code> 与 <code>x-ratelimit-remaining</code> 判断、403 限流直接抛 <code>QuotaExceeded</code> 停整轮，再用 <code>reserve = min(岗位数, max_calls // 6)</code> 给岗位汇总留额度。代价是完整分析要跨多天，且「先公司组、后岗位汇总」的顺序意味着新岗位的报告永远滞后；预算分配只能保证不饿死汇总，不能保证公平。
-<h3>关掉一个源，还要删掉它的历史</h3>
-
-现象：PracHub 以国外公司为主，而配置开了 <code>exclude_foreign_companies: true</code>，采回来的内容大部分被过滤，性价比很低。原因：来源价值与目标不一致，继续跑只是浪费请求。解决是 <code>prachub: enabled: false</code> 加 <code>exclude_sources: [prachub]</code>，下次运行按 dropped 把它的历史记录一并清理。代价是不可逆：历史数据删除后，重新启用只能从头抓，且旧链接可能已经失效。这个决定本质上是数据资产与运行成本的取舍，没有两全。
-<h3>三件仍未解决的事</h3>
-
-第一，没有做 robots.txt 检查。采集只覆盖公开内容、控制了频率，但「是否允许抓取」这件事没有在代码里核对，属于明确的合规缺口。第二，掘金的请求没有带签名参数，目前能用，但只要接口加签就会再次失效，而且这类失效很可能又表现为「0 条」，重演面试鸭的静默失败。第三，README 用文件 mtime 展示最后更新时间，Actions 每次都是全新 checkout，未变更的文件会被统一刷成同一时间，读者看到的「更新时间」并不真实。这三件都属于未解决项，不是待办清单上的装饰。
-<h2>实测数据与已知限制</h2>
-
-日更实测 30 分 08 秒：牛客 18 分 46 秒、12,945 条、2,900 多次详情；面试鸭 1 秒（即前面说的 0 条）；掘金 10 分 46 秒、3,924 条搜索结果、3,333 篇正文。周更是 24 分 48 秒，比日更短，主要是因为 <code>--limit 150</code> 压住了详情补全数量。两条工作流的超时分别是 60 与 180 分钟，实测都留了一倍以上余量，主要风险不在时长，而在接口变更和额度。
-
-从耗时结构能看出瓶颈在哪：牛客占了六成以上时间，其中绝大部分是 2,900 多次详情请求；掘金 3,333 篇正文抓取只用了十分钟出头，因为它的搜索接口一次就给全文，详情请求少得多。这也解释了为什么增量设计必须优先省详情请求：搜索翻页是固定成本，详情才是随新增条数线性增长的部分。
-
-几个判断。第一，这套架构在「零服务器、免费额度、每天一次」的约束下是成立的：增量判断省掉了大部分详情请求，幂等落盘避免了无意义提交，两阶段分析把一次做不完的工作拆成了可续跑的任务。第二，它最脆弱的地方不是反爬，而是失败的表达方式：一个源坏了、一个步骤编译失败了，流水线都可以是绿的。第三，仓库体积会持续增长，README 全量重排和整文件重写的历史 blob 是主要来源，未来要么接受，要么把渲染改成增量。
-
-如果要继续改进，优先级应该是：先修 <code>analyze.py</code> 的 f-string 与工作流版本，让分析真正跑起来；再给每个源加健康断言和最后成功时间；然后才是 robots.txt、掘金签名、mtime 这些正确性问题。采集量已经不是瓶颈，可见性才是。
-<h2>小结</h2>
-
-InterviewAtlas 是一个用四个依赖、两条工作流、一份 git 仓库撑起来的长期数据管道。它的实现思路可以概括成四句话：增量判断放在请求之前，去重分三层做在不同阶段，落盘用固定压缩时间戳换幂等，模型调用用版本清单加预算换可控。
-
-它踩过的坑比功能更有价值。面试鸭的 0 条说明「空结果」不能同时表示成功与失败；LLM 分析的 0/237 说明一个编译期错误可以被 <code>continue-on-error</code> 伪装成正常运行；截断、重复、脏字符说明数据清洗的每个启发式都有误伤；写放大说明 git 仓库的存储成本不在快照，而在历史。
-
-这两个最严重的问题当前都还没有修完：面试鸭的接口未恢复、静默 break 仍在；分析侧的 f-string 与 3.11 组合仍在，0/237 不会自己变成 237/237。把修法写清楚，比声称已经解决更诚实。
-
-如果重来一次，我会先写「失败可见」再写采集：每个源必须有独立的成功、失败、产出为零三种状态，每个后台步骤的退出码必须进入汇总，而不是被 <code>continue-on-error</code> 抹平。数据管道的大部分事故不是抓不到，而是抓不到的时候没人知道。
-<h2>相关阅读</h2>
-<ul>
-<li><a href="/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a>：另一种「依赖极简 + 输出有界」的工程取舍，适合对照本文的预算与截断设计。</li>
-<li><a href="/article/agent-loop-two-hundred-lines/">Agent 的本质：一个两百行的循环</a>：从最小实现理解「采集、归纳、落盘」之外的另一类循环。</li>
-<li><a href="/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a>：当自动生成的分析报告需要判断质量时，这套评测思路比单一分数更有用。</li>
-<li><a href="/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a>：本文的数据量还没到需要搜索引擎，但增量与去重的取舍可以参考这里的索引视角。</li>
-</ul>]]></content:encoded>
     </item>
     <item>
       <title>micromd：3 MB 的单文件 Markdown 阅读器</title>
@@ -1092,350 +1520,6 @@ InterviewAtlas 是一个用四个依赖、两条工作流、一份 git 仓库撑
       <category>WebView2</category>
       <category>单文件</category>
       <category>桌面应用</category>
-      <content:encoded><![CDATA[<blockquote>
-
-适用读者：想在 Windows 上做「单文件桌面应用」的 Go 与前端开发者；正在评估 WebView2 壳方案、或打算手写 Markdown 解析器的人；关心体积、启动、保存语义与安全边界的工程师
-结论先行：MicroMD 把约 3.17 MiB 的 exe、零依赖的 HTML 界面和一个手写 Markdown 解析器装进同一个进程。真正值得复盘的不是「小」，而是四个取舍：用系统 WebView2、把界面落到 file://、用三个绑定连接原生与 JS、用两遍式解析同时守住转义与占位符。它还有七个没有完全解决的问题，文章会逐个给出代价与遗留
-阅读时间约 30 分钟 | 难度：进阶 | 收获：一套可复用的 WebView2 单文件壳实现 + 手写 Markdown 解析器的两遍式设计 + 七个真实问题的现象、原因与解决代价 + 一份不粉饰的限制清单
-</blockquote>
-
-<strong>目录</strong>
-<ul>
-<li>为什么再造一个 Markdown 阅读器</li>
-<li>一个 exe 与它的原生外壳</li>
-<li>界面为什么先写到磁盘</li>
-<li>三个绑定与保存语义</li>
-<li>手写解析器：两遍式与块级状态机</li>
-<li>问题一：WebView2 缺失与浏览器回退</li>
-<li>问题二：图片相对路径的基址错位</li>
-<li>问题三：全量重渲染与大文件节流</li>
-<li>问题四：草稿配额与未使用的 MAX_DRAFT</li>
-<li>问题五：体积、图标与启动时间</li>
-<li>问题六：保存语义与用户预期错位</li>
-<li>问题七：没有文件变更监听，也没有最近文件</li>
-<li>已知限制与设计取舍</li>
-<li>小结</li>
-<li>相关阅读</li>
-</ul>
-<hr>
-<h2>为什么再造一个 Markdown 阅读器</h2>
-
-把 Markdown 阅读器做成 3 MB 的单文件，听起来像在压缩一个本来就不大的东西。真正难的地方不在 Markdown：一个能解析标题、列表、表格的解析器可以很短，难的是 Windows 桌面壳——窗口、DPI、图标、WebView2 运行时、文件读写权限，以及「双击就能用」这四个字背后的分发问题。
-
-MicroMD 的解法是尽量把成本外置：渲染引擎不打包，直接用系统里的 WebView2；界面不引入框架，写成一个 HTML 文件；Markdown 解析器不引第三方库，用两百多行 JavaScript 手写；原生层只保留窗口创建、三个绑定和启动参数解析。换来的结果是发布物只有一个 exe，解压即用，只写自己的应用数据目录，不装服务，也不依赖网络。
-
-但要先把边界说清楚。它不是跨平台应用，代码里大量 Win32 调用和 WebView2 依赖决定了它只面向 Windows 10 与 11。它也不是功能完整的编辑器：没有代码高亮、没有侧栏目录、没有文件变更监听、没有最近文件列表。这些不是「以后会加」的路线图，而是当前版本的真实状态。本文按实现顺序拆开它：先看外壳和落盘，再看三个绑定与解析器，最后把七个已经暴露的问题逐个复盘。
-
-体积数字也先摆正。release 构建在 strip 之后是 3,323,392 字节，即 3.17 MiB（十进制约 3.32 MB）；未 strip 是 4,943,872 字节，<code>-s -w</code> 省下 32.8%。标题里的「3 MB」说的是这个量级，不是精确的十进制 3.00 MB。
-<h2>一个 exe 与它的原生外壳</h2>
-
-先看这个 exe 里到底有什么。它没有把 Chromium 打进去，所以「3 MB」不是「3 MB 的浏览器」，而是「3 MB 的壳 + 系统里那份引擎」。壳的组成可以拆成五层：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>层</th>
-<th>实现</th>
-<th>已核实的事实</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>原生外壳</td>
-<td>Go + <code>github.com/jchv/go-webview2</code></td>
-<td>直接依赖 3 个 Go 模块，<code>go.mod</code> 里三行都误标了 <code>// indirect</code></td>
-</tr>
-<tr>
-<td>界面</td>
-<td>单个 <code>web/index.html</code></td>
-<td>29,520 字节，零个 JavaScript 库</td>
-</tr>
-<tr>
-<td>渲染引擎</td>
-<td>系统安装的 Microsoft Edge WebView2</td>
-<td>不随 exe 分发</td>
-</tr>
-<tr>
-<td>图标与版本资源</td>
-<td><code>go-winres</code> 生成的 <code>.syso</code></td>
-<td><code>.syso</code> 被 <code>.gitignore</code> 忽略，本地不生成就没有图标</td>
-</tr>
-<tr>
-<td>打包</td>
-<td><code>//go:embed</code></td>
-<td><code>main.go:18</code> 把 HTML 编进二进制</td>
-</tr>
-</tbody>
-</table></div>
-
-原生入口很短。<code>main.go</code> 先做 DPI 初始化，再算出应用数据目录，把内嵌的 HTML 写到磁盘，解析命令行参数，最后创建窗口并 <code>Run()</code>。窗口由 <code>webview2.NewWithOptions</code> 创建，关键参数只有几个：标题 <code>MicroMD</code>、宽高由 <code>windowSize()</code> 计算、<code>IconId: 1</code>、<code>Center: true</code>、<code>DataPath</code> 指向 <code>%LOCALAPPDATA%\MicroMD\webview</code>。<code>Debug: false</code> 同时关掉默认右键菜单和 DevTools，这是发布配置，不是开发配置。窗口样式来自 <code>go-webview2</code> 内部的默认值，注释写的是 <code>WS_OVERLAPPEDWINDOW</code>，也就是说它没有自定义标题栏，也没有原生菜单栏，外观完全交给系统。
-
-这个选择很省事，也把限制写死了。没有自绘标题栏，就没有拖动区域、最小化动画、窗口阴影的全套适配问题；没有菜单栏，所有操作只能放进 HTML 里的按钮和快捷键。<code>DataPath</code> 单独指向应用目录，意味着 WebView2 的缓存、Cookie、localStorage 都落在 <code>%LOCALAPPDATA%\MicroMD\webview</code>，不会污染用户的其他浏览器配置，卸载时删目录即可。代价是这个目录会随使用增长，而代码里没有清理逻辑。
-
-还有一个容易被忽略的细节：<code>NewWithOptions</code> 返回 <code>nil</code> 时，<code>main</code> 会调用 <code>openExternal(page)</code> 用默认浏览器打开同一个页面，然后直接返回。这条路径是「没有 WebView2 运行时」时的兜底，后文会单独讲。需要提醒的是，并非所有初始化失败都会返回 <code>nil</code>；<code>go-webview2</code> 的部分错误路径直接 <code>log.Fatal</code>，所以「兜底」覆盖的是窗口创建失败，而不是全部启动失败。
-<h2>界面为什么先写到磁盘</h2>
-
-<code>//go:embed web/index.html</code> 把 29,520 字节的界面编进二进制后，代码没有用 <code>NavigateToString</code>，而是先落盘再以 <code>file://</code> 导航。启动时的顺序是：
-<ol>
-<li><code>appDataDir()</code> 取 <code>LOCALAPPDATA</code>，拼出 <code>%LOCALAPPDATA%\MicroMD</code>；取不到就退到 <code>os.UserCacheDir()</code>，再退到相对路径 <code>MicroMD</code>。</li>
-<li>拼接 <code>app\index.html</code>，<code>os.MkdirAll(appDir, 0o755)</code>。</li>
-<li>读现有文件，和 <code>indexHTML</code> 全文比较；读失败或内容不同才 <code>os.WriteFile(page, indexHTML, 0o644)</code>。</li>
-<li><code>view.Navigate(fileURL(page))</code>，<code>fileURL</code> 用 <code>net/url</code> 处理盘符、斜杠和转义。</li>
-</ol>
-
-为什么不用字符串直接导航？从代码能看到的直接收益是：页面有了一个稳定的 <code>file://</code> 源，localStorage 才能按这个源持久化；<code>&lt;input type="file"&gt;</code>、File System Access API、相对资源解析都按普通页面的规则工作；不需要自己注册自定义 scheme，也不需要起一个本地 HTTP 服务。最后一点尤其重要——起本地端口会引入端口冲突、防火墙提示和「到底有没有联网」的疑问，而这个项目的卖点之一就是渲染全在本地。
-
-落盘策略是「字节不同才重写」，而不是每次启动都写。好处是升级时界面会更新，平时启动只多一次 29,520 字节的读取，开销可以忽略；坏处是用户如果手动改了 <code>%LOCALAPPDATA%\MicroMD\app\index.html</code>，下次启动会被覆盖回去。代码没有提供「使用外部界面」的开关，这是刻意的简化。
-
-这条链路有两个静默失败点：<code>MkdirAll</code> 失败直接 <code>return</code>，<code>WriteFile</code> 失败也直接 <code>return</code>。两者都不会弹窗，用户看到的是「双击没反应」。在正常权限下这几乎不会发生，但如果目录被杀软锁定、磁盘满、或者 <code>LOCALAPPDATA</code> 指向不可写位置，就没有任何可诊断信息。这是「单文件、无安装器」带来的直接代价：没有安装程序替你检查目录权限。
-<h2>三个绑定与保存语义</h2>
-
-原生与 JS 之间只有三个绑定，名字都很直白：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>绑定</th>
-<th>原生行为</th>
-<th>返回值</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>micromdLoad</code></td>
-<td>如果启动参数给了文件路径，读取并 <code>json.Marshal</code> 成 <code>{name, content}</code></td>
-<td>没有文件时返回空字符串</td>
-</tr>
-<tr>
-<td><code>micromdSave</code></td>
-<td>如果 <code>docPath</code> 非空，<code>os.WriteFile</code> 写回</td>
-<td>成功返回 <code>ok</code>，没有路径返回错误 <code>no file</code></td>
-</tr>
-<tr>
-<td><code>micromdOpenExternal</code></td>
-<td>只接受 <code>http://</code>、<code>https://</code>、<code>mailto:</code> 前缀，再交给 <code>ShellExecuteW</code></td>
-<td>接受并执行返回 <code>ok</code>，其他返回空</td>
-</tr>
-</tbody>
-</table></div>
-
-<code>micromdLoad</code> 的设计很省：它不返回路径，只返回文件名和内容。前端拿到 JSON 后把 <code>app.native</code> 设为 <code>true</code>，于是 <code>Ctrl+S</code> 会调 <code>micromdSave</code>。<code>micromdSave</code> 自己不接受路径参数，只认启动时解析出的 <code>docPath</code>；当前端在「没有原生文件」的状态下误调它，原生侧用 <code>no file</code> 拒绝，这是一层防御。
-
-真正的语义分叉发生在前端。<code>native</code> 只在一种情况下为 <code>true</code>：命令行传入了文件路径，或者把 <code>.md</code> 拖到了 exe 图标上——后者在 Windows 上同样表现为启动参数。其他打开方式都会走 <code>setDocument(file, handle)</code>，而这个函数第一件事就是把 <code>app.native = false</code>。于是保存出现三条路径：
-<ul>
-<li>原生文件：<code>micromdSave</code> 直接写回原路径，提示「已保存到 文件名」。</li>
-<li>文件选择器：如果 <code>showOpenFilePicker</code> 可用，拿到 <code>FileSystemHandle</code>，用 <code>createWritable()</code> 写回；提示「已保存到 handle.name」。</li>
-<li>拖进窗口或 <code>&lt;input type="file"&gt;</code> 回退：既没有原生路径，也没有可写句柄，退化成 Blob 下载，提示「已导出 文件名」。</li>
-</ul>
-
-降级逻辑在 <code>saveFile()</code> 里是显式的三级：
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="kr">native</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="ow">typeof</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">micromdSave</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;function&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nb">window</span><span class="p">.</span><span class="nx">micromdSave</span><span class="p">(</span><span class="nx">content</span><span class="p">);</span>
-<span class="w">  </span><span class="k">return</span><span class="p">;</span>
-<span class="p">}</span>
-<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">app</span><span class="p">.</span><span class="nx">handle</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">app</span><span class="p">.</span><span class="nx">handle</span><span class="p">.</span><span class="nx">createWritable</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">writable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">app</span><span class="p">.</span><span class="nx">handle</span><span class="p">.</span><span class="nx">createWritable</span><span class="p">();</span>
-<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">writable</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">content</span><span class="p">);</span>
-<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">writable</span><span class="p">.</span><span class="nx">close</span><span class="p">();</span>
-<span class="w">  </span><span class="k">return</span><span class="p">;</span>
-<span class="p">}</span>
-<span class="kd">const</span><span class="w"> </span><span class="nx">link</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">document</span><span class="p">.</span><span class="nx">createElement</span><span class="p">(</span><span class="s1">&#39;a&#39;</span><span class="p">);</span>
-<span class="nx">link</span><span class="p">.</span><span class="nx">href</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">URL</span><span class="p">.</span><span class="nx">createObjectURL</span><span class="p">(</span><span class="ow">new</span><span class="w"> </span><span class="nx">Blob</span><span class="p">([</span><span class="nx">content</span><span class="p">],</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;text/markdown;charset=utf-8&#39;</span><span class="w"> </span><span class="p">}));</span>
-<span class="nx">link</span><span class="p">.</span><span class="nx">download</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">app</span><span class="p">.</span><span class="nx">name</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;untitled.md&#39;</span><span class="p">;</span>
-<span class="nx">link</span><span class="p">.</span><span class="nx">click</span><span class="p">();</span>
-</code></pre></div>
-
-
-这段代码有一个值得肯定的细节：<code>setDocument</code> 每次打开新文件都会重置 <code>native</code>。假设用户先用命令行打开 <code>A.md</code>，原生 <code>docPath</code> 指向 A；随后又通过选择器打开 <code>B.md</code>，如果没有这个重置，<code>Ctrl+S</code> 可能把 B 的内容写进 A。现在它明确地把「当前文档是否可原生写回」和「当前文档是谁」绑在一起，避免了最危险的那类错写。
-
-代价是用户必须理解三套语义。同一个 <code>Ctrl+S</code>，在不同打开方式下分别意味着「覆盖原文件」「覆盖选择器文件」「下载一份副本」。README 写了规则，界面只用 toast 区分「已保存」和「已导出」，没有在打开文件时提前告诉用户「这个文件不会被写回」。这不是实现错误，而是安全模型与用户预期之间的缝，后文会展开。
-<h2>手写解析器：两遍式与块级状态机</h2>
-
-<code>web/index.html</code> 里用 <code>/* md:start */</code> 和 <code>/* md:end */</code> 圈出了解析器，约在 166 到 412 行。它没有引 marked、markdown-it 之类的库，而是自己实现了 <code>inline()</code> 和 <code>blocks()</code> 两层。最值得讲的是 <code>inline()</code> 的两遍式设计，因为它同时解决了两个看似矛盾的问题：既要让 Markdown 语法识别生效，又不能让原文里的 HTML 注入页面。
-
-第一遍不是解析，而是「藏」。代码段、自动链接、反斜杠转义先被替换成占位符，形如 <code>\u0001</code> + 数字 + <code>\u0001</code>，对应的 HTML 存进 <code>stash</code> 数组：
-<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">stash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[];</span>
-<span class="kd">const</span><span class="w"> </span><span class="nx">put</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">html</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="s1">&#39;\u0001&#39;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="nx">stash</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">html</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">1</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s1">&#39;\u0001&#39;</span><span class="p">;</span>
-<span class="nx">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">t</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/(`+)([\s\S]*?)\1/g</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">m</span><span class="p">,</span><span class="w"> </span><span class="nx">ticks</span><span class="p">,</span><span class="w"> </span><span class="nx">code</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span>
-<span class="w">  </span><span class="nx">put</span><span class="p">(</span><span class="s1">&#39;&lt;code&gt;&#39;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">esc</span><span class="p">(</span><span class="nx">code</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/^ ([\s\S]*?) $/</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;$1&#39;</span><span class="p">))</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s1">&#39;&lt;/code&gt;&#39;</span><span class="p">));</span>
-<span class="nx">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">t</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/&lt;((?:https?:\/\/|mailto:)[^\s&lt;&gt;]+)&gt;/g</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">m</span><span class="p">,</span><span class="w"> </span><span class="nx">url</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span>
-<span class="w">  </span><span class="nx">put</span><span class="p">(</span><span class="s1">&#39;&lt;a href=&quot;&#39;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">esc</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s1">&#39;&quot;&gt;&#39;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">esc</span><span class="p">(</span><span class="nx">url</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s1">&#39;&lt;/a&gt;&#39;</span><span class="p">));</span>
-<span class="nx">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">t</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/\\([\\`*_{}\[\]()#+\-.!&gt;~|])/g</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">m</span><span class="p">,</span><span class="w"> </span><span class="nx">ch</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">put</span><span class="p">(</span><span class="nx">esc</span><span class="p">(</span><span class="nx">ch</span><span class="p">)));</span>
-<span class="nx">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">esc</span><span class="p">(</span><span class="nx">t</span><span class="p">);</span>
-</code></pre></div>
-
-
-第二遍才是整体转义：<code>&amp;</code>、<code>&lt;</code>、<code>&gt;</code>、<code>"</code> 全部变成实体。第三遍在转义后的文本上识别图片、链接、裸 URL 和强调，最后把占位符回填成真正的 HTML。这个顺序很关键：如果先整体转义，代码段里的反引号和链接里的括号会被实体打乱，语法识别失败；如果先识别再转义，拼接出来的 <code>&lt;a&gt;</code>、<code>&lt;img&gt;</code> 又会被当成用户输入转义掉。占位符把「需要保留的 HTML」暂时移出文本，让 <code>esc</code> 只处理真正的用户文本，回填后再把结构放回去。
-
-<code>blocks()</code> 是逐行状态机。它先统一换行、把 tab 展开成四个空格，然后在 <code>while</code> 循环里按优先级判断：围栏代码块、分隔线、标题、引用、表格、列表，最后才是普通段落。每种块都有自己的边界判断：
-<ul>
-<li>围栏代码块记录开头的反引号或波浪号数量，只有同字符且长度不小于开头的闭合行才结束，代码内容整体 <code>esc</code>，语言名写进 <code>class="language-xxx"</code>。</li>
-<li>标题用 <code>^ {0,3}(#{1,6})</code> 匹配，生成 <code>id</code> 时先去掉标签和标点，再按空白转连字符；标题重复时 <code>id</code> 也会重复。</li>
-<li>引用把所有连续的 <code>&gt;</code> 行剥掉前缀，递归调用 <code>blocks()</code>，所以引用里可以再放列表和代码块。</li>
-<li>表格先拆表头，再读分隔行判断左中右对齐；正文行用带负向断言的 <code>\|</code> 分割，避免把转义的竖线当列边界。</li>
-<li>列表记录第一项的缩进和有序/无序类型，遇到更深缩进的行就并入当前项，最后对每一项的文本递归 <code>blocks()</code>，嵌套列表因此成立；任务项用 <code>^\[([ xX])\][ \t]+</code> 单独识别，输出禁用的复选框。</li>
-</ul>
-
-普通段落会把连续的非空行用 <code>&lt;br&gt;</code> 连接，而不是按 CommonMark 的软换行合成空格。这是实现选择，不是 bug：对一个本地阅读器来说，作者在源码里换行通常就是希望看到换行。但它也意味着解析结果并不严格等价于 CommonMark，复制一段标准 Markdown 到别处渲染，段落形状可能不同。
-
-解析器没有做代码高亮，<code>class="language-xxx"</code> 只是留给未来或外部样式，页面里没有对应的着色规则。它也没有侧栏目录，标题的 <code>id</code> 生成了，但没有扫描标题生成导航的代码。块级状态机是逐行的，不做完整 AST，因此复杂嵌套、跨行强调、列表与表格的极端组合都只能靠规则覆盖，边界情况没有自动化测试兜底。整个仓库没有 <code>*_test.go</code>，解析质量靠人工样例验证。
-<h3>安全边界：先转义再解析</h3>
-
-解析顺序本身就是第一道安全边界。原文里的 <code>&lt;script&gt;</code>、<code>&lt;iframe&gt;</code>、<code>onerror=</code> 会先经过 <code>esc</code>，显示成文本，而不是进入 DOM。第二道是 <code>safeUrl()</code>：图片和链接在拼接前检查是否以 <code>javascript:</code>、<code>vbscript:</code>、<code>data:text/html</code> 开头，命中就把整段原文转义后原样显示。第三道是点击拦截：预览区的普通链接与裸 URL 会带 <code>target="_blank"</code> 和 <code>rel="noreferrer noopener"</code>，页面在捕获阶段只放行 <code>http(s)</code> 和 <code>mailto</code>，然后 <code>preventDefault()</code> 交给 <code>micromdOpenExternal</code>；原生侧再做一次前缀白名单，最后才 <code>ShellExecuteW</code>。<code>Debug: false</code> 关掉 DevTools 与右键菜单，减少了「在应用内调试页面」的入口。
-
-这几层能挡住常见的脚本注入，但有两个现状需要说清楚。第一，它没有禁用远程图片：如果 Markdown 里写了一个 <code>https://</code> 图片地址，WebView2 仍然会发起网络请求。「渲染在本地、不联网」指的是应用自身不依赖网络，不是「文档里的远程资源一定不会加载」。第二，<code>safeUrl</code> 只拦三类危险协议，其他协议或相对路径不会被拒绝；相对链接在 <code>file://</code> 下会按当前页面的基址解析，这正好引出后面的图片路径问题。另外，普通链接和裸 URL 会补上 <code>target</code> 与 <code>rel</code>，尖括号自动链接这一支没有补，但它同样会被点击拦截，真正的边界仍在原生白名单。
-<h2>问题一：WebView2 缺失与浏览器回退</h2>
-
-<strong>现象</strong>：在一台没有 WebView2 运行时的 Windows 机器上双击 exe，没有应用窗口，默认浏览器被打开，页面看起来还是那个 MicroMD，但「保存」变成了下载，原生写回完全失效。<code>micromd.bat</code> 则提供另一条路：依次找 Edge、Chrome、系统默认浏览器，用 <code>--app</code> 模式打开 <code>web/index.html</code>。
-
-<strong>原因</strong>：整个渲染层依赖系统安装的 WebView2 Runtime。Windows 10 与 11 的大多数版本自带，但 LTSC、精简镜像、部分企业管控环境可能没有。<code>webview2.NewWithOptions</code> 内部创建窗口失败时返回 <code>nil</code>，<code>main</code> 只能用 <code>openExternal(page)</code> 兜底；这时 JS 里 <code>typeof window.micromdLoad</code> 不是函数，<code>micromdSave</code> 也不存在，保存自然退化。另一个原因是 <code>micromd.bat</code> 依赖源码树里的 <code>web/index.html</code>，而发布物只有 exe，所以这个批处理只对仓库使用者有意义，不能作为终端用户的兜底。
-
-<strong>解决</strong>：原生层检测 <code>nil</code> 后用 <code>ShellExecuteW</code> 打开已经落盘的页面；README 明确给出「没有运行时就直接用浏览器打开」的路径；批处理脚本用 Edge、Chrome、默认浏览器的三级顺序，尽量复用本机已有的 Chromium。前端不需要为这两种模式写分支，因为它本来就把原生绑定当成可选的。
-
-<strong>代价与遗留</strong>：两种模式的能力不一致，而且用户很难在界面上看出自己处于哪一种。浏览器模式没有原生窗口、没有图标、没有直接写回，草稿的 localStorage 也取决于浏览器的 <code>file://</code> 策略；代码没有提示「请安装 WebView2」，也没有提供引导安装的链接。兜底覆盖的只是窗口创建失败，部分初始化错误在库内直接 <code>log.Fatal</code>，进程会静默退出。这个问题的本质是「把引擎外置」换来的体积优势，必然要接受运行时不受自己控制。
-<h2>问题二：图片相对路径的基址错位</h2>
-
-<strong>现象</strong>：文档里写 <code>![截图](images/shot.png)</code>，在别的编辑器里正常显示，在 MicroMD 里是破图。图片 URL 实际被解析到 <code>%LOCALAPPDATA%\MicroMD\app\images\shot.png</code>，而不是 Markdown 文件旁边的 <code>images\shot.png</code>。
-
-<strong>原因</strong>：页面是通过 <code>file://</code> 从应用目录导航的，浏览器的相对 URL 基址就是 <code>app/index.html</code> 所在目录。解析器把 <code>src</code> 原样放进 <code>&lt;img&gt;</code>，既没有注入 <code>&lt;base href="..."&gt;</code>，也没有按文档路径重写相对地址。原生绑定只回传文件名和内容，不暴露目录，所以前端即使想重写也拿不到原始路径。命令行打开时原生知道 <code>docPath</code>，但这个信息没有传给页面。
-
-<strong>解决</strong>：当前版本没有修复。能用的绕法是写绝对路径，例如 <code>file:///C:/docs/images/shot.png</code> 或 <code>data:</code> 内嵌图片；这两种都能被 <code>safeUrl</code> 放行，也能被 WebView2 加载。但绝对路径会破坏文档的可移植性，<code>data:</code> 会让文件迅速膨胀，都不是通用方案。
-
-<strong>代价与遗留</strong>：这是「界面先落盘」这个决定的直接副作用。要修就得在 <code>micromdLoad</code> 里多返回一个目录，前端在渲染后把相对 <code>src</code> 拼成绝对 <code>file://</code> 地址，或者注入一个按文档目录计算的 <code>&lt;base&gt;</code>。前者要处理 URL 编码、盘符、<code>..</code> 和混合斜杠；后者会影响页面内所有相对 URL，包括链接和未来的资源。更麻烦的是拖进窗口和文件选择器打开时，浏览器出于安全不暴露完整路径，只有 File 对象，拿不到真实目录，所以同一份文档在不同打开方式下会出现不同的图片行为。这也是为什么它到现在仍然是一个「已知限制」，而不是一个已修复项。
-<h2>问题三：全量重渲染与大文件节流</h2>
-
-<strong>现象</strong>：在长文档里连续输入时，光标还在走，预览区却一顿一顿；文档越长，输入延迟越明显。滚动时也可能出现预览位置和编辑位置对不上的情况。
-
-<strong>原因</strong>：<code>render()</code> 的实现只有一句核心逻辑：<code>preview.innerHTML = MD.render(editor.value)</code>。每次输入都从头解析整篇文档，再把整个预览树的 HTML 字符串替换掉。没有增量解析，没有 DOM diff，也没有把解析放进 Worker。<code>scheduleRender()</code> 只用 <code>requestAnimationFrame</code> 合并同一帧内的多次输入，合并的是调用次数，不是工作量；解析和布局仍然在主线程上按整篇文档的规模跑。
-
-<strong>解决</strong>：代码里有一个阈值 <code>BIG_DOC = 200000</code>。文档字符数超过 20 万时，<code>scheduleRender()</code> 不再用 <code>requestAnimationFrame</code>，而是改成 150ms 的 <code>setTimeout</code>，把重渲染频率压到大约每秒六到七次；低于阈值时仍然每帧全量渲染。这是一个非常便宜的降级：不引入 Worker，不做增量，只把「多久渲染一次」调粗。
-
-<strong>代价与遗留</strong>：阈值是按字符数拍的，和实际解析成本并不完全对应。19.9 万字符的文档仍然每帧全量渲染，20.1 万字符的文档突然降频，边界两侧体验不连续。150ms 是固定值，不随文档大小或机器性能自适应；在更长的文档上，单次解析本身就可能超过 150ms，节流只能减少次数，不能减少单次卡顿。<code>innerHTML</code> 全量替换还会让预览区丢失选区、图片重新加载、滚动高度瞬间变化，滚动同步按比例计算 <code>scrollTop</code>，在高度跳变时就会失准。要真正解决，需要增量解析、虚拟列表或至少把解析搬到 Worker，这三者都会显著增加代码量和状态管理成本，不符合这个项目的体积目标。
-<h2>问题四：草稿配额与未使用的 MAX_DRAFT</h2>
-
-<strong>现象</strong>：README 说「超长草稿不写入本地存储」，但代码里声明了 <code>MAX_DRAFT = 1000000</code> 之后，全文没有任何地方引用它。实际行为是：每次输入都尝试写 localStorage，写不进去就被 <code>try/catch</code> 吞掉，界面没有任何提示，关掉窗口后草稿可能已经丢了。
-
-<strong>原因</strong>：<code>saveDraft()</code> 在输入停止 400ms 后调用 <code>store.set('draft', editor.value)</code> 和 <code>store.set('name', app.name)</code>；<code>store.set</code> 的实现是 <code>try { localStorage.setItem(...) } catch (e) {}</code>，空 catch 意味着配额异常、隐私模式限制、序列化失败都不会冒泡。<code>MAX_DRAFT</code> 很可能是早期打算用来做「超过上限就跳过」的分支，但最终没有接上。localStorage 的配额通常是每源几 MB，具体取决于浏览器和 <code>file://</code> 的策略；把整篇文档作为一个字符串反复写，超过配额时 <code>setItem</code> 抛异常，草稿就停在旧版本。
-
-<strong>解决</strong>：当前实现没有真正的超长保护，只有「异常不致命」的兜底。可行的修法很直接：在 <code>saveDraft()</code> 里判断 <code>editor.value.length &gt; MAX_DRAFT</code>，超过就跳过并给一次 toast；或者把草稿改存 IndexedDB；或者原生模式下落一份草稿文件到应用目录。三种方案都比现在的空 catch 更诚实。
-
-<strong>代价与遗留</strong>：用户看到的是「自动保存草稿」的承诺，实际得到的是「尽量保存」。连续输入时 400ms 的防抖意味着定时器不断重置，只有在停顿超过 400ms 后才会真正写一次；如果用户连续敲十分钟后直接关机，最后一次成功写入之前的全部内容都可能丢失。原生文件有未保存修改时，草稿是唯一的恢复手段，所以这个缺陷在「命令行打开、编辑、没按保存」的场景下风险最高。README 与实现的这处出入，应该按「现状缺陷」来读，而不是按「已实现的上限保护」来读。
-<h2>问题五：体积、图标与启动时间</h2>
-
-<strong>现象</strong>：release exe 是 3,323,392 字节；不 strip 是 4,943,872 字节；一个空的 <code>windowsgui</code> Go 程序也有 1,214,976 字节；内嵌的 <code>WebView2Loader.dll</code> 约 134 KB。启动时窗口句柄出现的时间，本机三次实测分别是 203ms、112ms、106ms。另一个现象是：本地直接 <code>go build</code> 出来的 exe 没有自定义图标。
-
-<strong>原因</strong>：体积由四块构成：Go 运行时与链接产物的基线、<code>go-webview2</code> 与 <code>golang.org/x/sys</code> 的代码、134 KB 的 WebView2Loader、29,520 字节的 HTML。<code>-H windowsgui</code> 去掉控制台窗口，<code>-s -w</code> 去掉符号表和调试信息，合起来把未 strip 的 4.94 MB 压到 3.17 MiB，省 32.8%。图标不是 Go 代码能直接带的资源，<code>IconId: 1</code> 只是在窗口创建时按资源 ID 去取图标；真正的图标和版本信息由 <code>go-winres</code> 写进 <code>rsrc_windows_amd64.syso</code>，而这个 <code>.syso</code> 被 <code>.gitignore</code> 忽略。CI 的 release 流程会先安装 <code>go-winres</code>、生成资源再构建，本地构建如果跳过这一步，<code>IconId: 1</code> 找不到资源，窗口就没有预期图标。
-
-<strong>解决</strong>：构建命令固定为 <code>-trimpath -buildvcs=false -ldflags "-H windowsgui -s -w"</code>；发布工作流把 <code>go-winres</code> 的安装和生成放在构建之前，并检查 <code>rsrc_windows_amd64.syso</code> 是否存在，不存在就报错；<code>windowSize()</code> 按屏幕的 92% 和 88% 夹取 1280×860 的缩放结果，避免小屏上窗口超出边界；DPI 先尝试 <code>SetProcessDpiAwarenessContext(-4)</code>，失败再退回 <code>SetProcessDpiAwareness(2)</code>。图标本身由 <code>tools/icon/main.go</code> 生成，用有向距离场和四倍超采样绘制，输出 16 到 256 的多种尺寸，不依赖外部设计文件。
-
-<strong>代价与遗留</strong>：<code>-s -w</code> 让 release 二进制失去符号表和调试信息，线上崩溃更难定位；本地构建多了一步工具链，忘记生成 <code>.syso</code> 就会得到「能跑但没图标」的版本，而且没有编译期报错。启动时间这组数字只是「窗口句柄出现」的时间，不是首帧可见时间，也不是内容渲染完成时间；窗口出现后还要创建 WebView2 环境、导航到 <code>file://</code>、执行 boot 脚本、读取草稿或原生文档，这些都没有计入。把 106ms 说成「启动完成」是不准确的，它最多说明原生窗口创建很快。体积也一样：3.17 MiB 是「不分发引擎」的结果，不是把 Chromium 压到了 3 MB。
-<h2>问题六：保存语义与用户预期错位</h2>
-
-<strong>现象</strong>：把 <code>notes.md</code> 拖进窗口，改几行，按 <code>Ctrl+S</code>，提示「已导出 notes.md」，原文件没有变化；下一次再拖进来，看到的还是旧内容。相反，如果把同一个文件拖到 exe 图标上打开，<code>Ctrl+S</code> 会直接写回原文件。用户很难从界面看出这两种打开方式的区别。
-
-<strong>原因</strong>：浏览器安全模型不允许网页凭一个 <code>File</code> 对象写回任意路径，<code>native</code> 又只在启动参数存在时才为 <code>true</code>。拖进窗口得到的是 File API 的 <code>File</code>，没有可写句柄；文件选择器走 <code>showOpenFilePicker</code> 时能得到 <code>FileSystemHandle</code>，但 <code>setDocument</code> 仍然把 <code>native</code> 设为 <code>false</code>，保存走句柄而不是原生路径。代码选择了「默认安全」：没有明确的原生路径，就绝不猜测要覆盖哪个文件，宁可导出副本。
-
-<strong>解决</strong>：三级降级已经覆盖了三种能力：原生路径、可写句柄、Blob 下载。<code>setDocument</code> 重置 <code>native</code> 防止串文件；<code>micromdSave</code> 在原生侧再次拒绝无路径调用；toast 用「已保存到」和「已导出」区分结果。这个实现没有错，它把「能不能写回」变成了能力探测，而不是靠用户记忆。
-
-<strong>代价与遗留</strong>：能力探测的结果没有提前暴露。用户在拖入文件时不会收到「此文档将以导出方式保存」的提示，直到按下保存才看到差异。也没有原生「另存为」对话框：一旦进入下载分支，保存位置由 WebView2 的下载策略决定，通常是下载目录，文件名相同就多一份副本。文件选择器分支依赖 File System Access API，在 WebView2 里是否可用、权限提示如何呈现，都取决于运行时版本；不可用时就静默退回 <code>&lt;input type="file"&gt;</code>，连句柄都没有。这个缝不是靠再加一个分支能补上的，它需要界面在打开文件时就明确展示当前保存模式，或者干脆提供「另存为」的原生入口。
-<h2>问题七：没有文件变更监听，也没有最近文件</h2>
-
-<strong>现象</strong>：用别的编辑器改了同一个 <code>notes.md</code>，MicroMD 里还是旧内容；此时按 <code>Ctrl+S</code>，如果当前是原生命中模式，旧内容会覆盖掉外部修改，而且没有任何冲突提示。关掉应用再打开，也没有「最近打开」列表，只能重新拖文件或重新走命令行。
-
-<strong>原因</strong>：原生层只在启动时通过 <code>micromdLoad</code> 读一次文件，之后没有任何 <code>ReadDirectoryChangesW</code>、<code>fsnotify</code> 或轮询 mtime 的逻辑。前端的状态只有 <code>app.name</code>、<code>app.saved</code>、<code>app.handle</code>、<code>app.native</code>，localStorage 里只存 <code>draft</code>、<code>name</code>、<code>theme</code>、<code>view</code>、<code>split</code>，没有路径历史。整个应用也没有单实例锁或进程间通信，所以第二个实例不会把「文件已变化」传给第一个实例。
-
-<strong>解决</strong>：当前版本没有实现自动重载，也没有冲突检测。可行的绕法是关掉再开、重新拖入，或者用文件选择器重新打开；但这些操作都不会提示「磁盘上的版本更新了」。要补这个能力，最小方案是原生侧定时检查 <code>docPath</code> 的修改时间，变化时通过绑定或 <code>Eval</code> 通知页面，页面弹一条「文件已在外部修改，重新加载 / 保留当前」的条；更完整的方案是接 <code>ReadDirectoryChangesW</code>，并处理重命名、删除和原子替换。
-
-<strong>代价与遗留</strong>：没有监听，就没有「读者」和「作者」之间的边界。作为纯阅读器，这个问题还可以接受；但它同时提供了编辑和写回，旧内容覆盖新内容就是真实的数据风险。没有最近文件，则把「打开」的成本推给了文件系统，和「双击即用」的定位不太一致。加监听还会带来新的决策：收到变更时自动重载会丢掉未保存的编辑，弹窗询问又会打断阅读；保存时是覆盖还是另存，也需要一套策略。这些问题不解决，贸然加监听反而更危险，所以当前版本选择了不做。
-<h2>已知限制与设计取舍</h2>
-
-把前面散落的限制收拢成一张表，方便判断它适不适合你的场景。下表中的每一项都是当前代码的现状，不是「已经修好」的条目：
-<div class="table-scroll"><table>
-<thead>
-<tr>
-<th>限制</th>
-<th>现状</th>
-<th>影响</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>相对路径图片</td>
-<td>基址是应用目录，未注入 <code>&lt;base&gt;</code>，未重写 <code>src</code></td>
-<td>文档旁的图片无法显示</td>
-</tr>
-<tr>
-<td>草稿上限</td>
-<td><code>MAX_DRAFT</code> 声明未引用，配额异常被空 catch 吞掉</td>
-<td>超长草稿可能静默丢失</td>
-</tr>
-<tr>
-<td>大文件渲染</td>
-<td>全量 <code>innerHTML</code> 替换，超过 20 万字符改为 150ms 节流</td>
-<td>长文档输入卡顿，滚动同步可能失准</td>
-</tr>
-<tr>
-<td>文件变更</td>
-<td>无监听、无轮询、无冲突提示</td>
-<td>外部修改可能被旧内容覆盖</td>
-</tr>
-<tr>
-<td>最近文件</td>
-<td>无路径历史，localStorage 不存路径</td>
-<td>每次打开都要重新选择</td>
-</tr>
-<tr>
-<td>代码高亮</td>
-<td>只输出 <code>language-xxx</code> 类名，无着色器</td>
-<td>代码块是纯文本样式</td>
-</tr>
-<tr>
-<td>侧栏目录</td>
-<td>标题有 <code>id</code>，但不生成导航</td>
-<td>长文档只能靠滚动</td>
-</tr>
-<tr>
-<td>解析器测试</td>
-<td>仓库没有 <code>*_test.go</code></td>
-<td>边界语法靠人工验证</td>
-</tr>
-<tr>
-<td>本地构建图标</td>
-<td>依赖 <code>go-winres</code> 生成 <code>.syso</code>，该文件被忽略</td>
-<td>跳过生成就没有自定义图标</td>
-</tr>
-<tr>
-<td>启动失败提示</td>
-<td><code>MkdirAll</code>、<code>WriteFile</code> 失败直接返回</td>
-<td>极端环境下双击无反应</td>
-</tr>
-</tbody>
-</table></div>
-
-这些限制大多不是「没想到」，而是「在当前体积和复杂度预算下没做」。可以把它们归成四组取舍：
-<ul>
-<li>引擎外置换体积：不打包 Chromium，接受 WebView2 运行时依赖和两种能力模式。</li>
-<li>单文件换工程简单：界面、解析器、样式全在一个 HTML 里，接受没有模块拆分、没有构建步骤、没有前端测试。</li>
-<li>全量渲染换实现短：一句 <code>innerHTML</code> 就能工作，接受长文档的性能上限。</li>
-<li>默认安全换可预期：没有原生路径就不写回，接受同一快捷键有三种结果。</li>
-</ul>
-
-如果继续做，优先级应该是「数据安全」高于「体验优化」：先把草稿上限真正接上、把外部修改冲突处理好，再考虑增量渲染和图片基址。代码高亮和侧栏目录属于阅读体验，不涉及数据丢失，可以放在后面。这个排序也解释了为什么文章把七个问题写得比功能更细：功能可以堆，数据丢了补不回来。
-<h2>小结</h2>
-
-MicroMD 的实现可以压缩成三句话：
-<ol>
-<li>体积不是单一优化，而是预算分配。3.17 MiB 的 exe 由约 1.21 MB 的空 <code>windowsgui</code> Go 基线、三个 Go 模块、134 KB 的 WebView2Loader、29,520 字节的 HTML 和链接产物组成；省掉的 Chromium 被系统 WebView2 接住了。</li>
-<li>壳的复杂度集中在 Windows 细节。<code>file://</code> 落盘、三个绑定、保存语义、DPI 回退、图标资源、运行时缺失兜底，每一项都不大，但每一项都能让「双击即用」失效。</li>
-<li>手写解析器的关键不是语法覆盖，而是顺序。先把代码段、自动链接、转义藏进占位符，再整体 <code>esc</code>，最后回填；这个两遍式设计同时解决了「语法要识别」和「原文不能注入」两个问题。</li>
-</ol>
-
-它也不是一个「完成品」。相对路径图片、草稿配额、全量重渲染、文件变更、最近文件、代码高亮、侧栏目录、解析器测试，这些都还没有做或者只做了一半。文章把它们写成现状，是因为一个 3 MB 的单文件应用真正的价值，不在于它多小，而在于它用多大的代价换来了这个体积，以及这些代价有没有被如实说清楚。
-<h2>相关阅读</h2>
-<ul>
-<li><a href="/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a>：同样依赖系统 WebView2 的桌面壳，但在窗口、子 webview 和调试协议上走了更深的路线。</li>
-<li><a href="/article/nanoss-windows-ssh-client/">NanoSS：Windows SSH 客户端</a>：另一个把原生 Windows 能力收进单文件交付的项目，可以对照看壳层与终端层的分工。</li>
-<li><a href="/article/nanodb/">NanoDB：Go 嵌入式文档数据库</a>：同样是单进程、少依赖、把复杂度压在实现内部的设计，适合对照「小体积」背后的取舍。</li>
-<li><a href="/article/search-inverted-index-to-engine/">从倒排索引到搜索引擎</a>：如果要把 Markdown 文档做成可搜索的知识库，可以从这篇的索引与查询链路继续往下读。</li>
-</ul>]]></content:encoded>
     </item>
     <item>
       <title>NanoSSH：13 MB 的 Windows SSH 客户端怎么做</title>
@@ -1449,357 +1533,6 @@ MicroMD 的实现可以压缩成三句话：
       <category>Wails</category>
       <category>桌面应用</category>
       <category>网络</category>
-      <content:encoded><![CDATA[<blockquote>
-
-适用读者：想用 Go 加 WebView 做轻量桌面工具，或正在处理终端字节流、SSH 协议细节的开发者。
-结论先行：这个项目的关键不在功能数量，而在几处容易错的边界：IPC 的序列化方式、终端字节流的反压、PTY 参数顺序、主机密钥信任模型和 Windows 平台细节。
-阅读时间约 30 分钟 | 难度：进阶 | 收获：一套可复用的桌面 SSH 架构，以及十二个真实问题的定位与取舍。
-</blockquote>
-
-<strong>目录</strong>
-<ul>
-<li>一个刻意做窄的 Windows SSH 客户端</li>
-<li>架构：把风险放在可替换的那一层</li>
-<li>问题一：README 写二进制 WebSocket，实现是 base64 事件桥</li>
-<li>问题二：汉字跨块变 U+FFFD</li>
-<li>问题三：反压闭环与 ack 的三个坑</li>
-<li>问题四：PTY 的宽高顺序</li>
-<li>问题五：known_hosts 与 TOFU 的硬边界</li>
-<li>问题六：Windows ssh-agent 的命名管道</li>
-<li>问题七：托盘“点了没反应”</li>
-<li>问题八：14 MB 体积红线</li>
-<li>问题九：高 DPI 闪烁与尺寸归零</li>
-<li>问题十：SFTP 与转发：复用连接，但别复用生命周期</li>
-<li>问题十一：密码、旧密码与凭据自愈</li>
-<li>问题十二：密钥管理的三个边界</li>
-<li>小结</li>
-<li>相关阅读</li>
-</ul>
-<hr>
-<h2>一个刻意做窄的 Windows SSH 客户端</h2>
-
-NanoSSH 的定位可以先说清楚：它是 Windows 上的 SSH 客户端，只做五件事——服务器列表、终端、SFTP、本地端口转发、密钥管理。没有账号、云同步、插件市场、AI 助手，也没有自动更新。功能窄是产品主张，不是排期没做完。
-
-技术栈是 Wails v2 加 WebView2。Go 后端分成三块：<code>internal/sshcore</code> 是纯 SSH 内核，不依赖任何 UI；<code>internal/shell</code> 是 Wails 绑定门面，负责会话、文件、转发、密钥和托盘；<code>internal/store</code> 负责本地落盘。前端是零框架的 TypeScript，DOM 由手写的 <code>h()</code> 构造，状态用 <code>@preact/signals-core</code>，终端用 xterm.js 6。整个前端运行时依赖只有 7 个，其中 6 个是 xterm 及其 addon。
-
-构建产物是单文件可执行程序，x64 下 13.23 MB，没有外部运行时。<code>build.ps1</code> 把 14 MB 设为硬上限，超过就直接构建失败。Go 直接依赖 5 个，间接依赖 27 个。这些数字不是宣传语，而是后面许多技术选择的约束条件：拒绝 SQLite、手写托盘、不用第三方 systray、尽量不引入新的模块。
-
-也正因为约束足够硬，这个项目里留下的问题都比较“具体”：不是“要不要支持某某功能”，而是“为什么这个汉字变成了问号”“为什么点托盘图标没反应”“为什么 vim 一打开就错行”。下面按问题展开，每个问题都写清现象、原因、解决和代价。
-<h2>架构：把风险放在可替换的那一层</h2>
-
-这个项目最重要的架构决定，是把 SSH 协议逻辑和 UI 外壳彻底分开。<code>sshcore</code> 不知道 Wails、WebView2、xterm 的存在，只暴露连接、会话、SFTP、转发、密钥解析这些能力。<code>shell</code> 负责把内核能力翻译成前端可调用的绑定方法，并把字节流搬进事件通道。前端再通过 <code>ipc/api.ts</code> 和 <code>ipc/transport.ts</code> 两层的封装访问后端。
-
-这样做的好处是，风险被放在可替换的那一层。Wails 是外壳，未来如果要换成裸 WebView2 或别的窗口容器，只需要改 <code>main.go</code>、<code>internal/shell</code> 的绑定层和前端两个 IPC 文件；<code>sshcore</code> 一行不用动。反过来说，协议层的测试也不需要打开窗口，进程内的测试 sshd 就能把连接、PTY、SFTP、转发全部跑通。
-
-后端的事件出口被抽成了一个函数类型，而不是直接写死 Wails 调用：
-<div class="codehilite"><pre><span></span><code><span class="kd">type</span><span class="w"> </span><span class="nx">emitFunc</span><span class="w"> </span><span class="kd">func</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">eventName</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="w"> </span><span class="o">...</span><span class="kt">any</span><span class="p">)</span>
-</code></pre></div>
-
-
-<code>App</code> 和 <code>shellSession</code> 都持有这个字段，生产环境赋值为 <code>runtime.EventsEmit</code>，测试里换成收集器。这个小小的间接层，是后面能把反压、主机密钥询问、传输进度放进自动化测试的前提。
-
-落盘侧也遵循同样的窄口径：<code>servers.json</code> 是唯一的数据库，版本号为 1，读取时先做纯函数迁移，保存时先备份 <code>.bak</code>，再走临时文件、fsync、rename。<code>known_hosts</code> 用标准 OpenSSH 格式，可以直接和系统的同名文件互拷；私钥目录放标准 OpenSSH 私钥；日志单独放 <code>logs</code> 下。数据根目录默认 <code>%APPDATA%\NanoSSH</code>，测试和便携模式用 <code>NANOSSH_DATA_DIR</code> 覆盖。整个存储没有隐藏的二进制格式，出问题时可以用文本编辑器直接打开看。
-
-窗口层还有几个与业务无关但影响体验的装配：无边框窗口的标题栏由前端自绘，Wails 保留缩放热区和投影；单实例锁保证第二次启动只唤起已有窗口，而不是再开一个进程；Mica 背景通过注册表读取 <code>CurrentBuildNumber</code>，只有 22621 及以上才启用半透明，老系统自动退回不透明，避免得到一个没有底色的透明窗口。前端通过 <code>MicaEnabled()</code> 感知这个决定，再决定标题栏和侧栏是否做成半透明表面。
-
-前端同样有一条明确的缝。<code>views</code>、<code>term</code>、<code>components</code> 一律不直接碰 <code>window.go</code>，所有绑定调用和事件订阅都从 <code>api.ts</code> 出去。终端字节搬运单独放在 <code>transport.ts</code>，它也是整个前端里唯一与外壳强相关的模块。以后换掉 Wails 时，要重写的范围是被刻意圈定的。
-<h2>问题一：README 写二进制 WebSocket，实现是 base64 事件桥</h2>
-
-现象：第一次读 README 时会看到“二进制 WebSocket IPC + ack 反压”这句话，但翻遍代码，找不到自建的 WebSocket 服务，也找不到二进制帧的封装。终端数据实际走的是 Wails 的 <code>runtime.EventsEmit</code>，事件名是 <code>term:data:&lt;sessionId&gt;</code>。
-
-原因：README 描述的是最初的设计意图，而实现最终选了 Wails 自带的事件桥。同一份 README 后面的架构说明又写着“Worker 解 base64”，前后并不一致。Wails 的绑定调用本身是 JSON 序列化，事件传参也一样。Go 侧的 <code>[]byte</code> 经过事件桥后，到了前端手里已经变成 base64 字符串。依赖树里确实有 <code>gorilla/websocket</code>，但它是 Wails 的间接依赖，不是这套 IPC 的实现。
-
-解决：没有为了迎合 README 去自建 WebSocket，而是承认事件桥的能力边界，并针对它的缺点做补偿。补偿分两步：前端用 Web Worker 解码 base64，再把 <code>ArrayBuffer</code> 通过 Transferable 转移给主线程，避免解码阻塞渲染；解码后的字节直接交给 xterm 的 <code>write</code>，不在主线程做字符串拼接。
-<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">decodeBase64</span><span class="p">(</span><span class="nx">input</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Uint8Array</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">bin</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">atob</span><span class="p">(</span><span class="nx">input</span><span class="p">);</span>
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">len</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">bin</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span>
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">out</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Uint8Array</span><span class="p">(</span><span class="nx">len</span><span class="p">);</span>
-<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">len</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="o">++</span><span class="p">)</span><span class="w"> </span><span class="nx">out</span><span class="p">[</span><span class="nx">i</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">bin</span><span class="p">.</span><span class="nx">charCodeAt</span><span class="p">(</span><span class="nx">i</span><span class="p">);</span>
-<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">out</span><span class="p">;</span>
-<span class="p">}</span>
-
-<span class="nx">ctx</span><span class="p">.</span><span class="nx">onmessage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="o">:</span><span class="w"> </span><span class="kt">MessageEvent</span><span class="o">&lt;</span><span class="kt">string</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">buf</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">decodeBase64</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">data</span><span class="p">);</span>
-<span class="w">  </span><span class="nx">ctx</span><span class="p">.</span><span class="nx">postMessage</span><span class="p">(</span><span class="nx">buf</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="nx">buf</span><span class="p">.</span><span class="nx">buffer</span><span class="p">]);</span>
-<span class="p">};</span>
-</code></pre></div>
-
-
-代价与遗留：base64 让 IPC 的字节量理论上有约 33% 的膨胀，16 KiB 的终端块会变成约 21.8 KiB 的字符串；Go 侧还要做一次 JSON 序列化，WebView 侧要做一次 base64 解码。换来的好处是不用自己维护一条 WebSocket 服务、不用处理连接鉴权、不用在 Wails 之外再开一个端口。这个取舍对局域网或本机 SSH 客户端是可接受的，但 README 的表述不准确。后来正确的做法是把文档改成“Wails 事件桥 + base64 解码”，而不是继续保留一个听起来更快的名词。工程文档里，描述实现比描述愿望重要。如果未来真的改回二进制 WebSocket，Wails 的单实例、同源事件分发和无额外端口这些优势就没了，还要自己解决本地鉴权与跨进程攻击面；这也是最终没有为了文档改实现的原因。
-
-Worker 不可用时（例如某些受限的 WebView 环境）<code>createDecoder</code> 会退回主线程同步 <code>atob</code>。这时解码会占用渲染线程，长输出更容易卡，但至少功能不缺失。每个终端会话各自持有一个 Worker，切标签不会销毁，只有关闭会话才 <code>terminate</code>；代价是会话多时内存里会多几个 Worker 实例。
-<h2>问题二：汉字跨块变 U+FFFD</h2>
-
-现象：终端里执行一条包含中文、韩文或 emoji 的 <code>echo</code>，偶尔会在输出中间出现 <code>�</code>。不是每次都有，输出越长、机器越慢时越容易复现。
-
-原因：最初后端在读取远端字节后做了 <code>string(buf[:n])</code>，并按行切分再发往前端。SSH 通道的读取边界和字符边界没有任何关系，一个三字节的汉字完全可能被切在两次 <code>Read</code> 之间。把半个字符转成字符串，Go 只能补上 U+FFFD。只要中间做过一次 UTF-8 解码，后面的拼接就再也补不回来。
-
-解决：后端全程 <code>[]byte</code> 直通。读取缓冲固定 32 KiB，读到的字节立刻复制一份送进深度为 8 的 <code>chunks</code> 通道；<code>pumpSession</code> 只做合并、攒批和发送，不做行切分，也不做解码。stdout 和 stderr 各自有独立的读取协程，但都写入同一个通道，由单一消费者输出。前端 xterm 拿到的是原始字节，由它自己完成解码和宽字符处理。
-
-这里还要区分两条路径：交互式 shell 走 <code>pumpSession</code> 的流式读取；非交互的 <code>RunCommand</code> 则用 <code>limitedBuffer</code> 收集输出，单次上限 8 MiB，超出部分静默丢弃但不阻断远端。后者只用于探针和批处理，不能拿来做大文件读取；真正的大输出必须走 shell 或 SFTP 的流式接口。
-<div class="codehilite"><pre><span></span><code><span class="nx">buf</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="mi">32</span><span class="o">&lt;&lt;</span><span class="mi">10</span><span class="p">)</span>
-<span class="k">for</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">n</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">rd</span><span class="p">.</span><span class="nx">Read</span><span class="p">(</span><span class="nx">buf</span><span class="p">)</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">n</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">cp</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nb">make</span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="nx">n</span><span class="p">)</span>
-<span class="w">        </span><span class="nb">copy</span><span class="p">(</span><span class="nx">cp</span><span class="p">,</span><span class="w"> </span><span class="nx">buf</span><span class="p">[:</span><span class="nx">n</span><span class="p">])</span>
-<span class="w">        </span><span class="k">select</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="nx">chunks</span><span class="w"> </span><span class="o">&lt;-</span><span class="w"> </span><span class="nx">cp</span><span class="p">:</span>
-<span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="o">&lt;-</span><span class="nx">sess</span><span class="p">.</span><span class="nx">done</span><span class="p">:</span>
-<span class="w">            </span><span class="k">return</span>
-<span class="w">        </span><span class="p">}</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">return</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-验证这条路径的测试是 <code>TestShellUTF8Passthrough</code>。它让远端回显 <code>你好，世界 한국어 日本語 emoji🙂</code>，然后断言整行内容与原文完全一致，并且不包含 U+FFFD。另一个测试用 40,000 字节的单行回显压过 16 KiB 的分块上限，强制走多轮 flush 与 ack，确认没有丢字节。非交互路径上还有一个 8 MiB 的 flood 命令，用来确认大输出能被连续读完。
-
-代价与遗留：后端放弃了按行处理的能力。如果未来要做服务端的关键字过滤、日志落盘或命令审计，就不能在字节流上直接做，必须在前端或单独的解析层完成。另一个代价是每个块都要复制一次，因为读取缓冲会被下一轮 <code>Read</code> 复用；这是用少量内存拷贝换取正确的所有权语义。stdout 和 stderr 两个 reader 的顺序仍然无法严格保证，只是 PTY 会把它们合并，实际观感通常没有问题。
-<h2>问题三：反压闭环与 ack 的三个坑</h2>
-
-现象：如果只是“读到就发”，本地 <code>cat</code> 一个大文件时，WebView 的事件队列会越堆越长，终端先是延迟，然后整窗卡住；更糟的情况是前端已经销毁，Go 的读协程还在等一个永远不会来的回执，会话既读不动也关不掉。
-
-原因：Wails 的事件发送没有提供“前端处理完了”的信号。xterm 的 <code>write</code> 是异步的，缓冲区里的数据没渲染完，继续灌只会让延迟无上限累积。SSH 通道本身有窗口，但窗口只覆盖到 Go 的读取端，覆盖不到 WebView 的渲染端。中间这段没有闭环，压力就堆在进程内存里。
-
-解决：把 ack 做成显式的端到端反压。后端一次只发一段，前端在 xterm 的 <code>write</code> 回调里回执，后端收到回执才继续读。常量是三个：单次最多 16 KiB、攒批最多 8 毫秒、等回执最多 30 秒。<code>ackCh</code> 容量为 1，<code>AckTermData</code> 用 <code>select/default</code> 丢重复回执。
-<div class="codehilite"><pre><span></span><code><span class="nx">flush</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="kd">func</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">pending</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">return</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="nx">data</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">pending</span>
-<span class="w">    </span><span class="nx">pending</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="kc">nil</span>
-<span class="w">    </span><span class="nx">sess</span><span class="p">.</span><span class="nx">emit</span><span class="p">(</span><span class="nx">sess</span><span class="p">.</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;term:data:&quot;</span><span class="o">+</span><span class="nx">sess</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="p">)</span>
-<span class="w">    </span><span class="k">select</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="o">&lt;-</span><span class="nx">sess</span><span class="p">.</span><span class="nx">ackCh</span><span class="p">:</span>
-<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="o">&lt;-</span><span class="nx">sess</span><span class="p">.</span><span class="nx">done</span><span class="p">:</span>
-<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="o">&lt;-</span><span class="nx">time</span><span class="p">.</span><span class="nx">After</span><span class="p">(</span><span class="nx">termAckTimeout</span><span class="p">):</span>
-<span class="w">        </span><span class="nx">wruntime</span><span class="p">.</span><span class="nx">LogWarning</span><span class="p">(</span><span class="nx">sess</span><span class="p">.</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;terminal: 等待前端回执超时，放行继续读取&quot;</span><span class="p">)</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-前端这一侧用 Promise 链把 <code>write</code> 和 <code>ack</code> 串起来，防止慢渲染时回执乱序：
-<div class="codehilite"><pre><span></span><code><span class="k">this</span><span class="p">.</span><span class="nx">chain</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">chain</span>
-<span class="w">  </span><span class="p">.</span><span class="nx">then</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">this</span><span class="p">.</span><span class="nx">handlers</span><span class="p">.</span><span class="nx">onData</span><span class="p">(</span><span class="nx">bytes</span><span class="p">))</span>
-<span class="w">  </span><span class="p">.</span><span class="nx">then</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">disposed</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">undefined</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="kt">backend.ackTermData</span><span class="p">(</span><span class="k">this</span><span class="p">.</span><span class="nx">sessionId</span><span class="p">)))</span>
-<span class="w">  </span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="s2">&quot;[nanossh] 终端写入失败：&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">));</span>
-</code></pre></div>
-
-
-这里有三个坑。第一，前端可能先于后端等待而回 ack，所以 <code>ackCh</code> 必须有 1 的容量，否则第一个回执会被丢掉。第二，<code>dispose</code> 时必须补一次 ack，否则后端的读协程会一直挂到 30 秒超时。第三，重复 ack 必须被安全丢弃，因为链路上任意时刻只允许一个块在飞，多出来的回执没有语义。
-
-<code>flush</code> 里还有一个容易被忽略的细节：等待回执期间如果 <code>chunks</code> 通道被排空，计时器可能已经触发过，所以下一次进入循环前要先 <code>Stop</code> 并排掉已触发的值，否则会立刻再 flush 一次。8 毫秒的攒批不是为了省事件，而是为了把按键回显这类小包尽快送出去；如果只按 16 KiB 攒，交互会明显变钝。
-
-这套闭环的测试里，收集器的 ack 是在事件回调里同步发出的，等价于“前端已经渲染完”的最快情况；真实浏览器还要经过 Worker 解码、Transferable 转移和 xterm 渲染，所以线上的块间隔会比测试大。
-
-代价与遗留：吞吐上限被渲染速度锁死，这是有意的，因为终端场景要的是低延迟而不是最大带宽。ack 没有携带块序号，所以实现上只能保证“单块在飞”；如果以后要并行多个块，就必须把 ack 改成带 ID 的确认。30 秒超时是兜底而不是正常路径，它会把“前端卡死”变成“后端继续读”，可能掩盖真正的渲染故障，日志里要能看出来。测试里的收集器在收到数据后立即 ack，正好模拟了前端渲染完成的那一刻；少了这个回执，<code>pumpSession</code> 在发出第一段后就会永久等待。
-<h2>问题四：PTY 的宽高顺序</h2>
-
-现象：在本地终端里 <code>vim</code> 打开正常，连到 NanoSSH 后整屏错位，<code>htop</code> 的列也对不上；把窗口拉大再拉小，有时又“碰巧”正常。最初以为是 xterm 的 <code>fit</code> 算错了，查了很久才发现问题在后端。
-
-原因：PTY 尺寸有两个互相矛盾的命名习惯。RFC 4254 的 <code>pty-req</code> 和 <code>window-change</code> 线上编码是“宽在前、高在后”，也就是先传列数再传行数；而 <code>golang.org/x/crypto/ssh</code> 的 <code>RequestPty(term, h, w, modes)</code> 和 <code>WindowChange(h, w)</code> 的参数语义是“行在前、列在后”。封装层只要照着 RFC 的字段顺序去调 x/crypto，两个值就会互换。<code>vim</code> 拿到 80 行、24 列，自然会错。
-
-解决：项目内统一 API 一律写成 <code>(rows, cols)</code>，行在前、列在后。<code>sshcore.ShellOptions</code>、<code>Shell.Resize</code>、<code>shell.StartShellRequest</code>、前端 <code>resizeShell</code> 全部遵守这个约定，并且在注释里把 RFC 与 x/crypto 的差异写清楚。更关键的是用测试把顺序钉死：<code>TestStartShellPTYParamOrder</code> 让测试 sshd 按 RFC 原样解析 <code>pty-req</code>，断言服务端读到的是 <code>rows=30, cols=100</code>；如果封装层传反，测试会直接报“参数错位”。
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">sess</span><span class="p">.</span><span class="nx">RequestPty</span><span class="p">(</span><span class="nx">term</span><span class="p">,</span><span class="w"> </span><span class="nx">rows</span><span class="p">,</span><span class="w"> </span><span class="nx">cols</span><span class="p">,</span><span class="w"> </span><span class="nx">opts</span><span class="p">.</span><span class="nx">Modes</span><span class="p">);</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">sess</span><span class="p">.</span><span class="nx">Close</span><span class="p">()</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;sshcore: 请求 PTY（%dx%d）失败: %w&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">cols</span><span class="p">,</span><span class="w"> </span><span class="nx">rows</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-注意错误文案里的 <code>%dx%d</code> 仍然是“列 x 行”，这是给人看的；真正的参数顺序是 <code>rows, cols</code>。这两个视角必须同时存在，否则读代码的人会被绕晕。
-
-默认尺寸也有兜底：<code>rows</code> 或 <code>cols</code> 小于等于 0 时回落到 24×80，避免前端在容器尚未布局时传 0 进来。<code>Resize</code> 对非法尺寸直接报错，不允许把 0 行 0 列写到远端。前端 <code>fit()</code> 在容器还没布局完成时可能抛错，封装里直接吞掉并返回当前的 <code>term.rows</code> 与 <code>term.cols</code>，等下一次 <code>ResizeObserver</code> 再算。
-
-代价与遗留：前端的 <code>fit()</code> 返回 <code>{ rows, cols }</code>，调用后端时必须按 <code>(rows, cols)</code> 传，代码里用注释反复提醒。<code>window-change</code> 是 <code>wantReply=false</code> 的“发后不管”，函数返回只代表字节写进了连接，不代表远端已经应用，所以测试必须轮询服务端的记录，不能立即断言。拖动窗口时还会产生大量 resize 请求，前端做了 150 毫秒去抖，代价是远端看到新尺寸会稍有延迟。
-<h2>问题五：known_hosts 与 TOFU 的硬边界</h2>
-
-现象：第一次连接陌生主机时应该弹指纹卡；如果主机的密钥变了，应该明确阻断，而不是给一个“忽略一次”的按钮让用户顺手点过去。真正实现时，<code>knownhosts</code> 返回的错误类型很容易被笼统处理，结果把“未知主机”和“指纹变化”混成一类。
-
-原因：<code>knownhosts.New</code> 返回的 <code>KeyError</code> 里，<code>Want</code> 字段为空表示“这个主机没有记录”，非空表示“有记录但本次出示的密钥不匹配”。前者是 TOFU，后者是可能的中人攻击信号。另外还有独立的 <code>RevokedError</code>，对应 known_hosts 里的 <code>@revoked</code> 行，必须硬阻断，不能询问。把这三者混在一起，就会出现“指纹变了也允许仅本次”的严重漏洞。
-
-解决：回调里先处理 <code>RevokedError</code>，直接返回错误；再判断 <code>KeyError.Want</code> 是否非空。未知主机走三档：仅本次、信任并保存、取消。指纹变化只接受“显式替换”，<code>HostKeyAcceptOnce</code> 和拒绝都会产生 <code>ErrHostKeyRejected</code>。替换时按地址匹配旧条目，写入新的公钥行。写入采用“临时文件 → fsync → rename”，权限 0600。<code>knownhosts.New</code> 要求文件存在，所以首连之前要先 <code>ensureFile</code>，创建父目录并落一个空文件；否则第一次连接还没弹指纹卡就会先报“解析 known_hosts 失败”。
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="nx">keyErr</span><span class="p">.</span><span class="nx">Want</span><span class="p">)</span><span class="w"> </span><span class="p">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">change</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">HostKeyChange</span><span class="p">{</span><span class="nx">Info</span><span class="p">:</span><span class="w"> </span><span class="nx">info</span><span class="p">}</span>
-<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">wk</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="k">range</span><span class="w"> </span><span class="nx">keyErr</span><span class="p">.</span><span class="nx">Want</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">change</span><span class="p">.</span><span class="nx">OldFingerprints</span><span class="w"> </span><span class="p">=</span><span class="w"> </span><span class="nb">append</span><span class="p">(</span><span class="nx">change</span><span class="p">.</span><span class="nx">OldFingerprints</span><span class="p">,</span>
-<span class="w">            </span><span class="nx">ssh</span><span class="p">.</span><span class="nx">FingerprintSHA256</span><span class="p">(</span><span class="nx">wk</span><span class="p">.</span><span class="nx">Key</span><span class="p">))</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="nx">decision</span><span class="p">,</span><span class="w"> </span><span class="nx">perr</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">prompt</span><span class="p">(</span><span class="nx">info</span><span class="p">,</span><span class="w"> </span><span class="nx">change</span><span class="p">)</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">perr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">perr</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">decision</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="nx">HostKeyAcceptAndSave</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;%w（指纹变化）&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">ErrHostKeyRejected</span><span class="p">)</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">writeKnownHost</span><span class="p">(</span><span class="nx">knownHostsPath</span><span class="p">,</span><span class="w"> </span><span class="nx">hostname</span><span class="p">,</span><span class="w"> </span><span class="nx">key</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-测试覆盖了三档行为：首次询问并保存、第二次不再询问、服务端轮换密钥后必须阻断且回调能拿到旧指纹；另一个测试确认“仅本次”不会落盘，两次连接都会再问。
-
-代价与遗留：<code>known_hosts</code> 支持哈希主机名（<code>|1|...</code>），而替换逻辑无法反查哈希条目，遇到这种行只能跳过并追加新行。结果是旧的哈希记录仍留在文件里，后续连接可能继续报指纹变化，需要用户手工清理。这是一个已知边界，代码注释里写明了“哈希形式无法反查，一律视为不命中并保留”。另外，Windows 上 <code>0600</code> 只是意图，实际访问控制来自 <code>%APPDATA%</code> 继承的 ACL；这一点在密钥落盘的测试里也有说明。
-<h2>问题六：Windows ssh-agent 的命名管道</h2>
-
-现象：用户明明装了 Windows OpenSSH，<code>ssh-add</code> 也能列出密钥，NanoSSH 的 agent 认证却一直失败；如果机器上还装了 Git Bash，<code>SSH_AUTH_SOCK</code> 环境变量存在，但拿它去拨号同样拨不通。
-
-原因：Windows 上没有 Unix 域套接字，Windows OpenSSH 的 agent 监听的是固定命名管道 <code>\\.\pipe\openssh-ssh-agent</code>。<code>SSH_AUTH_SOCK</code> 在 Windows 上即便存在，也可能是 Cygwin 或 MSYS 的私有格式，Go 的 <code>net.Dial("unix", ...)</code> 根本连不上。另一个问题是管道存在但所有实例都忙时，<code>CreateFile</code> 会返回 <code>ERROR_PIPE_BUSY</code>，如果直接报错，用户看到的就是“agent 不可用”。
-
-解决：手写 <code>CreateFile</code> 加 <code>WaitNamedPipe</code> 等价逻辑，不引入 <code>winio</code>。固定管道名，3 秒截止时间，遇到 <code>ERROR_PIPE_BUSY</code> 每 50 毫秒重试一次。连接成功后用 <code>agent.NewClient</code> 包起来，并在认证前先 <code>List()</code> 一次密钥串；空列表就明确提示“请先 ssh-add”，而不是把 <code>no supported methods remain</code> 这种库内文案甩给用户。<code>authMethods</code> 返回一个 <code>io.Closer</code>，握手失败时会关闭它，连接成功则挂到 <code>Client</code> 上随连接一起关闭；这样 agent 管道不会因为一次失败握手而泄漏。
-<div class="codehilite"><pre><span></span><code><span class="nx">deadline</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Now</span><span class="p">().</span><span class="nx">Add</span><span class="p">(</span><span class="nx">agentDialTimeout</span><span class="p">)</span>
-<span class="k">for</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">h</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">windows</span><span class="p">.</span><span class="nx">CreateFile</span><span class="p">(</span><span class="nx">name</span><span class="p">,</span><span class="w"> </span><span class="nx">windows</span><span class="p">.</span><span class="nx">GENERIC_READ</span><span class="o">|</span><span class="nx">windows</span><span class="p">.</span><span class="nx">GENERIC_WRITE</span><span class="p">,</span>
-<span class="w">        </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">windows</span><span class="p">.</span><span class="nx">OPEN_EXISTING</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">NewFile</span><span class="p">(</span><span class="nb">uintptr</span><span class="p">(</span><span class="nx">h</span><span class="p">),</span><span class="w"> </span><span class="nx">agentPipeName</span><span class="p">),</span><span class="w"> </span><span class="kc">nil</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="nx">windows</span><span class="p">.</span><span class="nx">ERROR_PIPE_BUSY</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Now</span><span class="p">().</span><span class="nx">After</span><span class="p">(</span><span class="nx">deadline</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">fmt</span><span class="p">.</span><span class="nx">Errorf</span><span class="p">(</span><span class="s">&quot;sshcore: 无法连接 ssh-agent（%s）: %w；&quot;</span><span class="o">+</span>
-<span class="w">            </span><span class="s">&quot;请确认 Windows 的「OpenSSH 身份验证代理」服务已启动&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">agentPipeName</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="nx">time</span><span class="p">.</span><span class="nx">Sleep</span><span class="p">(</span><span class="mi">50</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">time</span><span class="p">.</span><span class="nx">Millisecond</span><span class="p">)</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-有一条 Windows 专用测试专门断言这个路径真的被送进了管道命名空间：没有 agent 时，错误必须是 <code>ERROR_FILE_NOT_FOUND</code> 或 <code>ERROR_PIPE_BUSY</code>，不能是 <code>ERROR_INVALID_NAME</code>。这样如果哪天 Go 或 <code>x/sys</code> 对设备路径的处理变了，测试会先炸，而不是等用户报“agent 永远失败”。
-
-代价与遗留：只支持 Windows OpenSSH 的 agent，不支持 PuTTY 的 Pageant，也不打算为了兼容再去引一套第三方协议。3 秒是硬上限，管道一直忙时宁可给出明确报错，也不让连接界面无限转圈。如果用户同时开了多个 SSH 客户端，命名管道会发生争用，重试窗口内的失败是正常的；超过 3 秒仍然拿不到句柄，才判定为不可用。这个阈值比 TCP 建连的 15 秒短，是因为 agent 是本机资源，正常情况下应当在毫秒级返回。agent 连接句柄随 SSH 连接一起关闭，避免每次连接都漏一个管道句柄。
-<h2>问题七：托盘“点了没反应”</h2>
-
-现象：关窗后应用缩进托盘，图标能看到，但双击没反应，右键菜单也弹不出来。日志里没有任何错误，进程还活着。
-
-原因：Win32 的窗口消息按线程投递，消息窗口和 <code>GetMessage</code> 循环必须绑定在同一个 OS 线程上。Go 的 goroutine 在阻塞调用前后可能漂移到另一个 OS 线程，如果建窗在一个线程、<code>GetMessage</code> 在另一个线程，消息就永远收不到。这个症状非常像“图标没挂上”，但实际上是消息循环收不到回调。
-
-解决：托盘线程在入口处调用 <code>runtime.LockOSThread()</code>，并在退出时解锁；创建消息窗口和进入 <code>GetMessage</code> 循环都在这个被锁定的线程上完成。窗口用 <code>HWND_MESSAGE</code> 的消息窗口，不占屏幕；托盘回调、气泡、右键菜单都通过自定义消息投递。创建过程是同步握手：<code>newTray</code> 阻塞等待就绪或 3 秒超时，失败就返回错误，调用方放行正常关闭，绝不留下“窗口藏起来了、图标却没挂上”的失联状态。
-<div class="codehilite"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">tray</span><span class="p">)</span><span class="w"> </span><span class="nx">run</span><span class="p">(</span><span class="nx">done</span><span class="w"> </span><span class="kd">chan</span><span class="o">&lt;-</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">runtime</span><span class="p">.</span><span class="nx">LockOSThread</span><span class="p">()</span>
-<span class="w">    </span><span class="k">defer</span><span class="w"> </span><span class="nx">runtime</span><span class="p">.</span><span class="nx">UnlockOSThread</span><span class="p">()</span>
-<span class="w">    </span><span class="c1">// 注册窗口类、创建消息窗口、Shell_NotifyIcon，然后进入 GetMessage 循环</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-托盘是懒创建的：窗口开着时不占通知区，只有真的要收进托盘时才挂图标。这个决定还带来一个好处：如果托盘创建失败，用户可以正常退出，而不是被迫留在一个没有出口的后台进程里。气泡提示只弹一次，用一个 <code>trayTipShown</code> 标记保证不反复打扰；右键菜单用 <code>TPM_RETURNCMD</code> 直接拿返回值，不绕 <code>WM_COMMAND</code>；退出时通过自定义消息销毁图标并结束消息循环。
-
-代价与遗留：一个 OS 线程被长期锁定，托盘生命周期内不能做阻塞操作；回调里只做发消息和状态切换，重活都扔回主逻辑。Win32 的消息回调还必须避免 panic 穿透，项目在 <code>wndProc</code> 里对每个分支做了防御，菜单命令通过 channel 送回业务层，托盘线程本身不碰数据库和网络。项目只允许一个托盘图标，所以用包级变量绑定 <code>wndProc</code>，而不是 <code>SetWindowLongPtr</code>。手写 Win32 代码约两百行，可维护性不如第三方库，但换来了零新增依赖和更小的体积。
-<h2>问题八：14 MB 体积红线</h2>
-
-现象：功能加着加着，产物从 10 MB 出头涨到 13.23 MB，离 14 MB 的上限只剩不到 0.8 MB。此时任何“顺手引一个库”的决定都可能让构建直接失败。
-
-原因：Wails 运行时本身就不小，<code>x/crypto</code> 的 SSH 实现、WebView2 加载器、前端打包产物都在里面。依赖树里还有一批 Wails 的间接依赖，比如 echo、gorilla/websocket、各种字符串和模板库，它们不一定都走到，但会进模块图。如果再用 SQLite 或第三方托盘库，体积会迅速失控。
-
-解决：把体积从口头约定变成构建断言。<code>build.ps1</code> 固定 <code>GOARCH=amd64</code>、<code>CGO_ENABLED=0</code>，用 <code>wails build -ldflags "-s -w"</code> 剥掉符号和调试信息，然后检查 PE 头的 machine 字段必须是 <code>0x8664</code>，最后按 MB 检查产物大小，超过阈值直接 <code>throw</code>。
-<div class="codehilite"><pre><span></span><code><span class="nv">$sizeMB</span> <span class="p">=</span> <span class="no">[math]</span><span class="p">::</span><span class="n">Round</span><span class="p">((</span><span class="nb">Get-Item</span> <span class="nv">$exe</span><span class="p">).</span><span class="n">Length</span> <span class="p">/</span> <span class="n">1MB</span><span class="p">,</span> <span class="n">2</span><span class="p">)</span>
-<span class="k">if</span> <span class="p">(</span><span class="nv">$sizeMB</span> <span class="o">-gt</span> <span class="nv">$MaxSizeMB</span><span class="p">)</span> <span class="p">{</span>
-    <span class="k">throw</span> <span class="s2">&quot;体积超限：$sizeMB MB &gt; $MaxSizeMB MB。定位是&#39;极致轻&#39;，先查依赖增量再提阈值。&quot;</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-具体选型上，拒绝 SQLite：服务器数据是几十条级别，<code>modernc.org/sqlite</code> 预计会带来 4 到 6 MB 的增量，完全不划算；改用 JSON 文件，原子写加 <code>.bak</code> 备份，既小又方便手工修复。托盘不引第三方库，手写 <code>Shell_NotifyIconW</code>。前端只保留 7 个运行时依赖，不引 UI 框架。密钥、known_hosts、servers.json 全部用标准格式，不额外造二进制容器。前端产物通过 <code>go:embed all:frontend/dist</code> 直接嵌进可执行文件，没有外部资源目录；<code>wails.json</code> 驱动前端构建，<code>build.ps1</code> 只负责 Go 侧和产物断言。CI 里还跑 <code>govulncheck</code>，因为 <code>x/crypto</code> 的 advisory 需要可持续发现，不能等出问题再查。
-
-代价与遗留：JSON 存储意味着每次保存都要整文件重写，数据量大时会变成 O(n)，但对几十条服务器可以接受；没有 SQL 查询能力，未来要做复杂检索得自己写。手写 Win32 和手写 DOM 构造器增加了维护成本。体积守卫本身也脆：换一个 Go 版本、Wails 版本或前端依赖，数字就可能跳变，阈值需要跟着复核；断言发生在 Wails 构建之后，失败时已生成的 exe 会被保留供分析，但 CI 会直接判定失败。还有一个容易忽略的点是构建机的 Go 工具链如果是 32 位发行版，默认产物会是 386，脚本必须显式钉死 <code>amd64</code>，否则会得到一个能跑但架构不对的包。
-<h2>问题九：高 DPI 闪烁与尺寸归零</h2>
-
-现象：窗口在 100% 和 150% 缩放的显示器之间拖动时，WebView2 会反复重绘，界面闪烁；在会话内从“终端”切到“文件”再切回来，xterm 的光标位置会按旧列宽错位，有时终端直接变成一条细线。
-
-原因：两个问题叠在一起。第一，WebView2 在高 DPI 或多显示器切换时会收到密集的 resize 事件，如果每次 resize 都立刻重排，就会看到闪烁。第二，会话内的子视图切换用的是 <code>display:none</code>，被隐藏的 <code>.term-host</code> 尺寸归零，<code>ResizeObserver</code> 会收到 0×0 的观察值；此时调用 <code>fit()</code> 会把行列算成极小值，再切回来就错位。
-
-解决：窗口层设置 <code>ResizeDebounceMS=120</code>，让 Wails 对 WebView2 的重绘做去抖；前端自己再做 150 毫秒的 resize 去抖，跳过宽或高小于 4 像素的观察值，并在 <code>requestAnimationFrame</code> 之后重新 <code>fit</code> 和同步尺寸。切回终端子视图时也走 <code>rAF</code>，等布局完成再量。从密钥页切回服务器页时调用 <code>refitAll()</code>，确保所有可见终端重新贴合容器。
-<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">ro</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">ResizeObserver</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">handle</span><span class="p">]</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">terminals</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">host</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">hosts</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="nx">id</span><span class="p">);</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">host</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">panes</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="nx">id</span><span class="p">)</span><span class="o">?</span><span class="p">.</span><span class="nx">hidden</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">host</span><span class="p">.</span><span class="nx">clientWidth</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">host</span><span class="p">.</span><span class="nx">clientHeight</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">4</span><span class="p">)</span><span class="w"> </span><span class="k">continue</span><span class="p">;</span>
-<span class="w">    </span><span class="nx">handle</span><span class="p">.</span><span class="nx">fit</span><span class="p">();</span>
-<span class="w">    </span><span class="nx">handle</span><span class="p">.</span><span class="nx">syncSize</span><span class="p">();</span>
-<span class="w">  </span><span class="p">}</span>
-<span class="p">});</span>
-</code></pre></div>
-
-
-WebGL 渲染器也在这一层做了降级：<code>new WebglAddon()</code> 放在 <code>try</code> 里，初始化失败就保持 xterm 默认的 DOM 渲染器；上下文丢失时主动 <code>dispose()</code>，同样退回 DOM。功能不受影响，只是长输出时更吃 CPU。窗口还启用了 PerMonitorV2 DPI 感知（manifest 里声明），否则跨显示器时 WebView2 会被系统位图拉伸，文字发虚；深浅色跟随系统，Mica 只在 build 22621 以上启用，老系统走不透明背景，避免透明窗口没有底色。
-
-代价与遗留：120 毫秒和 150 毫秒两层去抖会叠加，拖动结束后远端 PTY 要稍晚一点才拿到最终尺寸；对交互式终端来说这是可感知但不难受的延迟。跳过小于 4 像素的尺寸避免了 0×0 的坑，但也意味着极小的布局变化不会触发重算。WebGL 降级后没有提示，用户只会觉得滚动变慢；这是为了不打扰主流程做的取舍。
-<h2>问题十：SFTP 与转发：复用连接，但别复用生命周期</h2>
-
-现象：最初每个文件面板都新建一条 SSH 连接，转发规则也各自拨号。结果是打开文件面板会多一次握手，服务器上多一条登录记录；更糟的是关掉会话标签后，本地监听端口还被占着，因为转发对象没有跟着会话一起释放。
-
-原因：SFTP 和端口转发在协议上都只是同一条 SSH 连接上的额外通道。SFTP 是 <code>sftp</code> 子系统通道，本地转发是每个连接一条 <code>direct-tcpip</code> 通道。它们不需要重新拨号、握手、认证。真正需要设计的是生命周期：通道挂在会话上，会话关闭时必须把通道、监听和规则一起收掉。
-
-解决：SFTP 懒创建并缓存。第一次 <code>SftpOpen</code> 时在已有 <code>ssh.Client</code> 上开子系统，之后复用同一个 <code>sftp.Client</code>；测试断言两次打开只产生 1 条 SSH 连接和 1 个 SFTP 通道。端口转发按会话维护规则表，新增时先校验端口和主机，再监听 <code>127.0.0.1</code>；每个进来的本地连接通过 <code>ssh.Dial</code> 开一条 <code>direct-tcpip</code>，双向各用一个 32 KiB 缓冲搬运，统计活动连接、累计连接和双向字节数。会话关闭时 <code>dropForwards</code> 统一关闭监听、掐断在途连接，并推送 <code>removed</code> 状态。
-<div class="codehilite"><pre><span></span><code><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="o">*</span><span class="nx">Forward</span><span class="p">)</span><span class="w"> </span><span class="nx">handle</span><span class="p">(</span><span class="nx">local</span><span class="w"> </span><span class="nx">net</span><span class="p">.</span><span class="nx">Conn</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="nx">remote</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">f</span><span class="p">.</span><span class="nx">ssh</span><span class="p">.</span><span class="nx">Dial</span><span class="p">(</span><span class="s">&quot;tcp&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">f</span><span class="p">.</span><span class="nx">remoteAddr</span><span class="p">)</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">local</span><span class="p">.</span><span class="nx">Close</span><span class="p">()</span>
-<span class="w">        </span><span class="k">return</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="w">    </span><span class="c1">// 登记 pair，双向 splice；任一端关闭都会让两个方向收工</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-细节上还有几处补丁。SFTP 重命名优先用 <code>PosixRename</code>，服务端不支持时回退标准 <code>Rename</code>；符号链接只在“是链接且不是目录”时补一次 <code>Stat</code>，避免大目录里每条目都多一次往返；删除只做空目录，不做递归删除，因为递归一旦路径算错就是不可逆的。转发只绑 <code>127.0.0.1</code>，把服务暴露到局域网必须是显式决定；端口冲突直接报错，不留下半成品规则。传输进度事件有 120 毫秒的下限间隔，避免每 32 KiB 都推一次事件把 WebView 打满；取消通过 <code>context</code> 传递，<code>shuttle</code> 每读一块前先看 <code>ctx.Err()</code>，取消后终态是 <code>cancelled</code> 而不是 <code>done</code>。转发统计也复用同一个间隔，并且只在数值变化时推送，空闲规则不会每 120 毫秒打一次无意义的事件。
-
-代价与遗留：所有通道共享同一条 TCP 连接，终端、SFTP、转发会争用同一条链路的带宽和 SSH 连接级资源；单个大文件传输可能让终端回显变慢。没有实现远程转发（<code>-R</code>）和动态转发（<code>-D</code>），只做本地 <code>-L</code>。下载时为了拿文件大小会先打开一次远端文件再关闭，真正传输时重新打开，多了一次往返；这是为了避免长时间持有两个句柄。递归上传和递归删除都明确不支持。
-<h2>问题十一：密码、旧密码与凭据自愈</h2>
-
-现象：用户改了远端密码后，NanoSSH 每次点击连接都直接失败，而且再也没有机会输入新密码；另一个方向是，用户在弹窗里手滑打错一次密码，错误的密码却被存进了凭据管理器，下次连接继续失败。
-
-原因：如果“用户输入密码”和“保存密码”绑在同一次调用里，认证失败也会落库；如果保存的旧密码失效后不删除，前端看到 <code>HasPassword</code> 为真就不再弹框，用户被永久卡在“点了就失败”的死角。删服务器时如果只删 <code>servers.json</code> 记录，凭据管理器里会留下指向不存在主机的孤儿密码。
-
-解决：认证成功后才保存密码；认证失败且本次没有用户输入时，删除已保存的密码，让下次连接重新询问。删除服务器时同步删除 <code>NanoSSH/server/&lt;id&gt;</code> 凭据。<code>HasPassword</code> 只回答“有没有”，前端据此决定直接连还是先弹框；用户也可以显式“清除已保存密码”。<code>HasPassword</code> 只看能否取回，不返回密码本身，避免把秘密带到前端；<code>ForgetPassword</code> 是幂等的，重复清除不报错。前端在密码认证且本次未提供密码时先问 <code>HasPassword</code>，有就直接连，没有才弹框，这样正常使用不会每次都被问一遍。私钥口令同理：解析失败且本地存有口令时，先删旧口令，再带 <code>retry</code> 标记询问，最多重试 3 次。
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="nx">srv</span><span class="p">.</span><span class="nx">Auth</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="nx">sshcore</span><span class="p">.</span><span class="nx">AuthPassword</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">req</span><span class="p">.</span><span class="nx">Password</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">serr</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">secrets</span><span class="p">.</span><span class="nx">Set</span><span class="p">(</span><span class="nx">store</span><span class="p">.</span><span class="nx">PasswordTarget</span><span class="p">(</span><span class="nx">srv</span><span class="p">.</span><span class="nx">ID</span><span class="p">),</span><span class="w"> </span><span class="nx">req</span><span class="p">.</span><span class="nx">Password</span><span class="p">);</span><span class="w"> </span><span class="nx">serr</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="nx">wruntime</span><span class="p">.</span><span class="nx">LogWarning</span><span class="p">(</span><span class="nx">a</span><span class="p">.</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;保存服务器密码失败: &quot;</span><span class="o">+</span><span class="nx">serr</span><span class="p">.</span><span class="nx">Error</span><span class="p">())</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-凭据存进 Windows 凭据管理器，使用 <code>wincred</code> 的通用凭据，<code>PersistLocalMachine</code>，target 是 <code>NanoSSH/server/&lt;id&gt;</code> 或 <code>NanoSSH/key/&lt;id&gt;</code>。没有自研加密文件，因为那是“自研密码学”的经典陷阱；凭据管理器用 DPAPI 绑定当前用户，只有本人登录后能读回，也不会随数据目录被拷走。
-
-代价与遗留：认证失败的自愈依赖 <code>strings.Contains(err.Error(), "unable to authenticate")</code>，这是对 <code>x/crypto</code> 错误文案的字符串匹配；库一改文案，自愈就失效。更稳的做法是识别具体的认证错误类型，但当前实现选择了简单路径。凭据绑定 Windows 账户，换机后无法解密是正确行为；用户复制 <code>servers.json</code> 和 <code>keys</code> 到新机器后，密码需要重新输一次。密码在进程内存中仍是明文，应用没有主密码或内存加密，这是桌面 SSH 客户端的常规边界。凭据管理器里的记录对同一用户的其他程序并非不可见：任何以该用户身份运行的程序都能枚举 target 并读取。这是 Windows 凭据模型的边界，不是 NanoSSH 能单独解决的；它只保证秘密不落在明文 JSON 里，以及不随数据目录被复制。
-<h2>问题十二：密钥管理的三个边界</h2>
-
-现象：导入一把 FIDO 安全密钥时，界面报“解析私钥失败”，看起来像文件损坏；生成 RSA 密钥时，如果默认 2048 位，又会被基线要求淘汰；删除一把仍被服务器引用的密钥，如果“顺手”改了服务器的认证方式，用户下次连接会莫名其妙失败。
-
-原因：FIDO 密钥的私钥句柄永远留在硬件里，Go 的 <code>ssh</code> 库不支持，必须明确告诉用户“这不是文件坏了，是算法不支持”。RSA 2048 已不够，4096 生成要数秒，交互体验太慢。密钥被引用时直接删除会造成死引用，而暗改服务器配置比报错更难排查。
-
-解决：只支持 ed25519、RSA 3072、ECDSA P256 三种算法，生成 OpenSSH 原生格式，公钥行可直接粘到 <code>authorized_keys</code>，指纹与 <code>ssh-keygen -lf</code> 一致。FIDO 的判断必须在解出的 PEM 二进制载荷里做，因为 OpenSSH 私钥把算法名作为明文字符串存在二进制体内，外层是 base64，在 PEM 文本上搜 <code>sk-</code> 是搜不到的。
-<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="nx">block</span><span class="p">,</span><span class="w"> </span><span class="nx">_</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">pem</span><span class="p">.</span><span class="nx">Decode</span><span class="p">(</span><span class="nx">pemBytes</span><span class="p">);</span><span class="w"> </span><span class="nx">block</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">bytes</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">block</span><span class="p">.</span><span class="nx">Bytes</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&quot;sk-ssh-ed25519&quot;</span><span class="p">))</span><span class="w"> </span><span class="o">||</span>
-<span class="w">        </span><span class="nx">bytes</span><span class="p">.</span><span class="nx">Contains</span><span class="p">(</span><span class="nx">block</span><span class="p">.</span><span class="nx">Bytes</span><span class="p">,</span><span class="w"> </span><span class="p">[]</span><span class="nb">byte</span><span class="p">(</span><span class="s">&quot;sk-ecdsa-sha2&quot;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
-<span class="w">        </span><span class="k">return</span><span class="w"> </span><span class="kc">nil</span><span class="p">,</span><span class="w"> </span><span class="nx">ErrKeyFIDOUnsupported</span>
-<span class="w">    </span><span class="p">}</span>
-<span class="p">}</span>
-</code></pre></div>
-
-
-私钥文件用 ULID 命名，而不是用户取的名字：既杜绝重名和路径穿越，也让密钥可以随便改名。导入时先解析再落盘，解析成功同时证明“这确实是一把可用私钥”并且拿到了准确的公钥和指纹；解析失败不会留下“记录有了、指纹为空”的半成品。三种失败路径被刻意区分：需要口令返回 <code>ErrKeyEncrypted</code>，硬件密钥返回 <code>ErrKeyFIDOUnsupported</code>，其余才是文件本身有问题。导入时如果没给名字，默认取源文件名去掉扩展名；带口令的导入成功后顺手把口令存进凭据管理器，第一次连接就不用再问。删除密钥前扫描服务器列表，仍被引用就拒绝，并在报错里点名是哪几台服务器。删除顺序是先落盘记录、再删文件，避免“记录还在、文件没了”的死引用。
-
-代价与遗留：不支持 FIDO 安全密钥，也不支持 agent forwarding；这两项都被明确写进错误文案，而不是静默失败。RSA 3072 的生成速度比 2048 慢，但比 4096 好得多，是一个折中。密钥目录的 <code>0600</code> 在 Windows 上同样只是意图，实际保护来自 <code>%APPDATA%</code> 的 ACL。没有密钥轮换、没有多密钥绑定，功能面刻意保持窄。
-<h2>小结</h2>
-
-NanoSSH 的实现价值不在“做了多少功能”，而在把几个容易错的边界钉死了。IPC 选择了 Wails 的 base64 事件桥，承认 33% 的膨胀，用 Worker 解码和 Transferable 抵消开销；终端字节流全程 <code>[]byte</code>，不做行切分和解码，用 16 KiB 分块、8 毫秒攒批和 ack 闭环把延迟压在渲染端；PTY 参数统一成 <code>(rows, cols)</code>，用测试防止 RFC 与 x/crypto 的顺序再次错位；主机密钥区分未知、变化、吊销三种情况，指纹变化只允许显式替换；Windows 平台细节则落在命名管道、<code>LockOSThread</code>、ResizeDebounce 和 14 MB 体积守卫上。
-
-这些决定都有代价：吞吐受渲染限制、哈希 known_hosts 条目无法自动替换、JSON 存储不能查询、手写 Win32 增加维护成本、旧密码自愈依赖错误文案。项目没有试图把这些代价藏起来，而是尽量写进注释、测试和错误提示里。
-
-测试策略也是这套架构的一部分：进程内 <code>testsshd</code> 提供真实的 SSH 服务端，<code>eventCollector</code> 替换事件出口并在收到终端数据后立即回 ack，凭据后端换成内存实现，测试绝不往真实凭据管理器写东西。于是“终端字节不丢”“PTY 顺序正确”“转发复用同一条连接”“会话关闭释放端口”这些结论都能在无窗口环境下重复验证。对同类工具来说，可复用的不是某一个函数，而是这种“先把边界写清楚，再选实现”的顺序。
-<h2>相关阅读</h2>
-<ul>
-<li><a href="/article/nanobrowser-tauri-webview2/">NanoBrowser：Tauri 与 WebView2 的桌面浏览器实践</a>：同样是轻量 WebView 外壳，可以对照看窗口层与 IPC 的取舍。</li>
-<li><a href="/article/websocket-production-deep-dive/">WebSocket 生产环境深挖</a>：理解为什么“看起来像 WebSocket”与“实际走什么通道”需要在文档里说清楚。</li>
-<li><a href="/article/nanohermes-rust-coding-agent/">NanoHermes：用 Rust 写编码 Agent</a>：另一种把协议内核与外壳分离的组织方式。</li>
-<li><a href="/article/file-upload-production-deep-dive/">文件上传的生产实践</a>：与 SFTP 传输的进度、取消和分块策略可以互相参照。</li>
-</ul>]]></content:encoded>
     </item>
     <item>
       <title>搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</title>
@@ -1943,40 +1676,6 @@ NanoSSH 的实现价值不在“做了多少功能”，而在把几个容易错
       <category>后端</category>
       <category>存储引擎</category>
       <category>性能优化</category>
-      <category>数据库</category>
-    </item>
-    <item>
-      <title>MySQL 聚簇索引与二级索引：回表到底贵在哪</title>
-      <link>https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/</link>
-      <guid isPermaLink="true">https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/</guid>
-      <pubDate>Wed, 04 Nov 2026 02:20:39 GMT</pubDate>
-      <description>适用读者：写过 EXPLAIN 、看到过 Using index 却说不清它省掉了什么的人；被「加了索引反而更慢」坑过一次的人；正在决定主键用自增 BIGINT 还是 UUID 的人 结论先行：InnoDB 的表本身就是一棵聚簇索引，叶子节点存整行；二级索引的叶子只存「索引列 + 主键」。所谓回表，就是先在二级索引里拿</description>
-      <category>数据库内核</category>
-      <category>后端</category>
-      <category>存储引擎</category>
-      <category>性能优化</category>
-      <category>数据库</category>
-    </item>
-    <item>
-      <title>InnoDB 锁的边界：Next-Key 与间隙锁</title>
-      <link>https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/</link>
-      <guid isPermaLink="true">https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/</guid>
-      <pubDate>Mon, 02 Nov 2026 06:40:02 GMT</pubDate>
-      <description>适用读者：被「为什么我只更新了一行，插入却卡住了」折磨过的后端工程师；写过 SELECT ... FOR UPDATE 、却说不清它到底锁了哪段索引的人；准备把隔离级别从 RR 调到 RC、但想知道自己放弃了什么的人 结论先行：InnoDB 锁的不是「行」，而是 索引记录以及记录之间的缝 。记录锁锁住一条索引记录，间隙</description>
-      <category>数据库内核</category>
-      <category>后端</category>
-      <category>存储引擎</category>
-      <category>数据库</category>
-    </item>
-    <item>
-      <title>B+ 树索引回源：页分裂长什么样</title>
-      <link>https://blog.zhoujun.dev/article/btree-page-split/</link>
-      <guid isPermaLink="true">https://blog.zhoujun.dev/article/btree-page-split/</guid>
-      <pubDate>Thu, 29 Oct 2026 08:03:33 GMT</pubDate>
-      <description>适用读者：读完慢查询调优文章、想知道「索引为什么会碎片、为什么顺序写不碎」的后端工程师；正在实现 B+ 树或遭遇页分裂相关抖动的人；想把教科书上的「split」两个字母落到具体字节的人 结论先行：页分裂不是一次原子的「一分为二」，而是一场 有预谋的多步手术 ——选分裂点、申请新页、改父指针、搬记录、可能递归长高、还可能</description>
-      <category>数据库内核</category>
-      <category>后端</category>
-      <category>存储引擎</category>
       <category>数据库</category>
     </item>
   </channel>

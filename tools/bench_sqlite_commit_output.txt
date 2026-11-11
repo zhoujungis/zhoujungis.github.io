@@ -1,0 +1,23 @@
+fsync median: 1.996 ms
+payload=120B  commits/case=200  runs=3  (median)
+
+== rollback journal + synchronous=FULL ==
+commit strategy                      wall          rows        throughput         per row
+1 row(s) per commit               1.351 s        200 rows          148 rows/s     6754.9 us/row
+10 row(s) per commit              1.313 s       2000 rows         1524 rows/s      656.3 us/row
+100 row(s) per commit             1.366 s      20000 rows        14642 rows/s       68.3 us/row
+1000 row(s) per commit            1.615 s     200000 rows       123829 rows/s        8.1 us/row
+20000 rows, one commit            0.036 s      20000 rows       552811 rows/s        1.8 us/row
+                               单事务 vs 逐行提交：3,734x
+
+== WAL + synchronous=FULL ==
+commit strategy                      wall          rows        throughput         per row
+1 row(s) per commit               0.401 s        200 rows          499 rows/s     2005.0 us/row
+10 row(s) per commit              0.400 s       2000 rows         5001 rows/s      200.0 us/row
+100 row(s) per commit             0.404 s      20000 rows        49509 rows/s       20.2 us/row
+1000 row(s) per commit            0.712 s     200000 rows       280906 rows/s        3.6 us/row
+20000 rows, one commit            0.032 s      20000 rows       625274 rows/s        1.6 us/row
+                               单事务 vs 逐行提交：1,254x
+
+逐行提交 20000 行 ≈ 136.4 s（按 6.82 ms/commit 外推）
+同样 20000 行放进一个事务 ≈ 0.04 s
