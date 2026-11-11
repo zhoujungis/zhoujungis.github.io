@@ -35587,6 +35587,344 @@ def topKFrequent(nums, k):
 `,
   },
 
+  {
+    slug: 'lc-470-implement-rand10-using-rand7',
+    zhSlug: 'lc-470-implement-rand10-using-rand7',
+    topicSlug: 'leetcode',
+    title: 'LC 470, rand10 from rand7: build a bigger space and cut it evenly',
+    excerpt:
+      'Seven states cannot split into ten parts, so sample twice for forty-nine equally likely states and keep the largest multiple of ten. Uniformity comes from counting, not from faith.',
+    date: '2026-09-27',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Given a function returning a uniform integer from one to seven, produce a uniform integer from one to ten, using only that function, with few calls in expectation and a provable uniformity.</p>
+
+<p>One direction is a dead end and worth naming first: a single call has seven states, and seven does not divide into ten equal parts, so no amount of adding, multiplying or taking remainders helps. The only way out is to create a larger state space that is divisible by ten.</p>
+
+<h2>The product space</h2>
+
+<p>Two independent calls form a pair with forty-nine combinations, each equally likely. Flatten the pair into a single index by computing the first minus one times seven plus the second, which yields a uniform value from one to forty-nine.</p>
+
+<p>The largest multiple of ten within forty-nine is forty. Accept values up to forty and output the remainder modulo ten plus one; reject forty-one through forty-nine, nine states, and redraw both.</p>
+
+<pre><code>def rand10() -&gt; int:
+    while True:
+        v = (rand7() - 1) * 7 + rand7()
+        if v &lt;= 40:
+            return (v - 1) % 10 + 1
+</code></pre>
+
+<p>Each part of that line matters: multiplying by seven is base-seven packing, subtracting one shifts the first die to start at zero, and the final expression maps forty values onto ten outputs four times each.</p>
+
+<table>
+<thead><tr><th>Output</th><th>Source states</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>1, 11, 21, 31</td></tr>
+<tr><td>2</td><td>2, 12, 22, 32</td></tr>
+<tr><td>...</td><td>...</td></tr>
+<tr><td>10</td><td>10, 20, 30, 40</td></tr>
+<tr><td>rejected</td><td>41 through 49</td></tr>
+</tbody>
+</table>
+
+<p>Every output has exactly four sources, no more and no fewer, which is the entire source of uniformity.</p>
+
+<h2>The animations</h2>
+
+<p>The first shows rejection sampling: a seven by seven grid of states with the accepted region green and the rejected region red, two dice, the combining formula, the verdict, and the output sequence. Watch that every attempt rolls twice, that the landing cell decides acceptance, and that a rejected round produces no output.</p>
+
+<p>The second proves uniformity by colouring the same grid by output, lighting one group at a time. Each group is exactly four cells, and the nine rejected cells stay grey. When it finishes, ten equal-length rows are the literal evidence that all outputs are equally likely.</p>
+
+<table>
+<thead><tr><th>Attempt</th><th>a</th><th>b</th><th>v</th><th>Verdict</th><th>Output</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>4</td><td>7</td><td>28</td><td>accept</td><td>8</td></tr>
+<tr><td>2</td><td>7</td><td>6</td><td>48</td><td>reject</td><td>-</td></tr>
+<tr><td>3</td><td>1</td><td>3</td><td>3</td><td>accept</td><td>3</td></tr>
+<tr><td>4</td><td>2</td><td>5</td><td>12</td><td>accept</td><td>2</td></tr>
+<tr><td>5</td><td>6</td><td>1</td><td>36</td><td>accept</td><td>6</td></tr>
+<tr><td>6</td><td>5</td><td>2</td><td>30</td><td>accept</td><td>10</td></tr>
+</tbody>
+</table>
+
+<p>Six rounds, twelve calls, one rejection. A rejection costs two extra calls and contaminates nothing.</p>
+
+<h2>The proof</h2>
+
+<pre><code>P(output k and accepted) = 4/49
+P(accepted)              = 40/49
+P(output k | accepted)   = 4/40 = 1/10
+</code></pre>
+
+<p>Redrawing does not break this. If acceptance first happens on round m, the probability of that and a given output is the rejection probability to the m minus one, times four forty-ninths, and summing the geometric series gives one tenth exactly. Each round is independent of the last, so the round that finally lands in the accepted region still has a uniform conditional distribution; rejection consumes attempts and changes no probability.</p>
+
+<p>To verify by hand, count frequencies over fifty thousand runs, where each output should approach five thousand, or run a chi-square test. Eyeballing a few hundred samples proves nothing.</p>
+
+<h2>Expectation and the lower bound</h2>
+
+<pre><code>E[rounds] = 1/p = 49/40 = 1.225
+E[calls]  = 2 * 1.225 = 2.45
+</code></pre>
+
+<p>The rejection rate of about eighteen percent is the necessary waste of this scheme. The information-theoretic floor is where each call carries the base-two logarithm of seven bits and one output needs the logarithm of ten bits, so no method can use fewer than about one point one eight calls. The gap between that floor and two point four five is an advanced topic: recycling the rejected states into the next round by folding the remainder back into a new state space shrinks the expectation further. Mentioning that shows you understand rejection as information loss rather than a constant to memorise.</p>
+
+<h2>The parameterised variant</h2>
+
+<p>Same machine, different numbers: given a uniform source over five values, produce one over seven. Two calls give twenty-five states, the largest multiple of seven within that is twenty-one, so accept up to twenty and return the value modulo seven, with three sources per output and an expectation of fifty twenty-firsts, about two point three eight.</p>
+
+<pre><code>def rand6() -&gt; int:
+    while True:
+        v = rand4() * 5 + rand4()
+        if v &lt;= 20:
+            return v % 7
+</code></pre>
+
+<p>Remember the two shapes: forty-nine down to forty with four sources each, and twenty-five down to twenty-one with three each. The usable block is always the state count divided by the target count, floored, times the target count.</p>
+
+<p>The randomised family includes shuffling an array, where equal likelihood depends on swapping backwards, reservoir sampling for random indices, weighted selection by prefix sums and binary search, random points in a circle by rejection or by taking the square root of the radius, and random points in rectangles weighted by area. They share one worldview: uniformity is proved by structure, not felt.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public int rand10() {
+        while (true) {
+            int v = (rand7() - 1) * 7 + rand7();
+            if (v &lt;= 40) {
+                return (v - 1) % 10 + 1;
+            }
+        }
+    }
+}
+</code></pre>
+
+<p>The order of the two calls does not matter as long as they are independent, and do not cache a previous result to save a call, since every redraw needs two fresh independent samples.</p>
+
+<h2>Traps</h2>
+
+<ol>
+<li>Rolling once and scaling or taking a remainder, which cannot be uniform because seven does not divide into ten.</li>
+<li>Forgetting the minus one in the packing, which shifts the range and distorts the boundary states.</li>
+<li>Taking the remainder directly, so that ten maps to zero.</li>
+<li>Rejecting at forty rather than above forty, which leaves only thirty-nine usable states and no clean four-way split.</li>
+<li>Rerolling only one die after a rejection, which destroys independence.</li>
+<li>Shrinking the accepted region to reduce waste. It must be a multiple of ten, and forty is the largest available, so the only further saving is recycling remainders.</li>
+<li>Fearing an infinite loop. Theoretically unbounded, but the probability decays geometrically and the expectation is finite.</li>
+<li>Validating with too few samples.</li>
+</ol>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Measure</th><th>Value</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Per round</td><td>Constant</td><td>Two calls and one comparison</td></tr>
+<tr><td>Acceptance</td><td>About eighty-two percent</td><td>The rest is wasted</td></tr>
+<tr><td>Expected calls</td><td>2.45</td><td>Geometric distribution</td></tr>
+<tr><td>Lower bound</td><td>About 1.18</td><td>Information theoretic</td></tr>
+<tr><td>Space</td><td>Constant</td><td>A few variables</td></tr>
+</tbody>
+</table>
+
+<h2>How to answer it</h2>
+
+<p>Start with why one call is hopeless, then build the product space, then cut the largest block divisible by the target. Give the proof in terms of equal group sizes, show that redraws preserve the conditional distribution by summing a geometric series, and report the expectation along with the information-theoretic floor so it is clear that two point four five is not the end of the story. Then the reparameterised variant and how uniformity would be verified from data.</p>
+
+<p>One line: sample twice to build a product space, cut the largest block that the target divides evenly, prove that rejection leaves the conditional distribution untouched, and compute the expectation.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-470-implement-rand10-using-rand7/">【LC 470】用 Rand7() 实现 Rand10()：拒绝采样 2.45 次</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-93-restore-ip-addresses',
+    zhSlug: 'lc-93-restore-ip-addresses',
+    topicSlug: 'leetcode',
+    title: 'LC 93, restore IP addresses: segment backtracking with two layers of pruning',
+    excerpt:
+      'Choosing three cut points out of at most eleven gaps is a bounded search. The design work is separating "is this segment legal" from "can this path still succeed".',
+    date: '2026-09-26',
+    readingTime: 12,
+    html: `
+<h2>The problem</h2>
+
+<p>A valid address is four integers from zero to 255 separated by dots, with no leading zeros in any part. Given a digit string, return every valid address it can form.</p>
+
+<pre><code>"25525511135"  -&gt;  ["255.255.11.135", "255.255.111.35"]
+"0000"         -&gt;  ["0.0.0.0"]
+"010010"       -&gt;  ["0.10.0.10", "0.100.1.0"]
+</code></pre>
+
+<h2>Backtracking is combination enumeration written recursively</h2>
+
+<p>Cutting the string into four pieces means choosing three of the gaps, and with at most three digits per piece the string length must lie between four and twelve. That bounds the number of candidate cut sets to at most 165, so the search space is a constant. Backtracking here is organisation, not a performance strategy.</p>
+
+<p>What deserves design is the pruning, and it comes in two independent layers.</p>
+
+<table>
+<thead><tr><th>Layer</th><th>Question</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td>Segment validity</td><td>Is this piece acceptable?</td><td>Above 255, or a leading zero</td></tr>
+<tr><td>Feasibility</td><td>Can this path still succeed?</td><td>The first piece is a single digit, but ten digits remain and three pieces hold at most nine</td></tr>
+</tbody>
+</table>
+
+<p>The second layer is where the efficiency comes from and it is the one most often omitted. Without it the answers are still correct, since dead ends simply fail later, but many subtrees are searched for nothing. The single-digit first piece is the clearest illustration: the piece itself is entirely legal and the mistake is only visible when looking ahead.</p>
+
+<h2>The recursion</h2>
+
+<pre><code>def restoreIpAddresses(s: str) -&gt; list[str]:
+    ans = []
+    n = len(s)
+
+    def dfs(pos: int, path: list[str]) -&gt; None:
+        if len(path) == 4:
+            if pos == n:
+                ans.append('.'.join(path))
+            return
+        remain_segs = 4 - len(path)
+        for seg_len in (1, 2, 3):
+            if pos + seg_len &gt; n:
+                continue
+            seg = s[pos:pos + seg_len]
+            if seg[0] == '0' and seg_len &gt; 1:
+                continue
+            if int(seg) &gt; 255:
+                continue
+            rest = n - pos - seg_len
+            segs = remain_segs - 1
+            if segs &gt; 0 and not (segs &lt;= rest &lt;= segs * 3):
+                continue
+            dfs(pos + seg_len, path + [seg])
+
+    if 4 &lt;= n &lt;= 12:
+        dfs(0, [])
+    return ans
+</code></pre>
+
+<p>Three details. The fourth piece must consume exactly the remaining digits, since four pieces must cover the string neither more nor less. A single zero is legal and a zero followed by more digits is not, so the test is on length as well as the first character. And passing a fresh list down avoids manual popping, at the cost of copying, which is irrelevant at this scale.</p>
+
+<h2>The animation</h2>
+
+<p>A row of characters with separators. Committed cuts are solid verticals. The segment under trial is tinted when legal and dashed grey when pruned, with the banner naming the reason: a leading zero, a value above 255, or an infeasible length. An answer frame fires when the fourth piece consumes the rest exactly. Backtracking is implicit: after a branch tries its three lengths, the vertical retreats and the parent tries its next option.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Path</th><th>Trial</th><th>Verdict</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>empty</td><td>2</td><td>length</td><td>Legal piece, but ten digits remain for three pieces</td></tr>
+<tr><td>2</td><td>empty</td><td>25</td><td>ok</td><td>Nine remaining fits exactly</td></tr>
+<tr><td>3-5</td><td>25</td><td>5, 52, 525</td><td>length, length, range</td><td>Branch dies</td></tr>
+<tr><td>6</td><td>empty</td><td>255</td><td>ok</td><td></td></tr>
+<tr><td>7-12</td><td>255</td><td>2, 25, 255 then 5, 51, 511</td><td>mixed</td><td>Second branch dies on the range</td></tr>
+<tr><td>13-15</td><td>255,255</td><td>1, 11, 135</td><td>length, ok, <strong>answer</strong></td><td>The fourth must consume the rest</td></tr>
+<tr><td>16-18</td><td>255,255</td><td>111 then 3, 35</td><td>ok, length, <strong>answer</strong></td><td>Second answer</td></tr>
+</tbody>
+</table>
+
+<p>For the leading-zero example the first piece can only be a single zero, and every longer option starting with zero is pruned, leaving two addresses.</p>
+
+<h2>Enumeration without recursion</h2>
+
+<pre><code>def restoreIpAddresses(s: str) -&gt; list[str]:
+    n, res = len(s), []
+    if not (4 &lt;= n &lt;= 12):
+        return res
+    for i in range(1, 4):
+        for j in range(i + 1, i + 4):
+            for k in range(j + 1, j + 4):
+                if k &gt;= n:
+                    continue
+                parts = (s[:i], s[i:j], s[j:k], s[k:])
+                if all(valid(seg) for seg in parts):
+                    res.append('.'.join(parts))
+    return res
+</code></pre>
+
+<p>With a fixed number of levels and a fixed branching factor, the recursion and the triple loop are the same thing. Recursion earns its keep when the constraints are dynamic, such as an unknown number of segments or pruning that depends on the accumulated path. Either works here, and the recursive form is the more portable template when follow-ups arrive.</p>
+
+<table>
+<thead><tr><th>Problem</th><th>Shared skeleton</th></tr></thead>
+<tbody>
+<tr><td>Palindrome partitioning</td><td>Same segmentation with a different validity test, plus a table precomputing palindromes</td></tr>
+<tr><td>Generate parentheses</td><td>The classic feasibility pruning, adding an opener only while openers remain and a closer only when closers are fewer</td></tr>
+<tr><td>Letter combinations of a phone number</td><td>Pure enumeration with no pruning</td></tr>
+</tbody>
+</table>
+
+<p>The template has four parts: make a choice, check validity, recurse, undo. And validity always splits into two questions, whether the choice itself is acceptable and whether the path can still lead anywhere.</p>
+
+<h2>Java</h2>
+
+<pre><code>public List&lt;String&gt; restoreIpAddresses(String s) {
+    List&lt;String&gt; ans = new ArrayList&lt;&gt;();
+    int n = s.length();
+    if (n &lt; 4 || n &gt; 12) return ans;
+
+    dfs(s, 0, new ArrayList&lt;&gt;(), ans);
+    return ans;
+}
+
+private void dfs(String s, int pos, List&lt;String&gt; path, List&lt;String&gt; ans) {
+    if (path.size() == 4) {
+        if (pos == s.length()) ans.add(String.join(".", path));
+        return;
+    }
+    int remainSegs = 4 - path.size();
+    for (int len = 1; len &lt;= 3; len++) {
+        if (pos + len &gt; s.length()) continue;
+        String seg = s.substring(pos, pos + len);
+        if (seg.charAt(0) == '0' &amp;&amp; len &gt; 1) continue;
+        if (Integer.parseInt(seg) &gt; 255) continue;
+        int rest = s.length() - pos - len;
+        int segs = remainSegs - 1;
+        if (segs &gt; 0 &amp;&amp; (rest &lt; segs || rest &gt; segs * 3)) continue;
+        path.add(seg);
+        dfs(s, pos + len, path, ans);
+        path.remove(path.size() - 1);
+    }
+}
+</code></pre>
+
+<p>Parsing is safe because a segment is at most three characters. The path is shared, so the removal after recursion is mandatory.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Point</th></tr></thead>
+<tbody>
+<tr><td>"0000"</td><td>one address of four zeros</td><td>A single zero is legal</td></tr>
+<tr><td>"010010"</td><td>two addresses</td><td>Leading zeros pruned</td></tr>
+<tr><td>"255255255255"</td><td>one address</td><td>Every piece at the ceiling</td></tr>
+<tr><td>"1111"</td><td>one address</td><td>The unique split</td></tr>
+<tr><td>three or thirteen digits</td><td>empty</td><td>Structurally impossible</td></tr>
+<tr><td>"101023"</td><td>five addresses</td><td>Branches abound</td></tr>
+</tbody>
+</table>
+
+<h2>Complexity</h2>
+
+<p>At most 165 cut sets and a linear join per candidate, with the input bounded at twelve digits, so the whole thing is effectively constant. The recursion depth is four and the path holds at most four pieces. That is what separates this from ordinary backtracking: pruning here avoids dozens of paths rather than reducing an exponential.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Pruning every segment starting with zero, which kills the all-zeros case. The condition must also require length above one.</li>
+<li>Not requiring the fourth piece to consume the remainder, which silently drops trailing digits and emits fake addresses.</li>
+<li>Parsing an empty segment, which happens when the cut indices are wrong.</li>
+<li>Forgetting to undo a shared path, which contaminates later answers.</li>
+<li>Omitting the feasibility check, which is not a bug but does lose marks when the interviewer asks what could be improved.</li>
+<li>Skipping the length precheck, which both saves work and states that the input is structurally impossible.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Characterise the search size first, then name the two pruning layers and stress the second, since it governs the case where a segment is legal and the path is not. Volunteer the two special rules, the fourth piece consuming exactly the rest and the single zero being legal. Note that the triple loop is equivalent here, and that recursion wins on portability. Then the complexity, which is constant, and the related problems with swapped validity tests.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-93-restore-ip-addresses/">【LC 93】复原 IP 地址：分段回溯，剪枝分两层</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
