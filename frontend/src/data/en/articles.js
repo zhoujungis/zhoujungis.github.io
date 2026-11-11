@@ -37864,6 +37864,712 @@ rose  -&gt; ros     (delete e)
 `,
   },
 
+  {
+    slug: 'lc-994-rotting-oranges',
+    zhSlug: 'lc-994-rotting-oranges',
+    topicSlug: 'leetcode',
+    title: 'LC 994, rotting oranges: multi-source BFS and a table of rot times',
+    excerpt:
+      'Every rotten orange is a source starting minute zero, so the answer is the radius of the last layer. Layered loops, timestamps and a distance field are three ways of recording it.',
+    date: '2026-09-14',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>A grid holds empty cells, fresh oranges and rotten oranges. Every minute, every rotten orange rots its four orthogonal fresh neighbours. Return the fewest minutes until no fresh orange remains, or minus one if impossible.</p>
+
+<pre><code>2 1 1
+1 1 0     -&gt; 4
+0 1 1
+
+2 1 1
+0 1 1     -&gt; -1   (the isolated fresh orange never rots)
+1 0 1
+</code></pre>
+
+<p>Three details to pin down: empty cells do not propagate, since rot only spreads onto fresh oranges; the spread is simultaneous across all rotten oranges each minute, not sequential; and a grid with no fresh oranges at all answers zero.</p>
+
+<p>The skeleton in one sentence: all rotten oranges start a breadth-first search simultaneously and expand outward in rings, one layer per minute, and the number of layers is the answer.</p>
+
+<p>The mental switch compared with ordinary search is that every rotten orange enters the queue at the start as layer zero, and the first-visit property of breadth-first search automatically computes each cell's distance to the nearest source, so the rot time is that distance and the answer is the maximum.</p>
+
+<h2>The code</h2>
+
+<pre><code>from collections import deque
+
+def orangesRotting(grid):
+    m, n = len(grid), len(grid[0])
+    q = deque()
+    fresh = 0
+    for r in range(m):
+        for c in range(n):
+            if grid[r][c] == 2:
+                q.append((r, c))
+            elif grid[r][c] == 1:
+                fresh += 1
+    minute = 0
+    while q and fresh:
+        for _ in range(len(q)):
+            r, c = q.popleft()
+            for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)):
+                if 0 &lt;= nr &lt; m and 0 &lt;= nc &lt; n and grid[nr][nc] == 1:
+                    grid[nr][nc] = 2
+                    fresh -= 1
+                    q.append((nr, nc))
+        minute += 1
+    return minute if fresh == 0 else -1
+</code></pre>
+
+<p>Three details decide it. All rotten oranges enter the queue initially, since starting with one is the biggest trap here: other sources begin several minutes late and the answer inflates or goes wrong. The layer length is captured before the loop so that newly enqueued cells belong to the next minute. And marking at enqueue time, together with the fresh counter, prevents a cell from being enqueued by several neighbours and gives the condition for minus one.</p>
+
+<h2>Three ways to count minutes</h2>
+
+<p>The layered loop above increments a counter after each layer. The timestamp variant stores the time with each cell and pushes time plus one into the answer when enqueuing, and its trap is that the update must happen at enqueue: if it happens at dequeue, the early exit leaves the final batch uncounted and the answer is short by one.</p>
+
+<p>The distance-field variant stamps each cell the first time it is visited, so the table itself becomes the answer, with the maximum stamp being the rot time. An empty grid is handled by defaulting the maximum to zero.</p>
+
+<table>
+<thead><tr><th>Version</th><th>Where the minute comes from</th><th>Main risk</th></tr></thead>
+<tbody>
+<tr><td>Layered loop</td><td>Increment after a whole layer</td><td>Forgetting to capture the layer length</td></tr>
+<tr><td>Timestamps in the queue</td><td>Time plus one travelling with the cell</td><td>Early exit losing the last batch</td></tr>
+<tr><td>Distance field</td><td>The minute at stamping</td><td>Forgetting the fresh condition in the loop</td></tr>
+</tbody>
+</table>
+
+<h2>The animations</h2>
+
+<p>The first shows layered expansion with panels for the current minute, the remaining fresh count and the queue. Layer frames reveal the whole batch to be processed, and rot frames show the results, with the newly rotten cells joining the next layer and the fresh count dropping. Watch that there is more than one source when there is more than one rotten orange, that the minute only increments after a full layer, and how the fresh count moves.</p>
+
+<p>The second shows the same search with the stamping bookkeeping, where the finished table is a distance field and the answer is its maximum. The contrast is worth noticing: one counts which minute it is, the other writes a value per cell.</p>
+
+<table>
+<thead><tr><th>Phase</th><th>Action</th><th>Queue</th><th>Minute</th><th>Fresh</th></tr></thead>
+<tbody>
+<tr><td>init</td><td>Single source enqueued</td><td>one cell</td><td>0</td><td>6</td></tr>
+<tr><td>layer</td><td>Minute one begins</td><td>one cell</td><td>0</td><td>6</td></tr>
+<tr><td>rot</td><td>Two neighbours rot</td><td>two cells</td><td>1</td><td>4</td></tr>
+<tr><td>layer</td><td>Minute two begins</td><td>two cells</td><td>1</td><td>4</td></tr>
+<tr><td>rot</td><td>Two more rot</td><td>two cells</td><td>2</td><td>2</td></tr>
+<tr><td>rot</td><td>One rots</td><td>one cell</td><td>3</td><td>1</td></tr>
+<tr><td>rot</td><td>The last rots, fresh reaches zero</td><td>one cell</td><td>4</td><td>0</td></tr>
+<tr><td>done</td><td>Return four</td><td>-</td><td>-</td><td>0</td></tr>
+</tbody>
+</table>
+
+<p>Two things easy to miss: within one minute a cell cannot rot twice even though two neighbours reach it, and the last cell has only one path, so its time is the path length rather than the straight-line distance.</p>
+
+<table>
+<thead><tr><th>Minute</th><th>Newly stamped</th><th>Value</th><th>Fresh</th></tr></thead>
+<tbody>
+<tr><td>init</td><td>the source</td><td>0</td><td>6</td></tr>
+<tr><td>1</td><td>two cells</td><td>1</td><td>4</td></tr>
+<tr><td>2</td><td>two cells</td><td>2</td><td>2</td></tr>
+<tr><td>3</td><td>one cell</td><td>3</td><td>1</td></tr>
+<tr><td>4</td><td>one cell</td><td>4</td><td>0</td></tr>
+</tbody>
+</table>
+
+<p>The finished table reads as a distance field, which is the invariant made visible: each cell is stamped once, and the first arrival is necessarily the nearest.</p>
+
+<h2>Why count fresh oranges</h2>
+
+<p>Two reasons. The loop condition stops as soon as the count reaches zero, avoiding pointless work on a trailing layer. And the failure condition is that the count is still positive when the search ends, meaning some fresh orange is walled off.</p>
+
+<p>Note the correct failure test is the count, not an empty queue. An empty queue with a zero count is normal completion, and an empty queue with a positive count is failure.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    private static final int[][] DIRS = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+
+    public int orangesRotting(int[][] grid) {
+        int m = grid.length, n = grid[0].length;
+        int fresh = 0, minute = 0;
+        Deque&lt;int[]&gt; queue = new ArrayDeque&lt;&gt;();
+        for (int r = 0; r &lt; m; r++) {
+            for (int c = 0; c &lt; n; c++) {
+                if (grid[r][c] == 2) queue.offer(new int[]{r, c});
+                else if (grid[r][c] == 1) fresh++;
+            }
+        }
+        while (!queue.isEmpty() &amp;&amp; fresh &gt; 0) {
+            for (int size = queue.size(); size &gt; 0; size--) {
+                int[] cur = queue.poll();
+                for (int[] d : DIRS) {
+                    int nr = cur[0] + d[0], nc = cur[1] + d[1];
+                    if (nr &lt; 0 || nr &gt;= m || nc &lt; 0 || nc &gt;= n || grid[nr][nc] != 1) continue;
+                    grid[nr][nc] = 2;
+                    fresh--;
+                    queue.offer(new int[]{nr, nc});
+                }
+            }
+            minute++;
+        }
+        return fresh == 0 ? minute : -1;
+    }
+}
+</code></pre>
+
+<p>The size must be captured before the loop, or the next layer gets counted into this one. And if the input must not be modified, replace the in-place marking with a visited array.</p>
+
+<h2>The family</h2>
+
+<ul>
+<li><strong>Nearest zero in a matrix:</strong> zeros are the sources, the same distance field.</li>
+<li><strong>Shortest path in a binary matrix:</strong> single source to single target, the opposite shape.</li>
+<li><strong>Map analysis:</strong> the water cell farthest from land, which is the same maximum after a multi-source search.</li>
+<li><strong>Shortest bridge:</strong> colour the first island depth-first, then search from all of its cells.</li>
+<li><strong>Highest point on a map:</strong> water is the source and heights grow outward.</li>
+<li><strong>Walls and gates:</strong> fill each room with its distance to the nearest gate.</li>
+</ul>
+
+<p>The template is always the same: enqueue all sources, advance by layers, visit each cell once. What varies is who the sources are and what is taken at the end.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>No fresh oranges answers zero, since the loop never runs.</li>
+<li>No rotten oranges with fresh ones answers minus one.</li>
+<li>An entirely empty grid answers zero.</li>
+<li>Sources and fresh oranges separated by empties answer minus one.</li>
+<li>A single cell answers zero unless it is fresh, which answers minus one.</li>
+<li>A corridor answers the distance of the farthest fresh orange.</li>
+<li>Several sources meeting in the middle need no special handling, since first arrival is nearest.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<p>Linear in the number of cells for all three variants, since each cell is enqueued once and each adjacency checked once. Space is linear, because a single layer can fill the grid when everything is connected.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Enqueueing only the first rotten orange, which degenerates to a single source and inflates the answer.</li>
+<li>Counting minutes per cell rather than per layer.</li>
+<li>Marking on dequeue, which lets several neighbours enqueue the same cell and decrements the fresh count repeatedly.</li>
+<li>Testing failure by an empty queue, which misclassifies a normal finish with a trailing layer.</li>
+<li>Spinning one extra round after the fresh count reaches zero.</li>
+<li>Treating empty cells as propagators, when they are walls.</li>
+<li>Updating timestamps at dequeue rather than enqueue, which loses the final batch.</li>
+<li>Starting the minute counter at one, so an already-rotten grid answers one instead of zero.</li>
+<li>Reusing the grid after modifying it in place.</li>
+<li>Writing the spread as sequential rather than simultaneous, which flattens a minute into several and understates the answer.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Give the skeleton, then two justifications, which are where candidates separate: why multiple sources in one search rather than one search per source, which is linear against multiplicative and requires no per-cell minimum because first arrival is nearest; and why not depth-first, since rot times are shortest times and depth-first wanders.</p>
+
+<p>Then the variants across sources, targets and dimensions, and the weighted extension where differing rot speeds require a priority queue instead.</p>
+
+<h2>Closing</h2>
+
+<p>The difficulty compresses into the word multiple: several sources, so all of them enter the queue at once; time advances by minutes, so layers must be cut; and the answer is either a layer count or a maximum timestamp. Twenty lines of code, with an entire family of grid distance-field problems standing behind it, all the same machine with a different source.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-994-rotting-oranges/">【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-42-trapping-rain-water',
+    zhSlug: 'lc-42-trapping-rain-water',
+    topicSlug: 'leetcode',
+    title: 'LC 42, trapping rain water: four solutions to one question',
+    excerpt:
+      'The water above a column is set by the shorter of the two bounding sides. Every method is just a different way of learning those bounds, and the pointer proof is the part that matters.',
+    date: '2026-09-13',
+    readingTime: 18,
+    html: `
+<h2>The problem</h2>
+
+<p>Given bars of unit width, compute how much rain water they trap.</p>
+
+<pre><code>[0,1,0,2,1,0,1,3,2,1,2,1]  -&gt;  6
+[4,2,0,3,2,5]              -&gt;  9
+</code></pre>
+
+<p>These two answers are easy to mix up, so pin them down now; they serve as anchors for everything below.</p>
+
+<h2>One sentence</h2>
+
+<p>Every solution starts by reducing the problem to a single position: the water above a column depends only on the tallest bar to its left and the tallest to its right, and the limiting side is the shorter one, exactly the leaky-bucket principle.</p>
+
+<pre><code>water[i] = max(0, min(leftMax, rightMax) - height[i])
+</code></pre>
+
+<p>Check it on the first example at the fifth index, which has height zero: two bars to the left, three to the right, so the shorter bound is two and the cell holds two units, the deepest single cell in the figure.</p>
+
+<p>So the whole problem asks one thing: what are the left and right maxima at each position? The four methods are four ways of obtaining those two numbers.</p>
+
+<h2>Four ways</h2>
+
+<table>
+<thead><tr><th>Method</th><th>How the bounds are obtained</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Brute force</td><td>Scan both sides per position</td><td>Quadratic</td><td>Constant</td></tr>
+<tr><td>Dynamic programming</td><td>Precompute prefix and suffix maxima</td><td>Linear</td><td>Linear</td></tr>
+<tr><td><strong>Two pointers</strong></td><td><strong>Maintain as you walk, settle only the safe side</strong></td><td>Linear</td><td><strong>Constant</strong></td></tr>
+<tr><td>Monotonic stack</td><td>Change the axis and fill layer by layer</td><td>Linear</td><td>Linear</td></tr>
+</tbody>
+</table>
+
+<pre><code>def trap(height):
+    n = len(height)
+    leftMax = [0] * n
+    rightMax = [0] * n
+
+    leftMax[0] = height[0]
+    for i in range(1, n):
+        leftMax[i] = max(leftMax[i - 1], height[i])
+
+    rightMax[n - 1] = height[n - 1]
+    for i in range(n - 2, -1, -1):
+        rightMax[i] = max(rightMax[i + 1], height[i])
+
+    return sum(min(leftMax[i], rightMax[i]) - height[i] for i in range(n))
+</code></pre>
+
+<p>That is linear time with two arrays. The next question is whether the arrays can be avoided.</p>
+
+<pre><code>def trap(height):
+    l, r = 0, len(height) - 1
+    left_max = right_max = 0
+    ans = 0
+
+    while l &lt; r:
+        if height[l] &lt; height[r]:
+            left_max = max(left_max, height[l])
+            ans += left_max - height[l]
+            l += 1
+        else:
+            right_max = max(right_max, height[r])
+            ans += right_max - height[r]
+            r -= 1
+
+    return ans
+</code></pre>
+
+<p>Note the order inside each branch: update the running maximum first, then settle. That way a new record automatically contributes zero, since the running maximum becomes the bar itself, and no conditional is needed. Settling before updating would produce a negative contribution and subtract from the total.</p>
+
+<h2>The animation</h2>
+
+<p>Bars in pale beige with trapped water in blue above each, two cursors closing in from the ends, and a gold ring marking the cell settled in that frame, which alternates sides because only the shorter end is settled each round. A banner shows both running maxima and the accumulated volume, and one of them stops changing once the tallest bar to that side has been passed.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Side</th><th>Index</th><th>Reason</th><th>Left max</th><th>Right max</th><th>Added</th><th>Total</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>-</td><td>-</td><td>-</td><td>0</td><td>0</td><td>-</td><td>0</td></tr>
+<tr><td>1</td><td>left</td><td>0</td><td>Left is shorter</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>2</td><td>right</td><td>11</td><td>Right is shorter</td><td>0</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>3</td><td>left</td><td>1</td><td>Left is shorter</td><td>1</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><td>4</td><td>left</td><td>2</td><td>Left is shorter</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>5</td><td>right</td><td>10</td><td>Right is shorter</td><td>1</td><td>2</td><td>0</td><td>1</td></tr>
+<tr><td>6</td><td>right</td><td>9</td><td>Right is shorter</td><td>1</td><td>2</td><td>1</td><td>2</td></tr>
+<tr><td>7</td><td>right</td><td>8</td><td>Right is shorter</td><td>1</td><td>2</td><td>0</td><td>2</td></tr>
+<tr><td>8</td><td>left</td><td>3</td><td>Left is shorter</td><td>2</td><td>2</td><td>0</td><td>2</td></tr>
+<tr><td>9</td><td>left</td><td>4</td><td>Left is shorter</td><td>2</td><td>2</td><td>1</td><td>3</td></tr>
+<tr><td>10</td><td>left</td><td>5</td><td>Left is shorter</td><td>2</td><td>2</td><td>2</td><td>5</td></tr>
+<tr><td>11</td><td>left</td><td>6</td><td>Left is shorter</td><td>2</td><td>2</td><td>1</td><td>6</td></tr>
+<tr><td>12</td><td>done</td><td>-</td><td>Pointers meet</td><td>2</td><td>2</td><td>-</td><td><strong>6</strong></td></tr>
+</tbody>
+</table>
+
+<p>The first two cells contribute nothing because each is a new record and therefore its own boundary. Three consecutive right settlements occur while the left side stands on a bar of height two, and the running right maximum stops changing once the tallest bar on that side is passed. The turning point is where the left maximum catches up, after which every remaining settlement is on the left and the deep well in the middle is filled in one sweep. The largest single contribution is the deepest cell, two units.</p>
+
+<h2>Why the shorter end can be settled immediately</h2>
+
+<p>This is the heart of the matter, and the part most memorisers cannot explain. The running maximum is only a local bound so far, not a global one, and the right side is still unexplored.</p>
+
+<p>First step: if the left bar is shorter, then the right side contains at least one bar of height at least the right cursor's, which is taller than the left bar. So the true right maximum strictly exceeds the left bar, meaning water cannot drain to the right.</p>
+
+<p>That alone is not enough, since the shorter side could still be the left. The second step is a contradiction. Suppose the running left maximum exceeded the true right maximum. Then it came from some tall bar already passed. At the moment the left pointer crossed that bar, the left-shorter test failed there, so the algorithm turned and settled on the right, contracting the right side until either a taller bar appeared or the pointers met. Either way, by the time the pointer returns to settle the current cell, the true right maximum cannot be below the running left maximum.</p>
+
+<p>So for the shorter end, the outer bound is already guaranteed by the opposite bar, and the opposite side cannot be the limiting one. The water level can therefore be computed from the known side alone, which is why no preprocessing is required.</p>
+
+<p>One line: settle the shorter side because its answer is already determined unilaterally.</p>
+
+<h2>The other axis: a monotonic stack</h2>
+
+<p>The first three methods cut vertically: stand on a column and compute its whole water column at once. The stack cuts horizontally: find a basin and settle a whole layer.</p>
+
+<pre><code>def trap(height):
+    stack = []
+    ans = 0
+
+    for i in range(len(height)):
+        while stack and height[i] &gt; height[stack[-1]]:
+            top = stack.pop()
+            if not stack:
+                break
+            width = i - stack[-1] - 1
+            bounded = min(height[i], height[stack[-1]]) - height[top]
+            ans += width * bounded
+        stack.append(i)
+
+    return ans
+</code></pre>
+
+<p>The stack holds indices whose right boundary has not yet appeared, in decreasing height order. When a taller bar arrives, the top is the basin floor, the next entry down is the left wall and the current bar is the right wall. The width is the gap between the walls, and the height is the shorter wall minus the floor, the same bucket principle. The pop must loop, because one tall bar can close several layers at once.</p>
+
+<table>
+<thead><tr><th>Bar</th><th>Floor popped</th><th>Walls</th><th>Layer</th><th>Added</th><th>Total</th></tr></thead>
+<tbody>
+<tr><td>3</td><td>index 2</td><td>1 and 3</td><td>width 1, height 1</td><td>1</td><td>1</td></tr>
+<tr><td>6</td><td>index 5</td><td>4 and 6</td><td>width 1, height 1</td><td>1</td><td>2</td></tr>
+<tr><td>7</td><td>index 6</td><td>4 and 7</td><td>width 2, height 0</td><td>0</td><td>2</td></tr>
+<tr><td>7</td><td>index 4</td><td>3 and 7</td><td>width 3, height 1</td><td>3</td><td>5</td></tr>
+<tr><td>10</td><td>index 9</td><td>8 and 10</td><td>width 1, height 1</td><td>1</td><td>6</td></tr>
+</tbody>
+</table>
+
+<p>The clearest evidence of the horizontal view: the water above one particular column arrives as two separate additions in the stack method and as one lump sum in the pointer method. Same final answer, different bookkeeping, which is the best footnote to why the stack works: it does not compute how much a column holds, it computes how wide a layer spreads.</p>
+
+<p>Both linear time, differing only in space.</p>
+
+<h2>Three dimensions: when left and right become everywhere</h2>
+
+<p>The two-dimensional version gives a height matrix where each cell can leak in four directions.</p>
+
+<p>The formula does not transfer directly, since a cell's surroundings are not two directions but every path to the boundary. But translating it does the work: the left maximum is the bottleneck of the path from the cell to the left boundary, and the right maximum is the bottleneck of the other path, so the water level is the smaller of two path bottlenecks, and in two dimensions it is the minimum over all paths.</p>
+
+<p>That is the minimum-bottleneck path problem, a standard Dijkstra variant that minimises the maximum edge instead of the sum.</p>
+
+<pre><code>import heapq
+
+def trapRainWater(heightMap):
+    m, n = len(heightMap), len(heightMap[0])
+    if m &lt; 3 or n &lt; 3:
+        return 0
+
+    visited = [[False] * n for _ in range(m)]
+    heap = []
+    for i in range(m):
+        for j in range(n):
+            if i == 0 or i == m - 1 or j == 0 or j == n - 1:
+                visited[i][j] = True
+                heapq.heappush(heap, (heightMap[i][j], i, j))
+
+    ans = 0
+    while heap:
+        h, x, y = heapq.heappop(heap)
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + dx, y + dy
+            if 0 &lt;= nx &lt; m and 0 &lt;= ny &lt; n and not visited[nx][ny]:
+                visited[nx][ny] = True
+                if heightMap[nx][ny] &lt; h:
+                    ans += h - heightMap[nx][ny]
+                heapq.heappush(heap, (max(heightMap[nx][ny], h), nx, ny))
+
+    return ans
+</code></pre>
+
+<p>Three points. Taking the lowest point on the current wall is correct by the same argument as the one-dimensional pointers: when processing the lowest wall height, every unvisited cell must cross the wall on any path to the boundary, so its water level is at least that height, and the heap guarantees it is exactly that. That is Dijkstra's greedy argument verbatim.</p>
+
+<p>Pushing the maximum of the cell height and the current water level matters because a flooded cell is no longer a bar of its own height for cells further in; it becomes a wall of the water level. This line is the easiest place to go wrong.</p>
+
+<p>Marking on push rather than on pop works because the first push carries the final level, since later paths can only be higher, which is the same reason the pointer version updates before settling.</p>
+
+<p>Order is mn log mn with linear space.</p>
+
+<table>
+<thead><tr><th></th><th>One dimension</th><th>Two dimensions</th></tr></thead>
+<tbody>
+<tr><td>What sets the level</td><td>The smaller of two path bottlenecks</td><td>The minimum over all path bottlenecks</td></tr>
+<tr><td>Boundary</td><td>The two end bars</td><td>A whole ring of cells</td></tr>
+<tr><td>Method</td><td>Pointers, prefix arrays, or a stack</td><td>A priority-queue search from the boundary</td></tr>
+<tr><td>Complexity</td><td>Linear</td><td>mn log mn</td></tr>
+</tbody>
+</table>
+
+<p>The one-dimensional version is a degenerate case of the two-dimensional one, with only two directions of paths, and the two-dimensional method can also solve the one-dimensional problem.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int trap(int[] height) {
+    int l = 0, r = height.length - 1;
+    int leftMax = 0, rightMax = 0, ans = 0;
+
+    while (l &lt; r) {
+        if (height[l] &lt; height[r]) {
+            leftMax = Math.max(leftMax, height[l]);
+            ans += leftMax - height[l];
+            l++;
+        } else {
+            rightMax = Math.max(rightMax, height[r]);
+            ans += rightMax - height[r];
+            r--;
+        }
+    }
+    return ans;
+}
+</code></pre>
+
+<p>The three-dimensional version uses a priority queue with an explicit comparator, since the Java default is a max-heap.</p>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Method</th><th>Time</th><th>Space</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Brute force</td><td>Quadratic</td><td>Constant</td><td>Two scans per position</td></tr>
+<tr><td>Prefix arrays</td><td>Linear</td><td>Linear</td><td>Two arrays</td></tr>
+<tr><td>Pointers</td><td>Linear</td><td>Constant</td><td>The two pointers together cover the array once</td></tr>
+<tr><td>Stack</td><td>Linear</td><td>Linear</td><td>Each index pushed and popped once</td></tr>
+<tr><td>Three dimensions</td><td>mn log mn</td><td>Linear in cells</td><td>A heap push and pop per cell</td></tr>
+</tbody>
+</table>
+
+<h2>Edges and traps</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>fewer than three bars</td><td>0</td><td>No basin can form</td></tr>
+<tr><td>2, 0, 2</td><td>2</td><td>The smallest basin</td></tr>
+<tr><td>3, 0, 0, 2</td><td>4</td><td>The shorter wall is on the right</td></tr>
+<tr><td>all equal</td><td>0</td><td>Flat, no basin</td></tr>
+<tr><td>monotone</td><td>0</td><td>Everything drains</td></tr>
+</tbody>
+</table>
+
+<ol>
+<li>Settling before updating the running maximum, which produces negative contributions at new records.</li>
+<li>Reversing the comparison, so the taller end gets settled while its outer bound is still unknown, inflating the answer. The official sample cannot detect this because the two ends differ by exactly one and both variants give six. Test with a case where the bug shows.</li>
+<li>Popping the stack without checking emptiness, which reads out of range when there is no left wall.</li>
+<li>Storing values in the stack instead of indices, which makes the width formula impossible.</li>
+<li>Forgetting the maximum in the three-dimensional push, which lets a flooded cell act as dry ground and understates interior levels.</li>
+<li>Omitting the small-dimension guard, which happens to return zero rather than by design.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Give the formula first as the bucket principle, then brute force and the prefix arrays as the ladder. Then the pointers with the proof, which is the discriminator: the shorter side has its outer bound guaranteed by the opposite bar, and the contradiction shows the opposite side cannot be limiting. Then the horizontal viewpoint and the observation that a single column's water arrives in several instalments. Then the three-dimensional generalisation through path bottlenecks into Dijkstra.</p>
+
+<pre><code>assert trap([0,1,0,2,1,0,1,3,2,1,2,1]) == 6
+assert trap([4,2,0,3,2,5]) == 9
+assert trap([5,0,1]) == 1
+assert trap([4,0,0,0,3]) == 9
+assert trap([2,0,2]) == 2
+</code></pre>
+
+<h2>Closing</h2>
+
+<p>What makes this problem attractive is that one question wears several faces. Brute force and prefix arrays say compute both bounds everywhere. The pointers say compute only the half already determined. The stack says stop cutting vertically and fill by layers, so the same cell may be paid in instalments. And the three-dimensional version says that left and right were always special cases of a path bottleneck, at which point trapping rain water is a shortest-path problem.</p>
+
+<p>Behind all four is one principle: water rests on the shorter side. In one dimension that is the shorter of two bars; in two dimensions, the gentlest of all paths to the boundary.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-42-trapping-rain-water/">【LC 42】接雨水：四种解法，同一个问题</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-233-number-of-digit-one',
+    zhSlug: 'lc-233-number-of-digit-one',
+    topicSlug: 'leetcode',
+    title: 'Counting the digit one from 1 to n: count positions, not numbers',
+    excerpt:
+      'Ten rounds instead of two billion. Each position contributes based on three values, and the branch nobody tests is the one where the current digit is zero.',
+    date: '2026-09-12',
+    readingTime: 14,
+    html: `
+<h2>The problem</h2>
+
+<p>Count how many times the digit one appears in all numbers from one to n, by finding structure rather than enumerating.</p>
+
+<pre><code>n = 13  -&gt;  6    (1, 10, 11, 12, 13; the eleven contributes two)
+</code></pre>
+
+<p>The largest 32-bit input would need about twenty-one and a half billion digit operations by brute force. With the right structure the loop runs ten times regardless.</p>
+
+<h2>Count positions, not numbers</h2>
+
+<p>Brute force looks at every number and every digit. Change the question: instead of asking which numbers contain a one, ask how many ones appear at each position. The totals are the same, but the latter can be computed one position at a time, and each position depends on only three values.</p>
+
+<p>Take the units digit. Among one through n the numbers with a one in that position are one, eleven, twenty-one, and so on, one per decade. So there are as many complete decades as the higher part, and the incomplete tail contributes depending on whether the current digit has already passed one.</p>
+
+<p>The tens position is the same with a period of a hundred and a block of ten consecutive numbers. That period is the weight of the position, and the ledger is identical everywhere: complete cycles times the per-cycle contribution, plus whatever the tail contributes.</p>
+
+<p>In one line: brute force scans numbers in linear time, structure scans positions in logarithmic time, and there are only about ten positions.</p>
+
+<h2>Deriving the three values</h2>
+
+<p>For a position of weight w, split n into the part above it, the digit itself, and the part below it.</p>
+
+<pre><code>higher = n // (weight * 10)
+cur    = (n // weight) % 10
+lower  = n % weight
+</code></pre>
+
+<table>
+<thead><tr><th>Current digit</th><th>The tail gives</th><th>Contribution</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>Has not reached one, so nothing extra</td><td>higher times weight</td></tr>
+<tr><td>1</td><td>Runs from one up to lower</td><td>higher times weight, plus lower plus one</td></tr>
+<tr><td>Above one</td><td>The block has passed completely</td><td>higher plus one, times weight</td></tr>
+</tbody>
+</table>
+
+<pre><code>def count_digit_one(n: int) -&gt; int:
+    if n &lt; 0:
+        raise ValueError("n must be non-negative")
+    total = 0
+    weight = 1
+    while weight &lt;= n:
+        higher = n // (weight * 10)
+        cur = (n // weight) % 10
+        lower = n % weight
+        if cur == 0:
+            total += higher * weight
+        elif cur == 1:
+            total += higher * weight + lower + 1
+        else:
+            total += (higher + 1) * weight
+        weight *= 10
+    return total
+</code></pre>
+
+<p>For thirteen: the units digit has higher one, digit three, and takes the third branch for two; the tens digit has higher zero, digit one, lower three, giving four. Total six, matching the sample.</p>
+
+<h2>The animation</h2>
+
+<p>The main example is thirteen hundred four, chosen because its four digits are four, zero, three and one, so all three branches occur exactly once. The display shows the digit strip with the current position orange, the higher part blue and the lower part green, a decomposition equation with matching colours, cards for the three values, a three-row branch table where the applicable row is highlighted, and per-position chips accumulating to the total.</p>
+
+<p>Two frames are worth watching. The zero branch takes no tail at all, since the block has not reached the one. And the single digit-one branch adds the lower part plus one, that plus one being the only place it appears, and the easiest term to omit.</p>
+
+<table>
+<thead><tr><th>Position</th><th>Weight</th><th>higher</th><th>cur</th><th>lower</th><th>Branch</th><th>Contribution</th><th>Total</th></tr></thead>
+<tbody>
+<tr><td>units</td><td>1</td><td>130</td><td>4</td><td>0</td><td>above one</td><td>131</td><td>131</td></tr>
+<tr><td>tens</td><td>10</td><td>13</td><td>0</td><td>4</td><td>zero</td><td>130</td><td>261</td></tr>
+<tr><td>hundreds</td><td>100</td><td>1</td><td>3</td><td>4</td><td>above one</td><td>200</td><td>461</td></tr>
+<tr><td>thousands</td><td>1000</td><td>0</td><td>1</td><td>304</td><td>one</td><td>305</td><td><strong>766</strong></td></tr>
+</tbody>
+</table>
+
+<p>Both totals in this article were checked against brute force enumeration.</p>
+
+<h2>Variants</h2>
+
+<p>For another digit the structure is unchanged, only the comparisons move: below, equal, or above that digit. With the digit being one, the below case is exactly the zero case.</p>
+
+<pre><code>def count_digit(n: int, d: int) -&gt; int:
+    total = 0
+    weight = 1
+    while weight &lt;= n:
+        higher = n // (weight * 10)
+        cur = (n // weight) % 10
+        lower = n % weight
+        if cur &gt; d:
+            total += (higher + 1) * weight
+        elif cur == d:
+            total += higher * weight + lower + 1
+        else:
+            total += higher * weight
+        weight *= 10
+    return total
+</code></pre>
+
+<p>Zero is the exception, because leading zeros are not written, so the complete-cycle count must be reduced by one when the current digit is zero.</p>
+
+<pre><code>def count_digit_zero(n: int) -&gt; int:
+    total = 0
+    weight = 1
+    while weight &lt;= n:
+        higher = n // (weight * 10)
+        cur = (n // weight) % 10
+        lower = n % weight
+        if cur == 0:
+            total += (higher - 1) * weight + lower + 1
+        else:
+            total += higher * weight
+        weight *= 10
+    return total
+</code></pre>
+
+<p>The subtraction removes the cycles that would have started with a leading zero. For a hundred and one, counting zeros gives twelve and counting ones gives twenty-three, so the same n produces answers that differ by nearly a factor of two, and interviewing that difference is a favourite.</p>
+
+<p>A recursive version splits by the leading digit instead of iterating from the units, contributing the remainder plus one when the leading digit is one or the full power otherwise, plus the leading digit count of the complete lower block and a recursive call on the tail. Both agree everywhere; the iterative one is recommended because it uses constant space and no recursion depth.</p>
+
+<h2>Java and two overflows</h2>
+
+<pre><code>public static long countDigitOne(int n) {
+    if (n &lt; 0) {
+        throw new IllegalArgumentException("n must be non-negative");
+    }
+    long total = 0;
+    long weight = 1;
+    while (weight &lt;= n) {
+        long higher = n / (weight * 10);
+        int cur = (int) ((n / weight) % 10);
+        long lower = n % weight;
+        if (cur == 0) {
+            total += higher * weight;
+        } else if (cur == 1) {
+            total += higher * weight + lower + 1;
+        } else {
+            total += (higher + 1) * weight;
+        }
+        weight *= 10;
+    }
+    return total;
+}
+</code></pre>
+
+<p>Two independent overflows. The weight must be a 64-bit value, because near the maximum input the loop reaches a weight of a billion and the next multiplication exceeds a 32-bit integer, wrapping negative and making the loop condition permanently true, which hangs rather than failing.</p>
+
+<p>The answer itself overflows too: at around one thousand six hundred million the count crosses the 32-bit limit, and at the maximum input it is nearly three billion. So the return type must be 64-bit. A useful estimate: each position contributes roughly a tenth of n, so the total is about n times the number of digits divided by ten.</p>
+
+<h2>Edges</h2>
+
+<table>
+<thead><tr><th>Case</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td>n of zero</td><td>The loop never runs, answering zero</td></tr>
+<tr><td>n of one</td><td>One</td></tr>
+<tr><td>single digit inputs</td><td>Always one, since only the number one contains a one</td></tr>
+<tr><td>n of ten</td><td>Two, and the minimal counterexample to an exclusive loop bound</td></tr>
+<tr><td>powers of ten</td><td>The answer is one more than the closed form without the leading digit</td></tr>
+<tr><td>one less than a power of ten</td><td>Exactly the closed form</td></tr>
+<tr><td>negative input</td><td>Undefined, so raise</td></tr>
+</tbody>
+</table>
+
+<p>The powers of ten are both a test of correctness and a detector of the wrong loop bound, since the leading digit contributes exactly one and an exclusive bound drops it.</p>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th></th><th>Positional formula</th><th>Brute force</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>Logarithmic in n, one round per digit</td><td>n log n</td></tr>
+<tr><td>Space</td><td>Constant</td><td>Constant</td></tr>
+<tr><td>Rounds at the maximum input</td><td>Ten</td><td>Billions of operations</td></tr>
+</tbody>
+</table>
+
+<h2>Three bugs the official sample cannot catch</h2>
+
+<p>In the sample the current digits are three and one, so the zero branch never executes, and three wrong implementations pass it unchanged.</p>
+
+<ol>
+<li>An exclusive loop bound, which drops the leading position when n is a power of ten and always answers one too few.</li>
+<li>Adding the extra full cycle in the zero branch, which answers three instead of two for ten.</li>
+<li>Adding nothing in the zero branch, which loses the complete cycles entirely and answers one instead of two for ten.</li>
+<li>Forgetting the lower part plus one in the one branch. This one the sample does catch, and it remains the most frequently omitted term, the plus one being the digit itself.</li>
+<li>Using a 32-bit weight in Java, which hangs the program rather than returning a wrong answer.</li>
+</ol>
+
+<p>Test with a set where zeros appear inside the number, especially a hundred and one, whose digits are one, zero and one and which therefore exercises both sensitive branches.</p>
+
+<h2>How to answer it</h2>
+
+<p>State the cost of brute force, then the shift in viewpoint from numbers to positions, then the three values and the three branches, with the weight explained as the period of that position. Add the boundary about powers of ten, the two overflows in a fixed-width language, and the zero-digit variant with its leading-zero correction.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-233-number-of-digit-one/">【数学】1~n 中数字 1 的个数：逐位拆解</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
