@@ -39894,6 +39894,399 @@ for segment (l, i], length len = i - l:
 `,
   },
 
+  {
+    slug: 'kth-largest-with-duplicates',
+    zhSlug: 'kth-largest-with-duplicates',
+    topicSlug: 'leetcode',
+    title: 'Kth largest with duplicates: the answer can differ by a factor of two',
+    excerpt:
+      'Same array, same sentence, two readings. Counting duplicates turns sixteen into eight, and the official sample cannot tell them apart because it has no duplicates at the boundary.',
+    date: '2026-09-04',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Given an array with duplicates, output the tenth largest value, with attention to validation, boundaries and error handling.</p>
+
+<pre><code>[23, 7, 45, 12, 45, 8, 33, 12, 19, 5, 45, 27, 12, 9, 33, 16, 41, 3]
+tenth largest counting duplicates -&gt; 16
+tenth distinct value               -&gt; 8
+</code></pre>
+
+<p>The difficulty is neither the algorithm nor the heap. It is that the phrase tenth largest has two entirely different meanings when duplicates exist.</p>
+
+<h2>Ask which convention first</h2>
+
+<pre><code>45, 45, 45, 41, 33, 33, 27, 23, 19, 16, 12, 12, 12, 9, 8, 7, 5, 3
+                                    ^ the tenth position
+</code></pre>
+
+<p>Counting duplicates, the tenth position holds sixteen. Counting distinct values, the sequence is forty-five, forty-one, thirty-three, twenty-seven, twenty-three, nineteen, sixteen, twelve, nine, eight, so the tenth is eight.</p>
+
+<p>Sixteen against eight, exactly double, from one unstated assumption. Both readings are defensible: the tenth highest score usually ignores ties, while the tenth largest order amount does not, since each order is its own record.</p>
+
+<p>So the right move in an interview is to ask whether duplicates count once or many times. If the answer is either, write both and test both, which scores better than guessing.</p>
+
+<p>There is a related hidden problem: under the distinct convention there may be no answer. With five identical fives and a request for the third largest, there is one distinct value, so the correct behaviour is a null result or an exception rather than forcing a number out. The counting convention never has this problem as long as the array is long enough.</p>
+
+<h2>The size-k min-heap</h2>
+
+<p>No sorting is needed. Maintain a min-heap with exactly k slots, whose root is the current kth largest.</p>
+
+<ul>
+<li>While the heap is not full, push and sift up.</li>
+<li>When full and the new value exceeds the root, replace the root and sift down.</li>
+<li>Otherwise discard it in constant time.</li>
+</ul>
+
+<pre><code>import heapq
+
+def kth_largest(nums, k, dedupe=False):
+    if nums is None:
+        raise ValueError("nums must not be None")
+    if not isinstance(k, int) or k &lt;= 0:
+        raise ValueError("k must be a positive integer")
+    if len(nums) &lt; k:
+        raise ValueError(f"length {len(nums)} is less than k={k}")
+
+    heap = []
+    seen = set()
+    for v in nums:
+        if dedupe and v in seen:
+            continue
+        if len(heap) &lt; k:
+            heapq.heappush(heap, v)
+            seen.add(v)
+        elif v &gt; heap[0]:
+            if dedupe:
+                seen.discard(heap[0])
+            heapq.heapreplace(heap, v)
+            seen.add(v)
+    if len(heap) &lt; k:
+        raise ValueError(f"only {len(seen)} distinct values, cannot reach k={k}")
+    return heap[0]
+</code></pre>
+
+<p>The distinct convention needs the extra set, because the comparison with the root is not enough. If the heap already contains a twelve and a new twelve exceeds the current root of eight, replacing would put two twelves in the heap. The set blocks values already present.</p>
+
+<p>The animation shows an eighteen-element input with k of ten. Elements are coloured by state: green when they entered the heap, outlined when under consideration, grey when discarded. The heap row is drawn as a level-order array with the root highlighted, which is the current tenth largest, and the sift path outlined. A footnote shows the current root and the discard count. One frame worth watching is the twelve arriving and displacing an eight, after which the heap minimum jumps.</p>
+
+<p>The second animation runs the same data under the distinct convention: the repeated values turn grey because they are already in the heap, and the answer becomes eight.</p>
+
+<table>
+<thead><tr><th>Order</th><th>Value</th><th>Action</th><th>Root displaced</th><th>Heap minimum</th></tr></thead>
+<tbody>
+<tr><td>1 to 10</td><td>various</td><td>Fill the heap</td><td>-</td><td>5</td></tr>
+<tr><td>11</td><td>45</td><td>Displace the root</td><td>5</td><td>7</td></tr>
+<tr><td>12</td><td>27</td><td>Displace the root</td><td>7</td><td>8</td></tr>
+<tr><td>13</td><td>12</td><td>Displace the root</td><td>8</td><td>12</td></tr>
+<tr><td>14</td><td>9</td><td><strong>Discard</strong></td><td>-</td><td>12</td></tr>
+<tr><td>15</td><td>33</td><td>Displace the root</td><td>12</td><td>12</td></tr>
+<tr><td>16</td><td>16</td><td>Displace the root</td><td>12</td><td>12</td></tr>
+<tr><td>17</td><td>41</td><td>Displace the root</td><td>12</td><td>16</td></tr>
+<tr><td>18</td><td>3</td><td><strong>Discard</strong></td><td>-</td><td>16</td></tr>
+</tbody>
+</table>
+
+<p>The final heap holds the ten largest values and the root is sixteen. Only two elements were discarded outright and six adjustments occurred; with a hundred thousand elements, almost everything is rejected by the single comparison against the root.</p>
+
+<h2>Choosing among three approaches</h2>
+
+<table>
+<thead><tr><th>Approach</th><th>Time</th><th>Space</th><th>When</th></tr></thead>
+<tbody>
+<tr><td>Sort and index</td><td>Linearithmic</td><td>Constant or linear</td><td>Everything in memory, shortest code</td></tr>
+<tr><td><strong>Size-k min-heap</strong></td><td><strong>n log k</strong></td><td>k</td><td><strong>The standard answer when k is much smaller than n</strong></td></tr>
+<tr><td>Quickselect</td><td>Linear average, quadratic worst</td><td>Constant</td><td>Average linearity, input mutation acceptable</td></tr>
+</tbody>
+</table>
+
+<p>The heap is standard here because k is a constant, so the logarithm is a small constant, and because it needs no random access, which makes it work on a stream. Sorting and quickselect both require the whole array.</p>
+
+<p>For the distinct convention there is a shorter alternative: deduplicate with a set first, then run the same heap. It costs linear space and is unusable on a stream, since you cannot know what values will arrive later. The version above keeps only the values currently in the heap, so its space is proportional to k.</p>
+
+<h2>Java</h2>
+
+<pre><code>public static Integer kthLargest(int[] nums, int k, boolean dedupe) {
+    if (nums == null) {
+        throw new IllegalArgumentException("nums must not be null");
+    }
+    if (k &lt;= 0) {
+        throw new IllegalArgumentException("k must be positive, got " + k);
+    }
+    if (nums.length &lt; k) {
+        throw new IllegalArgumentException("length " + nums.length + " is less than k=" + k);
+    }
+    PriorityQueue&lt;Integer&gt; heap = new PriorityQueue&lt;&gt;(k);
+    Set&lt;Integer&gt; inHeap = new HashSet&lt;&gt;();
+    for (int v : nums) {
+        if (dedupe &amp;&amp; inHeap.contains(v)) {
+            continue;
+        }
+        if (heap.size() &lt; k) {
+            heap.offer(v);
+            inHeap.add(v);
+        } else if (v &gt; heap.peek()) {
+            if (dedupe) {
+                inHeap.remove(heap.peek());
+            }
+            heap.poll();
+            heap.offer(v);
+            inHeap.add(v);
+        }
+    }
+    if (heap.size() &lt; k) {
+        throw new IllegalArgumentException("fewer than " + k + " distinct values");
+    }
+    return heap.peek();
+}
+</code></pre>
+
+<p>The return type is a boxed integer rather than a primitive so that failure can be represented as null, which is cleaner than a magic value or an exception thrown from deep inside. Designing the impossible case into the type is part of the error handling.</p>
+
+<h2>Edges and failures</h2>
+
+<table>
+<thead><tr><th>Situation</th><th>Expected behaviour</th></tr></thead>
+<tbody>
+<tr><td>Null input</td><td>Raise, rather than returning zero or minus one</td></tr>
+<tr><td>Empty array</td><td>Raise, since no kth element exists</td></tr>
+<tr><td>Fewer elements than k</td><td>Raise, rather than silently returning the smallest, which would mislead the caller about the rank</td></tr>
+<tr><td>Non-positive or non-integer k</td><td>Raise</td></tr>
+<tr><td>Too few distinct values</td><td>A failure unique to the distinct convention</td></tr>
+<tr><td>Null elements</td><td>Validate before unboxing, or restrict the signature to primitives</td></tr>
+<tr><td>NaN values</td><td>Sorting gives silent nonsense because every comparison is false, so reject non-finite input up front</td></tr>
+<tr><td>Infinities</td><td>Comparable, but decide whether they are meaningful for the business</td></tr>
+<tr><td>k of one or k of n</td><td>Degenerate to maximum or minimum, a single scan</td></tr>
+<tr><td>All elements equal</td><td>The counting convention answers the value; the distinct convention has one distinct value and may fail</td></tr>
+<tr><td>Very large arrays</td><td>The heap uses k of memory, which is friendly; sorting needs the whole array</td></tr>
+</tbody>
+</table>
+
+<p>One design principle: insufficient length and insufficient distinct values are different failures, one independent of the convention and one specific to it. Report them separately with the numbers in the message, which saves ten minutes when debugging.</p>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Dimension</th><th>Heap</th><th>Sorting</th><th>Quickselect</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>n log k</td><td>n log n</td><td>Linear average, quadratic worst</td></tr>
+<tr><td>Extra space</td><td>k</td><td>n, or constant in place</td><td>Constant in place</td></tr>
+<tr><td>Mutates input</td><td>No</td><td>No</td><td>Yes</td></tr>
+<tr><td>Works on a stream</td><td><strong>Yes</strong></td><td>No</td><td>No</td></tr>
+</tbody>
+</table>
+
+<p>Each element triggers at most one push or replacement, and each such operation costs the logarithm of k, so the total is bounded by a constant number of heap operations per element. With k of ten the logarithm is about three, which is more than an order of magnitude faster than sorting in practice.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Starting to code without asking about the convention. The official sample has no duplicates at the boundary, so both readings return the same value and it cannot distinguish them. Construct a case where they differ.</li>
+<li>Putting every element in a max-heap and polling k times, which is linear space and linearithmic time, in other words sorting with extra steps.</li>
+<li>Testing only against the root in the distinct convention, which lets a duplicate displace the root and enter twice.</li>
+<li>Returning the smallest element silently when the array is too short, which is more dangerous than crashing.</li>
+<li>Forgetting that the number of distinct values may be smaller than k.</li>
+<li>Feeding NaN to a sort, which silently produces a wrong answer.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Ask about the convention first, which immediately separates you from people who start typing. Then the standard solution with its complexity, then why sorting is unnecessary for small k and streaming, then the linear-time follow-up with its worst case and its mutation of the input. Then the failure modes, distinguishing insufficient length from insufficient distinct values.</p>
+
+<h2>Closing</h2>
+
+<p>The algorithm is the easy part: a size-k min-heap, linearithmic in k, constant space in k, streaming-friendly. The dividing line is the first sentence out of your mouth, distinct or not, where the answers differ by a factor of two and the official sample cannot tell. The second dividing line is error handling: five failure modes, each with its own correct behaviour, and silent degradation is far more dangerous than a crash.</p>
+
+<p>As with the spiral fill article: align on the convention before discussing complexity.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/">【数组】重复元素找第 10 大：答案能差一倍，差别全在口径</a>.</p>
+`,
+  },
+
+  {
+    slug: 'spiral-matrix-fill',
+    zhSlug: 'spiral-matrix-fill',
+    topicSlug: 'leetcode',
+    title: 'Spiral fill: agree on the direction first, then talk complexity',
+    excerpt:
+      'Right, down, left, up is geometrically clockwise, yet half the interview notes call it anticlockwise. Two guards prevent overwrites, and they only trigger on a single row or column.',
+    date: '2026-09-03',
+    readingTime: 12,
+    html: `
+<h2>The problem</h2>
+
+<p>Fill an M by N matrix with the numbers from one upward in spiral order, with the lowest achievable time complexity.</p>
+
+<h2>Agree on the direction first</h2>
+
+<p>The biggest trap is not in the code but in the vocabulary. Starting at the top-left, the first row can only go right, so the second direction must be down. The sequence right, down, left, up therefore draws a clockwise spiral, and yet a great many interview notes and textbooks call it anticlockwise, including the two spiral matrix problems on LeetCode.</p>
+
+<p>A true anticlockwise spiral is down, right, up, left: descend first, then run along the bottom, then rise up the right side, then run back along the top.</p>
+
+<p>The two orders are transposes of each other on square matrices and not otherwise, so this is not a question of right and wrong but of two conventions sharing one name.</p>
+
+<p>The right move in an interview is to state the order you will use before writing anything, or ask which one is wanted. Pinning the convention saves half the time of finding out at the end.</p>
+
+<h2>Four shrinking bounds</h2>
+
+<pre><code>def spiral(rows, cols):
+    grid = [[0] * cols for _ in range(rows)]
+    top, bottom, left, right = 0, rows - 1, 0, cols - 1
+    num = 1
+    while top &lt;= bottom and left &lt;= right:
+        for c in range(left, right + 1):
+            grid[top][c] = num
+            num += 1
+        top += 1
+        for r in range(top, bottom + 1):
+            grid[r][right] = num
+            num += 1
+        right -= 1
+        if top &lt;= bottom:
+            for c in range(right, left - 1, -1):
+                grid[bottom][c] = num
+                num += 1
+            bottom -= 1
+        if left &lt;= right:
+            for r in range(bottom, top - 1, -1):
+                grid[r][left] = num
+                num += 1
+            left += 1
+    return grid
+</code></pre>
+
+<p>The two conditional guards are the whole difficulty. They do not prevent out-of-range access, which the ranges handle, but duplicate writes: when the remaining region degenerates into a single row or column, the third side coincides with the first and the fourth with the second.</p>
+
+<table>
+<thead><tr><th>Shape</th><th>Without guards</th><th>Correct</th></tr></thead>
+<tbody>
+<tr><td>3 by 3</td><td>Correct</td><td>Indistinguishable</td></tr>
+<tr><td>2 by 3</td><td>Correct</td><td>Indistinguishable</td></tr>
+<tr><td>1 by 3</td><td>5, 4, 3</td><td>1, 2, 3</td></tr>
+<tr><td>3 by 1</td><td>1, 4, 3</td><td>1, 2, 3</td></tr>
+</tbody>
+</table>
+
+<p>Notice the pattern: square shapes and rectangular shapes with both sides at least two are all fine, and only a degenerate single row or column breaks. The breakage is later numbers overwriting earlier ones, so the first two digits vanish. The common claim that non-square shapes fail is imprecise; test single rows and single columns.</p>
+
+<h2>The animation</h2>
+
+<p>The animation runs a three by three fill in eleven frames, showing filled cells with numbers, the current cell outlined, unfilled cells as dashed shells, an arrow outside the current cell pointing in the direction of travel, a dashed box for the current ring's bounds, and a panel with the four bounds and the progress count.</p>
+
+<p>The textbook frame is where the first row completes and the arrow turns from right to down while the bounds remain the outer ring. The ninth frame is the second ring, shrunk to a single centre cell.</p>
+
+<table>
+<thead><tr><th>Order</th><th>Cell</th><th>Direction</th><th>Bounds</th><th>Matrix so far</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>0,0</td><td>right</td><td>0 2 0 2</td><td>1</td></tr>
+<tr><td>2</td><td>0,1</td><td>right</td><td>0 2 0 2</td><td>1 2</td></tr>
+<tr><td>3</td><td>0,2</td><td>right</td><td>0 2 0 2</td><td>1 2 3</td></tr>
+<tr><td>4</td><td>1,2</td><td>down</td><td>0 2 0 2</td><td row of three, then 4</td></tr>
+<tr><td>5</td><td>2,2</td><td>down</td><td>0 2 0 2</td><td>then 5</td></tr>
+<tr><td>6</td><td>2,1</td><td>left</td><td>0 2 0 2</td><td>then 6</td></tr>
+<tr><td>7</td><td>2,0</td><td>left</td><td>0 2 0 2</td><td>bottom row complete</td></tr>
+<tr><td>8</td><td>1,0</td><td>up</td><td>0 2 0 2</td><td>then 8</td></tr>
+<tr><td>9</td><td>1,1</td><td>right</td><td>1 1 1 1</td><td>centre 9, complete</td></tr>
+</tbody>
+</table>
+
+<p>The true anticlockwise version produces the transpose on a square matrix, and the two differ completely on a two by three.</p>
+
+<h2>The alternative: direction vectors and walls</h2>
+
+<pre><code>def spiral(rows, cols):
+    dirs = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+    seen = [[False] * cols for _ in range(rows)]
+    grid = [[0] * cols for _ in range(rows)]
+    r = c = d = 0
+    for num in range(1, rows * cols + 1):
+        grid[r][c] = num
+        seen[r][c] = True
+        nr, nc = r + dirs[d][0], c + dirs[d][1]
+        if not (0 &lt;= nr &lt; rows and 0 &lt;= nc &lt; cols and not seen[nr][nc]):
+            d = (d + 1) % 4
+            nr, nc = r + dirs[d][0], c + dirs[d][1]
+        r, c = nr, nc
+    return grid
+</code></pre>
+
+<p>Changing the direction order is a one-line edit here, which is why both animations share one state machine. The cost is a visited array, so the extra space becomes proportional to the matrix rather than constant.</p>
+
+<p>Printing instead of filling is the same traversal: replace the assignment with an output call and change nothing else.</p>
+
+<h2>Java</h2>
+
+<pre><code>public int[][] spiral(int rows, int cols) {
+    int[][] grid = new int[rows][cols];
+    int top = 0, bottom = rows - 1, left = 0, right = cols - 1;
+    int num = 1;
+    while (top &lt;= bottom &amp;&amp; left &lt;= right) {
+        for (int c = left; c &lt;= right; c++) grid[top][c] = num++;
+        top++;
+        for (int r = top; r &lt;= bottom; r++) grid[r][right] = num++;
+        right--;
+        if (top &lt;= bottom) {
+            for (int c = right; c &gt;= left; c--) grid[bottom][c] = num++;
+            bottom--;
+        }
+        if (left &lt;= right) {
+            for (int r = bottom; r &gt;= top; r--) grid[r][left] = num++;
+            left++;
+        }
+    }
+    return grid;
+}
+</code></pre>
+
+<h2>Edges</h2>
+
+<ul>
+<li>A one by one matrix outputs a single value, with neither guard triggering.</li>
+<li>Single rows and single columns are the only place the guards matter, and without them the first two values disappear.</li>
+<li>Rectangular shapes with both sides at least two work even without the guards.</li>
+<li>A zero dimension never enters the loop and returns an empty matrix.</li>
+<li>Numbering from zero and from one both appear in interview notes, so ask.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th></th><th>Four bounds</th><th>Direction vectors</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>M times N</td><td>M times N</td></tr>
+<tr><td>Extra space</td><td>Constant</td><td>Proportional to the matrix</td></tr>
+<tr><td>Output space</td><td>M times N</td><td>M times N</td></tr>
+</tbody>
+</table>
+
+<p>The time is already optimal, since the output contains M times N numbers and each must be written at least once, and both versions perform exactly that many writes. What can be improved is space, and that is the opening when an interviewer asks whether the visited array can be avoided.</p>
+
+<p>Do not reach for recursion here: one level per ring buys nothing and adds stack depth and bound-passing as failure modes.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Writing before agreeing on the direction convention.</li>
+<li>Omitting the guards on the third and fourth sides, which produces overwrites rather than crashes, and only on degenerate shapes.</li>
+<li>Updating the bounds at the wrong moment. Fill the side, then shrink that bound, one to one; moving the increment earlier loses a cell, and postponing it duplicates a row.</li>
+<li>Starting the numbering at one when zero was expected, or the reverse.</li>
+<li>Testing only the visited array in the wall-turning version, forgetting the bounds, which reads out of range at the last cell.</li>
+<li>Treating filling and printing as two problems when the traversal is identical.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>State the direction convention first, naming the problem it corresponds to and offering the alternative order. Then the four bounds and their shrink-after-fill discipline. Then volunteer the guards, with the single-row example and the exact wrong output. Then the complexity argument, including the lower bound. Then the direction-vector alternative and its space cost.</p>
+
+<h2>Closing</h2>
+
+<p>This is the kind of problem that takes ten minutes to code and half an hour to agree on. The algorithm is simple and already optimal, and the two real lessons are that the direction convention must be settled first, since the clockwise order is widely mislabelled, and that the guards prevent overwriting rather than overflow, triggering only on a single row or column. Both are things you cannot discover without writing them down, so pin a single row and a single column in the regression tests.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/spiral-matrix-fill/">【矩阵】螺旋填数：先对齐口径，再谈 O(M×N)</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

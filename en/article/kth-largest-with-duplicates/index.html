@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Same array, same sentence, two readings. Counting duplicates turns sixteen into eight, and the official sample cannot tell them apart because it has no duplicates at the boundary." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/kth-largest-with-duplicates/" />
+    <meta property="og:title" content="Kth largest with duplicates: the answer can differ by a factor of two | Stack Frame" />
+    <meta property="og:description" content="Same array, same sentence, two readings. Counting duplicates turns sixteen into eight, and the official sample cannot tell them apart because it has no duplicates at the boundary." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/kth-largest-with-duplicates/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Kth largest with duplicates: the answer can differ by a factor of two | Stack Frame" />
+    <meta name="twitter:description" content="Same array, same sentence, two readings. Counting duplicates turns sixteen into eight, and the official sample cannot tell them apart because it has no duplicates at the boundary." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Kth largest with duplicates: the answer can differ by a factor of two | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/kth-largest-with-duplicates/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>Kth largest with duplicates: the answer can differ by a factor of two</h1><div class="ns-meta">2026-09-04 · 13 min · Stack Frame</div><div class="markdown-body">
+<h2>The problem</h2>
+
+<p>Given an array with duplicates, output the tenth largest value, with attention to validation, boundaries and error handling.</p>
+
+<pre><code>[23, 7, 45, 12, 45, 8, 33, 12, 19, 5, 45, 27, 12, 9, 33, 16, 41, 3]
+tenth largest counting duplicates -&gt; 16
+tenth distinct value               -&gt; 8
+</code></pre>
+
+<p>The difficulty is neither the algorithm nor the heap. It is that the phrase tenth largest has two entirely different meanings when duplicates exist.</p>
+
+<h2>Ask which convention first</h2>
+
+<pre><code>45, 45, 45, 41, 33, 33, 27, 23, 19, 16, 12, 12, 12, 9, 8, 7, 5, 3
+                                    ^ the tenth position
+</code></pre>
+
+<p>Counting duplicates, the tenth position holds sixteen. Counting distinct values, the sequence is forty-five, forty-one, thirty-three, twenty-seven, twenty-three, nineteen, sixteen, twelve, nine, eight, so the tenth is eight.</p>
+
+<p>Sixteen against eight, exactly double, from one unstated assumption. Both readings are defensible: the tenth highest score usually ignores ties, while the tenth largest order amount does not, since each order is its own record.</p>
+
+<p>So the right move in an interview is to ask whether duplicates count once or many times. If the answer is either, write both and test both, which scores better than guessing.</p>
+
+<p>There is a related hidden problem: under the distinct convention there may be no answer. With five identical fives and a request for the third largest, there is one distinct value, so the correct behaviour is a null result or an exception rather than forcing a number out. The counting convention never has this problem as long as the array is long enough.</p>
+
+<h2>The size-k min-heap</h2>
+
+<p>No sorting is needed. Maintain a min-heap with exactly k slots, whose root is the current kth largest.</p>
+
+<ul>
+<li>While the heap is not full, push and sift up.</li>
+<li>When full and the new value exceeds the root, replace the root and sift down.</li>
+<li>Otherwise discard it in constant time.</li>
+</ul>
+
+<pre><code>import heapq
+
+def kth_largest(nums, k, dedupe=False):
+    if nums is None:
+        raise ValueError("nums must not be None")
+    if not isinstance(k, int) or k &lt;= 0:
+        raise ValueError("k must be a positive integer")
+    if len(nums) &lt; k:
+        raise ValueError(f"length {len(nums)} is less than k={k}")
+
+    heap = []
+    seen = set()
+    for v in nums:
+        if dedupe and v in seen:
+            continue
+        if len(heap) &lt; k:
+            heapq.heappush(heap, v)
+            seen.add(v)
+        elif v &gt; heap[0]:
+            if dedupe:
+                seen.discard(heap[0])
+            heapq.heapreplace(heap, v)
+            seen.add(v)
+    if len(heap) &lt; k:
+        raise ValueError(f"only {len(seen)} distinct values, cannot reach k={k}")
+    return heap[0]
+</code></pre>
+
+<p>The distinct convention needs the extra set, because the comparison with the root is not enough. If the heap already contains a twelve and a new twelve exceeds the current root of eight, replacing would put two twelves in the heap. The set blocks values already present.</p>
+
+<p>The animation shows an eighteen-element input with k of ten. Elements are coloured by state: green when they entered the heap, outlined when under consideration, grey when discarded. The heap row is drawn as a level-order array with the root highlighted, which is the current tenth largest, and the sift path outlined. A footnote shows the current root and the discard count. One frame worth watching is the twelve arriving and displacing an eight, after which the heap minimum jumps.</p>
+
+<p>The second animation runs the same data under the distinct convention: the repeated values turn grey because they are already in the heap, and the answer becomes eight.</p>
+
+<table>
+<thead><tr><th>Order</th><th>Value</th><th>Action</th><th>Root displaced</th><th>Heap minimum</th></tr></thead>
+<tbody>
+<tr><td>1 to 10</td><td>various</td><td>Fill the heap</td><td>-</td><td>5</td></tr>
+<tr><td>11</td><td>45</td><td>Displace the root</td><td>5</td><td>7</td></tr>
+<tr><td>12</td><td>27</td><td>Displace the root</td><td>7</td><td>8</td></tr>
+<tr><td>13</td><td>12</td><td>Displace the root</td><td>8</td><td>12</td></tr>
+<tr><td>14</td><td>9</td><td><strong>Discard</strong></td><td>-</td><td>12</td></tr>
+<tr><td>15</td><td>33</td><td>Displace the root</td><td>12</td><td>12</td></tr>
+<tr><td>16</td><td>16</td><td>Displace the root</td><td>12</td><td>12</td></tr>
+<tr><td>17</td><td>41</td><td>Displace the root</td><td>12</td><td>16</td></tr>
+<tr><td>18</td><td>3</td><td><strong>Discard</strong></td><td>-</td><td>16</td></tr>
+</tbody>
+</table>
+
+<p>The final heap holds the ten largest values and the root is sixteen. Only two elements were discarded outright and six adjustments occurred; with a hundred thousand elements, almost everything is rejected by the single comparison against the root.</p>
+
+<h2>Choosing among three approaches</h2>
+
+<table>
+<thead><tr><th>Approach</th><th>Time</th><th>Space</th><th>When</th></tr></thead>
+<tbody>
+<tr><td>Sort and index</td><td>Linearithmic</td><td>Constant or linear</td><td>Everything in memory, shortest code</td></tr>
+<tr><td><strong>Size-k min-heap</strong></td><td><strong>n log k</strong></td><td>k</td><td><strong>The standard answer when k is much smaller than n</strong></td></tr>
+<tr><td>Quickselect</td><td>Linear average, quadratic worst</td><td>Constant</td><td>Average linearity, input mutation acceptable</td></tr>
+</tbody>
+</table>
+
+<p>The heap is standard here because k is a constant, so the logarithm is a small constant, and because it needs no random access, which makes it work on a stream. Sorting and quickselect both require the whole array.</p>
+
+<p>For the distinct convention there is a shorter alternative: deduplicate with a set first, then run the same heap. It costs linear space and is unusable on a stream, since you cannot know what values will arrive later. The version above keeps only the values currently in the heap, so its space is proportional to k.</p>
+
+<h2>Java</h2>
+
+<pre><code>public static Integer kthLargest(int[] nums, int k, boolean dedupe) {
+    if (nums == null) {
+        throw new IllegalArgumentException("nums must not be null");
+    }
+    if (k &lt;= 0) {
+        throw new IllegalArgumentException("k must be positive, got " + k);
+    }
+    if (nums.length &lt; k) {
+        throw new IllegalArgumentException("length " + nums.length + " is less than k=" + k);
+    }
+    PriorityQueue&lt;Integer&gt; heap = new PriorityQueue&lt;&gt;(k);
+    Set&lt;Integer&gt; inHeap = new HashSet&lt;&gt;();
+    for (int v : nums) {
+        if (dedupe &amp;&amp; inHeap.contains(v)) {
+            continue;
+        }
+        if (heap.size() &lt; k) {
+            heap.offer(v);
+            inHeap.add(v);
+        } else if (v &gt; heap.peek()) {
+            if (dedupe) {
+                inHeap.remove(heap.peek());
+            }
+            heap.poll();
+            heap.offer(v);
+            inHeap.add(v);
+        }
+    }
+    if (heap.size() &lt; k) {
+        throw new IllegalArgumentException("fewer than " + k + " distinct values");
+    }
+    return heap.peek();
+}
+</code></pre>
+
+<p>The return type is a boxed integer rather than a primitive so that failure can be represented as null, which is cleaner than a magic value or an exception thrown from deep inside. Designing the impossible case into the type is part of the error handling.</p>
+
+<h2>Edges and failures</h2>
+
+<table>
+<thead><tr><th>Situation</th><th>Expected behaviour</th></tr></thead>
+<tbody>
+<tr><td>Null input</td><td>Raise, rather than returning zero or minus one</td></tr>
+<tr><td>Empty array</td><td>Raise, since no kth element exists</td></tr>
+<tr><td>Fewer elements than k</td><td>Raise, rather than silently returning the smallest, which would mislead the caller about the rank</td></tr>
+<tr><td>Non-positive or non-integer k</td><td>Raise</td></tr>
+<tr><td>Too few distinct values</td><td>A failure unique to the distinct convention</td></tr>
+<tr><td>Null elements</td><td>Validate before unboxing, or restrict the signature to primitives</td></tr>
+<tr><td>NaN values</td><td>Sorting gives silent nonsense because every comparison is false, so reject non-finite input up front</td></tr>
+<tr><td>Infinities</td><td>Comparable, but decide whether they are meaningful for the business</td></tr>
+<tr><td>k of one or k of n</td><td>Degenerate to maximum or minimum, a single scan</td></tr>
+<tr><td>All elements equal</td><td>The counting convention answers the value; the distinct convention has one distinct value and may fail</td></tr>
+<tr><td>Very large arrays</td><td>The heap uses k of memory, which is friendly; sorting needs the whole array</td></tr>
+</tbody>
+</table>
+
+<p>One design principle: insufficient length and insufficient distinct values are different failures, one independent of the convention and one specific to it. Report them separately with the numbers in the message, which saves ten minutes when debugging.</p>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Dimension</th><th>Heap</th><th>Sorting</th><th>Quickselect</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>n log k</td><td>n log n</td><td>Linear average, quadratic worst</td></tr>
+<tr><td>Extra space</td><td>k</td><td>n, or constant in place</td><td>Constant in place</td></tr>
+<tr><td>Mutates input</td><td>No</td><td>No</td><td>Yes</td></tr>
+<tr><td>Works on a stream</td><td><strong>Yes</strong></td><td>No</td><td>No</td></tr>
+</tbody>
+</table>
+
+<p>Each element triggers at most one push or replacement, and each such operation costs the logarithm of k, so the total is bounded by a constant number of heap operations per element. With k of ten the logarithm is about three, which is more than an order of magnitude faster than sorting in practice.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Starting to code without asking about the convention. The official sample has no duplicates at the boundary, so both readings return the same value and it cannot distinguish them. Construct a case where they differ.</li>
+<li>Putting every element in a max-heap and polling k times, which is linear space and linearithmic time, in other words sorting with extra steps.</li>
+<li>Testing only against the root in the distinct convention, which lets a duplicate displace the root and enter twice.</li>
+<li>Returning the smallest element silently when the array is too short, which is more dangerous than crashing.</li>
+<li>Forgetting that the number of distinct values may be smaller than k.</li>
+<li>Feeding NaN to a sort, which silently produces a wrong answer.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Ask about the convention first, which immediately separates you from people who start typing. Then the standard solution with its complexity, then why sorting is unnecessary for small k and streaming, then the linear-time follow-up with its worst case and its mutation of the input. Then the failure modes, distinguishing insufficient length from insufficient distinct values.</p>
+
+<h2>Closing</h2>
+
+<p>The algorithm is the easy part: a size-k min-heap, linearithmic in k, constant space in k, streaming-friendly. The dividing line is the first sentence out of your mouth, distinct or not, where the answers differ by a factor of two and the official sample cannot tell. The second dividing line is error handling: five failure modes, each with its own correct behaviour, and silent degradation is far more dangerous than a crash.</p>
+
+<p>As with the spiral fill article: align on the convention before discussing complexity.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/">【数组】重复元素找第 10 大：答案能差一倍，差别全在口径</a>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>
