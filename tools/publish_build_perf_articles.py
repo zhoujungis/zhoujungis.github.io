@@ -32,7 +32,7 @@ ARTICLES = [
             "792 字节内联脚本，2 个请求、12.9 KB gzip，JS 解析从 3.4 ms 降到 0.01 ms。"
             "一次把 SPA 首屏链路整段删掉的改造记录，附构建产物的可复算账本。"
         ),
-        "cover": "https://zhoujungis.github.io/photos/english-site-without-js-cover.png",
+        "cover": "https://blog.zhoujun.dev/photos/english-site-without-js-cover.png",
         "category": {"name": "项目实战", "slug": "projects"},
         "tags": [
             {"slug": "performance", "name": "性能优化"},
@@ -50,7 +50,7 @@ ARTICLES = [
             "整批一个事务 552,811 rows/s。2 万行逐条提交外推 136 秒，整批实测 0.036 秒——"
             "量化 group commit 到底在省什么，以及什么时候不能批量。"
         ),
-        "cover": "https://zhoujungis.github.io/photos/sqlite-group-commit-cover.png",
+        "cover": "https://blog.zhoujun.dev/photos/sqlite-group-commit-cover.png",
         "category": {"name": "数据库内核", "slug": "database"},
         "tags": [
             {"slug": "database", "name": "数据库"},
@@ -68,7 +68,7 @@ ARTICLES = [
             "（否则被 emptyOutDir 删掉）之后，图片阶段 181.9 s → 0.1 s，完整构建 191.3 s → 21.0 s。"
             "一份把构建阶段拆开计时、再消灭重复劳动的方法。"
         ),
-        "cover": "https://zhoujungis.github.io/photos/build-time-image-cache-cover.png",
+        "cover": "https://blog.zhoujun.dev/photos/build-time-image-cache-cover.png",
         "category": {"name": "后端架构", "slug": "backend"},
         "tags": [
             {"slug": "build", "name": "构建"},

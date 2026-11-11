@@ -4,7 +4,7 @@ slug: "build-time-image-cache"
 category_id: null
 tags: ["构建", "性能优化", "CI", "工程效率"]
 status: "published"
-cover_image: "https://zhoujungis.github.io/photos/build-time-image-cache-cover.png"
+cover_image: "https://blog.zhoujun.dev/photos/build-time-image-cache-cover.png"
 ---
 
 # 构建 4 分钟，3 分半在压 94 张图

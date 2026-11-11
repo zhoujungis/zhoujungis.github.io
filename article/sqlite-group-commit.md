@@ -4,7 +4,7 @@ slug: "sqlite-group-commit"
 category_id: null
 tags: ["数据库", "SQLite", "性能优化", "WAL"]
 status: "published"
-cover_image: "https://zhoujungis.github.io/photos/sqlite-group-commit-cover.png"
+cover_image: "https://blog.zhoujun.dev/photos/sqlite-group-commit-cover.png"
 ---
 
 # 一次 fsync 摊薄 1000 行：SQLite 提交实测

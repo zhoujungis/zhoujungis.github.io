@@ -4,7 +4,7 @@ slug: "english-site-without-js"
 category_id: null
 tags: ["性能优化", "静态站点", "前端架构", "构建"]
 status: "published"
-cover_image: "https://zhoujungis.github.io/photos/english-site-without-js-cover.png"
+cover_image: "https://blog.zhoujun.dev/photos/english-site-without-js-cover.png"
 ---
 
 # 从 3 秒到毫秒首屏：英文站去 JS 化
