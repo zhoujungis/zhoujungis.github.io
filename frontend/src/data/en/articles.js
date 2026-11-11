@@ -34167,6 +34167,466 @@ class MyQueue {
 `,
   },
 
+  {
+    slug: 'lc-139-word-break',
+    zhSlug: 'lc-139-word-break',
+    topicSlug: 'leetcode',
+    title: 'LC 139, word break: a boolean knapsack over prefixes',
+    excerpt:
+      'One line of initialisation and one window decide everything. The base case decides what can be expressed; the window decides whether it runs in time.',
+    date: '2026-10-05',
+    readingTime: 15,
+    html: `
+<h2>The problem</h2>
+
+<p>Given a string and a dictionary, decide whether the string can be segmented into dictionary words. Words may be reused.</p>
+
+<pre><code>"leetcode", ["leet", "code"]                 -&gt; true
+"applepenapple", ["apple", "pen"]            -&gt; true   (apple used twice)
+"catsandog", ["cats","dog","sand","and","cat"] -&gt; false
+</code></pre>
+
+<p>This is the boolean version of the coin change problem: coins become words, the amount becomes a prefix length, and the minimum becomes a logical or. The recurrence is still one line, and the real thresholds are three: the base case, the window bound, and the split between deciding reachability and reconstructing a segmentation.</p>
+
+<h2>Definition and recurrence</h2>
+
+<p>The brute force enumerates cut positions. A string of n characters has n minus one gaps, each cut or not, so two to the n minus one segmentations, which collapses immediately.</p>
+
+<p>Instead of asking which words, ask whether the first i characters can be built. Then the state is whether each prefix is reachable, the empty prefix is reachable by definition, and everything else starts false.</p>
+
+<pre><code>dp[i] = OR over j &lt; i ( dp[j] and s[j:i] in dict )
+</code></pre>
+
+<p>Read it as trying s[j:i] as the final word: the prefix before it is already known, and if this segment is a word, the state is true. The index advances forward, so every dp[j] used is already computed.</p>
+
+<pre><code>def wordBreak(s, wordDict):
+    word_set = set(wordDict)
+    n = len(s)
+    dp = [False] * (n + 1)
+    dp[0] = True
+    for i in range(1, n + 1):
+        for j in range(i):
+            if dp[j] and s[j:i] in word_set:
+                dp[i] = True
+                break
+    return dp[n]
+</code></pre>
+
+<h3>Why the empty prefix is the only possible base</h3>
+
+<p>The state at zero answers whether the first zero characters can be built, and the empty string needs no words, so it is true. That is not a convenience but the origin of the recurrence: any complete segmentation, traced right to left, ends at index zero.</p>
+
+<pre><code>dp[0] = False
+# "leet" with ["leet"]: at j = 0 the base is false, so dp[4] never rises
+
+dp = [True] * (n + 1)
+# this declares every prefix reachable, so the answer is always true
+</code></pre>
+
+<p>Two other choices are optimisations rather than semantic changes. The dictionary becomes a set so that membership is a hash lookup instead of a linear scan through strings. And the inner index only walks back as far as the longest word, since the final segment cannot be longer than that, which turns the inner loop from linear in n into linear in the longest word length.</p>
+
+<p>Forward iteration also matters. A state depends only on smaller indices, so ascending order guarantees they are already computed, and it permits reusing a word, which is exactly the unbounded knapsack behaviour that "apple, pen, apple" requires.</p>
+
+<p>Remember the skeleton as: one base, one recurrence, one window.</p>
+
+<h2>The animations</h2>
+
+<p>The first animation fills the table. The boolean row for dp zero through n sits across the top, with the current prefix outlined in gold and the candidate split point outlined in green, and a tinted band showing the search window. The string runs below, with character k lying between boundary k and k plus one, so that the candidate segment spans exactly from the split point to the current prefix and is highlighted as one piece. A banner shows the concrete values in the recurrence. Two things to watch: only split points whose state is true get their own frame, and a hit short-circuits, so the remaining split points for that cell are never tried.</p>
+
+<p>The second animation reads the table after it is filled, to recover an actual segmentation. The computed row is above, the string below, with locked segments green and the candidate segment outlined, and each lock drops a word label beneath. A cursor starts at the end and moves left, trying the final segment from short to long, and locks it whenever the preceding state is true and the segment is a word.</p>
+
+<p>The division of labour is clean: the first fills, the second reads.</p>
+
+<h2>The traces</h2>
+
+<p>For "applepenapple" with the dictionary of "apple" and "pen", the longest word is five.</p>
+
+<table>
+<thead><tr><th>i</th><th>Prefix</th><th>Attempts</th><th>State</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>a</td><td>j zero, not a word</td><td>false</td></tr>
+<tr><td>2</td><td>ap</td><td>j zero, no</td><td>false</td></tr>
+<tr><td>3</td><td>app</td><td>j zero, no</td><td>false</td></tr>
+<tr><td>4</td><td>appl</td><td>j zero, no</td><td>false</td></tr>
+<tr><td>5</td><td>apple</td><td><strong>j zero, hit</strong></td><td><strong>true</strong></td></tr>
+<tr><td>6</td><td>applep</td><td>Skip unreachable splits; j five, one character, no</td><td>false</td></tr>
+<tr><td>7</td><td>applepe</td><td>j five, two characters, no</td><td>false</td></tr>
+<tr><td>8</td><td>applepen</td><td><strong>j five, pen, hit</strong></td><td><strong>true</strong></td></tr>
+<tr><td>9</td><td>applepena</td><td>j five no, j eight no</td><td>false</td></tr>
+<tr><td>10</td><td>applepenap</td><td>j five no, j eight no</td><td>false</td></tr>
+<tr><td>11</td><td>applepenapp</td><td>j eight no</td><td>false</td></tr>
+<tr><td>12</td><td>applepenappl</td><td>j eight no</td><td>false</td></tr>
+<tr><td>13</td><td>applepenapple</td><td><strong>j eight, apple, hit</strong></td><td><strong>true</strong></td></tr>
+</tbody>
+</table>
+
+<p>The three true cells are the three hits, and reading back through the split chain gives thirteen to eight to five to zero, which is apple, pen, apple, reusing the first word, exactly as unbounded knapsack allows.</p>
+
+<table>
+<thead><tr><th>Cursor</th><th>Attempts from the end backwards</th><th>Locked</th></tr></thead>
+<tbody>
+<tr><td>13</td><td>e, le, ple, pple all fail; <strong>apple at eight works</strong></td><td>apple</td></tr>
+<tr><td>8</td><td>n, en fail; <strong>pen at five works</strong></td><td>pen</td></tr>
+<tr><td>5</td><td>e, le, ple, pple fail; <strong>apple at zero works</strong></td><td>apple</td></tr>
+</tbody>
+</table>
+
+<p>No separate table of cuts is needed. The state array already encodes whether each position is reachable, so a segment can be locked whenever its origin is reachable and the segment itself is a word.</p>
+
+<h2>The family</h2>
+
+<ul>
+<li><strong>Coin change.</strong> The same skeleton asking for the fewest coins, with a minimum instead of a disjunction, and the same window shape.</li>
+<li><strong>Perfect squares.</strong> Coins replaced by square numbers, byte for byte identical to the previous one.</li>
+<li><strong>Coin change two.</strong> Counting combinations, so the update becomes addition, and the loop order must be coins outside and amounts ascending.</li>
+<li><strong>Combination sum four.</strong> The same addition with the loops transposed, which counts permutations rather than combinations. The only difference between these two is the nesting order.</li>
+<li><strong>Word break two.</strong> The reconstruction version, replacing stop-on-first-hit with a depth-first enumeration over all split points plus memoisation.</li>
+<li><strong>Partition equal subset sum.</strong> Each item used at most once, so the inner loop must descend, which is the zero-one knapsack family.</li>
+</ul>
+
+<p>Line them up and the axes are clear: the capacity dimension is the amount or the prefix, the items are coins or words, unbounded uses ascending order while single-use uses descending, optimisation uses minimum or maximum, counting uses addition, and reachability uses a disjunction.</p>
+
+<h2>Java</h2>
+
+<pre><code>class Solution {
+    public boolean wordBreak(String s, List&lt;String&gt; wordDict) {
+        Set&lt;String&gt; dict = new HashSet&lt;&gt;(wordDict);
+        int n = s.length();
+        int maxLen = 0;
+        for (String w : wordDict) maxLen = Math.max(maxLen, w.length());
+        boolean[] dp = new boolean[n + 1];
+        dp[0] = true;
+        for (int i = 1; i &lt;= n; i++) {
+            int lo = Math.max(0, i - maxLen);
+            for (int j = i - 1; j &gt;= lo; j--) {
+                if (dp[j] &amp;&amp; dict.contains(s.substring(j, i))) {
+                    dp[i] = true;
+                    break;
+                }
+            }
+        }
+        return dp[n];
+    }
+}
+</code></pre>
+
+<p>A second viewpoint is worth knowing: treat each character position as a vertex and each dictionary word as an edge from a position to that position plus its length, and the question becomes whether the end is reachable from zero. A breadth-first search answers it and is equivalent to the table, and the viewpoint is especially convenient when a path must be printed, since predecessors can be recorded. From any position, only the longest word length needs exploring.</p>
+
+<p>The reconstruction version memoises the list of segmentations from each position, prefixing each suffix, and is the skeleton for the follow-up that lists every answer.</p>
+
+<h2>Edges</h2>
+
+<ul>
+<li>An empty string is reachable trivially, since the base case is true.</li>
+<li>A dictionary word longer than the string can never fit, and the window excludes it, though filtering first is cleaner.</li>
+<li>When the whole string is one word, the base case is the only thing holding it up, and one attempt at the split point succeeds.</li>
+<li>Words repeat freely, which is why the state is computed ascending.</li>
+<li>A reachable prefix with an unreachable tail is still a false answer: for the last example, several prefixes are true while the end is not. Reachability of a prefix does not imply reachability of the whole.</li>
+<li>Empty strings or duplicates in the dictionary should be removed first, since an empty word would let the index stand still.</li>
+<li>Matching is case sensitive.</li>
+</ul>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Version</th><th>Time</th><th>Space</th></tr></thead>
+<tbody>
+<tr><td>Table with the window</td><td>Length times longest word</td><td>Linear</td></tr>
+<tr><td>Table without the window</td><td>Quadratic</td><td>Linear</td></tr>
+<tr><td>Breadth-first reachability</td><td>Length times longest word</td><td>Linear</td></tr>
+<tr><td>Reconstruction</td><td>Length times longest word</td><td>Linear</td></tr>
+<tr><td>Listing all segmentations</td><td>Output dependent, exponential in the worst case</td><td>Proportional to the number of answers</td></tr>
+</tbody>
+</table>
+
+<p>All the pruning lives in the window bound: without it the inner loop enumerates every split point and the cost is quadratic, and with it the cost is proportional to the longest word, which is usually far smaller.</p>
+
+<h2>Common mistakes</h2>
+
+<ol>
+<li>Setting the base case to false, which kills the case where the whole string is a single word.</li>
+<li>Initialising everything to true, which makes every answer true.</li>
+<li>Scanning a list for membership instead of hashing, which is the difference between passing and timing out on large inputs.</li>
+<li>Omitting the window, which stays correct and becomes quadratic.</li>
+<li>Not breaking on a hit, which is merely wasteful here, though short-circuiting is part of the point.</li>
+<li>Confusing the two problems: one asks whether, with a boolean or and early exit; the other lists every segmentation with a depth-first search and memoisation.</li>
+<li>Getting slice bounds wrong, since both languages use half-open ranges.</li>
+<li>Assuming each word may be used once. Reuse is explicitly allowed, which is why iteration is ascending.</li>
+<li>Keeping very long dictionary words, which do not break correctness but widen the window needlessly.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Define the state as the reachability of each prefix, give the base case as true and everything else false, state the recurrence, and explain why the base must be true and why iteration ascends.</p>
+
+<p>Then the two optimisations, which are where preparation shows: hash the dictionary, and bound the split point by the longest word. Neither changes semantics, and together they take the cost from quadratic to the product of length and longest word.</p>
+
+<p>Then the second viewpoint: positions as vertices and words as edges, so the question is reachability, which a breadth-first search answers in one pass and which is convenient when a path must be printed.</p>
+
+<p>Then the follow-up chain: listing all segmentations, minimising the word count, counting combinations versus permutations by transposing the loops, and the single-use family with a descending inner loop.</p>
+
+<h2>Closing</h2>
+
+<p>The difficulty compresses into two lines: one initialisation and one window. The first decides whether the single-word case can be expressed at all, and the second decides whether the solution finishes. Once computed, the table is itself a map of which positions are reachable, and walking it right to left performs the actual cut, which is the doorway to the reconstruction problem.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-139-word-break/">【LC 139】单词拆分：布尔 dp 与切分回溯</a>.</p>
+`,
+  },
+
+  {
+    slug: 'lc-53-maximum-subarray',
+    zhSlug: 'lc-53-maximum-subarray',
+    topicSlug: 'leetcode',
+    title: 'LC 53, maximum subarray: is carrying the prefix worth it',
+    excerpt:
+      'Five lines with one decision point, and three layers behind it: two candidates, a DP state anchored on the ending index, and an argument that a negative prefix is pure cost.',
+    date: '2026-10-03',
+    readingTime: 15,
+    html: `
+<h2>The problem</h2>
+
+<p>Find the contiguous subarray with the largest sum, containing at least one element.</p>
+
+<pre><code>[-2,1,-3,4,-1,2,1,-5,4]  -&gt; 6   (the subarray 4,-1,2,1)
+[1]                      -&gt; 1
+[5,4,-1,7,8]             -&gt; 23
+</code></pre>
+
+<p>It looks harmless, since enumerating every subarray is obvious, and it is a standard interview question because those five lines hold three things: the way the DP state is defined, the correctness of the greedy decision, and the information merging that leads to segment trees.</p>
+
+<h2>The whole problem in one sentence</h2>
+
+<p>Scan left to right, maintaining one quantity: the maximum sum of a subarray ending at the current position.</p>
+
+<p>At element x there are only two candidates: continue the previous run, or restart at x. Take the larger.</p>
+
+<pre><code>cur = max(x, cur + x)
+</code></pre>
+
+<p>This single line only ever asks one question: carrying the prefix, is it a gain or a loss.</p>
+
+<p>Expanding the maximum shows the decision: if the running sum is non-negative, carrying it costs nothing; if it is negative, the prefix is a liability and is discarded, restarting at x. So the decision belongs to the prefix, not to x. The current element has no choice in the matter; it only determines what the sum becomes after joining.</p>
+
+<p>A second variable records the largest value the running sum ever reached. Since every subarray ends somewhere, that maximum over all positions is the global answer.</p>
+
+<pre><code>def maxSubArray(nums):
+    cur = best = nums[0]
+    start = bestStart = bestEnd = 0
+
+    for i in range(1, len(nums)):
+        if cur &lt; 0:
+            cur = nums[i]
+            start = i
+        else:
+            cur = cur + nums[i]
+        if cur &gt; best:
+            best = cur
+            bestStart, bestEnd = start, i
+
+    return best, nums[bestStart:bestEnd + 1]
+</code></pre>
+
+<p>The value form and the position form are the same thing. The maximum is the shortest way to state it, but returning the subarray itself requires the positional form, because only there does the start index exist.</p>
+
+<p>The initialisation is easy to get wrong: both variables start at the first element, not at zero, because the subarray must contain at least one element, and an all-negative array must answer with the largest negative rather than zero.</p>
+
+<h2>The animation</h2>
+
+<p>A row of cells with three layers: a green band above the cells for the currently tracked subarray, a gold border and rule below for the best historical range, and a banner showing the running sum, the best, and the answer.</p>
+
+<p>Watch the two resets. The band shrinks suddenly and the discarded cells turn into grey dashes, which is the liability being thrown away. The first reset drops a single cell, the second drops two.</p>
+
+<p>The sixth frame is the climax, where the band reaches six and the gold range catches up, never to be exceeded afterwards.</p>
+
+<table>
+<thead><tr><th>Frame</th><th>Phase</th><th>i</th><th>x</th><th>cur</th><th>best</th><th>Current</th><th>Best range</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>init</td><td>0</td><td>-2</td><td>-2</td><td>-2</td><td>0..0</td><td>0..0</td></tr>
+<tr><td>1</td><td><strong>restart</strong></td><td>1</td><td>1</td><td>1</td><td>1</td><td>1..1</td><td>1..1</td></tr>
+<tr><td>2</td><td>extend</td><td>2</td><td>-3</td><td>-2</td><td>1</td><td>1..2</td><td>1..1</td></tr>
+<tr><td>3</td><td><strong>restart</strong></td><td>3</td><td>4</td><td>4</td><td>4</td><td>3..3</td><td>3..3</td></tr>
+<tr><td>4</td><td>extend</td><td>4</td><td>-1</td><td>3</td><td>4</td><td>3..4</td><td>3..3</td></tr>
+<tr><td>5</td><td>extend</td><td>5</td><td>2</td><td>5</td><td>5</td><td>3..5</td><td>3..5</td></tr>
+<tr><td>6</td><td>extend</td><td>6</td><td>1</td><td>6</td><td>6</td><td>3..6</td><td>3..6</td></tr>
+<tr><td>7</td><td>extend</td><td>7</td><td>-5</td><td>1</td><td>6</td><td>3..7</td><td>3..6</td></tr>
+<tr><td>8</td><td>extend</td><td>8</td><td>4</td><td>5</td><td>6</td><td>3..8</td><td>3..6</td></tr>
+<tr><td>9</td><td>done</td><td>-</td><td>-</td><td>5</td><td>6</td><td>-</td><td>3..6</td></tr>
+</tbody>
+</table>
+
+<p>Three observations. Frame two is a run that turns negative immediately after joining: the decision to join was made while the sum was still one, and the discard comes on the next frame, because joining and being worthwhile are two different things. Frames seven and eight show the best value frozen while the running sum oscillates, still poised for a better continuation. And the two resets have different sizes, one cell then two, with the granularity determined entirely by when the running sum turns negative.</p>
+
+<h2>Why discarding a negative prefix is safe</h2>
+
+<p>Ask the reverse question: does discarding lose the optimum.</p>
+
+<p>It does not. If the running sum is negative, any candidate ending at the current index that includes the prefix sums to the same continuation plus a negative number, so it is strictly worse than the candidate that starts fresh. Therefore the best candidate among those ending here never includes the negative prefix.</p>
+
+<p>And the DP definition only cares about candidates ending here. Anything better that ended earlier was already recorded. So both possibilities are covered, and discarding loses nothing.</p>
+
+<p>Restate it in one line: the running sum is the optimum subject to ending here, and discarding a negative prefix merely maintains that constraint.</p>
+
+<h2>Divide and conquer: four quantities</h2>
+
+<p>Splitting the array in half, the answer lies entirely left, entirely right, or crosses the midpoint as a suffix of the left part plus a prefix of the right. The third case is the awkward one, since a suffix sum cannot be derived from a subarray sum, so each interval carries three extra quantities.</p>
+
+<pre><code>i_sum = total
+l_sum = best prefix sum
+r_sum = best suffix sum
+m_sum = best subarray sum
+
+i_sum = L.i_sum + R.i_sum
+l_sum = max(L.l_sum, L.i_sum + R.l_sum)
+r_sum = max(R.r_sum, R.i_sum + L.r_sum)
+m_sum = max(L.m_sum, R.m_sum, L.r_sum + R.l_sum)
+</code></pre>
+
+<pre><code>def maxSubArrayDivide(nums):
+    def get(l, r):
+        if l == r:
+            s = nums[l]
+            return (s, s, s, s)
+        mid = (l + r) // 2
+        L = get(l, mid)
+        R = get(mid + 1, r)
+        i_sum = L[2] + R[2]
+        l_sum = max(L[0], L[2] + R[0])
+        r_sum = max(R[1], R[2] + L[1])
+        m_sum = max(L[3], R[3], L[1] + R[0])
+        return (l_sum, r_sum, i_sum, m_sum)
+
+    return get(0, len(nums) - 1)[3]
+</code></pre>
+
+<p>A widely repeated error about its complexity: many sources claim linearithmic. Merging is constant work and the recursion tree has about twice as many nodes as elements, so the total is linear, the same class as the linear scan. The linearithmic figure belongs to the naive version that rescans the interval on every merge. With the four quantities cached, merging is constant.</p>
+
+<p>Its value is never speed, since the constant is larger and it uses logarithmic stack space. Its value is extensibility: those four quantities are exactly what a segment tree maintains, so if the problem becomes point updates with arbitrary range queries, the linear scan is hopeless and this becomes a tree with logarithmic update and query.</p>
+
+<p>In one line: the scan computes and forgets, while the divide and conquer stores the merge rule, which makes it a data structure rather than an algorithm.</p>
+
+<h2>Variant: the circular version</h2>
+
+<p>In a circular array a subarray may wrap around. Split by whether it does: unwrapped is the ordinary answer, and wrapped means the complement of a contiguous gap, so maximising the wrapped part means minimising the gap.</p>
+
+<pre><code>[ part1 | smallest gap | part2 ]
+wrapped sum = total - minSum
+</code></pre>
+
+<p>The gap must be contiguous, so the problem reduces to the minimum subarray sum, which is the same scan with minimum instead of maximum.</p>
+
+<pre><code>def maxSubarraySumCircular(nums):
+    total = 0
+    cur_max = max_sum = nums[0]
+    cur_min = min_sum = nums[0]
+
+    for x in nums:
+        cur_max = max(x, cur_max + x)
+        max_sum = max(max_sum, cur_max)
+        cur_min = min(x, cur_min + x)
+        min_sum = min(min_sum, cur_min)
+        total += x
+
+    if max_sum &lt; 0:
+        return max_sum
+    return max(max_sum, total - min_sum)
+</code></pre>
+
+<p>The all-negative case is the only hidden rock. There the smallest gap is the entire array, so the wrapped candidate is zero, which corresponds to the empty subarray and is illegal. Hence the early return of the ordinary answer.</p>
+
+<pre><code>[-3,-2,-3] -&gt; the gap is everything, so return -2
+[5,-3,5]   -&gt; the gap is -3, so total minus it is 10, from the wrapped pair
+</code></pre>
+
+<p>The initialisation follows the same rule: both running maxima and minima start at the first element, since an all-negative answer is a single negative value.</p>
+
+<h2>The relatives</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>Relation</th><th>Key difference</th></tr></thead>
+<tbody>
+<tr><td>Best time to buy and sell</td><td>Replace prices with adjacent differences and it is the same scan</td><td>The difference array can be empty, so the floor is zero</td></tr>
+<tr><td>Maximum product subarray</td><td>The same continue-or-restart transition</td><td>Track the minimum as well, since two negatives multiply positive</td></tr>
+<tr><td>Circular maximum subarray</td><td>Run forwards and backwards</td><td>The all-negative special case</td></tr>
+<tr><td>K concatenations</td><td>One round plus a contribution from the total</td><td>Whole middle rounds are taken when the total is positive</td></tr>
+<tr><td>Maximum absolute subarray sum</td><td>Both directions</td><td>The answer is the larger of the two magnitudes</td></tr>
+<tr><td>Gas station</td><td>A running sum on a cycle</td><td>Restart when the accumulated fuel goes negative, the same liability logic</td></tr>
+</tbody>
+</table>
+
+<p>The first row is the one worth remembering: the best profit from one purchase and one sale is the maximum subarray sum of the adjacent differences, which collapses the whole stock series into this problem.</p>
+
+<pre><code>class Solution {
+    public int maxSubArray(int[] nums) {
+        int cur = nums[0], best = nums[0];
+        for (int i = 1; i &lt; nums.length; i++) {
+            cur = Math.max(nums[i], cur + nums[i]);
+            best = Math.max(best, cur);
+        }
+        return best;
+    }
+}
+</code></pre>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Approach</th><th>Time</th><th>Space</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Brute force with prefix sums</td><td>Quadratic</td><td>Constant</td><td>Enumerate starts</td></tr>
+<tr><td><strong>The scan</strong></td><td><strong>Linear</strong></td><td><strong>Constant</strong></td><td>One look per element, the lower bound</td></tr>
+<tr><td>Divide and conquer</td><td>Linear</td><td>Logarithmic</td><td>Constant merges over about twice n nodes, extensible to a segment tree</td></tr>
+</tbody>
+</table>
+
+<p>Linear is the lower bound, since every element must be examined at least once.</p>
+
+<h2>Edges and mistakes</h2>
+
+<table>
+<thead><tr><th>Input</th><th>Output</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>one element</td><td>that value</td><td></td></tr>
+<tr><td>one negative</td><td>that value</td><td>Not zero</td></tr>
+<tr><td>all negative</td><td>the largest</td><td>Same</td></tr>
+<tr><td>all zeros</td><td>zero</td><td>A single zero is a legal subarray</td></tr>
+<tr><td>all positive</td><td>the whole sum</td><td></td></tr>
+<tr><td>alternating</td><td>one element</td><td>Every other frame resets</td></tr>
+</tbody>
+</table>
+
+<ol>
+<li>Starting both variables at zero, which answers zero for an all-negative array.</li>
+<li>Resetting on a zero running sum. The sum is the same either way, but the range is not, and the reported subarray gains a useless prefix. The test must be strictly negative.</li>
+<li>Forgetting the all-negative guard in the circular version, which answers zero instead of the largest negative.</li>
+<li>Starting the circular running extremes at zero, with the same consequence.</li>
+<li>Copying the single-variable scan into the product version, where the minimum must also be tracked because two negatives multiply positive.</li>
+<li>Believing the divide and conquer version is linearithmic. The merge is constant, so the total is linear, and computing that on the spot is worth more than reciting a table.</li>
+</ol>
+
+<h2>How to answer it</h2>
+
+<p>Give the state definition first: the maximum sum of a subarray ending here, where the anchor on the ending index is what reduces the transitions to two. Then the sentence behind the line: carrying the prefix is a gain or a loss. Then the correctness argument, which most people skip: with a negative prefix every candidate containing it is worse, so the optimum ending here excludes it, and earlier optima are already recorded.</p>
+
+<p>Asked to return the subarray, describe the positional form with the start index recorded on reset and the best range recorded on improvement. Asked about divide and conquer, give the four quantities and the three sources for the answer, note that merging is constant so the total is linear, and point out the segment tree upgrade. Asked about the circular version, explain the complement, the minimum subarray, and the all-negative guard. And connect the stock problem through the difference array.</p>
+
+<h2>Closing</h2>
+
+<p>The shorter the code, the more it reveals. There is one decision point in that line, with three layers behind it: two candidates at the surface, a state anchored on the ending index in the middle, and a liability argument underneath.</p>
+
+<p>Divide and conquer enters from another direction, saying that storing the merge rule lets you answer repeatedly, which yields a segment tree; and the circular version says that running the same algorithm backwards turns wrapping into digging a hole.</p>
+
+<pre><code>assert maxSubArray([-2,1,-3,4,-1,2,1,-5,4]) == 6
+assert maxSubArray([-3,-1,-2]) == -1
+assert maxSubArray([1]) == 1
+assert maxSubArray([5,4,-1,7,8]) == 23
+assert maxSubarraySumCircular([5,-3,5]) == 10
+assert maxSubarraySumCircular([-3,-2,-3]) == -2
+</code></pre>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/lc-53-maximum-subarray/">【LC 53】最大子数组和：带上前面，是赚还是亏</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
