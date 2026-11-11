@@ -40603,6 +40603,182 @@ Article.objects.filter(
 `,
   },
 
+  {
+    slug: 'tencent-eliminate-sum10',
+    zhSlug: 'tencent-eliminate-sum10',
+    topicSlug: 'leetcode',
+    title: 'Eliminating adjacent pairs summing to ten: a stack, and a uniqueness proof',
+    excerpt:
+      'Each digit has exactly one complement, so each digit has exactly one way to vanish. The stack holds the reduced form, and confluence is why the order of eliminations does not matter.',
+    date: '2026-08-31',
+    readingTime: 13,
+    html: `
+<h2>The problem</h2>
+
+<p>Given a string of digits from one to nine, two adjacent digits whose sum is ten may be removed, after which the two sides join and the check continues. What string remains?</p>
+
+<pre><code>5512  -&gt;  the two fives cancel, leaving 12
+1 + 2 is not 10, so the answer is 12
+</code></pre>
+
+<p>The one-line answer is a stack simulation. Three things separate good answers from adequate ones: why joining happens automatically with a stack, whether the order of eliminations matters, and whether the shortest remaining length is the same question.</p>
+
+<h2>Complements, and the stack</h2>
+
+<p>Within one to nine each digit has exactly one complement summing to ten, and five pairs with itself. Two consequences follow: the pairing is unique, which is the seed of the uniqueness argument later, and five plus five cancels, which is the case most often forgotten.</p>
+
+<p>Instead of deleting a pair and rescanning, keep a stack representing the current string after reduction. A new digit only ever interacts with the top of the stack, which is the last remaining digit on the left. If they sum to ten, the top is popped and the new digit never enters; otherwise the new digit is pushed.</p>
+
+<pre><code>def eliminate(s: str) -&gt; str:
+    st = []
+    for ch in s:
+        if st and int(st[-1]) + int(ch) == 10:
+            st.pop()
+        else:
+            st.append(ch)
+    return "".join(st)
+</code></pre>
+
+<p>Two details are easy to get wrong. The stack from bottom to top is exactly the answer order, so joining gives the result with no reversal. And a conditional suffices rather than a loop, since one digit can cancel at most one top: after cancelling, the new digit is gone too and cannot pair with the revealed one.</p>
+
+<h2>Why the stack is correct</h2>
+
+<p>The simulation produces one result. If asked whether a different order changes it, saying you used a stack is not an answer; you need the result to be unique in the first place.</p>
+
+<p>Termination is immediate: each step removes exactly two characters, so the length strictly decreases and the process stops within half the length.</p>
+
+<p>Local confluence rests on the only critical pair, which is a digit with its complement on both sides. Removing the left pair leaves the single digit, and removing the right pair leaves the same single digit, so both orders agree. Pairs that do not overlap do not interfere.</p>
+
+<p>By Newman's lemma, a terminating rewriting system that is locally confluent is globally confluent: from one string, any order of reductions ends at the same irreducible form. That is why the question can be posed without ambiguity.</p>
+
+<p>So the final string is unique, and the shortest remaining length is just its length.</p>
+
+<h3>Measured, not asserted</h3>
+
+<p>Three checks were run. Exhaustively over all strings of length at most five on the digits one to nine, sixty-six thousand of them, four implementations, the stack, repeated rescans, leftmost-first and rightmost-first rescans, gave identical results. On two thousand random strings, leftmost, rightmost and random orders agreed. And the stack contents after every step equal the independent reduction of that prefix.</p>
+
+<p>The negative example is worth volunteering: confluence is a property of these rules, not of reduction in general. Widen the rule so that sums of nine or ten both cancel on a sample string, and leftmost-first gives one digit while rightmost-first gives another. Same string, two results, and then a stack only produces some answer rather than the answer.</p>
+
+<h2>The animation</h2>
+
+<p>The first animation shows the input above and the stack growing upward, with the current digit outlined, a dashed ghost for a cancelled top, and the joining moment visible. After the two and eight cancel, the one and nine meet immediately, because the one had been waiting in the stack all along.</p>
+
+<p>The second animation runs the same string along two routes, one always cancelling the leftmost pair and one the rightmost. Intermediate shapes differ but both end at the same string, and the surviving characters come from different original positions, which is the proof table played frame by frame.</p>
+
+<table>
+<thead><tr><th>Index</th><th>Digit</th><th>Top plus digit</th><th>Action</th><th>Stack</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>5</td><td>empty</td><td>Push</td><td>5</td></tr>
+<tr><td>1</td><td>5</td><td>10</td><td><strong>Cancel</strong></td><td>empty</td></tr>
+<tr><td>2</td><td>1</td><td>empty</td><td>Push</td><td>1</td></tr>
+<tr><td>3</td><td>2</td><td>3</td><td>Push</td><td>1 2</td></tr>
+<tr><td>4</td><td>8</td><td>10</td><td><strong>Cancel</strong></td><td>1</td></tr>
+<tr><td>5</td><td>9</td><td>10</td><td><strong>Cancel</strong></td><td>empty</td></tr>
+<tr><td>6</td><td>2</td><td>empty</td><td>Push</td><td>2</td></tr>
+<tr><td>7</td><td>1</td><td>3</td><td>Push</td><td>2 1</td></tr>
+</tbody>
+</table>
+
+<p>Three cancellations and a final length of two. Rows four and five are the heart of the problem: only after the two and eight cancel do the one and nine touch, and the stack does nothing because the one was already there.</p>
+
+<h2>Shortest length is the same question</h2>
+
+<p>Each step removes two characters, so the number of cancellations is fully determined by the result length. And confluence means no sequence ends shorter, so that length is both a lower bound and achievable. Measured across five hundred random strings with six random orders each, none beat the stack.</p>
+
+<h2>Naive rescans versus the stack</h2>
+
+<p>The naive translation deletes all disjoint complementary pairs each round until no deletion occurs. Its weakness is adversarial input: a run of ones followed by a run of nines, where only the pair at the boundary can cancel, so each round scans from the start to the boundary and the whole thing is quadratic.</p>
+
+<table>
+<thead><tr><th>Length</th><th>Round-by-round</th><th>Leftmost rescans</th><th>Stack</th></tr></thead>
+<tbody>
+<tr><td>2000</td><td>103.8 ms</td><td>36.5 ms</td><td><strong>0.190 ms</strong></td></tr>
+<tr><td>4000</td><td>420.6 ms</td><td>303.0 ms</td><td><strong>0.757 ms</strong></td></tr>
+<tr><td>8000</td><td>3523.5 ms</td><td>1272.9 ms</td><td><strong>1.742 ms</strong></td></tr>
+</tbody>
+</table>
+
+<p>Doubling the length roughly quadruples the naive time, while the stack roughly doubles, so the gap widens to about two thousand times at eight thousand characters.</p>
+
+<p>Three interesting readings at larger sizes: with all fives, the maximum stack depth is always one, since two fives cancel on sight; with random digits roughly one pair cancels per nine characters, which matches the one-in-nine complement probability; and yet the maximum depth on random input reaches about three quarters of the length, so the space really is linear in the worst case.</p>
+
+<h2>The family</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>Rule</th><th>What the stack holds</th></tr></thead>
+<tbody>
+<tr><td>This one</td><td>Adjacent digits summing to ten</td><td>The digits themselves</td></tr>
+<tr><td>Remove adjacent duplicates</td><td>Adjacent digits equal</td><td>The digits themselves</td></tr>
+<tr><td>Remove k consecutive duplicates</td><td>Runs of k equal characters</td><td>Character and run length</td></tr>
+<tr><td>Remove substrings</td><td>The literal pairs AB or CD</td><td>The character being awaited</td></tr>
+<tr><td>Asteroid collision</td><td>Opposing directions, smaller destroyed</td><td>The surviving asteroids</td></tr>
+</tbody>
+</table>
+
+<p>The rule varies, the skeleton does not: the stack is the reduced form of the string so far, and a new element only meets the top.</p>
+
+<p>Follow-ups worth preparing. How many pairs cancelled: determined by the result length. List all possible final strings: there is only one, and with non-confluent rules it degenerates into a search. Can it be done without a stack: yes, recursively or by rescanning, at quadratic cost, or in place with an array and a cursor for constant space. Why the pairing table matters: the complement map is an involution without fixed points except five, which is exactly what makes the critical pair benign.</p>
+
+<h2>Java</h2>
+
+<pre><code>public String eliminate(String s) {
+    Deque&lt;Character&gt; st = new ArrayDeque&lt;&gt;();
+    for (int i = 0; i &lt; s.length(); i++) {
+        char c = s.charAt(i);
+        if (!st.isEmpty() &amp;&amp; (st.peek() - '0') + (c - '0') == 10) {
+            st.pop();
+        } else {
+            st.push(c);
+        }
+    }
+    StringBuilder sb = new StringBuilder();
+    while (!st.isEmpty()) sb.append(st.pollLast());
+    return sb.toString();
+}
+</code></pre>
+
+<p>Two Java traps: the deque pushes and pops at the top, so the output must be taken from the bottom, which is the opposite end; and building the stack out of string concatenation is quadratic, the same order as the naive rescan.</p>
+
+<h2>Edges and traps</h2>
+
+<ol>
+<li>Reading the top of an empty stack, which happens on the first character.</li>
+<li>Counting only original adjacent pairs and missing the joins, which cancels one pair instead of two on a case like one, two, eight, nine.</li>
+<li>Using a loop instead of a conditional. It is unnecessary because one digit cancels at most one top, but you should be able to explain why.</li>
+<li>Rescanning each round, which is quadratic and two thousand times slower at eight thousand characters.</li>
+<li>Forgetting that five cancels with five.</li>
+<li>Answering only with the stack simulation and no argument for uniqueness, which loses marks on the follow-up about order.</li>
+<li>Not confirming the character set: a zero has complement ten, outside the allowed range, so it can never cancel.</li>
+<li>Outputting the stack top first, which reverses the answer.</li>
+<li>Confusing sum with difference; one and nine differ by eight and sum to ten, and the rule is the sum.</li>
+</ol>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Measure</th><th>Value</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>Linear</td><td>One pass, each character pushed and popped at most once</td></tr>
+<tr><td>Space</td><td>Linear worst case</td><td>Depth reaches half the length on adversarial input</td></tr>
+<tr><td>Cancellations</td><td>Half the length difference</td><td>Determined by the result length</td></tr>
+<tr><td>Result length</td><td>Length minus twice the cancellations</td><td>Exact, not estimated</td></tr>
+</tbody>
+</table>
+
+<h2>How to answer it</h2>
+
+<p>Give the complement observation, then the stack as the reduced form with new digits meeting only the top, and note that joining is automatic. Then the uniqueness argument, which is the discriminator: termination, the single critical pair, Newman's lemma, hence one result and hence the shortest length. Offer the counterexample with a widened rule to show confluence comes from the problem, not in general. Then the complexity comparison and the family.</p>
+
+<p>One line: the stack holds the reduced form, a new digit meets only the top, and greedy is safe because the system is confluent.</p>
+
+<h2>Closing</h2>
+
+<p>Anyone can reduce a four-character string by hand. Three sentences make the answer complete: the stack is the reduced form, so joining needs no string surgery; two digits cancel exactly when they are complements, with five pairing with itself; and the system is confluent, so the result is unique. The measurements merely nail the third sentence to data: three and a half seconds against one point seven milliseconds at eight thousand characters.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/tencent-eliminate-sum10/">【腾讯面经】相邻和为 10 消除：栈模拟与唯一性证明</a>.</p>
+`,
+  },
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。

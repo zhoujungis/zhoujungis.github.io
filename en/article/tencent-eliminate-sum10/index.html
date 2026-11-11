@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Each digit has exactly one complement, so each digit has exactly one way to vanish. The stack holds the reduced form, and confluence is why the order of eliminations does not matter." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/tencent-eliminate-sum10/" />
+    <meta property="og:title" content="Eliminating adjacent pairs summing to ten: a stack, and a uniqueness proof | Stack Frame" />
+    <meta property="og:description" content="Each digit has exactly one complement, so each digit has exactly one way to vanish. The stack holds the reduced form, and confluence is why the order of eliminations does not matter." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/tencent-eliminate-sum10/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Eliminating adjacent pairs summing to ten: a stack, and a uniqueness proof | Stack Frame" />
+    <meta name="twitter:description" content="Each digit has exactly one complement, so each digit has exactly one way to vanish. The stack holds the reduced form, and confluence is why the order of eliminations does not matter." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Eliminating adjacent pairs summing to ten: a stack, and a uniqueness proof | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/tencent-eliminate-sum10/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/tencent-eliminate-sum10/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/tencent-eliminate-sum10/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>Eliminating adjacent pairs summing to ten: a stack, and a uniqueness proof</h1><div class="ns-meta">2026-08-31 · 13 min · Stack Frame</div><div class="markdown-body">
+<h2>The problem</h2>
+
+<p>Given a string of digits from one to nine, two adjacent digits whose sum is ten may be removed, after which the two sides join and the check continues. What string remains?</p>
+
+<pre><code>5512  -&gt;  the two fives cancel, leaving 12
+1 + 2 is not 10, so the answer is 12
+</code></pre>
+
+<p>The one-line answer is a stack simulation. Three things separate good answers from adequate ones: why joining happens automatically with a stack, whether the order of eliminations matters, and whether the shortest remaining length is the same question.</p>
+
+<h2>Complements, and the stack</h2>
+
+<p>Within one to nine each digit has exactly one complement summing to ten, and five pairs with itself. Two consequences follow: the pairing is unique, which is the seed of the uniqueness argument later, and five plus five cancels, which is the case most often forgotten.</p>
+
+<p>Instead of deleting a pair and rescanning, keep a stack representing the current string after reduction. A new digit only ever interacts with the top of the stack, which is the last remaining digit on the left. If they sum to ten, the top is popped and the new digit never enters; otherwise the new digit is pushed.</p>
+
+<pre><code>def eliminate(s: str) -&gt; str:
+    st = []
+    for ch in s:
+        if st and int(st[-1]) + int(ch) == 10:
+            st.pop()
+        else:
+            st.append(ch)
+    return "".join(st)
+</code></pre>
+
+<p>Two details are easy to get wrong. The stack from bottom to top is exactly the answer order, so joining gives the result with no reversal. And a conditional suffices rather than a loop, since one digit can cancel at most one top: after cancelling, the new digit is gone too and cannot pair with the revealed one.</p>
+
+<h2>Why the stack is correct</h2>
+
+<p>The simulation produces one result. If asked whether a different order changes it, saying you used a stack is not an answer; you need the result to be unique in the first place.</p>
+
+<p>Termination is immediate: each step removes exactly two characters, so the length strictly decreases and the process stops within half the length.</p>
+
+<p>Local confluence rests on the only critical pair, which is a digit with its complement on both sides. Removing the left pair leaves the single digit, and removing the right pair leaves the same single digit, so both orders agree. Pairs that do not overlap do not interfere.</p>
+
+<p>By Newman's lemma, a terminating rewriting system that is locally confluent is globally confluent: from one string, any order of reductions ends at the same irreducible form. That is why the question can be posed without ambiguity.</p>
+
+<p>So the final string is unique, and the shortest remaining length is just its length.</p>
+
+<h3>Measured, not asserted</h3>
+
+<p>Three checks were run. Exhaustively over all strings of length at most five on the digits one to nine, sixty-six thousand of them, four implementations, the stack, repeated rescans, leftmost-first and rightmost-first rescans, gave identical results. On two thousand random strings, leftmost, rightmost and random orders agreed. And the stack contents after every step equal the independent reduction of that prefix.</p>
+
+<p>The negative example is worth volunteering: confluence is a property of these rules, not of reduction in general. Widen the rule so that sums of nine or ten both cancel on a sample string, and leftmost-first gives one digit while rightmost-first gives another. Same string, two results, and then a stack only produces some answer rather than the answer.</p>
+
+<h2>The animation</h2>
+
+<p>The first animation shows the input above and the stack growing upward, with the current digit outlined, a dashed ghost for a cancelled top, and the joining moment visible. After the two and eight cancel, the one and nine meet immediately, because the one had been waiting in the stack all along.</p>
+
+<p>The second animation runs the same string along two routes, one always cancelling the leftmost pair and one the rightmost. Intermediate shapes differ but both end at the same string, and the surviving characters come from different original positions, which is the proof table played frame by frame.</p>
+
+<table>
+<thead><tr><th>Index</th><th>Digit</th><th>Top plus digit</th><th>Action</th><th>Stack</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>5</td><td>empty</td><td>Push</td><td>5</td></tr>
+<tr><td>1</td><td>5</td><td>10</td><td><strong>Cancel</strong></td><td>empty</td></tr>
+<tr><td>2</td><td>1</td><td>empty</td><td>Push</td><td>1</td></tr>
+<tr><td>3</td><td>2</td><td>3</td><td>Push</td><td>1 2</td></tr>
+<tr><td>4</td><td>8</td><td>10</td><td><strong>Cancel</strong></td><td>1</td></tr>
+<tr><td>5</td><td>9</td><td>10</td><td><strong>Cancel</strong></td><td>empty</td></tr>
+<tr><td>6</td><td>2</td><td>empty</td><td>Push</td><td>2</td></tr>
+<tr><td>7</td><td>1</td><td>3</td><td>Push</td><td>2 1</td></tr>
+</tbody>
+</table>
+
+<p>Three cancellations and a final length of two. Rows four and five are the heart of the problem: only after the two and eight cancel do the one and nine touch, and the stack does nothing because the one was already there.</p>
+
+<h2>Shortest length is the same question</h2>
+
+<p>Each step removes two characters, so the number of cancellations is fully determined by the result length. And confluence means no sequence ends shorter, so that length is both a lower bound and achievable. Measured across five hundred random strings with six random orders each, none beat the stack.</p>
+
+<h2>Naive rescans versus the stack</h2>
+
+<p>The naive translation deletes all disjoint complementary pairs each round until no deletion occurs. Its weakness is adversarial input: a run of ones followed by a run of nines, where only the pair at the boundary can cancel, so each round scans from the start to the boundary and the whole thing is quadratic.</p>
+
+<table>
+<thead><tr><th>Length</th><th>Round-by-round</th><th>Leftmost rescans</th><th>Stack</th></tr></thead>
+<tbody>
+<tr><td>2000</td><td>103.8 ms</td><td>36.5 ms</td><td><strong>0.190 ms</strong></td></tr>
+<tr><td>4000</td><td>420.6 ms</td><td>303.0 ms</td><td><strong>0.757 ms</strong></td></tr>
+<tr><td>8000</td><td>3523.5 ms</td><td>1272.9 ms</td><td><strong>1.742 ms</strong></td></tr>
+</tbody>
+</table>
+
+<p>Doubling the length roughly quadruples the naive time, while the stack roughly doubles, so the gap widens to about two thousand times at eight thousand characters.</p>
+
+<p>Three interesting readings at larger sizes: with all fives, the maximum stack depth is always one, since two fives cancel on sight; with random digits roughly one pair cancels per nine characters, which matches the one-in-nine complement probability; and yet the maximum depth on random input reaches about three quarters of the length, so the space really is linear in the worst case.</p>
+
+<h2>The family</h2>
+
+<table>
+<thead><tr><th>Problem</th><th>Rule</th><th>What the stack holds</th></tr></thead>
+<tbody>
+<tr><td>This one</td><td>Adjacent digits summing to ten</td><td>The digits themselves</td></tr>
+<tr><td>Remove adjacent duplicates</td><td>Adjacent digits equal</td><td>The digits themselves</td></tr>
+<tr><td>Remove k consecutive duplicates</td><td>Runs of k equal characters</td><td>Character and run length</td></tr>
+<tr><td>Remove substrings</td><td>The literal pairs AB or CD</td><td>The character being awaited</td></tr>
+<tr><td>Asteroid collision</td><td>Opposing directions, smaller destroyed</td><td>The surviving asteroids</td></tr>
+</tbody>
+</table>
+
+<p>The rule varies, the skeleton does not: the stack is the reduced form of the string so far, and a new element only meets the top.</p>
+
+<p>Follow-ups worth preparing. How many pairs cancelled: determined by the result length. List all possible final strings: there is only one, and with non-confluent rules it degenerates into a search. Can it be done without a stack: yes, recursively or by rescanning, at quadratic cost, or in place with an array and a cursor for constant space. Why the pairing table matters: the complement map is an involution without fixed points except five, which is exactly what makes the critical pair benign.</p>
+
+<h2>Java</h2>
+
+<pre><code>public String eliminate(String s) {
+    Deque&lt;Character&gt; st = new ArrayDeque&lt;&gt;();
+    for (int i = 0; i &lt; s.length(); i++) {
+        char c = s.charAt(i);
+        if (!st.isEmpty() &amp;&amp; (st.peek() - '0') + (c - '0') == 10) {
+            st.pop();
+        } else {
+            st.push(c);
+        }
+    }
+    StringBuilder sb = new StringBuilder();
+    while (!st.isEmpty()) sb.append(st.pollLast());
+    return sb.toString();
+}
+</code></pre>
+
+<p>Two Java traps: the deque pushes and pops at the top, so the output must be taken from the bottom, which is the opposite end; and building the stack out of string concatenation is quadratic, the same order as the naive rescan.</p>
+
+<h2>Edges and traps</h2>
+
+<ol>
+<li>Reading the top of an empty stack, which happens on the first character.</li>
+<li>Counting only original adjacent pairs and missing the joins, which cancels one pair instead of two on a case like one, two, eight, nine.</li>
+<li>Using a loop instead of a conditional. It is unnecessary because one digit cancels at most one top, but you should be able to explain why.</li>
+<li>Rescanning each round, which is quadratic and two thousand times slower at eight thousand characters.</li>
+<li>Forgetting that five cancels with five.</li>
+<li>Answering only with the stack simulation and no argument for uniqueness, which loses marks on the follow-up about order.</li>
+<li>Not confirming the character set: a zero has complement ten, outside the allowed range, so it can never cancel.</li>
+<li>Outputting the stack top first, which reverses the answer.</li>
+<li>Confusing sum with difference; one and nine differ by eight and sum to ten, and the rule is the sum.</li>
+</ol>
+
+<h2>Complexity</h2>
+
+<table>
+<thead><tr><th>Measure</th><th>Value</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td>Time</td><td>Linear</td><td>One pass, each character pushed and popped at most once</td></tr>
+<tr><td>Space</td><td>Linear worst case</td><td>Depth reaches half the length on adversarial input</td></tr>
+<tr><td>Cancellations</td><td>Half the length difference</td><td>Determined by the result length</td></tr>
+<tr><td>Result length</td><td>Length minus twice the cancellations</td><td>Exact, not estimated</td></tr>
+</tbody>
+</table>
+
+<h2>How to answer it</h2>
+
+<p>Give the complement observation, then the stack as the reduced form with new digits meeting only the top, and note that joining is automatic. Then the uniqueness argument, which is the discriminator: termination, the single critical pair, Newman's lemma, hence one result and hence the shortest length. Offer the counterexample with a widened rule to show confluence comes from the problem, not in general. Then the complexity comparison and the family.</p>
+
+<p>One line: the stack holds the reduced form, a new digit meets only the top, and greedy is safe because the system is confluent.</p>
+
+<h2>Closing</h2>
+
+<p>Anyone can reduce a four-character string by hand. Three sentences make the answer complete: the stack is the reduced form, so joining needs no string surgery; two digits cancel exactly when they are complements, with five pairing with itself; and the system is confluent, so the result is unique. The measurements merely nail the third sentence to data: three and a half seconds against one point seven milliseconds at eight thousand characters.</p>
+
+<p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/tencent-eliminate-sum10/">【腾讯面经】相邻和为 10 消除：栈模拟与唯一性证明</a>.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/tencent-eliminate-sum10/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/tencent-eliminate-sum10/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>
