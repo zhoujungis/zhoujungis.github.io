@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="The LLM battle has moved to inference. We put vLLM, SGLang, TensorRT-LLM, TGI, and LMDeploy on one table to see what each bets on, and where the real competition lies." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/vllm-vs-sglang-llm-inference-framework-war/" />
+    <meta property="og:title" content="From vLLM to SGLang: The Ultimate Arms Race in LLM Inference Frameworks | Stack Frame" />
+    <meta property="og:description" content="The LLM battle has moved to inference. We put vLLM, SGLang, TensorRT-LLM, TGI, and LMDeploy on one table to see what each bets on, and where the real competition lies." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/vllm-vs-sglang-llm-inference-framework-war/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="From vLLM to SGLang: The Ultimate Arms Race in LLM Inference Frameworks | Stack Frame" />
+    <meta name="twitter:description" content="The LLM battle has moved to inference. We put vLLM, SGLang, TensorRT-LLM, TGI, and LMDeploy on one table to see what each bets on, and where the real competition lies." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>From vLLM to SGLang: The Ultimate Arms Race in LLM Inference Frameworks | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/vllm-vs-sglang-llm-inference-framework-war/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/vllm-vs-sglang-llm-inference-framework-war/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/vllm-vs-sglang-llm-inference-framework-war/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>From vLLM to SGLang: The Ultimate Arms Race in LLM Inference Frameworks</h1><div class="ns-meta">2026-07-27 · 16 min · Stack Frame</div><div class="markdown-body">
+<h1>From vLLM to SGLang: The Ultimate Arms Race in LLM Inference Frameworks</h1>
+
+<img alt="The evolution of LLM inference frameworks" src="https://images.unsplash.com/photo-1620712943543-bcc967d681bf?w=1600&amp;q=80&amp;auto=format&amp;fit=crop">
+<blockquote>
+
+As competition among training frameworks gradually converges, the fight is shifting wholesale to the inference side. A single paper, a single PR, a single commit can double a framework's throughput overnight — that is business as usual in the 2025–2026 LLM inference ecosystem. This article puts vLLM, SGLang, TensorRT-LLM, TGI, and LMDeploy on the same table to see what each one is betting on, and what exactly they are all racing to optimize.
+</blockquote>
+<hr>
+<h2>Introduction: Why Inference Frameworks Became Contested Ground</h2>
+
+For the past three years, the story of large models was one of "<strong>training</strong>": whoever had more parameters, more data, more GPUs won. But once Scaling Laws pushed training costs into the hundreds of millions of dollars, the industry's attention began to shift to another battlefield — <strong>inference</strong>.
+
+Three changes turned inference frameworks into a core arena overnight:
+<ol>
+<li><strong>Models grew enormous</strong>: GPT-4o, DeepSeek V4, Kimi K2, and GLM-5.2 routinely carry hundreds of billions of MoE parameters, and the compute cost per token scales linearly with the number of experts;</li>
+<li><strong>Call volume exploded</strong>: the agent paradigm turns one "conversation" into dozens or hundreds of round trips, pushing inference QPS orders of magnitude above early ChatGPT;</li>
+<li><strong>End-to-end costs inverted</strong>: training is a one-time investment, inference is a recurring expense — by Gartner's reckoning, 70%–80% of the compute over a large model's lifetime goes to inference.</li>
+</ol>
+
+In one sentence: <strong>training decides whether you get to play; inference decides how long you survive.</strong> That is why the company behind vLLM went from a blank whiteboard to a team of dozens, why SGLang raised hundreds of millions of dollars in under two years, and why Nvidia rewrites the kernels for every generation of TensorRT-LLM.
+<hr>
+<h2>1. What Are Inference Frameworks Actually Competing On?</h2>
+
+Strip away the slogans and an inference framework really has to answer three questions:
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Plain-English explanation</th>
+<th>Why it is hard</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Throughput</strong></td>
+<td>How many tokens one machine can emit per second</td>
+<td>Directly determines per-GPU ROI</td>
+</tr>
+<tr>
+<td><strong>Latency</strong></td>
+<td>How long a user waits from pressing Enter to seeing the first character</td>
+<td>Directly determines the product experience</td>
+</tr>
+<tr>
+<td><strong>Memory</strong></td>
+<td>How many requests a single H100 can serve at once</td>
+<td>VRAM is a physical gift from HBM — every inch you save counts</td>
+</tr>
+</tbody>
+</table>
+
+Throughput and latency are inherently in tension: bigger batches raise throughput, but every request must wait for the batch to fill, so latency climbs. Every framework's "engineering arms race" is really a search for a new Pareto frontier inside that three-way trade-off — making possible the compromise points others considered impossible.
+
+Here is how each of the five plays its hand.
+<hr>
+<h2>2. vLLM: The First Cut, Opened by PagedAttention</h2>
+
+Before <strong>vLLM</strong>, KV cache waste was the elephant in the room for serving frameworks.
+
+The conventional approach pre-allocated a contiguous slab of VRAM per request, sized for the longest possible sequence. Real request lengths vary wildly — 10% of long requests eat 80% of the reserved memory, while short requests leave holes behind. The result: <strong>memory fragmentation and utilization below 40%</strong>, so the concurrency a single 80GB H100 could sustain was capped by memory before anything else.
+
+vLLM's contribution was to move the operating system's <strong>paged virtual memory</strong> onto the GPU:
+<ul>
+<li>KV cache is chopped into fixed-size <strong>blocks</strong> (typically 16 tokens each);</li>
+<li>a logical sequence uses a <strong>block table</strong> to point at physical blocks, which can be scattered, shared, and allocated on demand;</li>
+<li>just as with OS pages, logically adjacent does not mean physically adjacent, so fragmentation dissolves on its own.</li>
+</ul>
+
+Paired with a rewritten <strong>PagedAttention</strong> kernel that lets attention read K/V straight out of scattered blocks — that was the hardest engineering cut of all.
+<blockquote>
+
+In its 2023 paper, vLLM reported <strong>2–24× higher throughput than HuggingFace Transformers</strong>. The keyword: "<strong>Continuous Batching</strong>" — dynamically packing new requests into a running batch so the GPU does not idle just because one request finished early.
+</blockquote>
+
+<strong>Where vLLM stands</strong>: general-purpose, easy to use, thickest ecosystem. Nearly every open-source model gets a vLLM adaptation on release day. The trade-off: in narrow niches such as structured generation, long context, and disaggregated batching, it is not the fastest one.
+<hr>
+<h2>3. SGLang: RadixAttention and a New Paradigm for Structured Generation</h2>
+
+<strong>SGLang</strong> was released in 2024 by the LMSYS team (the same people behind Vicuna and Chatbot Arena), and it targeted not "general inference" but an overlooked scenario — <strong>structured output</strong>.
+
+Honestly: getting an LLM to emit valid JSON, a SQL statement, or a tool-call schema is something traditional frameworks do badly. Three reasons:
+<ol>
+<li><strong>Constrained decoding</strong> has to mask out illegal tokens at every step, and that is not cheap;</li>
+<li><strong>Shared prefixes</strong> go unreused — ten requests all start with "You are a translation assistant," yet the framework computes that same prefix ten times;</li>
+<li><strong>Branching generation</strong> is inherently wasteful — asking for several candidate answers or several tool calls spins up several independent KV caches.</li>
+</ol>
+
+SGLang's move was to organize the KV cache as a <strong>radix tree</strong>:
+<ul>
+<li>each edge of the tree corresponds to a span of tokens, and each node stores the KV for that span;</li>
+<li>multiple requests that share a prefix automatically reuse the same subtree — <strong>prefix caching got native support at the data-structure level for the first time</strong>;</li>
+<li>the multi-candidate branches of structured generation ("give me 3 different translations") hang directly off the tree, branch nodes share the root, and redundant computation disappears.</li>
+</ul>
+
+Combined with the <strong>Zero-Overhead Scheduler</strong> and a <strong>compressed finite state machine (FSM)</strong>, SGLang reports being <strong>3–7× faster than vLLM</strong> on JSON, SQL, and function-calling workloads, with a 5× average end-to-end improvement.
+<blockquote>
+
+SGLang's real killer feature is not raw single-point speed; it is that the idea "<strong>generation is structured and reusable</strong>" was written into the underlying abstraction. Once your application is an agent, a workflow, or a multi-turn tool caller, SGLang's advantage compounds.
+</blockquote>
+
+<strong>Where SGLang stands</strong>: long context, structured output, shared prefixes, branching generation — across every niche where vLLM is weak, SGLang is redefining the baseline.
+<hr>
+<h2>4. Head-to-Head: Choosing Among Five Mainstream Frameworks</h2>
+
+Here are the five frameworks everyone names, side by side:
+<table>
+<thead>
+<tr>
+<th>Framework</th>
+<th>Camp</th>
+<th>Core technology</th>
+<th>Strongest scenario</th>
+<th>Weak spot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>vLLM</strong></td>
+<td>UC Berkeley / independent, VC-backed</td>
+<td>PagedAttention + Continuous Batching</td>
+<td>General open-source models, easy deployment, thickest ecosystem</td>
+<td>Not the strongest for structured generation or long context</td>
+</tr>
+<tr>
+<td><strong>SGLang</strong></td>
+<td>LMSYS / commercialized</td>
+<td>RadixAttention + compressed FSM + zero-overhead scheduling</td>
+<td>Structured output, shared prefixes, agent workflows</td>
+<td>Started later on general-purpose serving; smaller community than vLLM</td>
+</tr>
+<tr>
+<td><strong>TensorRT-LLM</strong></td>
+<td>Nvidia</td>
+<td>Operator fusion + in-flight batching + INT8/FP8</td>
+<td>Nvidia hardware, minimal latency, enterprise RAG</td>
+<td>Locked to Nvidia cards, hard to modify kernels, unusable on non-NV hardware</td>
+</tr>
+<tr>
+<td><strong>TGI</strong></td>
+<td>Hugging Face</td>
+<td>Continuous Batching + quantization</td>
+<td>HF ecosystem, Dockerized deployment, European market</td>
+<td>Performance often trails vLLM by half a release; slow iteration</td>
+</tr>
+<tr>
+<td><strong>LMDeploy</strong></td>
+<td>OpenMMLab / Shanghai AI Lab</td>
+<td>TurboMind kernels + KV quantization</td>
+<td>Domestic-hardware support, quantization, the Chinese community</td>
+<td>Thin international ecosystem; narrower model coverage than vLLM</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+Three one-liners:
+- Want the fastest path to a working deployment → <strong>vLLM</strong>
+- Writing lots of agents / tool calling → <strong>SGLang</strong>
+- Must squeeze latency to single-digit ms and only run NV cards → <strong>TensorRT-LLM</strong>
+</blockquote>
+
+Below, we take apart the four focal technologies of this arms race, because those four are exactly what these five are competing over.
+<hr>
+<h2>5. Focal Point One: KV Cache Management</h2>
+
+KV cache is the biggest line item in inference memory — the longer the sequence, the more it takes; the larger the batch, the more it takes.
+<table>
+<thead>
+<tr>
+<th>Approach</th>
+<th>Exemplar</th>
+<th>Idea</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>PagedAttention</strong></td>
+<td>vLLM</td>
+<td>OS-style paging plus a block table; scattered allocation eliminates fragmentation</td>
+<td>Requires rewriting the kernel</td>
+</tr>
+<tr>
+<td><strong>RadixAttention</strong></td>
+<td>SGLang</td>
+<td>KV organized as a radix tree; prefixes reused by construction</td>
+<td>More complex write path</td>
+</tr>
+<tr>
+<td><strong>PagedAttention-MoE / cache pooling</strong></td>
+<td>Nvidia / industry practice</td>
+<td>Reuse KV across requests and across experts</td>
+<td>Requires hardware coherence support</td>
+</tr>
+</tbody>
+</table>
+
+The industry trend worth calling out separately is <strong>Prefix Cache</strong> — persisting the KV of system prompts and long document prefixes in VRAM or host memory and reusing it across requests. vLLM added <code>--enable-prefix-caching</code> in late 2024; SGLang built it into its data structures from day 1. In RAG, tool-calling, and long-system-prompt scenarios, <strong>prefix caching can cut time-to-first-token by more than 60%</strong>, which makes it one of the hottest optimization directions today.
+<hr>
+<h2>6. Focal Point Two: Continuous Batching and Schedulers</h2>
+
+Traditional batching is static — wait for N requests, start, run to completion, then admit the next batch. The GPU burns a lot of time waiting for batches.
+
+<strong>Continuous Batching</strong> lets the in-flight batch change dynamically:
+<ul>
+<li>a request that finishes generating exits immediately and frees its memory;</li>
+<li>a new request fills the free slot right away, so the GPU almost never idles;</li>
+<li>with iteration-level scheduling, prefill (the first pass that computes KV) and decode (token-by-token generation) can even be mixed into the same batch.</li>
+</ul>
+<div class="codehilite"><pre><span></span><code>Traditional batching:
+  [A,B,C] ──────────── wait until full ────────────► [done]   [D,E] ───►
+       ^ the long-tail request C drags the whole batch down, leaving lots of GPU idle time
+
+Continuous batching:
+  [A,B,C      ] ─► [A,B,C,D] ─► [  B,D,E,F] ─► [     D,E,F]
+       A finishes early → D takes the slot at once → E,F flow in → GPU utilization nears the ceiling
+</code></pre></div>
+
+
+The next level of this race is <strong>disaggregated prefill/decode</strong> — splitting prefill and decode onto different GPUs or clusters:
+<ul>
+<li>prefill is compute-bound and suits cards built for raw math;</li>
+<li>decode is memory-bandwidth-bound and suits high-bandwidth cards;</li>
+<li>once separated, each class of card does what it does best, and overall throughput takes another step up. vLLM, SGLang, and TRT-LLM all followed this path in 2025–2026.</li>
+</ul>
+<hr>
+<h2>7. Focal Point Three: Speculative Decoding and Speculative Sampling</h2>
+
+Autoregressive LLMs run the entire model forward once per token, <strong>burning compute on guessing a single character</strong>. Speculative decoding works like this:
+<ol>
+<li>a small draft model quickly "guesses" K tokens;</li>
+<li>the large model verifies all K tokens in parallel in a single forward pass (one pass = K candidates);</li>
+<li>correct guesses are accepted outright; wrong ones are rolled back and recomputed.</li>
+</ol>
+
+<strong>Payoff</strong>: 2–3× end-to-end speedup when the draft and target distributions are close enough.
+<table>
+<thead>
+<tr>
+<th>Variant</th>
+<th>Idea</th>
+<th>Representative implementations</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Vanilla speculative decoding</strong></td>
+<td>Small model guesses, large model verifies</td>
+<td>Already supported by vLLM, TGI, and TRT-LLM</td>
+</tr>
+<tr>
+<td><strong>N-gram / Prompt Lookup</strong></td>
+<td>No draft model; look up candidate n-grams directly in the prompt</td>
+<td>vLLM <code>--speculative-model "[ngram]"</code></td>
+</tr>
+<tr>
+<td><strong>EAGLE-2 / EAGLE-3</strong></td>
+<td>Drafting at the feature-vector level, pushing acceptance rates above 60%</td>
+<td>Integrated in the SGLang and vLLM communities</td>
+</tr>
+<tr>
+<td><strong>Medusa</strong></td>
+<td>Add multiple heads that guess several tokens in parallel</td>
+<td>TRT-LLM</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+Speculative decoding is currently the best value-for-money acceleration technique out there: no touching model weights, no retraining, just a few lines of scheduling on the inference side, and throughput can double. That is why <strong>virtually every mainstream framework put "supports some form of speculative decoding" on the first line of its release notes in 2025</strong>.
+</blockquote>
+<hr>
+<h2>8. Focal Point Four: Quantization</h2>
+
+Quantization is fundamentally about representing the same weights and activations with fewer bits, squeezing memory down to the last drop.
+<table>
+<thead>
+<tr>
+<th>Quantization scheme</th>
+<th>Bit width</th>
+<th>Calibration required</th>
+<th>Accuracy loss</th>
+<th>Best supported by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>GPTQ / AWQ</strong></td>
+<td>INT4/INT8</td>
+<td>Yes</td>
+<td>Moderate</td>
+<td>vLLM, LMDeploy, TGI</td>
+</tr>
+<tr>
+<td><strong>SmoothQuant</strong></td>
+<td>INT8</td>
+<td>Yes</td>
+<td>Small</td>
+<td>TRT-LLM, LMDeploy</td>
+</tr>
+<tr>
+<td><strong>FP8</strong> (post-H100)</td>
+<td>E4M3 / E5M2</td>
+<td>No</td>
+<td>Minimal</td>
+<td>TRT-LLM, vLLM 0.6+</td>
+</tr>
+<tr>
+<td><strong>INT4 GEMM (W4A16)</strong></td>
+<td>INT4 weights / FP16 activations</td>
+<td>Yes</td>
+<td>Moderate</td>
+<td>TRT-LLM, LMDeploy TurboMind</td>
+</tr>
+</tbody>
+</table>
+
+Worth emphasizing on its own: <strong>FP8</strong>.
+<ul>
+<li>H100 / H200 natively support FP8 Tensor Cores, <strong>doubling compute density versus FP16</strong>;</li>
+<li>it needs almost no calibration, and the accuracy loss sits inside benchmark noise;</li>
+<li>since 2025 it has become the "<strong>infrastructure-grade</strong>" default — one flag in vLLM 0.6+, the out-of-the-box setting in TRT-LLM.</li>
+</ul>
+
+In short: quantization before FP8 was "saves memory but is not necessarily faster"; after FP8 it is "<strong>both fast and cheap</strong>". It is the gift Nvidia's hardware handed to the inference ecosystem.
+<hr>
+<h2>9. Selection Advice: Which Card to Play in Which Scenario</h2>
+<table>
+<thead>
+<tr>
+<th>Your scenario</th>
+<th>Recommended framework</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>General chat / compatibility with all HuggingFace models</td>
+<td><strong>vLLM</strong></td>
+<td>Thickest ecosystem, broadest model coverage, fastest community response</td>
+</tr>
+<tr>
+<td>Agents / tool calling / heavy JSON output</td>
+<td><strong>SGLang</strong></td>
+<td>RadixAttention reuses prefixes; structured generation is 3–7× faster</td>
+</tr>
+<tr>
+<td>Long-context RAG with shared system prompts</td>
+<td><strong>SGLang, or vLLM + Prefix Cache</strong></td>
+<td>KV reuse halves time-to-first-token outright</td>
+</tr>
+<tr>
+<td>All-Nvidia cluster, enterprise SLA, single-digit ms required</td>
+<td><strong>TensorRT-LLM</strong></td>
+<td>Operator fusion + FP8 define the latency floor</td>
+</tr>
+<tr>
+<td>Domestic accelerators (Huawei / MetaX / Biren / Enflame)</td>
+<td><strong>LMDeploy / vLLM</strong></td>
+<td>LMDeploy has the most complete domestic support; vLLM has the broader open ecosystem</td>
+</tr>
+<tr>
+<td>Multimodal / LLaVA / Qwen-VL</td>
+<td><strong>vLLM</strong></td>
+<td>Fastest multimodal branches and model onboarding</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+A rule of thumb: <strong>get it running on vLLM first, then ask where the business bottleneck actually is</strong>.
+- Bottleneck is "long context / repeated system prompts" → add Prefix Cache or move to SGLang;
+- Bottleneck is "latency will not go any lower" → speculative decoding + FP8, and TRT-LLM if that is still not enough;
+- Bottleneck is "memory" → quantization + PagedAttention, plus prefill/decode disaggregation when necessary.
+</blockquote>
+<hr>
+<h2>10. Where the Ultimate Arms Race Leads: From Framework to Infrastructure</h2>
+
+Stack all of this competition together and one common trend appears — inference frameworks are shedding their "framework" shell and becoming <strong>a class of infrastructure</strong>:
+<ol>
+<li><strong>From single node to cluster</strong>: yesterday's inference framework managed a few cards in one box; today it has to handle cross-machine request routing, KV migration, prefill/decode separation, and expert routing and scheduling;</li>
+<li><strong>From general to scenario-specific</strong>: vLLM is no longer "any model, any scenario," and SGLang is no longer just "structured generation" — each framework is growing <strong>its own domain language</strong> (vLLM's <code>LLMEngine</code>, SGLang's <code>@function</code>, TRT-LLM's builder DSL);</li>
+<li><strong>From software to software-hardware co-design</strong>: FP8, CPO, IBGDA, NVLink C2C — every step in hardware rewrites the optimization space available to software. When RDMA halves cross-node latency, the engineering payoff of prefill/decode disaggregation climbs another notch;</li>
+<li><strong>From inference to "inference + training"</strong>: DeepEP, NCCL, and SGLang's explorations on the training side — the people whose frameworks understand both inference and training will be the ones holding scheduling in their hands.</li>
+</ol>
+<blockquote>
+
+So the essence of this arms race is not who is faster, but <strong>who becomes the default choice of infrastructure for the large-model era</strong>. vLLM is betting on "general-purpose dominance," SGLang on "structure and agents," TRT-LLM on "the full Nvidia stack," and LMDeploy on "domestic hardware and quantization."
+</blockquote>
+<hr>
+<h2>Closing Notes</h2>
+<blockquote>
+
+<em>The ultimate arms race in inference frameworks is not about squeezing another 10% of throughput; it is about making "one card's worth of GPUs do the work of two" into a gift beyond what physics already gave us.</em>
+</blockquote>
+
+Back to the three questions from the beginning — throughput, latency, memory — three years of engineering practice has produced these answers:
+<ul>
+<li>once <strong>PagedAttention</strong> swept away memory fragmentation, the concurrency a single machine could hold made its first order-of-magnitude leap;</li>
+<li>once <strong>Continuous Batching</strong> stopped the GPU from idling, the throughput baseline was drawn a second time;</li>
+<li>once <strong>RadixAttention</strong> wrote prefixes into the data structure, structured generation went from "barely workable" to "natively efficient";</li>
+<li>once <strong>FP8, speculative decoding, and prefill/decode disaggregation</strong> stacked on top of each other, the marginal cost per token fell to a level unimaginable three years ago;</li>
+<li>once <strong>ecosystem co-building</strong> pulled training, communication, inference, and scheduling into a single drawer, inference frameworks became eligible for infrastructure status for the first time.</li>
+</ul>
+
+None of those five on its own rewrote history, but stacked together they have already made deploying a hundred-billion-parameter MoE model in 2026 cheaper than deploying a 7B model was in 2023. That is the most valuable legacy this arms race leaves the industry.
+
+Over the next three years, the inference framework story will shift from "<strong>who is faster</strong>" to "<strong>who is the default</strong>." As for who gets that ticket — vLLM, SGLang, or some dark horse that has not surfaced yet — that is not a question one technical article can answer. But one thing is certain: <strong>single-point optimization is no longer enough; whoever can stake throughput, latency, memory, and ecosystem on the same card is the one with a chance to stay at the table.</strong>
+<hr>
+<blockquote>
+
+📚 <strong>Further reading</strong>
+- vLLM paper: <em>Efficient Memory Management for Large Language Model Serving with PagedAttention</em> (SOSP 2023)
+- SGLang paper: <em>SGLang: Efficient Execution of Structured Language Model Programs</em> (NeurIPS 2024)
+- DeepSeek-V3 technical report: speculative decoding + FP8 practice on the training side
+- Nvidia TensorRT-LLM official documentation and the in-flight batching design
+
+<em>This article is a technical overview; the cited figures come from each framework's public papers and release notes, and may drift out of date as versions iterate.</em>
+</blockquote>
+
+The same thread continues here: <a href="/article/queueing-theory-capacity-planning/">"Going from 4 Machines to 8 Made It Slower: Queueing Theory and Capacity Planning"</a>, <a href="/article/ibgda-domestic-gpu-rdma-demo-waic2026/">"No Nvidia NICs Required: A Hands-On Test of Direct GPU Passthrough on Domestic Hardware"</a>.
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/vllm-vs-sglang-llm-inference-framework-war/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/vllm-vs-sglang-llm-inference-framework-war/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>

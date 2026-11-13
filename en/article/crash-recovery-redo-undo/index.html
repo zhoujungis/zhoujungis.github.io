@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A killed process, a power cut, a corrupt WAL frame, a half-written page: what saves a database in each case? Using 55 crashes, three WAL-corruption tests and a torn-page model, this piece separates redo, undo, checksums and doublewrite." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/crash-recovery-redo-undo/" />
+    <meta property="og:title" content="After the Power Cut: How redo, undo and torn pages save the database | Stack Frame" />
+    <meta property="og:description" content="A killed process, a power cut, a corrupt WAL frame, a half-written page: what saves a database in each case? Using 55 crashes, three WAL-corruption tests and a torn-page model, this piece separates redo, undo, checksums and doublewrite." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/crash-recovery-redo-undo/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="After the Power Cut: How redo, undo and torn pages save the database | Stack Frame" />
+    <meta name="twitter:description" content="A killed process, a power cut, a corrupt WAL frame, a half-written page: what saves a database in each case? Using 55 crashes, three WAL-corruption tests and a torn-page model, this piece separates redo, undo, checksums and doublewrite." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>After the Power Cut: How redo, undo and torn pages save the database | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/crash-recovery-redo-undo/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/crash-recovery-redo-undo/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/crash-recovery-redo-undo/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>After the Power Cut: How redo, undo and torn pages save the database</h1><div class="ns-meta">2026-11-13 · 28 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: people who have written a WAL or a storage engine but cannot say what each step of "recovery" actually does; people puzzled that their data was still there after a <code>kill -9</code>; people currently tuning <code>synchronous</code>, <code>innodb_flush_log_at_trx_commit</code> and checkpoint parameters; people who want to know what the doublewrite buffer really protects against.
+Bottom line first: recovery is not as simple as "replay the log once". It is made of three things: <strong>the log reaches disk before the data (write-ahead)</strong>, <strong>idempotent redo replay</strong>, and <strong>undo rollback of uncommitted transactions</strong>. Atomicity comes from the log, durability from fsync, integrity from checksums and doublewrite. Drop any one of them and you end up with "looks recovered, but the data is already wrong".
+Reading time: about 28 minutes | Level: advanced | What you get: 55 real crash experiments, the exact number of surviving rows after WAL frame corruption, how transaction shape changes undo/redo volume, why redo can sometimes rescue a torn page and sometimes cannot, and a recovery drill checklist you can actually run</p>
+</blockquote>
+<p><strong>Contents</strong></p>
+<ul>
+<li>1. Four failures, four ways to survive</li>
+<li>2. First, separate the failure models</li>
+<li>3. The three basic rules of recovery</li>
+<li>4. The SQLite rollback journal: undo with old page images</li>
+<li>5. SQLite WAL: redo with new page images</li>
+<li>6. Experiment 1: 55 recoveries after a process crash</li>
+<li>7. Experiment 2: transaction shape decides log volume</li>
+<li>8. Experiment 3: deliberately corrupting one WAL frame</li>
+<li>9. InnoDB: redo, undo and the three phases of recovery</li>
+<li>10. Torn pages: why redo can sometimes fix them and sometimes cannot</li>
+<li>11. Configuration, monitoring and recovery drills</li>
+<li>12. Source map and reproduction scripts</li>
+<li>13. Summary: recovery is a chain of time</li>
+</ul>
+<h2>1. Four failures, four ways to survive</h2>
+<p>Start with four scenarios that really happen:</p>
+<ol>
+<li><strong>The process gets <code>kill -9</code>'d</strong>: the OS is still alive, the page cache is still there, the kernel closes the file descriptors. When the database starts next time it may see a half-written WAL, a leftover journal, or nothing at all.</li>
+<li><strong>The machine loses power</strong>: the page cache in memory is gone, and only part of what was written may have reached the disk; the last WAL frame may be half a frame, and a data page may have only one sector written.</li>
+<li><strong>One frame in the middle of the WAL goes bad</strong>: bad sectors, a bit flip, or deliberate damage. Every frame after the bad one may still be perfectly good — but is the database still willing to use them?</li>
+<li><strong>Only half a page was written (torn page)</strong>: 2 KB of a 4 KB page made it to disk and the other 2 KB is old data, zeros or garbage. The checksum can detect it — but once detected, what do you repair it with?</li>
+</ol>
+<p>These four scenarios map onto four different mechanisms: a process crash mainly tests the log's <strong>atomic commit and recovery procedure</strong>; a power cut tests <strong>fsync ordering and log durability</strong>; a bad frame tests <strong>checksums and the truncation strategy</strong>; a torn page tests <strong>doublewrite or full-page images</strong>.</p>
+<p>Lump them together and you get plausible-sounding nonsense like "the database has a WAL, so it cannot lose data". Let's take them apart one at a time.</p>
+<h2>2. First, separate the failure models</h2>
+<p>The easiest mistake to make in recovery experiments is simulating a power cut by "copying the files". That is exactly what we did the first time: the writer process was still running while the parent process copied <code>.db</code>, <code>-wal</code>, <code>-journal</code> and <code>-shm</code> one by one into another directory, then opened the copy. Several of the 25 runs failed outright with <code>database disk image is malformed</code>.</p>
+<p>That is not a database bug — it is that <strong>copying across files is not an atomic snapshot</strong>. On a real power cut, the filesystem guarantees the ordering of each <code>write</code> and <code>fsync</code>; when you copy, the main database, the WAL and the journal are read at different instants and can combine into a state that never physically existed. Any conclusion you draw about recovery logic from such a copy is untrustworthy.</p>
+<p>So we split the experiments into three kinds:</p>
+<ul>
+<li><strong>Process crash</strong>: <code>kill</code> the process, wait for it to exit, then copy the files. This simulates "the process is gone but the OS cache and the files are still there", and it validates the recovery procedure and atomicity.</li>
+<li><strong>Log corruption</strong>: flip a single byte at a precise offset in an already-written WAL, then open the database. This simulates bad sectors / bit flips and validates checksums and the truncation strategy.</li>
+<li><strong>Torn page</strong>: use a small page/redo simulator to control which half of the write succeeds and what the other half becomes, validating what doublewrite is responsible for.</li>
+</ul>
+<p>The three kinds answer different questions and cannot substitute for each other. Every number below says which kind it came from.</p>
+<h2>3. The three basic rules of recovery</h2>
+<p>Whatever the database, crash recovery cannot get around three rules.</p>
+<p><strong>Rule one: the log must reach disk before the data.</strong></p>
+<p>Before a page is modified, the log describing that modification must already be durable. Otherwise, after a power cut the data page is new and the log is old, and recovery has no idea why the page looks the way it does. SQLite's rollback journal writes the old page image before it writes the data page; WAL appends the new page image to the WAL and fsyncs it before commit (with <code>synchronous=FULL</code>). InnoDB must make sure the corresponding redo is in the log file before it flushes a dirty page.</p>
+<p><strong>Rule two: redo must be idempotent.</strong></p>
+<p>Replaying the same redo record once and replaying it ten times must give the same result. Physical logging usually records "change the N bytes starting at offset O of page P to X", which is naturally idempotent; logical logging records "add 100 to account A", and replaying that twice adds 200, so logical logs need LSNs or a transaction table to deduplicate. InnoDB's redo is page-level physical logging that records in-page changes; SQLite's WAL is a whole-page image, so replay means overwrite, which is also idempotent.</p>
+<p><strong>Rule three: uncommitted transactions must be rollback-able.</strong></p>
+<p>Recovery does not only roll forward, it also rolls back. A transaction that was running when the crash hit may already have written part of its data pages, or may have written only to the log. The recovery procedure must be able to tell which transactions committed and which did not, and then undo the changes of the ones that did not. SQLite rolls back using the old page images in the journal; InnoDB rolls back using the undo log, and once the rollback is finished the purge thread cleans up the old versions.</p>
+<p>Hold on to these three rules and specific implementations stop being confusing.</p>
+<h2>4. The SQLite rollback journal: undo with old page images</h2>
+<p>SQLite's default rollback journal mode works on a very direct idea: <strong>before modifying a page, write that page's old contents to the journal file.</strong></p>
+<p>A transaction roughly goes like this:</p>
+<ol>
+<li>Take a RESERVED lock on the database file and create the <code>-journal</code> file.</li>
+<li>Write the journal header: magic, page count, checksum, database size, sector size, page size.</li>
+<li>For every page about to be modified, append a record: page number + old page contents + checksum.</li>
+<li>Flush the journal to disk (<code>synchronous=FULL</code>) so the old contents are durable.</li>
+<li>Modify the pages in the database file; on commit, release the lock and delete the journal.</li>
+<li>If it crashes partway through, the next open finds a journal that exists but has no matching lock, treats it as a "hot journal", writes the old page images back page by page, and then deletes the journal.</li>
+</ol>
+<p>So the journal is essentially a <strong>physical undo log</strong>. It records what things looked like before the change, and recovery performs a rollback rather than a replay. It does not need to know anything about transaction logic: restore the pages to their old versions and the uncommitted changes are gone.</p>
+<p>That also explains why the journal size depends on "how many existing pages were modified" rather than on "how many rows were inserted". With sequential appends most pages are new, and the only old pages are the one or two rightmost ones, so the journal is just 12.8 KB; with 2000 random updates you touch over a thousand existing pages and the journal grows to 1–7 MB.</p>
+<p><code>PRAGMA synchronous</code> controls how hard the journal is flushed: <code>FULL</code> fsyncs at the critical points, <code>NORMAL</code> reduces the number of syncs, and <code>OFF</code> leaves the ordering to the operating system. <code>OFF</code> can leave you with a corrupt database after a power cut, because the journal may never have reached disk while the data pages were already written.</p>
+<h2>5. SQLite WAL: redo with new page images</h2>
+<p>WAL mode turns the direction around: <strong>it does not write old pages, it appends new pages to the WAL file.</strong></p>
+<p>A WAL file consists of a 32-byte header and a number of frames. Each frame is a 24-byte frame header plus one whole page of data:</p>
+<pre><code class="language-text">WAL header (32 bytes)
+├─ magic / version / page_size / checkpoint_seq / salt / checksum
+Frame 1
+├─ page number (4)
+├─ database size after commit (4)   ← non-zero means this is a commit frame
+├─ salt1 / salt2 (8)
+├─ checksum1 / checksum2 (8)
+└─ page data (page_size)
+Frame 2 ...
+</code></pre>
+<p>At commit, SQLite appends every page this transaction modified to the WAL as a frame, and writes a non-zero "database size after commit" in the last frame to mark the end of the transaction. To read, it first consults the WAL index (<code>-shm</code>) for the newest frame of each page in the WAL, and only reads the main database file when the page is not there.</p>
+<p>The SQLite documentation states the recovery rule plainly: <strong>scan the WAL once, sequentially, from the start, verifying the checksum of each frame, and stop at the first invalid checksum; <code>mxFrame</code> is the last valid commit frame.</strong> That means WAL recovery is prefix-shaped: commits before the bad frame are valid, and frames after it are not used even if their bytes are intact. The experiment in the next section shows exactly this.</p>
+<p>With <code>synchronous=FULL</code>, every commit fsyncs the WAL; with <code>NORMAL</code>, it only syncs at key points such as checkpoint. The difference shows up after a power cut as "whether the last few committed transactions are lost", and is usually invisible after a process crash, because the OS cache is still there.</p>
+<h2>6. Experiment 1: 55 recoveries after a process crash</h2>
+<p>Setup: the writer commits every 200 rows and keeps inserting 120-byte random values; once it is in steady-state writing, the parent waits a random 0.15–1.2 seconds, <code>kill</code>s it, then copies the database file, WAL and journal, opens the copy, and runs <code>PRAGMA integrity_check</code> plus a count.</p>
+<p>Three configurations, 55 runs in total:</p>
+<table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th>Transaction size</th>
+<th>Recovered</th>
+<th>Row count stayed atomic</th>
+<th>Median recovery time</th>
+<th>Median log size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rollback journal + FULL</td>
+<td>200 rows</td>
+<td>20/20</td>
+<td>20/20</td>
+<td>8.26 ms</td>
+<td>journal 12.8 KB</td>
+</tr>
+<tr>
+<td>WAL + FULL</td>
+<td>200 rows</td>
+<td>20/20</td>
+<td>20/20</td>
+<td>3.98 ms</td>
+<td>WAL 4.13 MB</td>
+</tr>
+<tr>
+<td>WAL + NORMAL</td>
+<td>200 rows</td>
+<td>20/20</td>
+<td>20/20</td>
+<td>6.76 ms</td>
+<td>WAL 4.15 MB</td>
+</tr>
+<tr>
+<td>rollback journal + FULL</td>
+<td>2000 rows</td>
+<td>15/15</td>
+<td>15/15</td>
+<td>6.53 ms</td>
+<td>journal 12.8 KB</td>
+</tr>
+<tr>
+<td>WAL + FULL</td>
+<td>2000 rows</td>
+<td>15/15</td>
+<td>15/15</td>
+<td>10.15 ms</td>
+<td>WAL 4.29 MB</td>
+</tr>
+</tbody>
+</table>
+<p>"Row count stayed atomic" means the row count after recovery is always a whole multiple of the transaction size — you never see a transaction with only half of its rows in place. All 55 runs passed, which says that under the <strong>process crash</strong> failure model, both journal rollback and WAL recovery in SQLite preserve atomicity.</p>
+<p>Recovery times are modest: a few milliseconds up to the low teens. The WAL log is much bigger (around 4 MB), yet its recovery time is not notably worse than the journal's, because WAL recovery is fast while the <code>-shm</code> index is still there and only needs a full scan if that index is lost. Note that this measures "time to open the database and execute the first statement", not the full table scan and <code>integrity_check</code> that follow.</p>
+<p>The process crash experiment has one important limitation: it does not simulate a power cut. After <code>kill</code>, the OS cache still writes the data back to disk, so what SQLite sees may differ from what it would see after a real power cut. To study power cuts you have to control log corruption, or use storage that can simulate power loss.</p>
+<h2>7. Experiment 2: transaction shape decides log volume</h2>
+<p>The second batch changes one variable: the database already holds 300,000 rows, and the transaction no longer appends but randomly updates 2000 rows. Everything else stays the same.</p>
+<table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th>Recovered</th>
+<th>Row counts correct</th>
+<th>Log size</th>
+<th>Median recovery time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rollback journal + FULL</td>
+<td>8/8</td>
+<td>8/8</td>
+<td>1.2–7.4 MB</td>
+<td>92.25 ms</td>
+</tr>
+<tr>
+<td>WAL + FULL</td>
+<td>8/8</td>
+<td>8/8</td>
+<td>7.4–7.5 MB</td>
+<td>19.61 ms</td>
+</tr>
+</tbody>
+</table>
+<p>Same table, same transaction size — the only difference being that we are modifying existing pages — and the journal jumps from 12.8 KB to several MB while recovery time goes from 8 ms to 92 ms. Section 4 already gave the reason: the journal records old page images, and random updates touch a large number of existing pages, whereas sequential inserts only modify the rightmost pages so the old page images are nearly zero.</p>
+<p>The WAL log also grows, but its recovery time actually comes out shorter than the journal's. This is not "WAL always recovers faster"; the two do different work during recovery. The journal has to write several MB of old pages back into the main database, while the WAL mostly scans frames and rebuilds an index, and can defer writing the pages back to checkpoint. <strong>Log volume and recovery time are not a simple linear relationship — what matters is what the recovery phase actually does.</strong></p>
+<p>This set of numbers is useful for capacity planning: if a service is dominated by random updates, the undo/redo volume will be far above what "how much I insert" suggests. Sizing log space by inserted row count tends to underestimate by an order of magnitude.</p>
+<h2>8. Experiment 3: deliberately corrupting one WAL frame</h2>
+<p>The third batch damages the WAL directly. First we generate a WAL containing 40 transactions of 200 rows each: 379 frames, 41 commit frames (including the one from creating the table), 1.56 MB. Then we flip one byte at each of three positions:</p>
+<ul>
+<li><strong>The first frame after the first frame</strong> (frame 2): damages the first data frame.</li>
+<li><strong>A frame in the middle</strong> (frame 189): damages the halfway point.</li>
+<li><strong>The last frame</strong> (frame 378): damages the final commit frame.</li>
+</ul>
+<p>Results:</p>
+<table>
+<thead>
+<tr>
+<th>Corruption site</th>
+<th>Frame</th>
+<th>Rows after recovery</th>
+<th>Rows expected</th>
+<th>integrity_check</th>
+<th>Recovery time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>After the first frame</td>
+<td>2</td>
+<td>0</td>
+<td>8000</td>
+<td>ok</td>
+<td>6.51 ms</td>
+</tr>
+<tr>
+<td>Middle</td>
+<td>189</td>
+<td>3800</td>
+<td>8000</td>
+<td>ok</td>
+<td>8.57 ms</td>
+</tr>
+<tr>
+<td>Last</td>
+<td>378</td>
+<td>7800</td>
+<td>8000</td>
+<td>ok</td>
+<td>10.91 ms</td>
+</tr>
+</tbody>
+</table>
+<p>The three results map exactly onto the prefix property of WAL:</p>
+<ul>
+<li>Corrupting frame 2 leaves recovery able to see only the table-creation commit (frame 1); every data frame after it is discarded, so the table exists with 0 rows.</li>
+<li>Corrupting frame 189 makes recovery stop at the commit in frame 180 (19 transactions × 200 rows = 3800 rows); the commits after frame 190 are not used even though their bytes are intact.</li>
+<li>Corrupting the last frame keeps the first 39 transactions (7800 rows) and loses only the final one.</li>
+</ul>
+<p>All three <code>integrity_check</code> runs returned <code>ok</code>. That is the crucial part: <strong>the database is not "corrupt" — it has simply chosen a consistent version of history.</strong> The WAL checksums let recovery stop cleanly at the last trustworthy commit point instead of splicing in the "looks fine to me" data after the bad frame.</p>
+<p>Which is why both "a bad WAL means everything is gone" and "WAL has checksums so it cannot lose data" are wrong: checksums guarantee consistency, not completeness. Transactions committed after the bad frame really are lost, but the database will not keep serving with half a transaction in it.</p>
+<h2>9. InnoDB: redo, undo and the three phases of recovery</h2>
+<p>The SQLite experiments only tell us about one family of implementations, the "page image log" family. InnoDB's log format is different, and its recovery procedure is more involved.</p>
+<p>InnoDB's redo log is <strong>page-level physical logging</strong>: it records "which page of which tablespace, at what offset, changed to what", not a whole-page image. A modification is written to redo first, and dirty pages are flushed to the data files at an appropriate later moment. Every page has an LSN (log sequence number), and the checkpoint records "changes before which LSN have already reached disk". Recovery starts at the checkpoint and replays everything after it.</p>
+<p>The documentation breaks crash recovery into several phases:</p>
+<ol>
+<li><strong>tablespace discovery</strong>: scan the data directory and find the tablespaces the redo refers to.</li>
+<li><strong>redo log application</strong>: replay redo from the checkpoint, bringing data pages up to their latest pre-crash state. If all dirty pages had already been flushed when the crash happened, redo application is skipped; if the redo files are missing it is also skipped (but data may be lost).</li>
+<li><strong>rollback of incomplete transactions</strong>: after the replay, undo the transactions that were uncommitted at the crash. The documentation explicitly warns that <strong>rolling back an interrupted transaction can take three to four times as long as the transaction took to execute</strong>, depending on server load, and that the rollback cannot be cancelled.</li>
+<li><strong>change buffer merge</strong>: merge buffered secondary-index changes into the leaf pages.</li>
+<li><strong>purge</strong>: clean up old row versions that are no longer visible.</li>
+</ol>
+<p>Here you can see the division of labour between redo and undo: <strong>redo is responsible for restoring all physical changes, committed or not, while undo is responsible for removing the logical transactions that never committed.</strong> Roll forward to the latest state, then roll back the part that should not exist. This is a different route from SQLite's rollback journal, which restores old pages directly: the journal is undo-only (it does not replay committed transactions, because the data pages were already in place), and WAL is redo-only (committed transactions are all in the log, and uncommitted ones never write a commit frame).</p>
+<p>InnoDB also needs the undo log to support MVCC: a row may have several historical versions, and reads pick a visible version according to the Read View. After crash recovery finishes, undo cannot be deleted immediately — purge can only clean up once no active transaction needs those versions any more. This is why long-running transactions block purge and let the undo tablespace grow.</p>
+<h2>9.5. Three recovery strategies in one table</h2>
+<p>SQLite journal, SQLite WAL and InnoDB represent three different sets of trade-offs. Line them up by "what is written before commit, which direction recovery moves, how a bad page is repaired" and the boundaries become much easier to see:</p>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>SQLite rollback journal</th>
+<th>SQLite WAL</th>
+<th>InnoDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Written before commit</td>
+<td>old page images</td>
+<td>new page images</td>
+<td>redo (in-page changes)</td>
+</tr>
+<tr>
+<td>Commit marker</td>
+<td>journal header + sync</td>
+<td>commit frame (dbsize≠0)</td>
+<td>commit LSN in redo</td>
+</tr>
+<tr>
+<td>Recovery direction</td>
+<td>undo only</td>
+<td>redo only</td>
+<td>redo first, then undo</td>
+</tr>
+<tr>
+<td>Uncommitted transactions</td>
+<td>overwritten by old pages, gone automatically</td>
+<td>no commit frame, so never seen</td>
+<td>rolled back by undo</td>
+</tr>
+<tr>
+<td>Bad page repair</td>
+<td>old page from the journal</td>
+<td>new page from the WAL frame</td>
+<td>doublewrite + redo</td>
+</tr>
+<tr>
+<td>Recovery cost mainly depends on</td>
+<td>journal size</td>
+<td>frame count and index state</td>
+<td>redo volume after the checkpoint + rollback volume</td>
+</tr>
+<tr>
+<td>Typical weakness</td>
+<td>journal balloons under random updates</td>
+<td>committed work lost after a bad frame</td>
+<td>slow rollback of long transactions, undo growth</td>
+</tr>
+</tbody>
+</table>
+<p>This table answers a common confusion: why does SQLite's journal recovery not need to "decide whether a transaction committed"? Because it never replays transactions at all; it just restores pages to how they looked before the transaction started. An uncommitted transaction never had complete page modifications, so restoring the old pages makes it vanish; a committed transaction's journal was deleted at commit, so it cannot be rolled back. The price is that the journal must reach disk before the data pages, and that the bigger the journal, the more has to be written back during recovery.</p>
+<p>WAL makes the opposite choice: it only records new pages, and the commit frame is the transaction boundary. Recovery needs no "rollback", because an uncommitted transaction has no commit frame and <code>mxFrame</code> will never move past it. The price is that the WAL keeps growing and has to be reclaimed by checkpoints, and that a bad frame truncates every commit after it.</p>
+<p>InnoDB wants both: redo guarantees "page modifications that already happened are not lost", undo guarantees "logical transactions that did not commit do not take effect". That buys more capability (MVCC, rollback, staying up after a crash) and more complexity (undo tablespaces, purge, long transactions).</p>
+<h2>9.6. Is redo a physical log or a logical log?</h2>
+<p>InnoDB's redo is often described as a "physiological log", which is a confusing phrase. Take it apart:</p>
+<ul>
+<li><strong>Physical</strong>: it records "which page, which offset within the page, changed to which bytes", not "which SQL statement ran". So replay needs no query optimiser and no transaction context, and it is fast and idempotent.</li>
+<li><strong>Logical</strong>: at the in-page level it records a set of changes (insert a record, update a field, modify the page header) rather than a whole-page image. Recovery has to apply those changes to the page rather than simply overwrite it.</li>
+</ul>
+<p>Contrast that with SQLite WAL's "whole-page image": one WAL frame is one 4 KB new page and replay is an overwrite, while one InnoDB redo record may be only a few dozen bytes describing a single in-page change. The former has high write amplification and simple recovery; the latter has low write amplification and recovery that must understand page structure.</p>
+<p>The idempotence of physical logging comes from "recording the final value": change the N bytes at offset O to X, and doing it once or ten times gives the same result. Logical logging is not necessarily idempotent — "add 100 to the balance" run twice is simply wrong. That is why InnoDB's redo must be physical/physiological, whereas a logical log like the binlog needs GTIDs, server_id and log positions to deduplicate.</p>
+<p>One more easily missed detail: InnoDB writes redo in units of mini-transactions (mtrs), and a single user transaction may contain several mtrs, each flushing its redo into the shared log buffer when it ends. Recovery replays them in LSN order and does not care which user transaction they belong to; transaction boundaries are determined by undo and by commit records. This layering — mtr at the physical level, transaction at the logical level — is the key to InnoDB achieving high concurrency and crash recovery at the same time.</p>
+<h2>10. Torn pages: why redo can sometimes fix them and sometimes cannot</h2>
+<p>Now the most widely misunderstood piece: the torn page.</p>
+<p>Say page P's old version is V0 and its new version is V1. The transaction modified some bytes of P, and redo recorded the new values of those bytes. When the dirty page is flushed, the disk only completes half the write: the first 2 KB is V1, the last 2 KB is still V0 (or has become zeros or garbage). After the power cut and restart, recovery reads P and the checksum does not match.</p>
+<p>So what happens?</p>
+<p><strong>Case one: the unwritten second half still holds V0.</strong> Replaying redo writes the modified bytes to their V1 values; the bytes that were never modified were already V0, which agrees with V1. After the replay the page is exactly V1 and the checksum passes. <strong>Redo alone repairs this kind of torn write.</strong></p>
+<p><strong>Case two: the unwritten second half has become zeros or garbage.</strong> Redo only covers the modified bytes; the bytes that were not modified but have been overwritten with zeros appear in no redo record at all. After the replay the page is still incomplete and the checksum fails. <strong>Redo cannot repair it — you need a complete copy of V1.</strong></p>
+<p>Doublewrite exists for case two. When InnoDB flushes a dirty page it first writes the pages sequentially into the doublewrite area and fsyncs, then writes them to their real location in the data files. During recovery, if a page in the data file fails its checksum, the complete copy is found in doublewrite, written back over it, and redo is applied on top. The documentation points out that doublewrite is <strong>a large sequential write plus a single fsync</strong>, not two random I/Os per page, so its cost is far below the literal reading of "write everything twice".</p>
+<p>We validated this division of labour with a simulator running 4000 trials per group. The model: 4 KB pages with a CRC, redo records the after-image of several byte ranges, a torn write puts V1 in the first half and V0 or zeros in the second, and recovery replays redo and compares the result against V1.</p>
+<table>
+<thead>
+<tr>
+<th>The other half of the torn page</th>
+<th>Without doublewrite</th>
+<th>With doublewrite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keeps the old bytes V0</td>
+<td>0% corrupt</td>
+<td>0% corrupt</td>
+</tr>
+<tr>
+<td>Becomes zeros</td>
+<td>100% corrupt</td>
+<td>0% corrupt</td>
+</tr>
+</tbody>
+</table>
+<p>These numbers say: <strong>doublewrite does not protect against "all torn writes", it protects against "the bytes redo cannot cover getting destroyed".</strong> If the disk guarantees that unwritten sectors keep their old contents, redo is enough; if it may return zeros or garbage, you need a complete copy. The sector atomicity, write cache and power-loss behaviour of the real hardware decide which cell you land in, which is why enabling doublewrite by default in production is reasonable.</p>
+<p>One caveat: this is a model, not InnoDB itself. After a page is modified for the first time, InnoDB also records a full-page image, which shifts the boundary of "can redo repair this by itself"; behaviour also differs between versions and between different <code>innodb_flush_method</code> settings. The model's value is in separating two variables — "what redo covers" and "what the medium actually wrote" — not in producing a percentage that applies to every engine.</p>
+<h2>11. Configuration, monitoring and recovery drills</h2>
+<p>Bringing the mechanisms above down to day-to-day operations, you can check them against this list:</p>
+<p><strong>Durability configuration</strong></p>
+<ul>
+<li>SQLite: <code>synchronous=FULL</code> is the floor for power-cut safety; <code>NORMAL</code> in WAL mode only guarantees consistency, and recent commits may be lost; <code>OFF</code> is unsuitable for anything that cannot lose data.</li>
+<li>InnoDB: <code>innodb_flush_log_at_trx_commit=1</code> means fsync redo on every commit; <code>=2</code> only writes to the OS cache, which is faster but may lose the last second; <code>=0</code> lets a background thread flush once a second, which is riskier still.</li>
+<li>Log file size: too small a WAL/redo means frequent checkpoints, too large means long recovery. Work backwards from your write rate and acceptable RTO.</li>
+</ul>
+<p><strong>Metrics to watch</strong></p>
+<ul>
+<li>WAL/redo growth rate and checkpoint frequency;</li>
+<li>recovery time (from start to serving) versus log size;</li>
+<li>periodic results of <code>integrity_check</code> / <code>CHECK TABLE</code>;</li>
+<li>the disk's power-loss protection (PLP), write cache policy and sector size;</li>
+<li>InnoDB's purge lag, history list length and undo tablespace size.</li>
+</ul>
+<p><strong>Recovery drills</strong></p>
+<ol>
+<li>Backup + log replay: restore from a full backup to a point in time and record the RTO.</li>
+<li>Simulated accidental deletion: drop a table, replay from binlog/WAL back to just before the drop, and verify the data is complete.</li>
+<li>Simulated bad frame: flip one byte in a copy of the WAL on a test database and confirm the database starts and reports the lost range.</li>
+<li>Simulated torn page: exercise the doublewrite path on storage that supports fault injection, or with a simulator.</li>
+<li>Record "how many transactions were actually lost" for every drill, instead of only checking "did it start".</li>
+</ol>
+<p>Recovery capability is not configured, it is drilled. A backup that has never been restored does not count as a backup.</p>
+<h2>12. Source map and reproduction scripts</h2>
+<p><strong>SQLite</strong></p>
+<ul>
+<li><code>pager.c</code>: <code>pager_write</code> marks pages dirty, <code>pager_playback</code> replays the journal, <code>sqlite3PagerCommitPhaseOne</code> handles the log writes in the commit phase.</li>
+<li><code>wal.c</code>: <code>sqlite3WalFrames</code>/<code>walFrames</code> append frames, <code>walIndexRecover</code> scans the WAL, verifies checksums and sets <code>mxFrame</code>.</li>
+<li>Official documentation: <a href="https://www.sqlite.org/walformat.html">WAL-mode File Format</a>, <a href="https://www.sqlite.org/fileformat2.html">Database File Format</a>.</li>
+</ul>
+<p><strong>InnoDB</strong></p>
+<ul>
+<li><code>log0recv.cc</code>: the main redo recovery flow, scanning and replaying from the checkpoint.</li>
+<li><code>buf0dblwr.cc</code>: doublewrite writing and recovery.</li>
+<li><code>trx0rec.cc</code> / <code>trx0roll.cc</code>: undo records and transaction rollback.</li>
+<li>Official documentation: <a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-recovery.html">InnoDB Recovery</a>, <a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-doublewrite-buffer.html">Doublewrite Buffer</a>.</li>
+</ul>
+<p><strong>Minimal scripts that reproduce the experiments</strong>:</p>
+<pre><code class="language-python">import os, random, sqlite3, subprocess, sys, time, shutil
+
+BATCH = 200
+
+# writer: commits every BATCH inserts, stops when killed
+WRITER = '''
+import os, sqlite3, sys
+db, mode, sync, ready = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+con = sqlite3.connect(db)
+con.execute(f&quot;PRAGMA journal_mode={mode}&quot;)
+con.execute(f&quot;PRAGMA synchronous={sync}&quot;)
+con.execute(&quot;CREATE TABLE IF NOT EXISTS kv(id INTEGER PRIMARY KEY, v BLOB)&quot;)
+con.commit()
+open(ready, &quot;w&quot;).close()
+payload = os.urandom(120)
+while True:
+    con.execute(&quot;BEGIN&quot;)
+    for _ in range(%d):
+        con.execute(&quot;INSERT INTO kv(v) VALUES(?)&quot;, (payload,))
+    con.commit()
+''' % BATCH
+
+# parent: wait for ready, random delay, kill, then copy the files
+# open the copy and run PRAGMA integrity_check and count(*)
+</code></pre>
+<p>The key to the WAL corruption experiment is parsing the frame layout:</p>
+<pre><code class="language-python">import struct
+
+data = open('db-wal', 'rb').read()
+magic, version, page_size = struct.unpack('&gt;III', data[:12])
+frame_size = 24 + page_size
+frames = (len(data) - 32) // frame_size
+for i in range(frames):
+    off = 32 + i * frame_size
+    pgno, dbsize = struct.unpack('&gt;II', data[off:off + 8])
+    # dbsize != 0 means this is a commit frame
+</code></pre>
+<p>Pitfalls we hit:</p>
+<ol>
+<li><strong>Do not copy while writes are in flight</strong>. Copying across files is not an atomic snapshot and produces states that never physically existed; kill first, then copy.</li>
+<li><strong><code>integrity_check</code> scans the whole table</strong>. Folding it into your recovery time gets you the wrong conclusion that "bigger database, slower recovery"; recovery time should only count from opening the database to the first statement.</li>
+<li><strong>WAL frame checksums are cumulative</strong>. Damage one frame in the middle and every later frame is discarded even though its bytes are intact; that is the design, not a bug.</li>
+<li><strong>A process crash is not a power cut</strong>. To verify fsync semantics you have to work on real power loss or on storage that can inject faults.</li>
+</ol>
+<h2>13. Summary: recovery is a chain of time</h2>
+<p>Compress the whole article into one chain of time:</p>
+<ol>
+<li>Before a modification happens, the old pages (journal) or the new pages (WAL/redo) reach disk first — <strong>write-ahead</strong>.</li>
+<li>At commit, an explicit commit point appears in the log — the transaction is either entirely visible or entirely invisible.</li>
+<li>After a crash, replay the log from the checkpoint — <strong>redo</strong>, pushing the physical state to the latest version.</li>
+<li>Roll back the uncommitted transactions — <strong>undo</strong>, pulling the logical state back to a consistent point.</li>
+<li>Checksums find bad pages and bad frames; doublewrite or a complete copy repairs torn writes.</li>
+<li>Checkpointing and purge clean up, and the database returns to normal service.</li>
+</ol>
+<p>SQLite's journal and WAL sit at the two ends, "undo-only" and "redo-only", while InnoDB is the combination "redo + undo". Their concrete formats differ, but the division of responsibility across these six steps is the same.</p>
+<p>What you really need to remember is not some function name or parameter, but three questions:</p>
+<ul>
+<li><strong>Does my log reach disk before my data?</strong></li>
+<li><strong>Can my recovery state plainly which transactions count?</strong></li>
+<li><strong>Does my storage guarantee what the unwritten part contains?</strong></li>
+</ul>
+<p>Only when you can answer those three do you get to talk about "crash recovery".</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/crash-recovery-redo-undo/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/crash-recovery-redo-undo/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>

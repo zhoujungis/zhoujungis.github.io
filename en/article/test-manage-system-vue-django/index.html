@@ -1,0 +1,846 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A full-stack test management platform for QA teams, built with Vue 3, Element Plus, Django REST Framework, and PostgreSQL — covering test cases, plans, runs, defects, and role-based permissions end to end." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/test-manage-system-vue-django/" />
+    <meta property="og:title" content="Building a Test Management System from Scratch: A Vue 3 + Django Full-Stack Walkthrough | Stack Frame" />
+    <meta property="og:description" content="A full-stack test management platform for QA teams, built with Vue 3, Element Plus, Django REST Framework, and PostgreSQL — covering test cases, plans, runs, defects, and role-based permissions end to end." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/test-manage-system-vue-django/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Building a Test Management System from Scratch: A Vue 3 + Django Full-Stack Walkthrough | Stack Frame" />
+    <meta name="twitter:description" content="A full-stack test management platform for QA teams, built with Vue 3, Element Plus, Django REST Framework, and PostgreSQL — covering test cases, plans, runs, defects, and role-based permissions end to end." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Building a Test Management System from Scratch: A Vue 3 + Django Full-Stack Walkthrough | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/test-manage-system-vue-django/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/test-manage-system-vue-django/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/test-manage-system-vue-django/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>Building a Test Management System from Scratch: A Vue 3 + Django Full-Stack Walkthrough</h1><div class="ns-meta">2026-07-03 · 14 min · Stack Frame</div><div class="markdown-body">
+<h1>Building a Test Management System from Scratch: A Vue 3 + Django Full-Stack Walkthrough</h1>
+<h2>Introduction</h2>
+
+In software development, testing is where quality is won or lost. Yet plenty of teams still manage test cases in Excel spreadsheets and sync defect status through a WeChat group — slow, and prone to gaps and mistakes.
+
+The <strong>Test Management System</strong> I want to walk through today is a full-stack platform built specifically for QA teams. It uses <strong>Vue 3</strong> for the front end and <strong>Django</strong> for the back end, and it covers the entire lifecycle: test case management, test plans, execution tracking, defect management, and team collaboration.
+<blockquote>
+
+Repository: <a href="https://github.com/zhoujungis/test_manage_system" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/test_manage_system</a>
+</blockquote>
+<hr>
+<h2>1. What does this system actually do?</h2>
+
+A diagram makes it easier to picture:
+<div class="codehilite"><pre><span></span><code>                          Test Management System
+ ┌─────────────────────────────────────────────────────────────┐
+ │                                                             │
+ │  📋 Case Management     📅 Test Planning    🔧 Execution     │
+ │  ┌──────────────┐      ┌──────────────┐    ┌──────────────┐ │
+ │  │ Write cases  │ ──▶  │ Build a plan │ ──▶│ Run the tests│ │
+ │  │ Import Excel │      │ Order the    │    │ Log results  │ │
+ │  └──────────────┘      └──────────────┘    └──────────────┘ │
+ │                                                    │        │
+ │                          ┌─────────────────────────┘        │
+ │                          ▼                                  │
+ │  🐛 Defect Management   📊 Dashboards       👥 Teamwork     │
+ │  ┌──────────────┐      ┌──────────────┐    ┌──────────────┐ │
+ │  │ File bugs    │      │ Metrics board│    │ Multiple     │ │
+ │  │ Track status │      │ Chart insight│    │ roles & ACLs │ │
+ │  └──────────────┘      └──────────────┘    └──────────────┘ │
+ │                                                             │
+ └─────────────────────────────────────────────────────────────┘
+</code></pre></div>
+
+
+Put simply: <strong>everything your test work currently keeps in spreadsheets and chat threads moves into one purpose-built web system</strong> — write cases, hand out tasks, test features, file bugs, read reports. One place for all of it.
+<hr>
+<h2>What is this system built with?</h2>
+
+The project uses the most mainstream full-stack stack available today:
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Technology</th>
+<th>Why this choice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Front-end framework</strong></td>
+<td>Vue 3</td>
+<td>Reactive data binding and component-based development</td>
+</tr>
+<tr>
+<td><strong>Build tool</strong></td>
+<td>Vite 8+</td>
+<td>Instant cold start and HMR during development</td>
+</tr>
+<tr>
+<td><strong>UI component library</strong></td>
+<td>Element Plus</td>
+<td>Mature desktop components with solid Chinese localization</td>
+</tr>
+<tr>
+<td><strong>State management</strong></td>
+<td>Pinia 3</td>
+<td>The officially recommended store for Vue 3, with a lean API</td>
+</tr>
+<tr>
+<td><strong>Routing</strong></td>
+<td>Vue Router 4</td>
+<td>SPA page navigation</td>
+</tr>
+<tr>
+<td><strong>Back-end framework</strong></td>
+<td>Django 4.2</td>
+<td>Batteries-included ORM, admin, and auth</td>
+</tr>
+<tr>
+<td><strong>API</strong></td>
+<td>Django REST Framework</td>
+<td>Fast to build RESTful APIs</td>
+</tr>
+<tr>
+<td><strong>Authentication</strong></td>
+<td>SimpleJWT</td>
+<td>Stateless JWT tokens</td>
+</tr>
+<tr>
+<td><strong>Database</strong></td>
+<td>PostgreSQL</td>
+<td>Production-grade relational database</td>
+</tr>
+</tbody>
+</table>
+
+You can sum it up as: <strong>Vue 3 + Element Plus</strong> for the skin, <strong>Django + DRF</strong> for the skeleton, <strong>JWT + PostgreSQL</strong> for the bloodstream.
+<hr>
+<h2>3. Four roles, each with its own job</h2>
+
+The system defines four roles, and each one sees a different slice of the product:
+<div class="codehilite"><pre><span></span><code>┌───────────────────────────────────────────────────────────┐
+│  Role permission pyramid                                  │
+│                                                           │
+│       ┌──────────┐                                        │
+│       │  Admin   │  system + users + permission setup     │
+│       │ (Admin)  │  &quot;I hold every key&quot;                    │
+│       └────┬─────┘                                        │
+│            │                                              │
+│       ┌────▼─────┐                                        │
+│       │Developer │  case library CRUD + projects + runs   │
+│       │(Developer│  &quot;I maintain the case library&quot;         │
+│       └────┬─────┘                                        │
+│            │                                              │
+│       ┌────▼─────┐                                        │
+│       │  Tester  │  join projects + read cases + run      │
+│       │ (Tester) │  &quot;I execute the tests&quot;                 │
+│       └────┬─────┘                                        │
+│            │                                              │
+│       ┌────▼─────┐                                        │
+│       │  Viewer  │  read only, no writes                  │
+│       │ (Viewer) │  &quot;I am just looking&quot;                   │
+│       └──────────┘                                        │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+</code></pre></div>
+
+
+Every permission is <strong>fine-grained</strong>. Same "view the case library" capability — can you read it but not change it? Then you are a Tester. Can you also create, update, and delete? Then you are a Developer. Each capability is an independent switch that can be combined freely.
+<h3>Security measures</h3>
+<ul>
+<li>📧 Sign-up is restricted to <code>@glazero.com</code> email addresses</li>
+<li>🔑 Passwords are stored hashed, and login requires a verification code</li>
+<li>⏱️ Access tokens are valid for 1 hour; refresh tokens renew automatically for 8 hours</li>
+<li>🚦 The login and code-sending endpoints are rate limited</li>
+</ul>
+<hr>
+<h2>4. A closer look at the ten functional modules</h2>
+<h3>4.1 Authentication — badge in before you go anywhere</h3>
+
+The registration flow is deliberately strict:
+<div class="codehilite"><pre><span></span><code><span class="n">User enters email</span><span class="w"> </span><span class="p">(</span><span class="nv">@glazero</span><span class="p">.</span><span class="n">com</span><span class="p">)</span>
+<span class="w">        </span><span class="err">│</span>
+<span class="w">        </span><span class="err">▼</span>
+<span class="w">  </span><span class="n">Validate email format</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">check domain allowlist</span>
+<span class="w">        </span><span class="err">│</span>
+<span class="w">        </span><span class="err">▼</span>
+<span class="w">  </span><span class="n">Send verification code to email</span>
+<span class="w">        </span><span class="err">│</span>
+<span class="w">        </span><span class="err">▼</span>
+<span class="w">  </span><span class="n">Enter the code</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">set a password</span>
+<span class="w">        </span><span class="err">│</span>
+<span class="w">        </span><span class="err">▼</span>
+<span class="w">  </span><span class="n">Registered</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">assign default role</span>
+<span class="w">        </span><span class="err">│</span>
+<span class="w">        </span><span class="err">▼</span>
+<span class="w">  </span><span class="n">Log in</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">fetch</span><span class="w"> </span><span class="n">JWT</span><span class="w"> </span><span class="n">token</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">enter the system</span>
+</code></pre></div>
+
+
+The user model pairs Django's built-in <code>auth.User</code> with a <code>UserProfile</code> extension:
+<div class="codehilite"><pre><span></span><code><span class="c1"># accounts/models.py — the actual shape of the code</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.contrib.auth.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">User</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UserProfile</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">OneToOneField</span><span class="p">(</span><span class="n">User</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+                                <span class="n">related_name</span><span class="o">=</span><span class="s1">&#39;profile&#39;</span><span class="p">)</span>
+    <span class="n">role</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;tester&#39;</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;admin&#39;</span><span class="p">,</span><span class="s1">&#39;Admin&#39;</span><span class="p">),(</span><span class="s1">&#39;tester&#39;</span><span class="p">,</span><span class="s1">&#39;Tester&#39;</span><span class="p">),</span>
+                 <span class="p">(</span><span class="s1">&#39;developer&#39;</span><span class="p">,</span><span class="s1">&#39;Developer&#39;</span><span class="p">),(</span><span class="s1">&#39;viewer&#39;</span><span class="p">,</span><span class="s1">&#39;Viewer&#39;</span><span class="p">)])</span>
+    <span class="n">phone</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">can_access_projects</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">can_access_testcase_library</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">can_manage_testcase_library</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">can_access_my_projects</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+
+Default permissions are derived from the role at registration time — the <code>ROLE_DEFAULT_PERMISSIONS</code> dict defines which feature switches each of the four roles (admin, tester, developer, viewer) gets out of the box.
+<h3>4.2 Project management — creating the workspace</h3>
+
+Every test project carries its full context:
+<div class="codehilite"><pre><span></span><code>Project
+├── Basics: name, description, product line (camera / doorbell)
+├── Status: active / archived
+├── Members
+│   ├── Leader (owner)
+│   ├── Tester
+│   └── Developer
+├── Module tree
+│   ├── 📁 Video features
+│   │   ├── 📄 Live preview
+│   │   └── 📄 Video playback
+│   └── 📁 Audio features
+│       └── 📄 Two-way talk
+└── Task management
+    ├── Test rounds
+    ├── Priority
+    └── Due date
+</code></pre></div>
+
+
+The neat part here is the <strong>module tree</strong> — a self-referencing <code>parent</code> foreign key in Django gives you unlimited nesting:
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Module</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">project</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">Project</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+    <span class="n">parent</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="s1">&#39;self&#39;</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                               <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="c1"># parent is None → root module</span>
+    <span class="c1"># parent points at another Module → child module</span>
+</code></pre></div>
+
+<h3>4.3 Test case management — the heart of it all</h3>
+
+The case library is the core of the system, organized by product line (camera / doorbell):
+<div class="codehilite"><pre><span></span><code>Test case structure
+┌────────────────────────────────────────────────┐
+│  Title: verify the camera switches to night     │
+│         vision automatically                    │
+│  Priority: P1 (high)                            │
+│  Type: functional test                          │
+│  Status: enabled                                │
+│  Precondition: ambient light sensor works       │
+│  ┌──────────────────────────────────────────┐   │
+│  │  Step 1                                  │   │
+│  │  Action: put the camera in a dark room   │   │
+│  │  Expected: switches to night vision      │   │
+│  ├──────────────────────────────────────────┤   │
+│  │  Step 2                                  │   │
+│  │  Action: shine a flashlight at the lens  │   │
+│  │  Expected: switches back to day mode     │   │
+│  └──────────────────────────────────────────┘   │
+└────────────────────────────────────────────────┘
+</code></pre></div>
+
+
+Bulk import is where it really earns its keep — a single Django command pulls every case out of an Excel file:
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>manage.py<span class="w"> </span>import_camera_cases<span class="w"> </span>camera_cases.xlsx
+</code></pre></div>
+
+
+It detects the column headers, groups worksheets into modules by sheet name, and numbers the steps for you.
+<h3>4.4 Assigning and executing cases — getting tests running</h3>
+
+How does a case turn into a test task? Follow the flow:
+<div class="codehilite"><pre><span></span><code>Case Library
+    │
+    │  Assign
+    ▼
+Project → Task → Member
+    │
+    │  Execute
+    ▼
+┌──────────────────────────────────┐
+│  Status:                         │
+│  ⬜ Pending (pending)             │
+│  ✅ Passed (passed)               │
+│  ❌ Failed (failed)               │
+│  ⬛ Not applicable (not_applicable)│
+│  ⬜ Not tested (not_tested)       │
+└──────────────────────────────────┘
+    │
+    │  Approve
+    ▼
+  Leader review → approve / reject in bulk
+</code></pre></div>
+
+
+Every execution result supports <strong>attachments</strong> (up to 15MB) — screenshots, logs, and so on. Leaders can <strong>approve in bulk</strong> instead of clicking through one by one.
+<h3>4.5 Test plans — plan first, run later</h3>
+
+A test plan is essentially a shopping cart: pick cases out of the library and put them in order.
+<div class="codehilite"><pre><span></span><code>Test Plan
+├── Name: Camera V2.0 regression plan
+├── Project: smart camera project
+├── Window: 2024-01-15 ~ 2024-01-30
+├── Status: draft → active → completed
+└── Case list (drag to reorder)
+    ├── ① Verify device boot time
+    ├── ② Verify video stream stability
+    ├── ③ Verify night-vision switching
+    └── ④ Verify motion detection alerts
+</code></pre></div>
+
+<h3>4.6 Test runs — time to test</h3>
+
+Create a test run from a plan and the system <strong>generates every pending item for you</strong>:
+<div class="codehilite"><pre><span></span><code>Test Run #42 (from the plan &quot;Camera V2.0 regression&quot;)
+Status: running
+┌──────┬───────────────────────────────┬────────┬───────────────┐
+│  #   │ Case                          │ Result │ Notes         │
+├──────┼───────────────────────────────┼────────┼───────────────┤
+│  1   │ Verify device boot time       │  ✅    │               │
+│  2   │ Verify video stream stability │  ❌    │ flaky tearing │
+│  3   │ Verify night-vision switching │  ⏸️    │ env limited   │
+│  4   │ Verify motion detection alerts│  ⬜    │               │
+└──────┴───────────────────────────────┴────────┴───────────────┘
+Progress: 1/4 passed │ 1/4 failed │ 1/4 blocked
+</code></pre></div>
+
+<h3>4.7 Defect tracking — the life of a bug</h3>
+
+Found a problem while executing tests? File a defect right there:
+<div class="codehilite"><pre><span></span><code>Defect lifecycle
+┌──────────┐    ┌─────────────┐    ┌──────────┐    ┌──────────┐
+│   Open   │───▶│In Progress  │───▶│ Resolved │───▶│  Closed  │
+│    New   │    │  Being fixed│    │   Fixed  │    │  Closed  │
+└──────────┘    └─────────────┘    └──────────┘    └──────────┘
+       ▲                              │               │
+       └──────────────────────────────┘               │
+                  reopened                            │
+</code></pre></div>
+
+
+Each defect record contains:
+- <strong>Title &amp; description</strong> — what is broken
+- <strong>Severity</strong> — from S0 (worst / blocking) to S4 (minor / suggestion)
+- <strong>Related project</strong> — which project the problem belongs to
+- <strong>Related test result</strong> — which test run surfaced it
+- <strong>Assignee</strong> — who is fixing it
+<h3>4.8 Home page — the feature launcher</h3>
+
+The landing page after login is a <strong>feature launcher</strong> that renders a different set of cards depending on the current user's permissions:
+<div class="codehilite"><pre><span></span><code>┌──────────────────────────────────────────────┐
+│              Test Management System          │
+│              Pick a module to get started    │
+│                                              │
+│  ┌────────────────────────────────────────┐  │
+│  │  📋 Test case library                  │  │
+│  │  Camera, doorbell, and other shared    │  │
+│  │  cases, organized by product line      │  │
+│  └────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────┐  │
+│  │  📁 Project management                 │  │
+│  │  Create projects, manage modules,      │  │
+│  │  plans, runs, and defects              │  │
+│  └────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────┐  │
+│  │  👤 My projects                        │  │
+│  │  Browse the projects you are on and    │  │
+│  │  execute the tasks assigned to you     │  │
+│  └────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────┐  │
+│  │  ⚙️ Permission management (admins only)│  │
+│  │  Configure feature access for          │  │
+│  │  non-admin users                       │  │
+│  └────────────────────────────────────────┘  │
+└──────────────────────────────────────────────┘
+</code></pre></div>
+
+
+Four cards, four core modules. Each card has its own gradient icon and lifts slightly on hover. How many cards you see depends on your role — a plain tester never sees "Permission management", and anyone without case-library access does not see the first card at all.
+<h3>4.9 Statistics — data aggregation at the API layer</h3>
+
+Beyond the launcher page, the <code>dashboard</code> app exposes a <strong>stats API</strong> (<code>GET /api/dashboard/stats/</code>) that other pages and external tools can call:
+<ul>
+<li><code>total_projects</code>, <code>total_testcases</code>, <code>total_testplans</code>, <code>total_testruns</code> — the four top-level counters</li>
+<li><code>results</code> — result distribution (passed/failed/blocked/skipped/pending) plus the pass rate</li>
+<li><code>defects</code> — defect counts (total/open/resolved)</li>
+<li><code>priority_distribution</code> — case priority distribution (how many sit at each of P0-P4)</li>
+<li><code>type_distribution</code> — case type distribution (functional/API/UI/performance)</li>
+<li><code>recent_runs</code> — the five most recent runs</li>
+</ul>
+
+A <code>project_id</code> parameter scopes everything to a single project. The endpoint uses Django ORM's <code>aggregate</code> together with conditional <code>Count</code> to compute every statistic in a <strong>single query</strong>, which keeps it fast.
+<h3>4.10 Admin console — keeping hold of the whole picture</h3>
+
+Features reserved for the Admin role:
+<ul>
+<li><strong>User management</strong> — create, delete, and list users</li>
+<li><strong>Permission configuration</strong> — fine-tune each person's role and permission switches</li>
+<li>Non-admin users <strong>cannot change their own permissions</strong> (a deliberate security decision)</li>
+</ul>
+<h3>4.10 Excel batch import — the migration workhorse</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># one command turns Excel into test cases</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>import_camera_cases<span class="w"> </span>camera_cases.xlsx
+</code></pre></div>
+
+
+What it works out on its own:
+- Detects column headers (both the standard layout and its variants)
+- Worksheet name → module grouping
+- Numbers the test steps automatically
+- Skips the header row
+<hr>
+<h2>How do the database tables relate?</h2>
+<div class="codehilite"><pre><span></span><code>User ──1:1──▶ UserProfile (role, permissions)
+  │
+  │  (many-to-many, through ProjectMember)
+  ▼
+Project ──1:N──▶ Module (self-referencing tree)
+  │   │
+  │   └──1:N──▶ ProjectTask
+  │                │
+  │                └──1:N──▶ TestCaseAssignment
+  │                             │
+  │                             └──1:N──▶ AssignmentAttachment
+  │
+  └──1:N──▶ TestPlan ──1:N──▶ TestPlanCase
+                │                 │
+                │                 └──(references TestCase)
+                │
+                └──1:N──▶ TestRun ──1:N──▶ TestResult
+                                              │
+                                              └──1:N──▶ Defect
+
+TestCase ──1:N──▶ TestCaseStep
+</code></pre></div>
+
+
+The key design decisions:
+- <strong>One-to-many</strong> relations run through the whole schema, which keeps the structure easy to follow
+- A <strong>self-referencing Module</strong> delivers an arbitrarily deep tree
+- <strong>Defect ↔ TestResult</strong> is an optional link, so every bug traces back to the test that found it
+- <code>select_related</code> / <code>prefetch_related</code> keep query counts under control
+<hr>
+<h2>6. How the decoupled front end and back end are organized</h2>
+<h3>Back end: a standard Django layout</h3>
+<div class="codehilite"><pre><span></span><code>backend/
+├── config/              # project configuration
+│   ├── settings.py      # database, JWT, CORS, and so on
+│   └── urls.py          # root URLconf
+├── apps/                # business apps
+│   ├── accounts/        # users, roles, permissions
+│   ├── projects/        # project management
+│   ├── testcases/       # test case management
+│   ├── testplans/       # test plans
+│   ├── testruns/        # test execution
+│   └── defects/         # defect management
+├── manage.py
+└── requirements.txt
+</code></pre></div>
+
+<h3>Front end: modular Vue 3 components</h3>
+<div class="codehilite"><pre><span></span><code>frontend/src/
+├── api/           # Axios wrappers (one file per module)
+├── views/         # page-level components
+│   ├── LoginView.vue
+│   ├── HomeView.vue       # data dashboard
+│   ├── ProjectListView.vue
+│   ├── TestCaseManagementView.vue
+│   └── MyTestExecuteView.vue
+├── components/    # reusable components
+├── stores/        # Pinia state management
+├── router/        # route config (including navigation guards)
+├── composables/   # composable functions
+└── utils/         # helper functions
+</code></pre></div>
+
+<h3>API design: RESTful</h3>
+
+The two halves talk over a RESTful API and authenticate with JWT:
+<div class="codehilite"><pre><span></span><code><span class="err">Client request</span><span class="w">                          </span><span class="n">Django</span><span class="w"> </span><span class="err">backend</span>
+<span class="w">    </span><span class="err">│</span><span class="w">                                   </span><span class="err">│</span>
+<span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="n">POST</span><span class="w"> </span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">auth</span><span class="o">/</span><span class="n">login</span><span class="o">/</span><span class="w">            </span><span class="err">│</span>
+<span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="p">{</span><span class="s2">&quot;email&quot;</span><span class="err">:</span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="s2">&quot;password&quot;</span><span class="err">:</span><span class="s2">&quot;...&quot;</span><span class="p">}</span><span class="w">  </span><span class="err">│</span>
+<span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">─────────────────────────────────▶│</span>
+<span class="w">    </span><span class="err">│</span><span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="err">verify password</span>
+<span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="p">{</span><span class="s2">&quot;access&quot;</span><span class="err">:</span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="s2">&quot;refresh&quot;</span><span class="err">:</span><span class="s2">&quot;...&quot;</span><span class="p">}</span><span class="w">  </span><span class="err">│</span><span class="w"> </span><span class="err">return</span><span class="w"> </span><span class="n">tokens</span>
+<span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">◀─────────────────────────────────│</span>
+<span class="w">    </span><span class="err">│</span><span class="w">                                   </span><span class="err">│</span>
+<span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="n">GET</span><span class="w"> </span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">testcases</span><span class="o">/</span><span class="err">?</span><span class="n">product_line</span><span class="o">=</span><span class="nb">camera</span><span class="o">&amp;</span><span class="n">page</span><span class="o">=</span><span class="mi">1</span>
+<span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="n">Authorization</span><span class="err">:</span><span class="w"> </span><span class="n">Bearer</span><span class="w"> </span><span class="p">&lt;</span><span class="n">token</span><span class="p">&gt;</span><span class="w">    </span><span class="err">│</span>
+<span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">─────────────────────────────────▶│</span>
+<span class="w">    </span><span class="err">│</span><span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="err">permission check</span>
+<span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="p">{</span><span class="s2">&quot;count&quot;</span><span class="err">:</span><span class="mi">326</span><span class="p">,</span><span class="s2">&quot;results&quot;</span><span class="err">:</span><span class="p">[</span><span class="o">...</span><span class="p">]}</span><span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">query data</span>
+<span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">◀─────────────────────────────────│</span>
+</code></pre></div>
+
+
+A consistent response envelope:
+<div class="codehilite"><pre><span></span><code><span class="c1">// paginated response</span>
+<span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">326</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;next&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http://...api/testcases/?page=2&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;previous&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;results&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Verify the camera switches to night vision automatically&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;priority&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;P1&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;enabled&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;steps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<hr>
+<h2>7. Getting started</h2>
+<h3>Requirements</h3>
+<ul>
+<li>Python 3.13+</li>
+<li>Node.js 18+</li>
+<li>PostgreSQL (production) / SQLite (development)</li>
+</ul>
+<h3>Three steps to boot</h3>
+
+<strong>Step 1: start the back end</strong>
+<div class="codehilite"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/zhoujungis/test_manage_system.git
+<span class="nb">cd</span><span class="w"> </span>test_manage_system/backend
+
+<span class="c1"># configure environment variables</span>
+cp<span class="w"> </span>.env.example<span class="w"> </span>.env
+<span class="c1"># edit .env: database connection, SECRET_KEY, email settings</span>
+
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+python<span class="w"> </span>manage.py<span class="w"> </span>migrate
+python<span class="w"> </span>manage.py<span class="w"> </span>createsuperuser<span class="w">   </span><span class="c1"># create an admin user</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>runserver<span class="w"> </span><span class="m">0</span>.0.0.0:8000
+</code></pre></div>
+
+
+<strong>Step 2: start the front end</strong>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>test_manage_system/frontend
+npm<span class="w"> </span>install
+npm<span class="w"> </span>run<span class="w"> </span>dev
+<span class="c1"># open http://localhost:5173 in your browser</span>
+</code></pre></div>
+
+
+<strong>Step 3: start using it</strong>
+<ol>
+<li>Log in with the admin account</li>
+<li>Create a project → add members → build the module tree</li>
+<li>Write test cases, or import them from Excel</li>
+<li>Create a test plan → run the tests → file defects</li>
+</ol>
+<hr>
+<h2>8. Project highlights</h2>
+<table>
+<thead>
+<tr>
+<th>Highlight</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🎯 <strong>Full test lifecycle</strong></td>
+<td>Cases → plans → runs → defects, a closed loop</td>
+</tr>
+<tr>
+<td>🔐 <strong>Fine-grained permissions</strong></td>
+<td>Four roles plus independent switches, combined freely</td>
+</tr>
+<tr>
+<td>📊 <strong>Visual dashboards</strong></td>
+<td>Project stats, defect trends, and progress at a glance</td>
+</tr>
+<tr>
+<td>📥 <strong>Bulk Excel import</strong></td>
+<td>One Django command migrates your historical cases</td>
+</tr>
+<tr>
+<td>🌲 <strong>Tree-shaped modules</strong></td>
+<td>Unlimited nesting that mirrors the product structure</td>
+</tr>
+<tr>
+<td>📎 <strong>Attachment support</strong></td>
+<td>Attach screenshots and logs to any execution result</td>
+</tr>
+<tr>
+<td>✅ <strong>Approval workflow</strong></td>
+<td>Leaders review test results and act in bulk</td>
+</tr>
+<tr>
+<td>🛡️ <strong>Security by design</strong></td>
+<td>Dual JWTs, email domain restriction, rate limiting</td>
+</tr>
+<tr>
+<td>🎨 <strong>Element Plus UI</strong></td>
+<td>A polished enterprise interface that works well with Chinese</td>
+</tr>
+<tr>
+<td>📱 <strong>Responsive layout</strong></td>
+<td>A smooth desktop experience</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>9. Wrap-up</h2>
+
+This test management system is a textbook example of <strong>how a full-stack web application should be put together</strong>:
+<ol>
+<li><strong>Front end</strong> — Vue 3 + Element Plus for the interface, Pinia for state, Vue Router for navigation</li>
+<li><strong>Back end</strong> — Django + DRF for the RESTful API and JWTs for stateless authentication</li>
+<li><strong>Data layer</strong> — PostgreSQL for production reliability, with the Django ORM keeping database work simple</li>
+<li><strong>Permission system</strong> — designed at fine granularity, from role all the way down to individual feature switches, balancing safety against flexibility</li>
+</ol>
+
+The code is clearly organized and thoroughly commented, which makes it a great reference project for learning full-stack Vue 3 + Django development. Whether you are a front-end developer curious about the back end or a back-end developer who wants to learn the front end, there is something practical in here for you.
+<blockquote>
+
+📂 Repository: <a href="https://github.com/zhoujungis/test_manage_system" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/test_manage_system</a>
+
+⭐ If you find it useful, a star is always welcome!
+</blockquote>
+<hr>
+
+<em>This article is based on the full requirements specification and code structure of the test_manage_system project, covering the system architecture, functional modules, database design, and front-end/back-end interaction.</em>
+
+Further reading along the same thread: <a href="/article/blog-tech-stack/">Building This Blog: A Deep Dive into the Vue 3 + Django Decoupled Stack</a>, <a href="/article/halo-music-square-architecture/">Inside Halo Music Square: A Multi-Source Online Music App</a>.
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/test-manage-system-vue-django/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/test-manage-system-vue-django/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>

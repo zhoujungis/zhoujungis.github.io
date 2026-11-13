@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：写过 WAL 或存储引擎、但说不清「恢复」每一步在做什么的人；被 kill -9 之后数据还在而困惑的人；正在调 synchronous 、 innodb_flush_…" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/crash-recovery-redo-undo/" />
+    <meta property="og:title" content="断电之后：redo、undo 与半页写怎么把数据库救回来" />
+    <meta property="og:description" content="适用读者：写过 WAL 或存储引擎、但说不清「恢复」每一步在做什么的人；被 kill -9 之后数据还在而困惑的人；正在调 synchronous 、 innodb_flush_…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/crash-recovery-redo-undo/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/wal-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/wal-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="断电之后：redo、undo 与半页写怎么把数据库救回来 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="断电之后：redo、undo 与半页写怎么把数据库救回来" />
+    <meta name="twitter:description" content="适用读者：写过 WAL 或存储引擎、但说不清「恢复」每一步在做什么的人；被 kill -9 之后数据还在而困惑的人；正在调 synchronous 、 innodb_flush_…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/wal-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>断电之后：redo、undo 与半页写怎么把数据库救回来 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+      <meta property="article:section" content="数据库内核" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/crash-recovery-redo-undo/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/crash-recovery-redo-undo/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/crash-recovery-redo-undo/" />
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-13T11:23:33.286146+08:00" />
+        <meta property="article:modified_time" content="2026-11-13T11:23:33.286146+08:00" />
+        <meta property="article:tag" content="InnoDB" />
+    <meta property="article:tag" content="MySQL" />
+    <meta property="article:tag" content="WAL" />
+    <meta property="article:tag" content="双写缓冲" />
+    <meta property="article:tag" content="存储引擎" />
+    <meta property="article:tag" content="崩溃恢复" />
+    <meta property="article:tag" content="数据库" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/crash-recovery-redo-undo/#article","url":"https://blog.zhoujun.dev/article/crash-recovery-redo-undo/","headline":"断电之后：redo、undo 与半页写怎么把数据库救回来","description":"适用读者：写过 WAL 或存储引擎、但说不清「恢复」每一步在做什么的人；被 kill -9 之后数据还在而困惑的人；正在调 synchronous 、 innodb_flush_…","image":"https://blog.zhoujun.dev/photos/wal-cover.png","datePublished":"2026-11-13T11:23:33.286146+08:00","dateModified":"2026-11-13T11:23:33.286146+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/crash-recovery-redo-undo/"},"articleSection":"数据库内核","keywords":"InnoDB, MySQL, WAL, 双写缓冲, 存储引擎, 崩溃恢复, 数据库","inLanguage":"zh-CN","wordCount":6937},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/crash-recovery-redo-undo/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"断电之后：redo、undo 与半页写怎么把数据库救回来","item":"https://blog.zhoujun.dev/article/crash-recovery-redo-undo/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"crash-recovery-redo-undo","title":"断电之后：redo、undo 与半页写怎么把数据库救回来","created_at":"2026-11-13T11:23:33.286146+08:00","updated_at":"2026-11-13T11:23:33.286183+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":212,"name":"InnoDB","slug":"innodb"},{"id":213,"name":"MySQL","slug":"mysql"},{"id":206,"name":"WAL","slug":"wal"},{"id":215,"name":"双写缓冲","slug":"doublewrite"},{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":214,"name":"崩溃恢复","slug":"crash-recovery"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"/photos/wal-cover.png","excerpt":"适用读者：写过 WAL 或存储引擎、但说不清「恢复」每一步在做什么的人；被 kill -9 之后数据还在而困惑的人；正在调 synchronous 、 innodb_flush_log_at_trx_commit 、checkpoint 参数的人；想知道双写缓冲到底防的是什么的人 结论先行：恢复不是「把日志重放一遍」这","reading_time":28,"views_count":4,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>断电之后：redo、undo 与半页写怎么把数据库救回来</span></nav><h1>断电之后：redo、undo 与半页写怎么把数据库救回来</h1><div class="ns-meta">2026/11/13 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/database/">数据库内核</a> · 标签：InnoDB MySQL WAL 双写缓冲 <a href="https://blog.zhoujun.dev/tags/storage-engine/">存储引擎</a> 崩溃恢复 <a href="https://blog.zhoujun.dev/tags/database/">数据库</a></p><nav class="ns-series"><p><strong>本系列 · 数据库内核</strong>（8 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a></li><li><a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li><li><a href="https://blog.zhoujun.dev/article/nanodb/">NanoDB：Go 嵌入式文档数据库</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a></li><li><a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/database/">查看数据库内核专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：写过 WAL 或存储引擎、但说不清「恢复」每一步在做什么的人；被 <code>kill -9</code> 之后数据还在而困惑的人；正在调 <code>synchronous</code>、<code>innodb_flush_log_at_trx_commit</code>、checkpoint 参数的人；想知道双写缓冲到底防的是什么的人
+结论先行：恢复不是「把日志重放一遍」这么简单，它由三件事组成：<strong>日志先于数据落盘（write-ahead）</strong>、<strong>redo 的幂等重放</strong>、<strong>未提交事务的 undo 回滚</strong>。原子性靠日志，持久性靠 fsync，完整性靠校验和与 doublewrite。缺任何一项，都会出现「看起来恢复了，其实数据已经错了」。
+阅读时间：约 28 分钟 | 难度：进阶 | 收获：55 次真实崩溃实验、WAL 帧损坏后的精确存活行数、事务形态如何改变 undo/redo 体积、半页写为什么有时 redo 能救有时不能，以及一份可执行的恢复演练清单
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>一、四个故障，四种活法</li>
+<li>二、先把故障模型分清楚</li>
+<li>三、恢复的三条基本规则</li>
+<li>四、SQLite 回滚日志：用旧页镜像做 undo</li>
+<li>五、SQLite WAL：用新页镜像做 redo</li>
+<li>六、实测一：进程崩溃后的 55 次恢复</li>
+<li>七、实测二：事务形态决定日志体积</li>
+<li>八、实测三：故意弄坏 WAL 的一帧</li>
+<li>九、InnoDB：redo、undo 与恢复的三个阶段</li>
+<li>十、半页写：为什么有时 redo 能修，有时不能</li>
+<li>十一、配置、监控与恢复演练</li>
+<li>十二、源码地图与复现脚本</li>
+<li>十三、小结：恢复是一条时间链</li>
+</ul>
+<h2>一、四个故障，四种活法</h2>
+
+先看四个真实发生过的场景：
+<ol>
+<li><strong>进程被 <code>kill -9</code></strong>：操作系统还活着，页缓存还在，文件描述符被内核关闭。数据库下次启动时，可能看到写了一半的 WAL、残留的 journal，也可能什么都没留下。</li>
+<li><strong>机器突然断电</strong>：内存里的页缓存没了，磁盘上可能只有一部分写成功；WAL 的最后一帧可能是半帧，数据页可能只写了一个扇区。</li>
+<li><strong>WAL 中间坏了一帧</strong>：磁盘坏道、bit flip、或者人为破坏。坏帧之后的所有帧可能都是好的，但数据库是否还愿意用它们？</li>
+<li><strong>页只写了一半（torn page）</strong>：4 KB 的页写进去 2 KB，剩下 2 KB 是旧数据、零或者垃圾。校验和能发现，但发现之后拿什么修？</li>
+</ol>
+
+这四个场景对应四套不同的机制：进程崩溃主要考验日志的<strong>原子提交与恢复流程</strong>；断电考验 <strong>fsync 顺序与日志持久性</strong>；坏帧考验<strong>校验和与截断策略</strong>；半页写考验 <strong>doublewrite 或全页镜像</strong>。
+
+把它们混在一起谈，就会得到「数据库有 WAL 所以不会丢数据」这种似是而非的结论。下面逐个拆。
+<h2>二、先把故障模型分清楚</h2>
+
+做恢复实验最容易犯的错误，是用「拷贝文件」模拟断电。我们第一次就是这么做的：写进程还在跑，父进程把 <code>.db</code>、<code>-wal</code>、<code>-journal</code>、<code>-shm</code> 逐个复制到另一个目录，然后打开副本。结果 25 次里有多次直接报 <code>database disk image is malformed</code>。
+
+这不是数据库的 bug，而是<strong>跨文件拷贝本身不是原子快照</strong>。真实断电时，文件系统保证每个 <code>write</code> 和 <code>fsync</code> 的顺序；拷贝时，主库、WAL、journal 是在不同时刻被读走的，可能组合出一个物理上从未存在过的状态。用这种副本去推断恢复逻辑，结论不可信。
+
+所以我们把实验拆成三类：
+<ul>
+<li><strong>进程崩溃</strong>：先 <code>kill</code> 进程，等它退出，再复制文件。这模拟的是「进程没了，但操作系统缓存和文件都还在」，用来验证恢复流程和原子性。</li>
+<li><strong>日志损坏</strong>：在已经写好的 WAL 上精确翻转一个字节，再打开数据库。这模拟坏道/bit flip，用来验证校验和与截断策略。</li>
+<li><strong>半页写</strong>：用一个小型页/redo 模拟器，控制「哪一半写入成功、哪一半变成什么」，用来验证 doublewrite 的职责。</li>
+</ul>
+
+三类实验回答不同的问题，不能互相替代。下面所有数字都会标明属于哪一类。
+<h2>三、恢复的三条基本规则</h2>
+
+不管哪种数据库，崩溃恢复都绕不开三条规则。
+
+<strong>第一条：日志必须先于数据落盘。</strong>
+
+修改一页之前，描述这次修改的日志必须已经持久化。否则断电后，数据页是新的、日志是旧的，恢复时不知道这页为什么变成这样。SQLite 的 rollback journal 在写数据页之前先写旧页镜像；WAL 在提交前先把新页镜像追加到 WAL 并 fsync（<code>synchronous=FULL</code> 时）。InnoDB 在刷脏页之前，必须保证对应的 redo 已经写入日志文件。
+
+<strong>第二条：redo 必须幂等。</strong>
+
+同一条 redo 记录重放一次和重放十次，结果必须一样。物理日志通常记录「把页 P 的偏移 O 开始的 N 个字节改成 X」，天然幂等；逻辑日志记录「给账户 A 加 100」，重放两次就会多加一次，所以逻辑日志必须配合 LSN 或事务表去重。InnoDB 的 redo 是页级物理日志，记录页内变更；SQLite 的 WAL 是整页镜像，重放就是覆盖，也幂等。
+
+<strong>第三条：未提交的事务必须能回滚。</strong>
+
+恢复不仅要「向前滚」，还要「向后退」。崩溃时正在执行的事务，可能已经写了一部分数据页，也可能只写了日志。恢复流程必须能识别哪些事务提交了、哪些没有，然后把没提交的改动撤掉。SQLite 用 journal 里的旧页镜像回滚；InnoDB 用 undo log 回滚，并在回滚完成后由 purge 线程清理旧版本。
+
+把这三条记住，再看具体实现就不会迷路。
+<h2>四、SQLite 回滚日志：用旧页镜像做 undo</h2>
+
+SQLite 默认的 rollback journal 模式，思路非常直接：<strong>在改一页之前，先把这一页的旧内容写到 journal 文件里。</strong>
+
+一次事务的流程大致是：
+<ol>
+<li>在数据库文件上加 RESERVED 锁，创建 <code>-journal</code> 文件。</li>
+<li>写 journal 头：magic、页数、校验和、数据库大小、扇区大小、页大小。</li>
+<li>对每个即将修改的页，追加一条记录：页号 + 旧页内容 + 校验和。</li>
+<li>把 journal 刷盘（<code>synchronous=FULL</code>），确保旧内容持久化。</li>
+<li>修改数据库文件中的页，提交时释放锁、删除 journal。</li>
+<li>如果中途崩溃，下次打开数据库时发现 journal 存在且没有对应的锁，就认为它是「热日志」，把旧页镜像逐页写回去，再删除 journal。</li>
+</ol>
+
+所以 journal 本质上是一份<strong>物理 undo log</strong>。它记录的是「改之前长什么样」，恢复时做的是回滚，而不是重放。它不需要知道事务逻辑，只要把页恢复成旧版本，未提交的改动就消失了。
+
+这也解释了为什么 journal 的大小取决于「改了多少个已存在的页」，而不是「插入了多少行」。顺序追加时，大部分页是新的，旧页只有最右边那一两个，journal 只有 12.8 KB；随机更新 2000 条时，会碰到上千个已有页，journal 涨到 1–7 MB。
+
+<code>PRAGMA synchronous</code> 控制 journal 的刷盘强度：<code>FULL</code> 在关键节点 fsync，<code>NORMAL</code> 减少同步次数，<code>OFF</code> 把顺序交给操作系统。<code>OFF</code> 在断电时可能留下损坏的数据库，因为 journal 可能还没落盘，数据页却已经写了。
+<h2>五、SQLite WAL：用新页镜像做 redo</h2>
+
+WAL 模式把方向反过来：<strong>不写旧页，而是把新页追加到 WAL 文件。</strong>
+
+WAL 文件由 32 字节头和若干帧组成。每一帧是 24 字节帧头加一整页数据：
+<div class="codehilite"><pre><span></span><code>WAL header (32 bytes)
+├─ magic / version / page_size / checkpoint_seq / salt / checksum
+Frame 1
+├─ page number (4)
+├─ database size after commit (4)   ← 非 0 表示这是一个提交帧
+├─ salt1 / salt2 (8)
+├─ checksum1 / checksum2 (8)
+└─ page data (page_size)
+Frame 2 ...
+</code></pre></div>
+
+
+提交时，SQLite 把本事务修改的每个页作为一帧追加到 WAL，最后一帧的「database size after commit」写成非 0，标记事务结束。读取时，先查 WAL 索引（<code>-shm</code>），找到每个页在 WAL 中的最新帧；找不到才读主数据库文件。
+
+恢复的规则在 SQLite 官方文档里写得很清楚：<strong>从 WAL 开头单次顺序扫描，逐帧校验 checksum，遇到第一个无效 checksum 就停止；<code>mxFrame</code> 取最后一个有效提交帧。</strong> 这意味着 WAL 的恢复具有「前缀性」：坏帧之前的提交有效，坏帧之后的帧即使字节完好，也不会被采用。下一节的实验会精确展示这一点。
+
+<code>synchronous=FULL</code> 时，每次提交都 fsync WAL；<code>NORMAL</code> 时只在 checkpoint 等关键点同步。两者的差别在断电时体现为「最近若干 committed 事务是否丢失」，在进程崩溃时通常看不出来，因为操作系统缓存还在。
+<h2>六、实测一：进程崩溃后的 55 次恢复</h2>
+
+实验设置：写进程每 200 条提交一次，持续插入 120 字节的随机 value；父进程等它进入稳定写入后，随机延迟 0.15–1.2 秒，<code>kill</code> 掉，再复制数据库文件、WAL、journal，打开副本执行 <code>PRAGMA integrity_check</code> 和计数。
+
+三组配置、共 55 次：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>配置</th>
+<th>事务大小</th>
+<th>成功恢复</th>
+<th>行数保持原子</th>
+<th>恢复耗时中位数</th>
+<th>日志大小中位数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rollback journal + FULL</td>
+<td>200 行</td>
+<td>20/20</td>
+<td>20/20</td>
+<td>8.26 ms</td>
+<td>journal 12.8 KB</td>
+</tr>
+<tr>
+<td>WAL + FULL</td>
+<td>200 行</td>
+<td>20/20</td>
+<td>20/20</td>
+<td>3.98 ms</td>
+<td>WAL 4.13 MB</td>
+</tr>
+<tr>
+<td>WAL + NORMAL</td>
+<td>200 行</td>
+<td>20/20</td>
+<td>20/20</td>
+<td>6.76 ms</td>
+<td>WAL 4.15 MB</td>
+</tr>
+<tr>
+<td>rollback journal + FULL</td>
+<td>2000 行</td>
+<td>15/15</td>
+<td>15/15</td>
+<td>6.53 ms</td>
+<td>journal 12.8 KB</td>
+</tr>
+<tr>
+<td>WAL + FULL</td>
+<td>2000 行</td>
+<td>15/15</td>
+<td>15/15</td>
+<td>10.15 ms</td>
+<td>WAL 4.29 MB</td>
+</tr>
+</tbody>
+</table></div>
+
+「行数保持原子」指恢复后的行数始终是事务大小的整数倍——不会出现「一个事务只写进去一半」的情况。55 次全部通过，说明在<strong>进程崩溃</strong>这个故障模型下，SQLite 的 journal 回滚和 WAL 恢复都能保证原子性。
+
+恢复耗时都不高：几毫秒到十几毫秒。WAL 的日志更大（4 MB 左右），恢复耗时并没有显著高于 journal；因为 WAL 的 <code>-shm</code> 索引还在时恢复很快，只有索引丢失才需要完整扫描。注意这里测的是「打开数据库并执行第一条语句」的时间，不包含后续的全表扫描和 <code>integrity_check</code>。
+
+进程崩溃实验有一个重要局限：它没有模拟断电。<code>kill</code> 之后操作系统缓存仍然会把数据写回磁盘，SQLite 看到的文件和真实断电后可能不一样。要研究断电，必须控制日志损坏或使用具备掉电模拟的存储设备。
+<h2>七、实测二：事务形态决定日志体积</h2>
+
+第二组实验换一个变量：数据库里已经有 30 万行，事务不再追加，而是随机更新 2000 行。其他条件不变。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>配置</th>
+<th>恢复成功</th>
+<th>行数正确</th>
+<th>日志大小</th>
+<th>恢复耗时中位数</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rollback journal + FULL</td>
+<td>8/8</td>
+<td>8/8</td>
+<td>1.2–7.4 MB</td>
+<td>92.25 ms</td>
+</tr>
+<tr>
+<td>WAL + FULL</td>
+<td>8/8</td>
+<td>8/8</td>
+<td>7.4–7.5 MB</td>
+<td>19.61 ms</td>
+</tr>
+</tbody>
+</table></div>
+
+同一张表、同样的事务大小，只因为「改的是已有页」，journal 从 12.8 KB 涨到几 MB，恢复时间从 8 ms 涨到 92 ms。原因在第四节已经说过：journal 记录旧页镜像，随机更新会触碰大量已有页；顺序插入只改最右边的页，旧页镜像几乎为零。
+
+WAL 的日志体积也涨了，但恢复时间反而比 journal 短。这不是「WAL 一定恢复更快」，而是两者的恢复动作不同：journal 要把几 MB 的旧页逐页写回主库，WAL 主要是扫描帧、重建索引，页的回填可以延后到 checkpoint。<strong>日志体积和恢复时间不是简单的线性关系，要看恢复阶段做了什么。</strong>
+
+这组数据对容量规划很有用：如果一个服务以随机更新为主，undo/redo 的体积会远高于「插入量」给人的直觉。按插入行数估算日志空间，往往会低估一个数量级。
+<h2>八、实测三：故意弄坏 WAL 的一帧</h2>
+
+第三组实验直接破坏 WAL。先生成一个包含 40 个事务、每个事务 200 行的 WAL：共 379 帧、41 个提交帧（含建表）、1.56 MB。然后在三个位置各翻转一个字节：
+<ul>
+<li><strong>首帧之后的第一帧</strong>（第 2 帧）：破坏第一个数据帧。</li>
+<li><strong>中间帧</strong>（第 189 帧）：破坏一半位置。</li>
+<li><strong>最后一帧</strong>（第 378 帧）：破坏最后一个提交帧。</li>
+</ul>
+
+结果：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>破坏位置</th>
+<th>帧号</th>
+<th>恢复后行数</th>
+<th>应有多少行</th>
+<th>integrity_check</th>
+<th>恢复耗时</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>首帧之后</td>
+<td>2</td>
+<td>0</td>
+<td>8000</td>
+<td>ok</td>
+<td>6.51 ms</td>
+</tr>
+<tr>
+<td>中间</td>
+<td>189</td>
+<td>3800</td>
+<td>8000</td>
+<td>ok</td>
+<td>8.57 ms</td>
+</tr>
+<tr>
+<td>最后</td>
+<td>378</td>
+<td>7800</td>
+<td>8000</td>
+<td>ok</td>
+<td>10.91 ms</td>
+</tr>
+</tbody>
+</table></div>
+
+三个结果正好对应 WAL 的「前缀性」：
+<ul>
+<li>破坏第 2 帧，恢复只能看到建表提交（第 1 帧），后面所有数据帧全部丢弃，所以表存在、行数为 0。</li>
+<li>破坏第 189 帧，恢复读到第 180 帧的提交（19 个事务 × 200 行 = 3800 行）就停止；第 190 帧之后的提交虽然字节完好，也不会被采用。</li>
+<li>破坏最后一帧，前 39 个事务（7800 行）保留，只丢掉最后一个事务。</li>
+</ul>
+
+三次 <code>integrity_check</code> 都是 <code>ok</code>。这很关键：<strong>数据库没有「损坏」，它只是选择了一个一致的历史版本。</strong> WAL 的校验和让恢复可以明确地停在最后一个可信的提交点，而不是把坏帧之后的「看起来正常」的数据继续拼进去。
+
+这也是为什么「WAL 坏了就全完了」和「WAL 有校验和所以不会丢数据」都不对：校验和保证的是一致性，不是完整性。坏帧之后已经提交的事务确实会丢，但数据库不会带着半条事务继续提供服务。
+<h2>九、InnoDB：redo、undo 与恢复的三个阶段</h2>
+
+SQLite 的实验只能说明「页镜像日志」这一类实现。InnoDB 的日志格式不同，恢复流程也更复杂。
+
+InnoDB 的 redo log 是<strong>页级物理日志</strong>：记录「哪个表空间的哪个页、在什么偏移、改成了什么」，而不是整页镜像。修改先写 redo，再在合适的时机把脏页刷到数据文件。每个页有一个 LSN（日志序列号），checkpoint 记录「哪些 LSN 之前的改动已经落盘」。恢复时从 checkpoint 开始，把之后的 redo 全部重放。
+
+官方文档把崩溃恢复拆成几个阶段：
+<ol>
+<li><strong>tablespace discovery</strong>：扫描数据目录，找出 redo 里涉及的表空间。</li>
+<li><strong>redo log application</strong>：从 checkpoint 开始重放 redo，把数据页恢复到崩溃前的最新状态。如果崩溃时所有脏页已经刷盘，redo 重放会被跳过；如果 redo 文件缺失，也会跳过（但可能丢数据）。</li>
+<li><strong>rollback of incomplete transactions</strong>：重放完成后，撤销崩溃时未提交的事务。文档特别提醒：<strong>回滚一个中断事务的时间可能是该事务执行时间的三到四倍</strong>，取决于服务器负载；回滚过程不能取消。</li>
+<li><strong>change buffer merge</strong>：把二级索引的缓冲修改合并到叶子页。</li>
+<li><strong>purge</strong>：清理不再可见的旧版本记录。</li>
+</ol>
+
+这里能看到 redo 和 undo 的分工：<strong>redo 负责「把已提交和未提交的物理改动都恢复出来」，undo 负责「把未提交的逻辑事务撤掉」。</strong> 先向前滚到最新，再向后退掉不该存在的部分。这和 SQLite 的 rollback journal「直接恢复旧页」是两条不同的路线：journal 是 undo-only（不重放已提交事务，因为数据页本来就在原处），WAL 是 redo-only（提交过的事务都在日志里，未提交的不写提交帧）。
+
+InnoDB 还需要 undo log 支持 MVCC：每行可能有多个历史版本，读操作根据 Read View 选择可见版本。崩溃恢复结束后，undo 不能立刻全删，必须等没有活跃事务再需要这些版本，purge 才能清理。这也是为什么长事务会阻止 purge、让 undo 表空间膨胀。
+<h2>九点五、三种恢复路线放在一张表里</h2>
+
+SQLite journal、SQLite WAL、InnoDB 代表三种不同的取舍。把它们按「提交前写什么、恢复往哪个方向走、坏页怎么修」排在一起，会更容易看清边界：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>SQLite rollback journal</th>
+<th>SQLite WAL</th>
+<th>InnoDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>提交前写什么</td>
+<td>旧页镜像</td>
+<td>新页镜像</td>
+<td>redo（页内变更）</td>
+</tr>
+<tr>
+<td>提交标记</td>
+<td>journal 头 + 同步</td>
+<td>提交帧（dbsize≠0）</td>
+<td>redo 中的 commit LSN</td>
+</tr>
+<tr>
+<td>恢复方向</td>
+<td>只 undo</td>
+<td>只 redo</td>
+<td>先 redo，再 undo</td>
+</tr>
+<tr>
+<td>未提交事务</td>
+<td>旧页覆盖，自动消失</td>
+<td>不写提交帧，不会被看到</td>
+<td>undo 回滚</td>
+</tr>
+<tr>
+<td>坏页修复</td>
+<td>journal 中的旧页</td>
+<td>WAL 帧中的新页</td>
+<td>doublewrite + redo</td>
+</tr>
+<tr>
+<td>恢复成本主要取决于</td>
+<td>journal 大小</td>
+<td>WAL 帧数与索引状态</td>
+<td>checkpoint 之后的 redo 量 + 回滚量</td>
+</tr>
+<tr>
+<td>典型弱点</td>
+<td>随机更新时 journal 膨胀</td>
+<td>WAL 坏帧后提交丢失</td>
+<td>长事务回滚慢、undo 膨胀</td>
+</tr>
+</tbody>
+</table></div>
+
+这张表解释了一个常见困惑：为什么 SQLite 的 journal 恢复不需要「判断事务提交没提交」？因为它根本不重放事务，它只把页恢复成事务开始前的样子。未提交的事务本来就没有完整的页修改，恢复旧页后自然消失；已提交的事务，journal 在提交后被删除，也不会被回滚。代价是：journal 必须在数据页之前落盘，而且 journal 越大，恢复写回越多。
+
+WAL 的选择相反：它只记录新页，提交帧就是事务的边界。恢复时不需要「回滚」，因为未提交事务没有提交帧，<code>mxFrame</code> 不会越过它。代价是：WAL 会持续增长，必须靠 checkpoint 回填；坏帧会截断后续所有提交。
+
+InnoDB 两者都要：redo 保证「已经发生的页修改不丢」，undo 保证「未提交的逻辑事务不生效」。这带来更强的能力（MVCC、回滚、崩溃后继续服务），也带来更高的复杂度（undo 表空间、purge、长事务）。
+<h2>九点六、redo 是物理日志还是逻辑日志</h2>
+
+InnoDB 的 redo 常被描述为「物理逻辑日志」，这个说法容易让人困惑。拆开看：
+<ul>
+<li><strong>物理</strong>：记录的是「哪个页、页内哪个偏移、改成什么字节」，不是「执行了哪条 SQL」。所以重放不需要查询优化器、不需要事务上下文，幂等且快。</li>
+<li><strong>逻辑</strong>：在页内层面，它记录的是一组变更（插入记录、更新字段、修改页头），而不是整页镜像。恢复时要把这些变更应用到页上，而不是简单覆盖。</li>
+</ul>
+
+这和 SQLite WAL 的「整页镜像」形成对比：WAL 的一帧就是 4 KB 的新页，重放是覆盖；InnoDB 的一条 redo 可能只有几十字节，描述一次页内修改。前者写放大高、恢复简单；后者写放大低、恢复需要理解页结构。
+
+物理日志的幂等性来自「记录的是最终值」：把偏移 O 的 N 个字节改成 X，执行一次和执行十次结果一样。逻辑日志则不一定幂等，比如「余额加 100」执行两次就错了。这也是为什么 InnoDB 的 redo 必须是物理/物理逻辑的，而 binlog 这种逻辑日志需要额外的 GTID、server_id、位点来去重。
+
+还有一个容易忽略的细节：InnoDB 的 redo 以 mini-transaction（mtr）为单位写入，一个用户事务可能包含多个 mtr，每个 mtr 结束时把 redo 写入公共日志缓冲。恢复时按 LSN 顺序重放，不关心它属于哪个用户事务；事务边界由 undo 和提交记录决定。这种「物理层按 mtr、逻辑层按事务」的分层，是 InnoDB 能同时做到高并发和崩溃恢复的关键。
+<h2>十、半页写：为什么有时 redo 能修，有时不能</h2>
+
+现在看最容易被误解的一环：torn page。
+
+假设页 P 的旧版本是 V0，新版本是 V1。事务修改了 P 的若干字节，redo 记录了这些字节的新值。刷脏页时，磁盘只写成功了一半：前 2 KB 是 V1，后 2 KB 还是 V0（或者变成零/垃圾）。断电后重启，恢复流程读到 P，校验和不匹配。
+
+这时会发生什么？
+
+<strong>情况一：未写到的后半部分保留了 V0。</strong> redo 重放会把「被修改的字节」写成 V1 的值；没有被修改的字节本来就是 V0，和 V1 一致。重放完成后，整页正好等于 V1，校验和通过。<strong>redo 自己就能修复这种半页写。</strong>
+
+<strong>情况二：未写到的后半部分变成了零或垃圾。</strong> redo 只覆盖「被修改的字节」；那些没有被修改、但已经被写成零的字节，不在任何 redo 记录里。重放完成后，页仍然不完整，校验和失败。<strong>redo 修不了，必须有一个完整的 V1 副本。</strong>
+
+doublewrite 就是为情况二准备的。InnoDB 刷脏页时，先把页顺序写进 doublewrite 区域并 fsync，再写到数据文件的真实位置。恢复时如果发现数据文件的页校验失败，就从 doublewrite 里找到完整副本，覆盖回去，再重放 redo。官方文档特别说明：doublewrite 是<strong>大块顺序写 + 一次 fsync</strong>，不是每页两次随机 I/O，所以开销远小于「写两遍」的字面印象。
+
+我们用一个 4000 次/组的模拟器验证这个分工。模型是：4 KB 页带 CRC，redo 记录若干字节区间的 after-image，半页写把前半页写成 V1、后半页写成 V0 或零；恢复时重放 redo，比较结果是否等于 V1。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>半页的另一半</th>
+<th>无 doublewrite</th>
+<th>有 doublewrite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>保留旧字节 V0</td>
+<td>0% 损坏</td>
+<td>0% 损坏</td>
+</tr>
+<tr>
+<td>变成零</td>
+<td>100% 损坏</td>
+<td>0% 损坏</td>
+</tr>
+</tbody>
+</table></div>
+
+这组数字说明：<strong>doublewrite 防的不是「所有半页写」，而是「redo 无法覆盖的那部分字节被破坏」。</strong> 如果磁盘保证未写入的扇区保持旧值，redo 就够了；如果可能返回零或垃圾，就必须有完整副本。真实硬件的扇区原子性、写缓存和掉电行为决定了你落在哪一格，所以生产环境默认开启 doublewrite 是合理的。
+
+需要说明的是，这是一个模型，不是 InnoDB 本身。InnoDB 在页第一次被修改后还会记录 full-page image（整页镜像），这会改变「redo 能否自修」的边界；不同版本、不同 <code>innodb_flush_method</code> 的行为也有差异。模型的价值在于把「redo 覆盖范围」和「介质实际写入内容」这两个变量分开，而不是给出一个适用于所有引擎的百分比。
+<h2>十一、配置、监控与恢复演练</h2>
+
+把上面的机制落到日常运维，可以按这张清单检查：
+
+<strong>持久性配置</strong>
+<ul>
+<li>SQLite：<code>synchronous=FULL</code> 是断电安全的下限；<code>NORMAL</code> 在 WAL 模式下只保证一致性，最近提交可能丢；<code>OFF</code> 不适合任何不能丢数据的场景。</li>
+<li>InnoDB：<code>innodb_flush_log_at_trx_commit=1</code> 表示每次提交 fsync redo；<code>=2</code> 只写 OS 缓存，性能更好但可能丢最近一秒；<code>=0</code> 由后台线程每秒刷，风险更高。</li>
+<li>日志文件大小：WAL/redo 太小会导致频繁 checkpoint，太大则恢复时间长。按写入速率和可接受的 RTO 反推。</li>
+</ul>
+
+<strong>监控指标</strong>
+<ul>
+<li>WAL/redo 的增长速度与 checkpoint 频率；</li>
+<li>恢复时间（启动到可服务）与日志大小；</li>
+<li><code>integrity_check</code> / <code>CHECK TABLE</code> 的定期结果；</li>
+<li>磁盘的掉电保护（PLP）、写缓存策略、扇区大小；</li>
+<li>InnoDB 的 purge lag、history list length、undo 表空间大小。</li>
+</ul>
+
+<strong>恢复演练</strong>
+<ol>
+<li>备份 + 日志回放：从全量备份恢复到某个时间点，记录 RTO。</li>
+<li>模拟误删：删一张表，按 binlog/WAL 回放到误删前，验证数据完整。</li>
+<li>模拟坏帧：在测试库的 WAL 副本上翻转一个字节，确认数据库能启动、能报告丢失范围。</li>
+<li>模拟半页写：在支持注入的存储或模拟器上验证 doublewrite 路径。</li>
+<li>记录每次演练的「实际丢失多少事务」，而不是只看「能不能启动」。</li>
+</ol>
+
+恢复能力不是配置出来的，是演练出来的。一个从没恢复过的备份，不能算备份。
+<h2>十二、源码地图与复现脚本</h2>
+
+<strong>SQLite</strong>
+<ul>
+<li><code>pager.c</code>：<code>pager_write</code> 标脏页，<code>pager_playback</code> 回放 journal，<code>sqlite3PagerCommitPhaseOne</code> 处理提交阶段的日志写入。</li>
+<li><code>wal.c</code>：<code>sqlite3WalFrames</code>/<code>walFrames</code> 追加帧，<code>walIndexRecover</code> 扫描 WAL、校验 checksum、设置 <code>mxFrame</code>。</li>
+<li>官方文档：<a href="https://www.sqlite.org/walformat.html" rel="noopener noreferrer" target="_blank">WAL-mode File Format</a>、<a href="https://www.sqlite.org/fileformat2.html" rel="noopener noreferrer" target="_blank">Database File Format</a>。</li>
+</ul>
+
+<strong>InnoDB</strong>
+<ul>
+<li><code>log0recv.cc</code>：redo 恢复的主流程，从 checkpoint 开始扫描并重放。</li>
+<li><code>buf0dblwr.cc</code>：doublewrite 的写入与恢复。</li>
+<li><code>trx0rec.cc</code> / <code>trx0roll.cc</code>：undo 记录与事务回滚。</li>
+<li>官方文档：<a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-recovery.html" rel="noopener noreferrer" target="_blank">InnoDB Recovery</a>、<a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-doublewrite-buffer.html" rel="noopener noreferrer" target="_blank">Doublewrite Buffer</a>。</li>
+</ul>
+
+<strong>复现实验的最小脚本</strong>：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">random</span><span class="o">,</span><span class="w"> </span><span class="nn">sqlite3</span><span class="o">,</span><span class="w"> </span><span class="nn">subprocess</span><span class="o">,</span><span class="w"> </span><span class="nn">sys</span><span class="o">,</span><span class="w"> </span><span class="nn">time</span><span class="o">,</span><span class="w"> </span><span class="nn">shutil</span>
+
+<span class="n">BATCH</span> <span class="o">=</span> <span class="mi">200</span>
+
+<span class="c1"># 写进程：每 BATCH 条提交一次，收到 kill 即停止</span>
+<span class="n">WRITER</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">import os, sqlite3, sys</span>
+<span class="s1">db, mode, sync, ready = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]</span>
+<span class="s1">con = sqlite3.connect(db)</span>
+<span class="s1">con.execute(f&quot;PRAGMA journal_mode=</span><span class="si">{mode}</span><span class="s1">&quot;)</span>
+<span class="s1">con.execute(f&quot;PRAGMA synchronous=</span><span class="si">{sync}</span><span class="s1">&quot;)</span>
+<span class="s1">con.execute(&quot;CREATE TABLE IF NOT EXISTS kv(id INTEGER PRIMARY KEY, v BLOB)&quot;)</span>
+<span class="s1">con.commit()</span>
+<span class="s1">open(ready, &quot;w&quot;).close()</span>
+<span class="s1">payload = os.urandom(120)</span>
+<span class="s1">while True:</span>
+<span class="s1">    con.execute(&quot;BEGIN&quot;)</span>
+<span class="s1">    for _ in range(</span><span class="si">%d</span><span class="s1">):</span>
+<span class="s1">        con.execute(&quot;INSERT INTO kv(v) VALUES(?)&quot;, (payload,))</span>
+<span class="s1">    con.commit()</span>
+<span class="s1">&#39;&#39;&#39;</span> <span class="o">%</span> <span class="n">BATCH</span>
+
+<span class="c1"># 父进程：等 ready、随机延迟、kill、再复制文件</span>
+<span class="c1"># 打开副本执行 PRAGMA integrity_check 与 count(*)</span>
+</code></pre></div>
+
+
+WAL 破坏实验的关键是解析帧布局：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">struct</span>
+
+<span class="n">data</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;db-wal&#39;</span><span class="p">,</span> <span class="s1">&#39;rb&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+<span class="n">magic</span><span class="p">,</span> <span class="n">version</span><span class="p">,</span> <span class="n">page_size</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s1">&#39;&gt;III&#39;</span><span class="p">,</span> <span class="n">data</span><span class="p">[:</span><span class="mi">12</span><span class="p">])</span>
+<span class="n">frame_size</span> <span class="o">=</span> <span class="mi">24</span> <span class="o">+</span> <span class="n">page_size</span>
+<span class="n">frames</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">-</span> <span class="mi">32</span><span class="p">)</span> <span class="o">//</span> <span class="n">frame_size</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">frames</span><span class="p">):</span>
+    <span class="n">off</span> <span class="o">=</span> <span class="mi">32</span> <span class="o">+</span> <span class="n">i</span> <span class="o">*</span> <span class="n">frame_size</span>
+    <span class="n">pgno</span><span class="p">,</span> <span class="n">dbsize</span> <span class="o">=</span> <span class="n">struct</span><span class="o">.</span><span class="n">unpack</span><span class="p">(</span><span class="s1">&#39;&gt;II&#39;</span><span class="p">,</span> <span class="n">data</span><span class="p">[</span><span class="n">off</span><span class="p">:</span><span class="n">off</span> <span class="o">+</span> <span class="mi">8</span><span class="p">])</span>
+    <span class="c1"># dbsize != 0 表示提交帧</span>
+</code></pre></div>
+
+
+踩过的坑：
+<ol>
+<li><strong>不要边写边拷贝</strong>。跨文件拷贝不是原子快照，会造出物理上不存在的状态；先 kill，再复制。</li>
+<li><strong><code>integrity_check</code> 会全表扫描</strong>。把它计入恢复时间，会得到「数据库越大恢复越慢」的错误结论；恢复时间应该只算打开数据库到第一条语句。</li>
+<li><strong>WAL 帧的 checksum 是累积的</strong>。破坏中间一帧，后面的帧即使字节完好也会被丢弃；这是设计，不是 bug。</li>
+<li><strong>进程崩溃不等于断电</strong>。想验证 fsync 语义，必须在真实掉电或可注入故障的存储上做。</li>
+</ol>
+<h2>十三、小结：恢复是一条时间链</h2>
+
+把全文压缩成一条时间链：
+<ol>
+<li>修改发生前，旧页（journal）或新页（WAL/redo）先落盘——<strong>write-ahead</strong>。</li>
+<li>提交时，日志里出现一个明确的提交点——事务要么整体可见，要么整体不可见。</li>
+<li>崩溃后，从 checkpoint 开始重放日志——<strong>redo</strong>，把物理状态推到最新。</li>
+<li>对未提交事务执行回滚——<strong>undo</strong>，把逻辑状态退回一致点。</li>
+<li>校验和发现坏页/坏帧；doublewrite 或完整副本修复半页写。</li>
+<li>checkpoint 回填、purge 清理，数据库回到正常服务状态。</li>
+</ol>
+
+SQLite 的 journal 和 WAL 分别站在「undo-only」和「redo-only」两端，InnoDB 则是「redo + undo」的组合。它们的具体格式不同，但这六步的责任划分是一致的。
+
+真正需要记住的，不是某个函数名或参数，而是三个问题：
+<ul>
+<li><strong>我的日志在数据之前落盘了吗？</strong></li>
+<li><strong>我的恢复能明确说出「哪些事务算数」吗？</strong></li>
+<li><strong>我的存储能保证未写入的部分是什么吗？</strong></li>
+</ul>
+
+答完这三个问题，才谈得上「崩溃恢复」。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/database/"><strong>数据库内核</strong></a> — B+ 树、WAL、MVCC 与存储引擎的实现细节</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/">LSM-Tree 与 B+Tree：一次写入到底写了几遍盘</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/">LSM-Tree 与 B+Tree：一次写入到底写了几遍盘</a></li><li><a href="https://blog.zhoujun.dev/article/sqlite-group-commit/">一次 fsync 摊薄 1000 行：SQLite 提交实测</a></li><li><a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+  </body>
+</html>

@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Same 1M records: SQLite needs 200 s of random writes and writes 12.8 GB, RocksDB needs 4 s and 0.6 GB. But sequential writes are equally fast. A measured teardown of write, read and space amplification." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/lsm-vs-btree-amplification/" />
+    <meta property="og:title" content="LSM-Tree vs B+Tree: How Many Times Does One Write Actually Hit the Disk? | Stack Frame" />
+    <meta property="og:description" content="Same 1M records: SQLite needs 200 s of random writes and writes 12.8 GB, RocksDB needs 4 s and 0.6 GB. But sequential writes are equally fast. A measured teardown of write, read and space amplification." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/lsm-vs-btree-amplification/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="LSM-Tree vs B+Tree: How Many Times Does One Write Actually Hit the Disk? | Stack Frame" />
+    <meta name="twitter:description" content="Same 1M records: SQLite needs 200 s of random writes and writes 12.8 GB, RocksDB needs 4 s and 0.6 GB. But sequential writes are equally fast. A measured teardown of write, read and space amplification." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>LSM-Tree vs B+Tree: How Many Times Does One Write Actually Hit the Disk? | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/lsm-vs-btree-amplification/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>LSM-Tree vs B+Tree: How Many Times Does One Write Actually Hit the Disk?</h1><div class="ns-meta">2026-11-13 · 28 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: people who have written a KV store or are currently picking a storage engine; people who were persuaded by one-line verdicts like "LSMs write fast, B+trees read fast" without ever looking at the ledger; people choosing between SQLite, RocksDB, LevelDB and InnoDB who want to know which layer the cost actually lands on
+Verdict up front: a B+tree spreads random writes into "random page writes"; an LSM turns random writes into "sequential append + background rewrite". The former's write amplification depends on how many pages each transaction touches, the latter's on how many levels compaction rewrites. Neither comes with a free lunch — only a choice about whether to put the cost on the write path, the read path, or a background thread.
+Reading time: about 28 minutes | Level: advanced | What you get: a reproducible set of measured data over 1,000,000 records, write-amplification formulas broken down term by term, why B+tree random writes can amplify to 100×, the compaction bill an LSM has to pay, and a decision table for choosing by workload</p>
+</blockquote>
+<p><strong>Contents</strong></p>
+<ul>
+<li>1. Two counterintuitive observations</li>
+<li>2. Experiment setup and metric definitions</li>
+<li>3. The B+tree write path: pages, splits and full-page WAL</li>
+<li>4. The LSM write path: memtable, SST and compaction</li>
+<li>5. The write-amplification formula: which layer is really paying</li>
+<li>6. The read path: tree height, Bloom filters and read amplification</li>
+<li>7. Updates and deletes: in-place modification vs tombstones</li>
+<li>8. Space amplification: file size doesn't lie</li>
+<li>9. When to pick an LSM, when to pick a B+tree</li>
+<li>10. Source map: from one put to one fsync</li>
+<li>11. Reproducing the experiment: scripts, parameters and pitfalls</li>
+<li>12. Wrap-up: asking the right question</li>
+</ul>
+<h2>1. Two Counterintuitive Observations</h2>
+<p>Start with the first set of numbers. 1,000,000 records, keys are 24-byte <code>user:%016d</code>, values are 100 bytes of incompressible random data — roughly 124 MB of logical data in total. Written in random order, committing every 500 records:</p>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>Write time</th>
+<th>Logical throughput</th>
+<th>Process bytes written</th>
+<th>Write amplification</th>
+<th>Database size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite (B+tree, WAL)</td>
+<td>201.6 s</td>
+<td>0.62 MB/s</td>
+<td>12822.9 MB</td>
+<td>103.4×</td>
+<td>149.9 MB</td>
+</tr>
+<tr>
+<td>RocksDB (LSM)</td>
+<td>4.0 s</td>
+<td>30.7 MB/s</td>
+<td>584.7 MB</td>
+<td>4.7×</td>
+<td>116.4 MB</td>
+</tr>
+</tbody>
+</table>
+<p>For the same data, SQLite is about 50× slower and writes 103× the logical bytes to disk; RocksDB writes only 4.7×. But the second set of numbers immediately breaks the impression that "LSMs are faster at everything": change the write order to an ascending sequential append and SQLite needs only 4.7 seconds, with write amplification down to 2.9× — essentially in the same league as RocksDB's 2.8 seconds and 2.0×.</p>
+<p>The third observation is subtler still: over 50,000 random reads, SQLite's p50 is 25.2 µs and p99 is 135 µs; RocksDB's p50 is 29.7 µs and p99 is 119 µs. Read latency is nearly identical, even though an LSM theoretically has more levels to probe.</p>
+<p>All three observations point at the same conclusion: <strong>the performance gap isn't in the word "tree" — it's in where the write path puts the randomness, and whether the log records a whole page or a change.</strong> Let's open up the ledger and do the arithmetic.</p>
+<h2>2. Experiment Setup and Metric Definitions</h2>
+<p>First, the reproducible conditions, written down plainly. Every number comes from a single Windows 11 (build 26200) machine: Intel Core 5 210H, 8 cores / 12 threads, 15.5 GB of RAM, NTFS; Python 3.13.14, SQLite 3.50.4, RocksDB driven through <code>rocksdict</code> 0.3.29, process I/O sampled with <code>psutil</code> 7.2.2.</p>
+<p>The workload comes from a single generator:</p>
+<pre><code class="language-python">import hashlib, random
+
+N = 1_000_000
+keys = list(range(N))
+random.shuffle(keys)          # or keep 0..N-1 for the sequential control run
+keys = [f'user:{i:016d}'.encode() for i in keys]
+
+def value(k):
+    return hashlib.shake_128(k).digest(100)   # 100 bytes, incompressible
+</code></pre>
+<p>Writes commit every 500 records. SQLite uses a <code>WITHOUT ROWID</code> table, guaranteeing a single B+tree clustered on the key; the settings are <code>journal_mode=WAL</code>, <code>synchronous=NORMAL</code>, <code>page_size=4096</code>, <code>cache_size=256 MB</code>. RocksDB runs default compression with <code>write_buffer_size=4 MB</code>, <code>max_write_buffer_number=3</code>, <code>target_file_size_base=8 MB</code>, <code>max_background_jobs=4</code>; the memtable was shrunk on purpose so that multi-level compaction actually shows up at 124 MB of data, instead of parking the whole dataset in one giant memtable.</p>
+<p>Three metrics, defined precisely:</p>
+<ul>
+<li><strong>Write amplification (WA)</strong>: bytes written by the process ÷ logical bytes. Process bytes include the WAL, the data files and compaction output, but not filesystem metadata. It's closer to the real write path than "how much did the database file grow" — but it is still not physical writes at disk-granularity level.</li>
+<li><strong>Read amplification (RA)</strong>: bytes read from storage per point lookup, on average. Because there was no administrator privilege to drop the OS page cache, this number is cache-affected; it's valid for same-machine comparison, not for cross-machine comparison.</li>
+<li><strong>Space amplification (SA)</strong>: total database file size ÷ logical data size. It answers "how much disk does the same data occupy".</li>
+</ul>
+<p>The limitations, up front too: single-threaded client, single machine, Windows, incompressible values, SQLite's WAL recording full page images, RocksDB with block compression enabled. The last two in particular decide this: <strong>the 103× below cannot be extrapolated to InnoDB.</strong> InnoDB's redo log records in-page changes; it does not write a fresh 16 KB image of every dirty page on every transaction. Its write path is closer to "record which bytes changed" than to SQLite WAL's "record what the whole page now looks like". We'll come back to this separately later in the article.</p>
+<h2>3. The B+tree Write Path: Pages, Splits and Full-Page WAL</h2>
+<p>The B+tree write path compresses into one sentence: <strong>find the leaf page the key belongs to and modify it; if the page is full, split it; log every change first, then write the data file back at checkpoint.</strong></p>
+<p>SQLite's page size is 4096 bytes. After the page header, the cell pointer array and free space, a leaf page holds roughly twenty-odd 124-byte records. The 1,000,000 records end up in about 36,000 leaf pages; including internal nodes, the database file comes to about 150 MB, which matches the measured 149.9 MB.</p>
+<p>Under random insertion, 500 keys land on almost 500 distinct leaf pages. When a transaction commits, the WAL has to append one frame for <strong>every modified page</strong>: a 24-byte frame header plus a full 4096-byte page image. SQLite's WAL format is spelled out clearly in the official documentation — the frame header carries the page number, the database size in pages after commit, a salt and a checksum, and the frame data is one complete page. Recovery scans the WAL sequentially once, validates frame by frame, and stops at the first bad checksum. That design makes WAL writes very direct, and makes the WAL brutally unfriendly to small random transactions.</p>
+<p>Here's a rough estimate that's good enough to make the point: each transaction touches about 500 leaf pages, plus new pages from splits, parent node updates and freelist pages — call it 600 pages conservatively, at 4 KB each, so 2.4 MB written per transaction and 4.8 GB across 2000 transactions. The observed figure is 12.8 GB. The extra comes from page splits (a split allocates a page and rewrites the parent), from checkpoint copying WAL content back into the main database (the same pages written a second time), and from the WAL itself being reused over several rounds. The order of magnitude lines up perfectly.</p>
+<p>Which also explains why sequential writes are fast: keys increase monotonically, so each write touches only the rightmost leaf page and a few internal pages, and a transaction's dirty page count drops from 500 to single digits. Measured write amplification falls from 103.4× to 2.9×, and elapsed time from 201 s to 4.7 s. <strong>A B+tree isn't afraid of writes; it's afraid of "one transaction touching many random pages".</strong></p>
+<p>Put that into a formula:</p>
+<pre><code class="language-text">WA_btree ≈ (average number of distinct pages touched per transaction × page size)
+           ÷ (logical bytes written per transaction)
+</code></pre>
+<p>Random, 500 records: <code>500 × 4096 / (500 × 124) ≈ 33</code>; stack splits and duplicate checkpoint writes on top of that and 100× is no surprise. Sequential, 500 records: <code>2 × 4096 / (500 × 124) ≈ 0.13</code>; now WAL frame headers, commit overhead and checkpoint become the main cost, landing around 3× overall.</p>
+<p>Swap in InnoDB and the "page size" in that formula is still 16 KB, but "pages touched per transaction" gets rewritten by the buffer pool and the change buffer: random inserts into secondary indexes can be recorded in the change buffer and merged when the page is read in, and redo records in-page changes rather than a full page image per transaction. So InnoDB's random write amplification is usually far below SQLite WAL's 100×. <strong>That's an implementation difference, not a theoretical floor for B+trees.</strong></p>
+<h2>4. The LSM Write Path: memtable, SST and Compaction</h2>
+<p>An LSM's write path also compresses into one sentence: <strong>every write appends to the WAL, then enters the in-memory memtable; when the memtable fills up it's frozen and flushed sequentially into an L0 SST file; background compaction then merges L0 downward level by level.</strong></p>
+<p>Take LevelDB: a handful of key constants define its shape. Four L0 files trigger a compaction; a write backlog of 8 starts slowing writes and 12 stops them outright; each level's capacity is 10× the one above; the SST target size is 2 MB. RocksDB's defaults are larger (64 MB memtable, 64 MB target file, 256 MB base level capacity) but the mechanism is identical. To actually see compaction at 124 MB of data, we dropped the memtable to 4 MB.</p>
+<p>An LSM's write amplification decomposes into three parts:</p>
+<pre><code class="language-text">WA_lsm = WA_wal + WA_flush + WA_compaction
+</code></pre>
+<ul>
+<li><strong>WAL</strong>: each record appended once, roughly 1× the logical bytes (plus frame header overhead).</li>
+<li><strong>flush</strong>: when the memtable fills, it's written out wholesale as an L0 file, roughly 1×.</li>
+<li><strong>compaction</strong>: L0 merges with the next level down and emits new files; that level then merges with the one below it. Every record gets rewritten once per level.</li>
+</ul>
+<p>If level capacity grows by a factor of T, the amortized write amplification of each level's compaction is about <code>1 / (1 - 1/T)</code> — roughly 1.11 at T=10. For data spanning L levels, total compaction write amplification is roughly <code>L × T/(T-1)</code>. The more data and the more levels, the more expensive this part gets.</p>
+<p>Measured in this run (random writes):</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>RocksDB statistics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WAL</td>
+<td>0.12 GB</td>
+</tr>
+<tr>
+<td>flush</td>
+<td>0.109 GB</td>
+</tr>
+<tr>
+<td>compaction writes</td>
+<td>0.43–0.50 GB</td>
+</tr>
+<tr>
+<td>Total process writes</td>
+<td>0.58–0.66 GB</td>
+</tr>
+<tr>
+<td>Logical data</td>
+<td>0.124 GB</td>
+</tr>
+<tr>
+<td>Measured WA</td>
+<td>4.7–5.3</td>
+</tr>
+</tbody>
+</table>
+<p>With sequential writes, compaction does almost no reading: the newly written keys are already in order and L0 files don't overlap, so merging just moves files down a level. Measured compaction writes drop from 0.43 GB to 0.11 GB and total WA from 4.7 to 2.0. <strong>An LSM's advantage on sequential writes comes from having "no random pages"; its advantage on random writes comes from "deferring the randomness to background compaction", not from abolishing it.</strong></p>
+<h2>5. The Write-Amplification Formula: Which Layer Is Really Paying</h2>
+<p>Put both engines on the same ledger:</p>
+<table>
+<thead>
+<tr>
+<th>Cost item</th>
+<th>B+tree (SQLite WAL)</th>
+<th>LSM (RocksDB)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Logging</td>
+<td>one full 4 KB page per dirty page</td>
+<td>one append per record</td>
+</tr>
+<tr>
+<td>Data persisted</td>
+<td>checkpoint writes dirty pages back</td>
+<td>memtable flushed sequentially to L0</td>
+</tr>
+<tr>
+<td>Extra rewriting</td>
+<td>page splits, duplicate checkpoint writes</td>
+<td>compaction rewriting level by level</td>
+</tr>
+<tr>
+<td>Cost of random writes</td>
+<td>dirty pages per transaction × page size</td>
+<td>bandwidth and CPU of background compaction</td>
+</tr>
+<tr>
+<td>Cost of sequential writes</td>
+<td>very small</td>
+<td>very small</td>
+</tr>
+<tr>
+<td>Latency profile</td>
+<td>write latency directly tied to dirty page count</td>
+<td>write latency steady, compaction can cause spikes</td>
+</tr>
+</tbody>
+</table>
+<p>One easily overlooked point: <strong>write amplification isn't just "wearing out the disk"</strong>. It consumes page cache, filesystem writeback bandwidth and SSD endurance all at once. Of SQLite's 12.8 GB of writes, only 124 MB was new data that actually needed to be kept; the rest was the same set of pages in different versions at different moments. For a read-mostly blog database that's a non-issue; for an ingestion service taking thousands of random writes per second, it's longevity and money.</p>
+<p>Conversely, LSM compaction isn't free either. It occupies background threads and disk bandwidth and can compete with foreground reads; L0 files piling up trigger write stalls; the deeper the levels, the more bytes a single compaction has to rewrite. RocksDB exposes <code>max_background_jobs</code>, <code>level_zero_slowdown_writes_trigger</code>, <code>max_bytes_for_level_base</code> and friends — all of which are, at bottom, knobs for balancing write amplification, read amplification, space amplification and tail latency against each other.</p>
+<h2>5.5 Two Knobs: Commit Batch Size and Value Size</h2>
+<p>Write amplification isn't a fixed constant; two very ordinary parameters move it significantly — how many records per commit, and how big each value is. Plenty of tuning sessions stare only at engine parameters and skip these two entirely.</p>
+<p>Commit batch size first. Fix 100,000 random keys and 100-byte values, and change only the number of records per batch:</p>
+<table>
+<thead>
+<tr>
+<th>Records per batch</th>
+<th>SQLite WA</th>
+<th>SQLite throughput</th>
+<th>RocksDB WA</th>
+<th>RocksDB throughput</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>95.8×</td>
+<td>1.56 MB/s</td>
+<td>3.04×</td>
+<td>10.75 MB/s</td>
+</tr>
+<tr>
+<td>10</td>
+<td>94.5×</td>
+<td>1.74 MB/s</td>
+<td>2.91×</td>
+<td>35.38 MB/s</td>
+</tr>
+<tr>
+<td>100</td>
+<td>86.5×</td>
+<td>2.05 MB/s</td>
+<td>2.89×</td>
+<td>43.04 MB/s</td>
+</tr>
+<tr>
+<td>1000</td>
+<td>59.0×</td>
+<td>2.68 MB/s</td>
+<td>2.89×</td>
+<td>51.91 MB/s</td>
+</tr>
+</tbody>
+</table>
+<p>SQLite's write amplification falls from 95.8× to 59.0×, but with <strong>no change in order of magnitude</strong>. The reason is the same as before: what drives the cost is "how many distinct pages one transaction touches", not "how many records one transaction contains". Even committing 1000 random keys at once still touches nearly a thousand leaf pages, and each page still costs a full frame. Batching reduces the commit count, WAL frame headers and sync overhead — so throughput improves only modestly.</p>
+<p>RocksDB's write amplification barely moves (2.89–3.04×), yet throughput climbs from 10.75 MB/s to 51.91 MB/s. Because the LSM write path is sequential appends to begin with, batching mainly removes the fixed per-write overhead; compaction's workload is set by data volume, not by commit count.</p>
+<p>Now value size. Fix 200,000 records at 500 per batch, and change only the value length:</p>
+<table>
+<thead>
+<tr>
+<th>Value size</th>
+<th>SQLite WA</th>
+<th>SQLite SA</th>
+<th>RocksDB WA</th>
+<th>RocksDB SA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10 B</td>
+<td>163.1×</td>
+<td>1.22×</td>
+<td>1.64×</td>
+<td>0.58×</td>
+</tr>
+<tr>
+<td>100 B</td>
+<td>83.8×</td>
+<td>1.21×</td>
+<td>3.42×</td>
+<td>0.94×</td>
+</tr>
+<tr>
+<td>1000 B</td>
+<td>27.4×</td>
+<td>4.58×</td>
+<td>4.55×</td>
+<td>1.00×</td>
+</tr>
+</tbody>
+</table>
+<p>Small values push SQLite's write amplification to 163×: a 34-byte record still occupies a 4 KB page frame, so the WAL's page-header overhead is a hundred times the record itself. As values grow, fewer records fit per page and each transaction touches fewer pages, so write amplification actually falls; but 1000-byte random inserts shatter the B+tree into finer fragments and space amplification shoots to 4.58× — a 938 MB database file holding only 205 MB of logical data. That's the textbook trade: write amplification down, space amplification up.</p>
+<p>RocksDB trends the opposite way: the bigger the value, the more bytes compaction rewrites, so write amplification climbs from 1.64 to 4.55; but SST space utilization stays steady around 1×, with none of SQLite's fragmentation blow-up. The two curves point in different directions, which is exactly why you can't tune against a single metric.</p>
+<h2>6. The Read Path: Tree Height, Bloom Filters and Read Amplification</h2>
+<p>A B+tree point lookup is a single descent from root to leaf. With 1,000,000 records at about 30 per page, the tree is roughly 4 levels tall (root, two internal levels, leaf). If the buffer pool holds the upper nodes, a lookup really needs just one leaf page read; worst case is four page reads. Range scans are where it wins outright: leaf pages are linked to one another, so you just read forward.</p>
+<p>An LSM point lookup probes the memtable, then the immutable memtable, then several L0 files, and finally does a binary search within each level. Without a Bloom filter, a lookup for a missing key may read a lot of files; with one, most files can be ruled out by a single in-memory check. RocksDB builds a Bloom filter for every SST by default; LevelDB requires an explicit <code>FilterPolicy</code>.</p>
+<p>Measured over 50,000 random lookups of keys that exist:</p>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>p50</th>
+<th>p99</th>
+<th>Total disk read</th>
+<th>Disk read per lookup</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite (database after random writes)</td>
+<td>25.2 µs</td>
+<td>135.0 µs</td>
+<td>115.6 MB</td>
+<td>2.3 KB</td>
+</tr>
+<tr>
+<td>RocksDB (database after random writes)</td>
+<td>29.7 µs</td>
+<td>119.4 µs</td>
+<td>414.2 MB</td>
+<td>8.3 KB</td>
+</tr>
+<tr>
+<td>SQLite (database after sequential writes)</td>
+<td>19.0 µs</td>
+<td>106.7 µs</td>
+<td>114.9 MB</td>
+<td>2.3 KB</td>
+</tr>
+<tr>
+<td>RocksDB (database after sequential writes)</td>
+<td>15.3 µs</td>
+<td>57.6 µs</td>
+<td>189.6 MB</td>
+<td>3.8 KB</td>
+</tr>
+</tbody>
+</table>
+<p>The column most worth staring at here is "disk read per lookup": the B+tree reads about 2.3 KB each time, essentially one page; the LSM after random writes reads 8.3 KB, a bit more than two pages — meaning the Bloom filter eliminated most files but a few still had to be genuinely read. p99 is not notably worse either, because the LSM's levels stay shallow and its block cache hit rate is decent; the real read amplification shows up in the number of bytes read and the CPU spent merging iterators, not in per-lookup latency.</p>
+<p>Range scans are a different matter. A B+tree walks forward along the leaf linked list, which is prefetch-friendly; an LSM has to open iterators across several levels and merge them, costing more CPU, though the sequential I/O is still fine. For workloads that "pull a batch of events in a time range", LSMs often do very well, because data is ordered by key and the range is contiguous.</p>
+<h2>7. Updates and Deletes: In-Place Modification vs Tombstones</h2>
+<p>Updates are where the gap between the two engines most easily flips. A B+tree usually updates in place: find the record, change the value, mark the page dirty. An LSM doesn't modify in place — it appends a new version, and the old version is discarded only when compaction merges down to a deeper level. Deletes work the same way: the LSM writes a tombstone and keeps it until compaction clears it together with the old value.</p>
+<p>After the 1,000,000 random writes, we run another 200,000 random updates (each updating a 100-byte value, committing every 500):</p>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>Update time</th>
+<th>Update throughput</th>
+<th>Bytes written by updates</th>
+<th>Update write amplification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite (WAL)</td>
+<td>21.04 s</td>
+<td>1.18 MB/s</td>
+<td>1621.7 MB</td>
+<td>65.4×</td>
+</tr>
+<tr>
+<td>RocksDB</td>
+<td>0.75 s</td>
+<td>33.21 MB/s</td>
+<td>169.7 MB</td>
+<td>6.8×</td>
+</tr>
+</tbody>
+</table>
+<p>SQLite's update write amplification is even higher than its insert amplification, because every update touches an existing leaf page and the WAL must write a full new page image; 500 updates can touch 500 pages, which is 2 MB of WAL per transaction. RocksDB writes the new version first and lets compaction merge it; the write path is fast, but compaction will rewrite the files containing the old versions in the background. <strong>An LSM doesn't skip the write on update — it defers it and does it in batches.</strong></p>
+<p>Implementation differences once more: an InnoDB update writes undo records and modifies the clustered index page, with redo recording in-page changes; random secondary index updates can also go through the change buffer. Its update write amplification is nothing like SQLite WAL's straightforward "dirty pages × 16 KB". Taking this article's SQLite numbers to argue that "all B+tree updates are 30× slower" is a bad extrapolation.</p>
+<h2>8. Space Amplification: File Size Doesn't Lie</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>SQLite</th>
+<th>RocksDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Logical data</td>
+<td>124.0 MB</td>
+<td>124.0 MB</td>
+</tr>
+<tr>
+<td>Database size</td>
+<td>149.9 MB</td>
+<td>116.4 MB</td>
+</tr>
+<tr>
+<td>Space amplification</td>
+<td>1.21×</td>
+<td>0.94×</td>
+</tr>
+</tbody>
+</table>
+<p>SQLite's 1.21× comes from free space inside pages, half-full pages left behind by splits, and B+tree internal nodes. Random inserts lower page fill factor; the sequentially inserted database is 146.5 MB, slightly smaller but essentially the same. <code>VACUUM</code> can rebuild the database and reclaim fragmentation, at the price of extra space and time.</p>
+<p>RocksDB's 116.4 MB is smaller than the logical data, thanks to block compression (even with incompressible random values, keys, block headers and indexes still compress) and SST's compact encoding. LSM space amplification is not constant: during compaction the input and output files coexist, so instantaneous space can approach 2×; in delete-heavy or update-heavy databases, old versions keep occupying space until compaction catches up. RocksDB controls that window with <code>max_background_jobs</code> and compaction priorities, but it can't eliminate it.</p>
+<p>One frequently overlooked entry on the ledger: <strong>space amplification feeds back into read amplification</strong> — the more files there are and the deeper the levels, the more files a point lookup has to probe. Tuning an LSM is fundamentally a triangular trade among the three amplifications; you can't watch only one of them.</p>
+<h2>9. When to Pick an LSM, When to Pick a B+tree</h2>
+<p>Turning the conclusions into a table, under the premise of "same hardware, same data, single-node embedded or single-instance":</p>
+<table>
+<thead>
+<tr>
+<th>Workload characteristic</th>
+<th>Better fit</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>High-frequency random writes, more writes than reads</td>
+<td>LSM</td>
+<td>append-only writes plus background compaction, steady foreground latency</td>
+</tr>
+<tr>
+<td>Append-only logs, events, time-series data</td>
+<td>LSM</td>
+<td>shortest sequential write path, compaction can partition by time</td>
+</tr>
+<tr>
+<td>Read-heavy, write-light, mostly point lookups</td>
+<td>B+tree</td>
+<td>one tree descent, stable read amplification</td>
+</tr>
+<tr>
+<td>Complex range queries, sorting, joins</td>
+<td>B+tree</td>
+<td>leaf linked list, ordered scans, mature optimizer</td>
+</tr>
+<tr>
+<td>Strong transactions, cross-table consistency</td>
+<td>B+tree (InnoDB)</td>
+<td>row locks, MVCC, undo, a complete foreign-key ecosystem</td>
+</tr>
+<tr>
+<td>Write throughput first, background jitter acceptable</td>
+<td>LSM</td>
+<td>compaction is tunable, write stalls are observable</td>
+</tr>
+<tr>
+<td>Limited ops headcount, modest data volume</td>
+<td>B+tree</td>
+<td>no compaction tuning, no write stalls</td>
+</tr>
+<tr>
+<td>Predictable p99 required</td>
+<td>Depends on tuning</td>
+<td>LSM's p99 is shaped by compaction, B+tree's by checkpoint</td>
+</tr>
+</tbody>
+</table>
+<p>A few common misconceptions:</p>
+<ol>
+<li><strong>"An LSM is always faster at writing than a B+tree."</strong> Only true for random writes, batched commits and moderately sized values. On sequential writes the two are close; with small single-record transactions, the WAL's fsync dominates.</li>
+<li><strong>"A B+tree always reads faster."</strong> Point lookup latency depends on cache and tree height, and with a Bloom filter the LSM gap is tiny; the B+tree is steadier on range scans, but the LSM's sequential I/O isn't bad either.</li>
+<li><strong>"Write amplification only affects SSD lifespan."</strong> It also affects write throughput, checkpoint spikes and backup windows. 103× write amplification means the same logical writes consume 103× the write bandwidth.</li>
+<li><strong>"SQLite's numbers represent InnoDB."</strong> SQLite WAL's full-page images are an implementation choice, not an inevitable consequence of B+trees. When choosing, look at the specific engine's log format, buffer pool and change buffer.</li>
+</ol>
+<h2>9.5 Three Selection Walkthroughs on Real Workloads</h2>
+<p>Comparing "LSM vs B+tree" in the abstract is easy; once you land on a concrete system it's rarely black and white. Here are three typical workloads walked through the decision, still using the measurements from earlier.</p>
+<p><strong>Scenario one: 200,000 monitoring events written per minute, queried by time range over the last hour.</strong></p>
+<p>Writes are append-style with mostly monotonic keys and values from tens to hundreds of bytes; queries are time-range scans with the occasional tag filter. This workload is very friendly to an LSM: the sequential write path is shortest, compaction can partition by time, and range scans follow the ordered keys. A B+tree can do it too, but random primary keys or a time index still cause page splits; if each batch of events lands across many index pages, SQLite-style full-page WAL will push write amplification into the tens of times.</p>
+<p>Two things to watch if you pick an LSM: first, stagger compaction away from query traffic, otherwise background rewrites will steal I/O; second, expire old data outside the retention window promptly with a TTL, otherwise compaction keeps doing useless work for historical data. With a B+tree, focus on partitioning/sharding and index maintenance, so a single table doesn't grow without bound.</p>
+<p><strong>Scenario two: a user-profile KV store, reads far outnumbering writes, with a stable p99 requirement.</strong></p>
+<p>The typical operation is <code>GET user:&lt;id&gt;</code>; writes are the occasional profile update, reads dominate, values are a few KB. This workload fits a B+tree better: one tree descent fetches the record and read amplification is stable; updates are in-place, so no pile of old versions accumulates in the background. InnoDB's buffer pool keeps hot pages in memory, and secondary index updates can go through the change buffer.</p>
+<p>If you insist on an LSM, you must configure the Bloom filter properly, give the block cache enough memory, and accept that reads pull more bytes. For services extremely sensitive to p99, LSM compaction jitter has to be suppressed with rate limiting and priorities; otherwise a single large compaction can push read latency up.</p>
+<p><strong>Scenario three: an order database with strong transactions, multi-table relationships, and complex queries by status and date.</strong></p>
+<p>This one is barely a decision: pick a B+tree engine with full transaction support and a mature optimizer, usually InnoDB or PostgreSQL. Not because B+trees are innately faster, but because row locks, MVCC, undo, foreign keys, joins and subqueries represent years of engineering. An LSM can do KV and single-table transactions, but complex queries and cross-row consistency are not its home turf.</p>
+<p>What really deserves caution: don't migrate an order database to an LSM just because "write volume went up", while ignoring transaction semantics, secondary indexes and reporting queries. Write bottlenecks have many remedies — batching, partitioning, going asynchronous, adding caches — and changing the storage engine is usually the most expensive option with the hardest rollback.</p>
+<p>The common thread across the three: <strong>first pin down what reads and writes look like, where the transaction boundaries are, and what the p99 budget is; then talk about engines.</strong> Engine selection is the last step, not the first.</p>
+<h2>10. Source Map: From One put to One fsync</h2>
+<p>If you only want to remember a few entry points, read along this map:</p>
+<p><strong>SQLite (B+tree)</strong></p>
+<ul>
+<li><code>btree.c</code>: <code>sqlite3BtreeInsert</code> locates the cursor position and writes the cell; when a page is full, <code>balance_nonroot</code> performs splits and redistribution.</li>
+<li><code>pager.c</code>: <code>pager_write</code> marks pages dirty, and <code>sqlite3PagerCommitPhaseOne</code> writes the log during the commit phase; rollback mode writes a journal, WAL mode hands dirty pages to the WAL.</li>
+<li><code>wal.c</code>: <code>sqlite3WalFrames</code>/<code>walFrames</code> write each dirty page as "24-byte frame header + the whole page"; the commit frame records the database size in pages in its header.</li>
+<li>Recovery: one sequential scan of the WAL, frame-by-frame validation, stopping at the first bad checksum; <code>mxFrame</code> takes the last valid commit frame.</li>
+</ul>
+<p><strong>LevelDB / RocksDB (LSM)</strong></p>
+<ul>
+<li><code>DBImpl::Write</code>: writes the WAL, writes the memtable; <code>MakeRoomForWrite</code> freezes the memtable when it fills and triggers a flush.</li>
+<li><code>VersionSet::PickCompaction</code>: selects a compaction based on L0 file count, bytes per level and file overlap.</li>
+<li><code>DBImpl::BackgroundCompaction</code>: merges the input files and writes the next level's SSTs; <code>TableBuilder</code> handles blocks and indexes.</li>
+<li>Bloom filter: LevelDB's <code>FilterPolicy</code>, RocksDB's <code>FullFilterBlockBuilder</code> — they push the "this key isn't in that file" decision into memory.</li>
+</ul>
+<p><strong>InnoDB (for contrast; do not extrapolate this article's numbers to it)</strong></p>
+<ul>
+<li>The clustered index is the table; secondary index leaves store the primary key. Updates write undo, redo records in-page changes, and the change buffer absorbs random secondary index writes.</li>
+<li>Crash recovery: tablespace discovery → redo apply → roll back uncommitted transactions → change buffer merge → purge. The official documentation states plainly that rolling back an interrupted transaction can take three to four times as long as the transaction itself ran.</li>
+<li>Half-written pages are protected by the doublewrite buffer: pages are first written sequentially into the doublewrite area and fsynced, then written to the data file; on recovery a complete copy repairs the torn page.</li>
+</ul>
+<h2>11. Reproducing the Experiment: Scripts, Parameters and Pitfalls</h2>
+<p>The core script isn't long; the important part is keeping "writing" and "measuring" separate:</p>
+<pre><code class="language-python">import hashlib, os, random, sqlite3, time
+import psutil
+from rocksdict import Rdict, Options, WriteBatch
+
+N, BATCH = 1_000_000, 500
+keys = [f'user:{i:016d}'.encode() for i in range(N)]
+random.shuffle(keys)
+
+def value(k):
+    return hashlib.shake_128(k).digest(100)
+
+def io_write():
+    return psutil.Process().io_counters().write_bytes
+
+# SQLite
+con = sqlite3.connect('bench.db')
+con.execute('PRAGMA journal_mode=WAL')
+con.execute('PRAGMA synchronous=NORMAL')
+con.execute('PRAGMA page_size=4096')
+con.execute('CREATE TABLE kv(k TEXT PRIMARY KEY, v BLOB) WITHOUT ROWID')
+start, t0 = io_write(), time.perf_counter()
+for i in range(0, N, BATCH):
+    con.executemany('INSERT INTO kv(k,v) VALUES(?,?)',
+                    [(k, value(k)) for k in keys[i:i+BATCH]])
+    con.commit()
+con.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+print('sqlite', time.perf_counter()-t0, io_write()-start)
+
+# RocksDB
+opt = Options()
+opt.set_write_buffer_size(4 * 1024 * 1024)
+opt.set_max_write_buffer_number(3)
+opt.set_target_file_size_base(8 * 1024 * 1024)
+db = Rdict('bench-rocks', options=opt)
+start, t0 = io_write(), time.perf_counter()
+for i in range(0, N, BATCH):
+    wb = WriteBatch()
+    for k in keys[i:i+BATCH]:
+        wb[k] = value(k)
+    db.write(wb)
+db.flush()
+print('rocks', time.perf_counter()-t0, io_write()-start)
+</code></pre>
+<p>Three pitfalls we hit along the way:</p>
+<ol>
+<li><strong>Values must be incompressible.</strong> The first experiment built 100-byte values by concatenating <code>sha256(k)</code> repeatedly, and RocksDB's block compression squeezed 124 MB down to 45 MB, distorting both write and space amplification. Only after switching to <code>shake_128(k).digest(100)</code> were the numbers comparable.</li>
+<li><strong>Process I/O counters are not physical disk writes.</strong> They count the read/write bytes issued by the process, including the WAL, data files and compaction, but not filesystem metadata or the SSD's internal write amplification. They're reliable for same-machine comparison; leave headroom when doing absolute capacity planning.</li>
+<li><strong>You must wait for compaction to settle.</strong> Reading the counters immediately after RocksDB finishes writing will miss compaction still running in the background. The script polls the compaction lines of <code>rocksdb.stats</code> and only samples the numbers once two consecutive reads are identical.</li>
+</ol>
+<p>Also note that SQLite's random-write elapsed time varies widely between runs (140–202 seconds this time). Windows writeback, antivirus scanning and disk cache state all influence the result; write amplification stays stable at around 103×, so read the timings as a trend rather than a precise benchmark.</p>
+<h2>12. Wrap-up: Asking the Right Question</h2>
+<p>Back to the question we started with: how many times does a single write actually hit the disk?</p>
+<ul>
+<li><strong>B+tree + full-page WAL</strong>: as many pages as one transaction touches, that's how many pages get written; small random transactions push write amplification into the tens or hundreds.</li>
+<li><strong>LSM</strong>: each record is appended to the WAL once, then flushed to L0, then rewritten level by level during compaction; write amplification depends on the number of levels and the compaction policy.</li>
+<li><strong>Reads</strong>: one descent for a B+tree, with stable read amplification; an LSM uses a Bloom filter to keep most files out of the picture in memory, but it still reads more bytes.</li>
+<li><strong>Space</strong>: a B+tree carries in-page fragmentation, an LSM carries old versions and compaction's temporary files; both need maintenance.</li>
+</ul>
+<p>So the question worth asking isn't "which is faster, an LSM or a B+tree", but:</p>
+<ol>
+<li>Are my writes random or sequential? How big are my transactions?</li>
+<li>Would I rather tolerate foreground write-latency jitter, or background compaction jitter?</li>
+<li>Are my reads mostly point lookups or range scans? What's my p99 budget?</li>
+<li>Which specific engine am I using? Does its log record whole pages or changes? Does it have a buffer pool, a change buffer, doublewrite?</li>
+<li>Can I monitor write, read and space amplification, and tune before they get out of hand?</li>
+</ol>
+<p>Answer these five and the selection basically settles itself. As for "which one is more advanced" — that's a question for papers, not for production.</p>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>

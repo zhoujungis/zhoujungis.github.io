@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：写过 KV 存储或正在选型的人；被「LSM 写得快、B+ 树读得快」这类一句话结论说服过、但没看过账本的人；在…" />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
+         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
+            crossorigin="anonymous"></script>
+    <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/" />
+    <meta property="og:title" content="LSM-Tree 与 B+Tree：一次写入到底写了几遍盘" />
+    <meta property="og:description" content="适用读者：写过 KV 存储或正在选型的人；被「LSM 写得快、B+ 树读得快」这类一句话结论说服过、但没看过账本的人；在…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/btree-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/btree-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="LSM-Tree 与 B+Tree：一次写入到底写了几遍盘 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="LSM-Tree 与 B+Tree：一次写入到底写了几遍盘" />
+    <meta name="twitter:description" content="适用读者：写过 KV 存储或正在选型的人；被「LSM 写得快、B+ 树读得快」这类一句话结论说服过、但没看过账本的人；在…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/btree-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>LSM-Tree 与 B+Tree：一次写入到底写了几遍盘 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+      <meta property="article:section" content="数据库内核" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/lsm-vs-btree-amplification/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/" />
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-13T11:23:16.991105+08:00" />
+        <meta property="article:modified_time" content="2026-11-13T11:23:16.991105+08:00" />
+        <meta property="article:tag" content="B+树" />
+    <meta property="article:tag" content="LSM-Tree" />
+    <meta property="article:tag" content="RocksDB" />
+    <meta property="article:tag" content="SQLite" />
+    <meta property="article:tag" content="存储引擎" />
+    <meta property="article:tag" content="性能优化" />
+    <meta property="article:tag" content="数据库" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/#article","url":"https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/","headline":"LSM-Tree 与 B+Tree：一次写入到底写了几遍盘","description":"适用读者：写过 KV 存储或正在选型的人；被「LSM 写得快、B+ 树读得快」这类一句话结论说服过、但没看过账本的人；在…","image":"https://blog.zhoujun.dev/photos/btree-cover.png","datePublished":"2026-11-13T11:23:16.991105+08:00","dateModified":"2026-11-13T11:23:16.991105+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/"},"articleSection":"数据库内核","keywords":"B+树, LSM-Tree, RocksDB, SQLite, 存储引擎, 性能优化, 数据库","inLanguage":"zh-CN","wordCount":7159},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"LSM-Tree 与 B+Tree：一次写入到底写了几遍盘","item":"https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"lsm-vs-btree-amplification","title":"LSM-Tree 与 B+Tree：一次写入到底写了几遍盘","created_at":"2026-11-13T11:23:16.991105+08:00","updated_at":"2026-11-13T11:23:16.991143+08:00","author":null,"category":{"id":13,"name":"数据库内核","slug":"database"},"tags":[{"id":211,"name":"B+树","slug":"btree"},{"id":209,"name":"LSM-Tree","slug":"lsm-tree"},{"id":210,"name":"RocksDB","slug":"rocksdb"},{"id":202,"name":"SQLite","slug":"sqlite"},{"id":174,"name":"存储引擎","slug":"storage-engine"},{"id":114,"name":"性能优化","slug":"performance"},{"id":110,"name":"数据库","slug":"database"}],"cover_image":"/photos/btree-cover.png","excerpt":"适用读者：写过 KV 存储或正在选型的人；被「LSM 写得快、B+ 树读得快」这类一句话结论说服过、但没看过账本的人；在 SQLite、RocksDB、LevelDB、InnoDB 之间做技术决策，想知道代价到底落在哪一层的人 结论先行：B+ 树把随机写摊成「随机页写」，LSM 把随机写变成「顺序追加 + 后台重写」。","reading_time":28,"views_count":4,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>LSM-Tree 与 B+Tree：一次写入到底写了几遍盘</span></nav><h1>LSM-Tree 与 B+Tree：一次写入到底写了几遍盘</h1><div class="ns-meta">2026/11/13 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/database/">数据库内核</a> · 标签：B+树 LSM-Tree RocksDB <a href="https://blog.zhoujun.dev/tags/sqlite/">SQLite</a> <a href="https://blog.zhoujun.dev/tags/storage-engine/">存储引擎</a> <a href="https://blog.zhoujun.dev/tags/performance/">性能优化</a> <a href="https://blog.zhoujun.dev/tags/database/">数据库</a></p><nav class="ns-series"><p><strong>本系列 · 数据库内核</strong>（8 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/btree-page-split/">B+ 树索引回源：页分裂长什么样</a></li><li><a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li><li><a href="https://blog.zhoujun.dev/article/nanodb/">NanoDB：Go 嵌入式文档数据库</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a></li><li><a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/database/">查看数据库内核专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：写过 KV 存储或正在选型的人；被「LSM 写得快、B+ 树读得快」这类一句话结论说服过、但没看过账本的人；在 SQLite、RocksDB、LevelDB、InnoDB 之间做技术决策，想知道代价到底落在哪一层的人
+结论先行：B+ 树把随机写摊成「随机页写」，LSM 把随机写变成「顺序追加 + 后台重写」。前者的写放大取决于每个事务碰了多少页，后者的写放大取决于 compaction 重写了几层。两者没有免费的午餐，只有把成本放在写路径、读路径还是后台线程的选择。
+阅读时间：约 28 分钟 | 难度：进阶 | 收获：一组可复现的 100 万条实测数据、写放大公式与逐项拆解、B+ 树随机写为什么能放大到 100 倍、LSM 的 compaction 账单、以及一张按负载选型的决策表
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>一、两个反直觉的现象</li>
+<li>二、实验设置与指标口径</li>
+<li>三、B+ 树的写路径：页、分裂与全页 WAL</li>
+<li>四、LSM 的写路径：memtable、SST 与 compaction</li>
+<li>五、写放大公式：钱到底花在哪一层</li>
+<li>六、读路径：树高、Bloom Filter 与读放大</li>
+<li>七、更新与删除：原地改与墓碑</li>
+<li>八、空间放大：文件大小不会说谎</li>
+<li>九、什么时候选 LSM，什么时候选 B+ 树</li>
+<li>十、源码地图：从一次 put 到一次 fsync</li>
+<li>十一、复现实验：脚本、参数与踩坑</li>
+<li>十二、小结：把问题问对</li>
+</ul>
+<h2>一、两个反直觉的现象</h2>
+
+先看第一组数字。100 万条记录，key 是 24 字节的 <code>user:%016d</code>，value 是 100 字节不可压缩随机数据，合计约 124 MB 逻辑数据。以随机顺序写入，每 500 条提交一次：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>引擎</th>
+<th>写入耗时</th>
+<th>逻辑吞吐</th>
+<th>进程写盘</th>
+<th>写放大</th>
+<th>数据库大小</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite（B+ 树，WAL）</td>
+<td>201.6 s</td>
+<td>0.62 MB/s</td>
+<td>12822.9 MB</td>
+<td>103.4×</td>
+<td>149.9 MB</td>
+</tr>
+<tr>
+<td>RocksDB（LSM）</td>
+<td>4.0 s</td>
+<td>30.7 MB/s</td>
+<td>584.7 MB</td>
+<td>4.7×</td>
+<td>116.4 MB</td>
+</tr>
+</tbody>
+</table></div>
+
+同样一份数据，SQLite 慢了约 50 倍，写盘量是逻辑数据的 103 倍；RocksDB 只写了 4.7 倍。但第二组数字会立刻打破「LSM 全面更快」的印象：把写入顺序改成从小到大顺序追加，SQLite 只需要 4.7 秒，写放大降到 2.9 倍，和 RocksDB 的 2.8 秒、2.0 倍几乎在同一量级。
+
+第三个现象更微妙：随机读 5 万次，SQLite 的 p50 是 25.2 µs、p99 是 135 µs；RocksDB 的 p50 是 29.7 µs、p99 是 119 µs。读延迟几乎没有差别，尽管 LSM 理论上要查更多层。
+
+这三个现象指向同一个结论：<strong>性能差异不在「树」这个名字上，而在写路径把随机性放在了哪里，以及日志记录的是整页还是变更。</strong> 下面把账拆开算。
+<h2>二、实验设置与指标口径</h2>
+
+先把可复现的条件写清楚。所有数字来自一台 Windows 11（build 26200）机器：Intel Core 5 210H，8 核 12 线程，15.5 GB 内存，NTFS 文件系统；Python 3.13.14，SQLite 3.50.4，RocksDB 通过 <code>rocksdict</code> 0.3.29 调用，进程 I/O 用 <code>psutil</code> 7.2.2 采集。
+
+负载是同一个生成器：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span><span class="o">,</span><span class="w"> </span><span class="nn">random</span>
+
+<span class="n">N</span> <span class="o">=</span> <span class="mi">1_000_000</span>
+<span class="n">keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">))</span>
+<span class="n">random</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>          <span class="c1"># 或保持 0..N-1 做顺序对照</span>
+<span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s1">&#39;user:</span><span class="si">{</span><span class="n">i</span><span class="si">:</span><span class="s1">016d</span><span class="si">}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">]</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">value</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">shake_128</span><span class="p">(</span><span class="n">k</span><span class="p">)</span><span class="o">.</span><span class="n">digest</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>   <span class="c1"># 100 字节不可压缩</span>
+</code></pre></div>
+
+
+写入时每 500 条一个事务。SQLite 使用 <code>WITHOUT ROWID</code> 表，确保只有一棵以 key 为聚簇键的 B+ 树；参数是 <code>journal_mode=WAL</code>、<code>synchronous=NORMAL</code>、<code>page_size=4096</code>、<code>cache_size=256 MB</code>。RocksDB 使用默认压缩，<code>write_buffer_size=4 MB</code>、<code>max_write_buffer_number=3</code>、<code>target_file_size_base=8 MB</code>、<code>max_background_jobs=4</code>；把 memtable 调小是为了在 124 MB 数据量下也能看到多层 compaction，而不是让所有数据停在一个巨大的 memtable 里。
+
+三个指标的定义必须说清：
+<ul>
+<li><strong>写放大 WA</strong>：进程写入的字节数 ÷ 逻辑字节数。进程写字节包含 WAL、数据文件、compaction 输出，不包含文件系统元数据。它比「看数据库文件涨了多少」更接近真实写路径，但也不是磁盘颗粒层面的物理写入。</li>
+<li><strong>读放大 RA</strong>：一次点查平均从存储读了多少字节。由于没有管理员权限清空操作系统页缓存，这个数字会受缓存影响，只用于同机对照，不用于跨机器比较。</li>
+<li><strong>空间放大 SA</strong>：数据库文件总大小 ÷ 逻辑数据大小。它回答「同样的数据要占多少盘」。</li>
+</ul>
+
+局限也先说：单线程客户端、单机、Windows、值不可压缩、SQLite 的 WAL 记录整页镜像、RocksDB 开启了块压缩。尤其最后两点决定了：<strong>下面的 103 倍不能直接外推到 InnoDB</strong>。InnoDB 的 redo 以页内变更记录为主，不是每个事务把每个脏页的 16 KB 新镜像都写一遍；它的写路径更接近「记录改了哪些字节」，而不是 SQLite WAL 的「记录整页新样子」。文章后半会单独说明这一点。
+<h2>三、B+ 树的写路径：页、分裂与全页 WAL</h2>
+
+B+ 树的写路径可以压缩成一句话：<strong>找到 key 应该落在的叶子页，改它；如果页满了，分裂；所有改动先写日志，再在 checkpoint 时回写数据文件。</strong>
+
+SQLite 的页大小是 4096 字节。一个叶子页除去页头、单元格指针和空闲空间，大约能放二三十条 124 字节的记录。100 万条记录最终形成约 3.6 万个叶子页，加上内部节点，数据库文件约 150 MB，和实测的 149.9 MB 对得上。
+
+随机写入时，500 条 key 几乎落在 500 个不同的叶子页上。一个事务提交，WAL 需要为<strong>每一个被修改的页</strong>追加一帧：24 字节帧头加一整页 4096 字节的新镜像。SQLite 的 WAL 格式在官方文档里写得很清楚：帧头包含页号、提交后的数据库页数、salt 和校验和，页数据就是完整的一页。恢复时单次顺序扫描 WAL，逐帧校验，遇到第一个坏校验和就停止。这个设计让 WAL 的写入非常直接，也让它对随机小事务极其不友好。
+
+做一个不算精细但足够说明问题的估算：每个事务触碰约 500 个叶子页，加上分裂产生的新页、父节点更新、freelist 页，保守按 600 页计算，每页 4 KB，一个事务写 2.4 MB；2000 个事务就是 4.8 GB。实际观测是 12.8 GB，多出来的部分来自页分裂（一次分裂会新增页并改写父页）、checkpoint 把 WAL 回填到主库时的重复写，以及 WAL 自身的多轮复用。量级完全对得上。
+
+这也解释了顺序写入为什么快：key 单调递增，每次只改最右边的叶子页和少量内部页，一个事务的脏页数从 500 降到个位数。实测写放大从 103.4 倍降到 2.9 倍，耗时从 201 秒降到 4.7 秒。<strong>B+ 树并不怕写，它怕的是「一个事务里随机碰很多页」。</strong>
+
+把这件事写成公式：
+<div class="codehilite"><pre><span></span><code>WA_btree ≈ (每个事务平均触碰的不同页数 × 页大小)
+           ÷ (每个事务写入的逻辑字节数)
+</code></pre></div>
+
+
+随机 500 条：<code>500 × 4096 / (500 × 124) ≈ 33</code>，再叠加分裂与 checkpoint 的重复写，到 100 倍并不奇怪。顺序 500 条：<code>2 × 4096 / (500 × 124) ≈ 0.13</code>，此时 WAL 的帧头、提交开销和 checkpoint 成为主要成本，整体落在 3 倍左右。
+
+如果换成 InnoDB，公式里的「页大小」还是 16 KB，但「每个事务触碰的页数」会被 buffer pool 和 change buffer 改写：二级索引的随机插入可以先记在 change buffer 里，等页被读入时再合并；redo 记录的是页内变更，而不是每事务整页镜像。所以 InnoDB 的随机写放大通常远低于 SQLite WAL 的 100 倍。<strong>这是实现差异，不是 B+ 树的理论下限。</strong>
+<h2>四、LSM 的写路径：memtable、SST 与 compaction</h2>
+
+LSM 的写路径同样可以压缩成一句话：<strong>所有写入先追加 WAL，再进内存 memtable；memtable 满了就冻结、顺序刷成 L0 的 SST 文件；后台 compaction 再把 L0 一层层往下合并。</strong>
+
+以 LevelDB 为例，几个关键常量决定了形状：L0 文件数达到 4 个触发 compaction，写入积压到 8 个开始减速、12 个直接停写；每层容量按 10 倍递增；SST 目标大小 2 MB。RocksDB 的默认值更大（memtable 64 MB、目标文件 64 MB、底层容量 256 MB），但机制相同。我们为了在 124 MB 数据上看到 compaction，把 memtable 调到了 4 MB。
+
+LSM 的写放大可以拆成三段：
+<div class="codehilite"><pre><span></span><code>WA_lsm = WA_wal + WA_flush + WA_compaction
+</code></pre></div>
+
+<ul>
+<li><strong>WAL</strong>：每条记录追加一次，约等于 1 倍逻辑字节（加上帧头开销）。</li>
+<li><strong>flush</strong>：memtable 写满后整体写成 L0 文件，约 1 倍。</li>
+<li><strong>compaction</strong>：L0 与下一层合并，输出新文件；下一层再与更下一层合并。每条记录在每一层被重写一次。</li>
+</ul>
+
+如果层容量按 T 倍增长，每层 compaction 的摊薄写放大约为 <code>1 / (1 - 1/T)</code>；T=10 时约 1.11。数据跨 L 层，compaction 总写放大大致是 <code>L × T/(T-1)</code>。数据量越大、层数越多，这部分越贵。
+
+本次实测（随机写入）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>组成</th>
+<th>RocksDB 统计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WAL</td>
+<td>0.12 GB</td>
+</tr>
+<tr>
+<td>flush</td>
+<td>0.109 GB</td>
+</tr>
+<tr>
+<td>compaction 写</td>
+<td>0.43–0.50 GB</td>
+</tr>
+<tr>
+<td>进程总写盘</td>
+<td>0.58–0.66 GB</td>
+</tr>
+<tr>
+<td>逻辑数据</td>
+<td>0.124 GB</td>
+</tr>
+<tr>
+<td>实测 WA</td>
+<td>4.7–5.3</td>
+</tr>
+</tbody>
+</table></div>
+
+顺序写入时，compaction 几乎没有读放大：新写入的 key 已经按顺序排好，L0 文件之间没有重叠，合并只需要把文件搬下去。实测 compaction 写从 0.43 GB 降到 0.11 GB，总 WA 从 4.7 降到 2.0。<strong>LSM 的顺序写优势来自「没有随机页」；它的随机写优势来自「把随机性推迟到后台 compaction」，而不是消灭了随机性。</strong>
+<h2>五、写放大公式：钱到底花在哪一层</h2>
+
+把两种引擎放在同一张账单上看：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>成本项</th>
+<th>B+ 树（SQLite WAL）</th>
+<th>LSM（RocksDB）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>日志</td>
+<td>每个脏页一整页 4 KB</td>
+<td>每条记录追加</td>
+</tr>
+<tr>
+<td>数据落盘</td>
+<td>checkpoint 回写脏页</td>
+<td>memtable 顺序刷 L0</td>
+</tr>
+<tr>
+<td>额外重写</td>
+<td>页分裂、checkpoint 重复</td>
+<td>compaction 逐层重写</td>
+</tr>
+<tr>
+<td>随机写的代价</td>
+<td>每事务脏页数 × 页大小</td>
+<td>后台 compaction 的带宽与 CPU</td>
+</tr>
+<tr>
+<td>顺序写的代价</td>
+<td>很小</td>
+<td>很小</td>
+</tr>
+<tr>
+<td>延迟表现</td>
+<td>写延迟直接受脏页数影响</td>
+<td>写延迟平稳， compaction 可能造成毛刺</td>
+</tr>
+</tbody>
+</table></div>
+
+一个容易被忽略的点是：<strong>写放大不只是「费盘」</strong>。它同时消耗 page cache、文件系统写回带宽和 SSD 的写入寿命。SQLite 那次 12.8 GB 的写入里，真正需要保留的新数据只有 124 MB；其余都是同一批页在不同时刻的不同版本。对读多写少的博客数据库，这不是问题；对每秒几千次随机写入的采集服务，这就是寿命和成本。
+
+反过来，LSM 的 compaction 也不是免费的。它占用后台线程和磁盘带宽，可能和前台读竞争；L0 文件堆积会触发写停顿；层数越深，一次 compaction 要重写的字节越多。RocksDB 提供 <code>max_background_jobs</code>、<code>level_zero_slowdown_writes_trigger</code>、<code>max_bytes_for_level_base</code> 等参数，本质都是在「写放大、读放大、空间放大、尾延迟」之间调平衡。
+<h2>五点五、两个旋钮：提交批量与 value 大小</h2>
+
+写放大不是一个固定常数，它会被两个很日常的参数显著改变：一次提交多少条、每条 value 多大。很多人调优时只盯着引擎参数，却忽略了这两件事。
+
+先看提交批量。固定 10 万条随机 key、100 字节 value，只改每批提交条数：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>每批条数</th>
+<th>SQLite 写放大</th>
+<th>SQLite 吞吐</th>
+<th>RocksDB 写放大</th>
+<th>RocksDB 吞吐</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>95.8×</td>
+<td>1.56 MB/s</td>
+<td>3.04×</td>
+<td>10.75 MB/s</td>
+</tr>
+<tr>
+<td>10</td>
+<td>94.5×</td>
+<td>1.74 MB/s</td>
+<td>2.91×</td>
+<td>35.38 MB/s</td>
+</tr>
+<tr>
+<td>100</td>
+<td>86.5×</td>
+<td>2.05 MB/s</td>
+<td>2.89×</td>
+<td>43.04 MB/s</td>
+</tr>
+<tr>
+<td>1000</td>
+<td>59.0×</td>
+<td>2.68 MB/s</td>
+<td>2.89×</td>
+<td>51.91 MB/s</td>
+</tr>
+</tbody>
+</table></div>
+
+SQLite 的写放大从 95.8 倍降到 59.0 倍，但<strong>没有数量级变化</strong>。原因还是那句话：决定成本的是「一个事务碰了多少个不同页」，不是「一个事务有多少条记录」。随机 key 即使一次提交 1000 条，也会碰到近千个叶子页，每页仍要写一整帧。批量提交减少的是提交次数、WAL 帧头和同步开销，吞吐提升有限。
+
+RocksDB 的写放大几乎不变（2.89–3.04 倍），吞吐却从 10.75 MB/s 涨到 51.91 MB/s。因为 LSM 的写路径本来就是顺序追加，批量提交主要省掉每次写入的固定开销；compaction 的工作量由数据量决定，不由提交次数决定。
+
+再看 value 大小。固定 20 万条、每批 500 条，只改 value 长度：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>value 大小</th>
+<th>SQLite 写放大</th>
+<th>SQLite 空间放大</th>
+<th>RocksDB 写放大</th>
+<th>RocksDB 空间放大</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10 B</td>
+<td>163.1×</td>
+<td>1.22×</td>
+<td>1.64×</td>
+<td>0.58×</td>
+</tr>
+<tr>
+<td>100 B</td>
+<td>83.8×</td>
+<td>1.21×</td>
+<td>3.42×</td>
+<td>0.94×</td>
+</tr>
+<tr>
+<td>1000 B</td>
+<td>27.4×</td>
+<td>4.58×</td>
+<td>4.55×</td>
+<td>1.00×</td>
+</tr>
+</tbody>
+</table></div>
+
+小 value 把 SQLite 的写放大推到 163 倍：一条 34 字节的记录也要占一个 4 KB 页帧，WAL 的页头开销是记录本身的百倍。value 变大后，单页能装的记录变少、每个事务碰到的页数下降，写放大反而降低；但 1000 字节的随机插入让 B+ 树分裂得更碎，空间放大冲到 4.58 倍——数据库文件 938 MB，逻辑数据只有 205 MB。这是「写放大降低、空间放大升高」的典型交换。
+
+RocksDB 的趋势相反：value 越大，compaction 重写的字节越多，写放大从 1.64 升到 4.55；但 SST 的空间利用率稳定在 1 倍左右，没有出现 SQLite 那样的碎片膨胀。两者的曲线方向不同，调优时不能只看一个指标。
+<h2>六、读路径：树高、Bloom Filter 与读放大</h2>
+
+B+ 树的点查是一次从根到叶的下降。100 万条记录、每页约 30 条，树高大约是 4 层（根、两层内部节点、叶子）。如果 buffer pool 命中上层节点，实际只需要 1 次叶子页读取；最坏情况是 4 次页读取。范围扫描更占优势：叶子页之间有链表，顺序读下去即可。
+
+LSM 的点查要先查 memtable，再查 immutable memtable，再查 L0 的多个文件，最后在每一层做二分查找。没有 Bloom Filter 时，一次不存在的 key 可能要读很多文件；有 Bloom Filter 时，大多数文件可以被一次内存查询排除。RocksDB 默认给每个 SST 建 Bloom Filter，LevelDB 需要显式配置 <code>FilterPolicy</code>。
+
+实测读 5 万次随机存在的 key：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>引擎</th>
+<th>p50</th>
+<th>p99</th>
+<th>总读盘</th>
+<th>每次点查读盘</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite（随机写后的库）</td>
+<td>25.2 µs</td>
+<td>135.0 µs</td>
+<td>115.6 MB</td>
+<td>2.3 KB</td>
+</tr>
+<tr>
+<td>RocksDB（随机写后的库）</td>
+<td>29.7 µs</td>
+<td>119.4 µs</td>
+<td>414.2 MB</td>
+<td>8.3 KB</td>
+</tr>
+<tr>
+<td>SQLite（顺序写后的库）</td>
+<td>19.0 µs</td>
+<td>106.7 µs</td>
+<td>114.9 MB</td>
+<td>2.3 KB</td>
+</tr>
+<tr>
+<td>RocksDB（顺序写后的库）</td>
+<td>15.3 µs</td>
+<td>57.6 µs</td>
+<td>189.6 MB</td>
+<td>3.8 KB</td>
+</tr>
+</tbody>
+</table></div>
+
+这张表最值得看的是「每次点查读盘」：B+ 树每次约 2.3 KB，基本就是一页；LSM 随机写后是 8.3 KB，约等于两页多一点，说明 Bloom Filter 挡掉了大部分文件，但仍有少量文件需要真正读取。p99 反而没有明显劣势，因为 LSM 的层数不深、块缓存命中率不低；真正的读放大体现在「读的字节数」和「CPU 花在合并迭代器上」，而不是单次延迟。
+
+范围扫描是另一回事。B+ 树在叶子链表上顺序前进，预读友好；LSM 要同时打开多个层的迭代器做归并，CPU 开销更高，但顺序 I/O 仍然不差。对「按时间范围拉一批事件」的负载，LSM 往往表现很好，因为数据按 key 有序、范围连续。
+<h2>七、更新与删除：原地改与墓碑</h2>
+
+更新是两种引擎差距最容易反转的地方。B+ 树通常是原地更新：找到记录，改值，标脏页。LSM 不原地改，它追加一条新版本；旧版本要等 compaction 合并到更深层时才会被丢弃。删除同理，LSM 写一条墓碑（tombstone），直到 compaction 把它和旧值一起清掉。
+
+在 100 万条随机写入之后，再做 20 万次随机更新（每次更新 100 字节 value，每 500 次提交）：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>引擎</th>
+<th>更新耗时</th>
+<th>更新吞吐</th>
+<th>更新写盘</th>
+<th>更新写放大</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite（WAL）</td>
+<td>21.04 s</td>
+<td>1.18 MB/s</td>
+<td>1621.7 MB</td>
+<td>65.4×</td>
+</tr>
+<tr>
+<td>RocksDB</td>
+<td>0.75 s</td>
+<td>33.21 MB/s</td>
+<td>169.7 MB</td>
+<td>6.8×</td>
+</tr>
+</tbody>
+</table></div>
+
+SQLite 的更新写放大比插入还高，因为每次更新都触碰一个已有的叶子页，WAL 要写整页新镜像；500 次更新可能触碰 500 个页，一个事务就是 2 MB 的 WAL。RocksDB 的更新先写新版本，再由 compaction 合并；写入路径很快，但 compaction 会在后台把包含旧版本的文件重写一遍。<strong>LSM 的更新不是「不写」，而是「把写推迟并批量做」。</strong>
+
+这里再次强调实现差异：InnoDB 的更新会写 undo 记录、修改聚簇索引页，redo 记录页内变更；二级索引的随机更新还可以走 change buffer。它的更新写放大不会像 SQLite WAL 这样直接等于「脏页数 × 16 KB」。拿本文的 SQLite 数字去论证「所有 B+ 树更新都慢 30 倍」，是错误的外推。
+<h2>八、空间放大：文件大小不会说谎</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>指标</th>
+<th>SQLite</th>
+<th>RocksDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>逻辑数据</td>
+<td>124.0 MB</td>
+<td>124.0 MB</td>
+</tr>
+<tr>
+<td>数据库大小</td>
+<td>149.9 MB</td>
+<td>116.4 MB</td>
+</tr>
+<tr>
+<td>空间放大</td>
+<td>1.21×</td>
+<td>0.94×</td>
+</tr>
+</tbody>
+</table></div>
+
+SQLite 的 1.21 倍来自页内空闲空间、页分裂后的半满页和 B+ 树的内部节点。随机插入会让页填充率下降；顺序插入的库是 146.5 MB，略小一点，但没有本质差别。<code>VACUUM</code> 可以重建数据库、回收碎片，但需要额外的空间和时间。
+
+RocksDB 的 116.4 MB 比逻辑数据还小，原因是块压缩（即使 value 是不可压缩随机数，key、块头和索引仍可压缩）以及 SST 的紧凑编码。LSM 的空间放大不是恒定的：compaction 进行中会同时存在输入文件和输出文件，瞬时空间可能接近 2 倍；删除多、更新多的库，在 compaction 追上之前，旧版本会一直占着空间。RocksDB 用 <code>max_background_jobs</code> 和 compaction 优先级控制这个窗口，但无法消除。
+
+一个常被忽略的账是<strong>空间放大会反过来影响读放大</strong>：文件越多、层数越深，点查要探测的文件越多。LSM 的调优本质上是三个放大之间的三角交换，不能只盯一个。
+<h2>九、什么时候选 LSM，什么时候选 B+ 树</h2>
+
+把结论写成一张表，前提是「同一套硬件、同一份数据、单机嵌入式或单实例」：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>负载特征</th>
+<th>更合适</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>高频随机写、写多于读</td>
+<td>LSM</td>
+<td>追加写 + 后台 compaction，前台延迟平稳</td>
+</tr>
+<tr>
+<td>只追加的日志、事件、时序数据</td>
+<td>LSM</td>
+<td>顺序写路径最短，compaction 可按时间分区</td>
+</tr>
+<tr>
+<td>读多写少、点查为主</td>
+<td>B+ 树</td>
+<td>一次树下降，读放大稳定</td>
+</tr>
+<tr>
+<td>复杂范围查询、排序、连接</td>
+<td>B+ 树</td>
+<td>叶子链表、有序扫描、优化器成熟</td>
+</tr>
+<tr>
+<td>强事务、多表一致性</td>
+<td>B+ 树（InnoDB）</td>
+<td>行锁、MVCC、undo、外键生态完整</td>
+</tr>
+<tr>
+<td>写吞吐优先、能接受后台抖动</td>
+<td>LSM</td>
+<td>compaction 可调，写停顿可观测</td>
+</tr>
+<tr>
+<td>运维人力有限、数据量不大</td>
+<td>B+ 树</td>
+<td>没有 compaction 调参和写停顿</td>
+</tr>
+<tr>
+<td>需要可预测的 p99</td>
+<td>取决于调优</td>
+<td>LSM 的 p99 受 compaction 影响，B+ 树的 p99 受 checkpoint 影响</td>
+</tr>
+</tbody>
+</table></div>
+
+几个常见误区：
+<ol>
+<li><strong>「LSM 一定比 B+ 树写得快」</strong>：只在随机写、批量提交、value 不太大时成立。顺序写时两者接近；小事务单条提交时，WAL 的 fsync 才是主导。</li>
+<li><strong>「B+ 树读一定更快」</strong>：点查延迟取决于缓存和树高，LSM 有 Bloom Filter 后差距很小；范围扫描 B+ 树更稳，但 LSM 的顺序 I/O 也不差。</li>
+<li><strong>「写放大只影响 SSD 寿命」</strong>：它还影响写吞吐、checkpoint 毛刺和备份窗口。103 倍的写放大意味着同样的逻辑写入要占用 103 倍的写带宽。</li>
+<li><strong>「拿 SQLite 的数字代表 InnoDB」</strong>：SQLite WAL 的全页镜像是实现选择，不是 B+ 树的必然后果。选型时要看具体引擎的日志格式、buffer pool 和 change buffer。</li>
+</ol>
+<h2>九点五、三个真实负载的选型演练</h2>
+
+抽象地比较「LSM vs B+ 树」很容易，落到具体系统就没那么非黑即白。下面用三个典型负载走一遍决策过程，数据仍然来自前面的实测。
+
+<strong>场景一：每分钟写入 20 万条监控事件，按时间范围查询最近一小时。</strong>
+
+写入是追加式的，key 基本单调，value 几十到几百字节；查询是时间范围扫描，偶尔按标签过滤。这种负载对 LSM 非常友好：顺序写路径最短，compaction 可以按时间分区，范围扫描沿着有序 key 走。用 B+ 树也能做，但随机的主键或时间索引仍然会产生页分裂；如果每批事件分散在多个索引页上，SQLite 式的全页 WAL 会把写放大推到几十倍。
+
+选 LSM 时要注意两点：一是 compaction 要和查询错峰，否则后台重写会抢 I/O；二是保留时间窗口之外的旧数据要及时 TTL，否则 compaction 会一直为历史数据做无用功。用 B+ 树时则要关注分区/分表和索引维护，避免单表无限增长。
+
+<strong>场景二：用户资料 KV，读远多于写，要求 p99 稳定。</strong>
+
+典型操作是 <code>GET user:&lt;id&gt;</code>，写入是偶发的资料更新，读多写少，value 几 KB。这种负载更适合 B+ 树：一次树下降就能拿到记录，读放大稳定；更新是原地改，不会在后台积累大量旧版本。InnoDB 的 buffer pool 会把热点页留在内存里，二级索引更新还能走 change buffer。
+
+如果非要用 LSM，必须把 Bloom Filter 配好、块缓存给足，并且接受「读的字节数更多」这件事。对 p99 极端敏感的服务，LSM 的 compaction 抖动需要用限速和优先级压住；否则一次大 compaction 就可能把读延迟拉高。
+
+<strong>场景三：订单库，强事务、多表关联、需要按状态和日期做复杂查询。</strong>
+
+这类负载几乎没有悬念：选支持完整事务和成熟优化器的 B+ 树引擎，通常是 InnoDB 或 PostgreSQL。不是因为 B+ 树天生更快，而是因为行锁、MVCC、undo、外键、join、子查询这些能力需要长期工程积累。LSM 可以做 KV 和单表事务，但复杂查询和跨行一致性不是它的主场。
+
+真正需要警惕的是：不要因为「写入量变大了」就把订单库迁到 LSM，却忽略了事务语义、二级索引和报表查询。写入瓶颈有很多种解法——批量提交、分区、异步化、加缓存——迁移存储引擎往往是成本最高、回滚最难的一种。
+
+三个场景的共同点是：<strong>先确定读怎么写、事务边界在哪、p99 预算多少，再谈引擎。</strong> 引擎选型是最后一步，不是第一步。
+<h2>十、源码地图：从一次 put 到一次 fsync</h2>
+
+如果只想记住几个入口，可以按这张地图读：
+
+<strong>SQLite（B+ 树）</strong>
+<ul>
+<li><code>btree.c</code>：<code>sqlite3BtreeInsert</code> 找到游标位置并写入单元格；页满时 <code>balance_nonroot</code> 做分裂与重分配。</li>
+<li><code>pager.c</code>：<code>pager_write</code> 把页标脏，<code>sqlite3PagerCommitPhaseOne</code> 在提交阶段写日志；回滚模式写 journal，WAL 模式把脏页交给 WAL。</li>
+<li><code>wal.c</code>：<code>sqlite3WalFrames</code>/<code>walFrames</code> 把每个脏页写成「24 字节帧头 + 整页」；提交帧在帧头里记录数据库页数。</li>
+<li>恢复：单次扫描 WAL，逐帧校验，遇到第一个坏校验和停止；<code>mxFrame</code> 取最后一个有效提交帧。</li>
+</ul>
+
+<strong>LevelDB / RocksDB（LSM）</strong>
+<ul>
+<li><code>DBImpl::Write</code>：写 WAL、写 memtable；<code>MakeRoomForWrite</code> 在 memtable 满时冻结并触发 flush。</li>
+<li><code>VersionSet::PickCompaction</code>：按 L0 文件数、每层字节数、文件重叠度选择 compaction。</li>
+<li><code>DBImpl::BackgroundCompaction</code>：归并输入文件，写出下一层 SST；<code>TableBuilder</code> 负责块与索引。</li>
+<li>Bloom Filter：LevelDB 的 <code>FilterPolicy</code>、RocksDB 的 <code>FullFilterBlockBuilder</code>，把「key 不在这个文件」的判断压到内存里。</li>
+</ul>
+
+<strong>InnoDB（作为对照，不把本文数字外推）</strong>
+<ul>
+<li>聚簇索引即表，二级索引叶子存主键；更新写 undo，redo 记录页内变更；change buffer 缓冲二级索引的随机写。</li>
+<li>崩溃恢复：tablespace discovery → redo apply → 回滚未提交事务 → change buffer merge → purge。官方文档明确说，回滚一个中断事务的时间可能是事务执行时间的三到四倍。</li>
+<li>半页写由 doublewrite 保护：页先顺序写入 doublewrite 区域并 fsync，再写到数据文件；恢复时用完整副本修复半页。</li>
+</ul>
+<h2>十一、复现实验：脚本、参数与踩坑</h2>
+
+核心脚本不长，关键是把「写入」和「测量」分开：
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span><span class="o">,</span><span class="w"> </span><span class="nn">os</span><span class="o">,</span><span class="w"> </span><span class="nn">random</span><span class="o">,</span><span class="w"> </span><span class="nn">sqlite3</span><span class="o">,</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">psutil</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rocksdict</span><span class="w"> </span><span class="kn">import</span> <span class="n">Rdict</span><span class="p">,</span> <span class="n">Options</span><span class="p">,</span> <span class="n">WriteBatch</span>
+
+<span class="n">N</span><span class="p">,</span> <span class="n">BATCH</span> <span class="o">=</span> <span class="mi">1_000_000</span><span class="p">,</span> <span class="mi">500</span>
+<span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s1">&#39;user:</span><span class="si">{</span><span class="n">i</span><span class="si">:</span><span class="s1">016d</span><span class="si">}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">encode</span><span class="p">()</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">)]</span>
+<span class="n">random</span><span class="o">.</span><span class="n">shuffle</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">value</span><span class="p">(</span><span class="n">k</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">shake_128</span><span class="p">(</span><span class="n">k</span><span class="p">)</span><span class="o">.</span><span class="n">digest</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">io_write</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">psutil</span><span class="o">.</span><span class="n">Process</span><span class="p">()</span><span class="o">.</span><span class="n">io_counters</span><span class="p">()</span><span class="o">.</span><span class="n">write_bytes</span>
+
+<span class="c1"># SQLite</span>
+<span class="n">con</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="s1">&#39;bench.db&#39;</span><span class="p">)</span>
+<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;PRAGMA journal_mode=WAL&#39;</span><span class="p">)</span>
+<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;PRAGMA synchronous=NORMAL&#39;</span><span class="p">)</span>
+<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;PRAGMA page_size=4096&#39;</span><span class="p">)</span>
+<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;CREATE TABLE kv(k TEXT PRIMARY KEY, v BLOB) WITHOUT ROWID&#39;</span><span class="p">)</span>
+<span class="n">start</span><span class="p">,</span> <span class="n">t0</span> <span class="o">=</span> <span class="n">io_write</span><span class="p">(),</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">BATCH</span><span class="p">):</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">executemany</span><span class="p">(</span><span class="s1">&#39;INSERT INTO kv(k,v) VALUES(?,?)&#39;</span><span class="p">,</span>
+                    <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">value</span><span class="p">(</span><span class="n">k</span><span class="p">))</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="n">BATCH</span><span class="p">]])</span>
+    <span class="n">con</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+<span class="n">con</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;PRAGMA wal_checkpoint(TRUNCATE)&#39;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;sqlite&#39;</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span><span class="o">-</span><span class="n">t0</span><span class="p">,</span> <span class="n">io_write</span><span class="p">()</span><span class="o">-</span><span class="n">start</span><span class="p">)</span>
+
+<span class="c1"># RocksDB</span>
+<span class="n">opt</span> <span class="o">=</span> <span class="n">Options</span><span class="p">()</span>
+<span class="n">opt</span><span class="o">.</span><span class="n">set_write_buffer_size</span><span class="p">(</span><span class="mi">4</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
+<span class="n">opt</span><span class="o">.</span><span class="n">set_max_write_buffer_number</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+<span class="n">opt</span><span class="o">.</span><span class="n">set_target_file_size_base</span><span class="p">(</span><span class="mi">8</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">)</span>
+<span class="n">db</span> <span class="o">=</span> <span class="n">Rdict</span><span class="p">(</span><span class="s1">&#39;bench-rocks&#39;</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="n">opt</span><span class="p">)</span>
+<span class="n">start</span><span class="p">,</span> <span class="n">t0</span> <span class="o">=</span> <span class="n">io_write</span><span class="p">(),</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">BATCH</span><span class="p">):</span>
+    <span class="n">wb</span> <span class="o">=</span> <span class="n">WriteBatch</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">[</span><span class="n">i</span><span class="p">:</span><span class="n">i</span><span class="o">+</span><span class="n">BATCH</span><span class="p">]:</span>
+        <span class="n">wb</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+    <span class="n">db</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">wb</span><span class="p">)</span>
+<span class="n">db</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="s1">&#39;rocks&#39;</span><span class="p">,</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span><span class="o">-</span><span class="n">t0</span><span class="p">,</span> <span class="n">io_write</span><span class="p">()</span><span class="o">-</span><span class="n">start</span><span class="p">)</span>
+</code></pre></div>
+
+
+三个踩过的坑：
+<ol>
+<li><strong>值必须不可压缩</strong>。第一次实验用 <code>sha256(k)</code> 重复拼接成 100 字节，RocksDB 的块压缩把 124 MB 压到 45 MB，写放大和空间放大全部失真。改成 <code>shake_128(k).digest(100)</code> 后数字才可比。</li>
+<li><strong>进程 I/O 计数不是磁盘物理写入</strong>。它统计的是进程发出的读写字节，包含 WAL、数据文件和 compaction，但不包含文件系统元数据和 SSD 内部写放大。用它做同机对照可靠，做绝对容量规划要留余量。</li>
+<li><strong>必须等 compaction 稳定</strong>。RocksDB 写完就立刻读计数器，会把后台还在跑的 compaction 漏掉。脚本里轮询 <code>rocksdb.stats</code> 的 compaction 行，连续两次不变才取数。</li>
+</ol>
+
+另外，SQLite 的随机写耗时在不同运行间波动很大（本次 140–202 秒）。原因是 Windows 的写回、杀毒软件扫描和磁盘缓存状态都会影响结果；写放大稳定在 103 倍左右，耗时看趋势即可，不要把它当成精确基准。
+<h2>十二、小结：把问题问对</h2>
+
+回到开头的问题：一次写入到底写了几遍盘？
+<ul>
+<li><strong>B+ 树 + 全页 WAL</strong>：一个事务碰了多少页，就写多少页；随机小事务会把写放大推到几十到上百倍。</li>
+<li><strong>LSM</strong>：每条记录先顺序写一遍 WAL，再刷 L0，再在 compaction 中逐层重写；写放大取决于层数和 compaction 策略。</li>
+<li><strong>读</strong>：B+ 树一次下降，读放大稳定；LSM 靠 Bloom Filter 把大多数文件挡在内存里，但读的字节数仍然更多。</li>
+<li><strong>空间</strong>：B+ 树有页内碎片，LSM 有旧版本和 compaction 临时文件；两者都需要维护。</li>
+</ul>
+
+所以真正该问的不是「LSM 和 B+ 树谁更快」，而是：
+<ol>
+<li>我的写入是随机的还是顺序的？事务大小是多少？</li>
+<li>我更能接受前台写延迟抖动，还是后台 compaction 抖动？</li>
+<li>我的读是点查多还是范围扫描多？p99 的预算是多少？</li>
+<li>我用的是哪个具体引擎？它的日志记录整页还是变更？有没有 buffer pool、change buffer、doublewrite？</li>
+<li>我能不能监控写放大、读放大、空间放大，并在它们失控前调参？</li>
+</ol>
+
+把这五个问题答完，选型基本就确定了。至于「哪个更先进」，那是论文里的问题，不是生产环境的问题。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/database/"><strong>数据库内核</strong></a> — B+ 树、WAL、MVCC 与存储引擎的实现细节</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/build-time-image-cache/">构建 4 分钟，3 分半在压 94 张图</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/crash-recovery-redo-undo/">断电之后：redo、undo 与半页写怎么把数据库救回来</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/sqlite-group-commit/">一次 fsync 摊薄 1000 行：SQLite 提交实测</a></li><li><a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+  </body>
+</html>

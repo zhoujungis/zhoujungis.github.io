@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A tour of the stack behind this blog: a Vue 3 SPA on GitHub Pages talking to a Django REST Framework API on PythonAnywhere, plus the Markdown pipeline, cookie-based likes, search, RSS and the deploy scripts that hold it together." />
+    <!-- Google AdSense 站点验证 -->
+    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
+        <!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/blog-tech-stack/" />
+    <meta property="og:title" content="How This Blog Is Built: Vue 3 + Django With a Decoupled Frontend | Stack Frame" />
+    <meta property="og:description" content="A tour of the stack behind this blog: a Vue 3 SPA on GitHub Pages talking to a Django REST Framework API on PythonAnywhere, plus the Markdown pipeline, cookie-based likes, search, RSS and the deploy scripts that hold it together." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/blog-tech-stack/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="How This Blog Is Built: Vue 3 + Django With a Decoupled Frontend | Stack Frame" />
+    <meta name="twitter:description" content="A tour of the stack behind this blog: a Vue 3 SPA on GitHub Pages talking to a Django REST Framework API on PythonAnywhere, plus the Markdown pipeline, cookie-based likes, search, RSS and the deploy scripts that hold it together." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>How This Blog Is Built: Vue 3 + Django With a Decoupled Frontend | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/blog-tech-stack/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/blog-tech-stack/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/blog-tech-stack/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>How This Blog Is Built: Vue 3 + Django With a Decoupled Frontend</h1><div class="ns-meta">2026-07-07 · 13 min · Stack Frame</div><div class="markdown-body">
+<h2>Introduction</h2>
+
+I had wanted a technical blog of my own for a long time — a place to write down what I learn and to trade notes with people who care about the same things. After a fair amount of tinkering, it is finally live.
+
+This post goes through the architecture, how the core features are built, and how the whole thing is deployed, in the hope that it saves a few detours for anyone putting together a personal blog.
+<hr>
+<h2>Architecture at a Glance</h2>
+
+The blog is built as a <strong>decoupled frontend and backend</strong> architecture, with each side deployed on its own platform:
+<div class="codehilite"><pre><span></span><code>┌──────────────────────────────────────────────────────────┐
+│                       User Browser                       │
+│               https://zhoujungis.github.io               │
+└───────────────┬──────────────────────────┬───────────────┘
+                │                          │
+                │ static assets (JS/CSS)  │ API calls
+                │                          │
+        ┌───────▼────────┐       ┌─────────▼──────────┐
+        │  GitHub Pages  │       │   PythonAnywhere   │
+        │                │       │                    │
+        │   Vue 3 SPA    │ ───▶  │  Django REST API   │
+        │  (Vite build)  │       │    (DRF + JWT)     │
+        │                │       │                    │
+        └────────────────┘       │  SQLite database   │
+                                 └────────────────────┘
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Stack</th>
+<th>Platform</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Frontend</td>
+<td>Vue 3 + Vite + Vue Router + Pinia</td>
+<td>GitHub Pages</td>
+</tr>
+<tr>
+<td>Backend</td>
+<td>Django 6.0 + Django REST Framework</td>
+<td>PythonAnywhere</td>
+</tr>
+<tr>
+<td>Database</td>
+<td>SQLite</td>
+<td>PythonAnywhere file storage</td>
+</tr>
+<tr>
+<td>Auth</td>
+<td>Simple JWT (Access + Refresh Token)</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>What Does the Frontend Use?</h2>
+<h3>The Core Stack</h3>
+
+Everything on the frontend sits on the <strong>Vue 3</strong> ecosystem with a deliberately modern toolchain:
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;dependencies&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;vue&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^3.5.39&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;vue-router&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^4.6.4&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;pinia&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^3.0.4&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;axios&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^1.18.1&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;vditor&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^3.11.2&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;highlight.js&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^11.11.1&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;echarts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^6.1.0&quot;</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;devDependencies&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;vite&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^8.1.1&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;@vitejs/plugin-vue&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^6.0.7&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;sass&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^1.101.0&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h4>Why These Choices?</h4>
+<ul>
+<li><strong>Vite</strong> over Webpack: near-instant cold start from an ESM dev server, HMR that lands in milliseconds</li>
+<li><strong>Pinia</strong> over Vuex: a smaller API surface, first-class TypeScript, better tree-shaking</li>
+<li><strong>Vditor</strong>: a Markdown editor with three modes — WYSIWYG, instant rendering and split preview — plus built-in code highlighting and math typesetting</li>
+</ul>
+<h3>Routing</h3>
+
+Routes are lazy-loaded through Vue Router, so every page is fetched on demand and the initial bundle stays small:
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/&#39;</span><span class="p">,</span><span class="w">              </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Home.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/article/:slug&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/ArticleDetail.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/categories&#39;</span><span class="p">,</span><span class="w">    </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Categories.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/tags&#39;</span><span class="p">,</span><span class="w">          </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Tags.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/search&#39;</span><span class="p">,</span><span class="w">        </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Search.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/archives&#39;</span><span class="p">,</span><span class="w">      </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Archives.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/photos&#39;</span><span class="p">,</span><span class="w">        </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/PhotoWall.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/friends&#39;</span><span class="p">,</span><span class="w">       </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/FriendLinks.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/footprints&#39;</span><span class="p">,</span><span class="w">    </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Footprints.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/about&#39;</span><span class="p">,</span><span class="w">         </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/About.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="p">]</span>
+</code></pre></div>
+
+
+A route guard protects the admin pages and sends anyone who is not signed in straight to the login screen:
+<div class="codehilite"><pre><span></span><code><span class="nx">router</span><span class="p">.</span><span class="nx">beforeEach</span><span class="p">((</span><span class="nx">to</span><span class="p">,</span><span class="w"> </span><span class="kr">from</span><span class="p">,</span><span class="w"> </span><span class="nx">next</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">to</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">requiresAuth</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">authStore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useAuthStore</span><span class="p">()</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">authStore</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">next</span><span class="p">({</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;AdminLogin&#39;</span><span class="w"> </span><span class="p">})</span><span class="w">  </span><span class="c1">// not signed in → go to login</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">next</span><span class="p">()</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">next</span><span class="p">()</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">})</span>
+</code></pre></div>
+
+<h3>State Management</h3>
+
+Pinia holds the article list and the article currently being read:
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">useArticleStore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">defineStore</span><span class="p">(</span><span class="s1">&#39;article&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">state</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">({</span>
+<span class="w">    </span><span class="nx">articles</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">    </span><span class="nx">currentArticle</span><span class="o">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">categories</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">    </span><span class="nx">tags</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">    </span><span class="nx">loading</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">pagination</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">count</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">page</span><span class="o">:</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="nx">pageSize</span><span class="o">:</span><span class="w"> </span><span class="mf">10</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">}),</span>
+<span class="w">  </span><span class="nx">actions</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">async</span><span class="w"> </span><span class="nx">fetchArticles</span><span class="p">(</span><span class="nx">params</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{})</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="k">async</span><span class="w"> </span><span class="nx">fetchArticleBySlug</span><span class="p">(</span><span class="nx">slug</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="k">async</span><span class="w"> </span><span class="nx">fetchCategories</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="k">async</span><span class="w"> </span><span class="nx">fetchTags</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="p">})</span>
+</code></pre></div>
+
+<h3>The API Layer</h3>
+
+A single Axios instance wraps the shared request and response interceptors:
+<ul>
+<li><strong>Request interceptor</strong>: reads the JWT out of localStorage and attaches it to every request header</li>
+<li><strong>Response interceptor</strong>: on a 401 it clears the token and redirects to the login page</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">axios</span><span class="p">.</span><span class="nx">create</span><span class="p">({</span>
+<span class="w">  </span><span class="nx">baseURL</span><span class="o">:</span><span class="w"> </span><span class="k">import</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">VITE_API_BASE_URL</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;http://localhost:8000/api/&#39;</span><span class="p">,</span>
+<span class="p">})</span>
+
+<span class="c1">// attach the JWT automatically</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">interceptors</span><span class="p">.</span><span class="nx">request</span><span class="p">.</span><span class="nx">use</span><span class="p">((</span><span class="nx">config</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">getItem</span><span class="p">(</span><span class="s1">&#39;token&#39;</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">token</span><span class="p">)</span><span class="w"> </span><span class="nx">config</span><span class="p">.</span><span class="nx">headers</span><span class="p">.</span><span class="nx">Authorization</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`Bearer </span><span class="si">${</span><span class="nx">token</span><span class="si">}</span><span class="sb">`</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">config</span>
+<span class="p">})</span>
+
+<span class="c1">// handle 401s in one place</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">interceptors</span><span class="p">.</span><span class="nx">response</span><span class="p">.</span><span class="nx">use</span><span class="p">(</span>
+<span class="w">  </span><span class="p">(</span><span class="nx">response</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">response</span><span class="p">,</span>
+<span class="w">  </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">error</span><span class="p">.</span><span class="nx">response</span><span class="o">?</span><span class="p">.</span><span class="nx">status</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">401</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="s1">&#39;token&#39;</span><span class="p">)</span>
+<span class="w">      </span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;/admin&#39;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">Promise</span><span class="p">.</span><span class="nx">reject</span><span class="p">(</span><span class="nx">error</span><span class="p">)</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<h3>Signature Components</h3>
+
+The blog ships a set of deliberately designed UI components:
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ParticleBg.vue</code></td>
+<td>Animated particle background on Canvas</td>
+</tr>
+<tr>
+<td><code>Live2DWidget.vue</code></td>
+<td>Interactive Live2D mascot widget</td>
+</tr>
+<tr>
+<td><code>ReadingProgress.vue</code></td>
+<td>Reading progress bar</td>
+</tr>
+<tr>
+<td><code>ThemeToggle.vue</code></td>
+<td>Light and dark theme switching</td>
+</tr>
+<tr>
+<td><code>LoadingScreen.vue</code></td>
+<td>Loading skeleton screen</td>
+</tr>
+<tr>
+<td><code>MarkdownView.vue</code></td>
+<td>Markdown renderer (built on Vditor)</td>
+</tr>
+<tr>
+<td><code>TocNav.vue</code></td>
+<td>Table-of-contents navigation</td>
+</tr>
+<tr>
+<td><code>ShareButtons.vue</code></td>
+<td>Social share buttons</td>
+</tr>
+<tr>
+<td><code>CommentList.vue</code></td>
+<td>Comment list with nested replies</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>What Does the Backend Use?</h2>
+<h3>The Stack</h3>
+
+The backend is built on <strong>Django 6.0</strong> and <strong>Django REST Framework</strong>:
+<div class="codehilite"><pre><span></span><code><span class="nx">django</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">Django</span><span class="w"> </span><span class="m m-Double">6.0.6</span><span class="w">              </span><span class="err">#</span><span class="w"> </span><span class="nx">Web</span><span class="w"> </span><span class="nx">framework</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">djangorestframework</span><span class="w"> </span><span class="m m-Double">3.17</span><span class="w">  </span><span class="err">#</span><span class="w"> </span><span class="nx">REST</span><span class="w"> </span><span class="nx">API</span><span class="w"> </span><span class="nx">framework</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">django</span><span class="o">-</span><span class="nx">cors</span><span class="o">-</span><span class="nx">headers</span><span class="w"> </span><span class="m m-Double">4.9</span><span class="w">   </span><span class="err">#</span><span class="w"> </span><span class="nx">CORS support</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">django</span><span class="o">-</span><span class="nx">filter</span><span class="w"> </span><span class="m m-Double">25.2</span><span class="w">        </span><span class="err">#</span><span class="w"> </span><span class="nx">queryset filtering</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">djangorestframework</span><span class="o">-</span><span class="nx">simplejwt</span><span class="w"> </span><span class="m m-Double">5.5</span><span class="w">  </span><span class="err">#</span><span class="w"> </span><span class="nx">JWT</span><span class="w"> </span><span class="nx">auth</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">Markdown</span><span class="w"> </span><span class="m m-Double">3.10</span><span class="w">             </span><span class="err">#</span><span class="w"> </span><span class="nx">Markdown</span><span class="w"> </span><span class="nx">rendering</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">Pillow</span><span class="w"> </span><span class="m m-Double">12.3</span><span class="w">               </span><span class="err">#</span><span class="w"> </span><span class="nx">image handling</span>
+<span class="err">└──</span><span class="w"> </span><span class="nx">Pygments</span><span class="w"> </span><span class="m m-Double">2.20</span><span class="w">             </span><span class="err">#</span><span class="w"> </span><span class="nx">syntax highlighting</span>
+</code></pre></div>
+
+<h3>The Data Model</h3>
+
+At the center sits the <strong>Article</strong> model, with four states — draft, published, archived and scheduled:
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Article</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Status</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">TextChoices</span><span class="p">):</span>
+        <span class="n">DRAFT</span> <span class="o">=</span> <span class="s2">&quot;draft&quot;</span><span class="p">,</span> <span class="s2">&quot;Draft&quot;</span>
+        <span class="n">PUBLISHED</span> <span class="o">=</span> <span class="s2">&quot;published&quot;</span><span class="p">,</span> <span class="s2">&quot;Published&quot;</span>
+        <span class="n">ARCHIVED</span> <span class="o">=</span> <span class="s2">&quot;archived&quot;</span><span class="p">,</span> <span class="s2">&quot;Archived&quot;</span>
+        <span class="n">SCHEDULED</span> <span class="o">=</span> <span class="s2">&quot;scheduled&quot;</span><span class="p">,</span> <span class="s2">&quot;Scheduled&quot;</span>
+
+    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+    <span class="n">slug</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">SlugField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">()</span>              <span class="c1"># raw Markdown</span>
+    <span class="n">html_content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">editable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># rendered HTML</span>
+    <span class="n">excerpt</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">editable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>       <span class="c1"># generated excerpt</span>
+    <span class="n">category</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">Category</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+    <span class="n">tags</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ManyToManyField</span><span class="p">(</span><span class="n">Tag</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+    <span class="n">status</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">Status</span><span class="o">.</span><span class="n">choices</span><span class="p">)</span>
+    <span class="n">is_top</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>       <span class="c1"># pinned to the top</span>
+    <span class="n">views_count</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">PositiveIntegerField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">likes_count</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">PositiveIntegerField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">cover_image</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">URLField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">scheduled_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">created_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">updated_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+
+Saving an article triggers all of the following automatically:
+<ol>
+<li><strong>Markdown → HTML</strong>: handled by Python-Markdown with the code highlighting, table and TOC extensions switched on</li>
+<li><strong>Auto excerpt</strong>: strips the Markdown syntax and keeps the first 50 words</li>
+<li><strong>Scheduled publishing</strong>: once the appointed time arrives, the status flips from <code>scheduled</code> to <code>published</code></li>
+</ol>
+<h3>RESTful API Design</h3>
+
+The API follows REST conventions through DRF's ViewSet + Router:
+<div class="codehilite"><pre><span></span><code>GET    /api/articles/               article list (pagination, search, category/tag filters)
+GET    /api/articles/{slug}/        article detail (bumps the view counter)
+GET    /api/categories/             category list (with article counts)
+GET    /api/tags/                   tag list (with article counts)
+POST   /api/articles/{slug}/like/   like an article (deduplicated by cookie)
+POST   /api/subscribe/              email subscription
+POST   /api/token/                  JWT login, returns tokens
+POST   /api/token/refresh/          refresh the access token
+POST   /api/admin/articles/         create an article (auth required)
+PUT    /api/admin/articles/{id}/    update an article (auth required)
+DELETE /api/admin/articles/{id}/    delete an article (auth required)
+</code></pre></div>
+
+
+API hardening:
+- <strong>Rate limiting</strong>: 30 requests per minute for anonymous users, 100 for authenticated ones, 3 for comments and 5 per hour for subscriptions
+- <strong>JWT auth</strong>: access tokens expire after 60 minutes, refresh tokens after one day
+- <strong>CORS</strong>: only the frontend origin may call the API
+<h3>Smart Relations on the Article Detail Endpoint</h3>
+
+The detail endpoint does more than return the body — it works out the article's neighborhood in the same pass:
+<ul>
+<li><strong>Previous and next article</strong>: context navigation ordered by publish date</li>
+<li><strong>Related articles</strong>: matched on shared tags, three at most</li>
+<li><strong>Reading-time estimate</strong>: (characters + English words) ÷ 250 gives the minute count</li>
+</ul>
+<hr>
+
+<h2>How Is It Deployed?</h2>
+<h3>Two Platforms, One Site</h3>
+<div class="codehilite"><pre><span></span><code><span class="err">┌─────────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">              </span><span class="err">Dev machine</span><span class="w"> </span><span class="p">(</span><span class="n">Windows</span><span class="p">)</span><span class="w">      </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                         </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="n">git</span><span class="w"> </span><span class="n">push</span><span class="w"> </span><span class="n">origin</span><span class="w"> </span><span class="k">master</span><span class="w">                 </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="n">cd</span><span class="w"> </span><span class="n">frontend</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">bash</span><span class="w"> </span><span class="n">deploy</span><span class="o">.</span><span class="n">sh</span><span class="w">          </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                         </span><span class="err">│</span>
+<span class="err">└──────┬──────────────┬───────────────────┘</span>
+<span class="w">       </span><span class="err">│</span><span class="w">              </span><span class="err">│</span>
+<span class="w">       </span><span class="err">│</span><span class="w">  </span><span class="err">source push</span><span class="w"> </span><span class="err">│</span><span class="w">  </span><span class="n">API</span><span class="w"> </span><span class="err">call</span><span class="w"> </span><span class="p">(</span><span class="err">build output push</span><span class="p">)</span>
+<span class="w">       </span><span class="err">▼</span><span class="w">              </span><span class="err">▼</span>
+<span class="err">┌──────────────┐</span><span class="w">  </span><span class="err">┌──────────────────┐</span>
+<span class="err">│</span><span class="w">  </span><span class="n">GitHub</span><span class="w">      </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="n">PythonAnywhere</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">              </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">                  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">source repo</span><span class="w"> </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="n">Django</span><span class="w"> </span><span class="err">backend</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="o">+</span><span class="w"> </span><span class="err">output</span><span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">git</span><span class="w"> </span><span class="n">pull</span><span class="w">     </span><span class="err">│</span>
+<span class="err">│</span><span class="w">              </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">migrate</span><span class="w">      </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="n">GitHub</span><span class="w">      </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">└─</span><span class="w"> </span><span class="n">Reload</span><span class="w">       </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="n">Pages</span><span class="w">       </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">                  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">auto-deploy</span><span class="w"> </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="n">your</span><span class="o">-</span><span class="n">account</span><span class="w">    </span><span class="err">│</span>
+<span class="err">│</span><span class="w">              </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="o">.</span><span class="n">pythonanywhere</span><span class="w"> </span><span class="err">│</span>
+<span class="err">└──────────────┘</span><span class="w">  </span><span class="err">└──────────────────┘</span>
+</code></pre></div>
+
+<h3>Frontend Deployment</h3>
+
+<code>deploy.sh</code> is a script that automates the whole frontend deploy:
+<div class="codehilite"><pre><span></span><code><span class="ch">#!/bin/bash</span>
+<span class="nb">set</span><span class="w"> </span>-e
+
+<span class="c1"># 1. Build the Vue app</span>
+npm<span class="w"> </span>run<span class="w"> </span>build
+
+<span class="c1"># 2. Copy the build output to the repo root (GitHub Pages serves from there)</span>
+cp<span class="w"> </span>-r<span class="w"> </span>dist/*<span class="w"> </span>../
+
+<span class="c1"># 3. Copy the Live2D assets (if any)</span>
+<span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-d<span class="w"> </span><span class="s2">&quot;../public-live2d&quot;</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">  </span>cp<span class="w"> </span>-r<span class="w"> </span>../public-live2d/*<span class="w"> </span>../live2dw/
+<span class="k">fi</span>
+
+<span class="c1"># 4. Commit and push to GitHub</span>
+git<span class="w"> </span>add<span class="w"> </span>-A
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;deploy: update site </span><span class="k">$(</span>date<span class="w"> </span>+%Y-%m-%d_%H:%M<span class="k">)</span><span class="s2">&quot;</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>master
+</code></pre></div>
+
+
+A few deliberate choices:
+- GitHub Pages serves from the repository root, so the build output has to be copied there
+- Source lives under <code>frontend/</code>, build output lives at the root, and <code>.gitignore</code> keeps the two apart
+- A deploy is one git commit + push — small and auditable
+<h3>Backend Deployment</h3>
+
+The backend runs on PythonAnywhere's free plan and is driven from the Web console:
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>~/zhoujungis.github.io/backend
+git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>master<span class="w">           </span><span class="c1"># pull the latest code</span>
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate<span class="w">         </span><span class="c1"># activate the virtualenv</span>
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt<span class="w">  </span><span class="c1"># install dependencies (if anything changed)</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>migrate<span class="w">         </span><span class="c1"># run migrations (if models changed)</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>collectstatic<span class="w"> </span>--noinput<span class="w">  </span><span class="c1"># collect static files</span>
+<span class="c1"># then hit Reload on the Web tab</span>
+</code></pre></div>
+
+<hr>
+<h2>Core Features</h2>
+<h3>The Markdown Pipeline</h3>
+
+An article travels a full rendering pipeline between being written and being read:
+<div class="codehilite"><pre><span></span><code>Markdown source
+    │
+    ▼
+Python-Markdown render (on save, backend)
+    ├── fenced_code       → fenced code blocks
+    ├── codehilite        → Pygments syntax highlighting
+    ├── tables            → table support
+    ├── extra             → extra syntax extensions
+    └── toc               → auto-generated table of contents
+    │
+    ▼
+html_content column stored in the database
+    │
+    ▼
+rendered in Vditor preview mode on the frontend
+    ├── highlight.js      → frontend syntax highlighting
+    └── responsive images → mobile layout
+</code></pre></div>
+
+<h3>The Like Button (Deduplicated by Cookie)</h3>
+
+Likes are gated by a cookie rather than an account, so nobody has to sign in to react:
+<div class="codehilite"><pre><span></span><code><span class="nd">@api_view</span><span class="p">([</span><span class="s2">&quot;POST&quot;</span><span class="p">])</span>
+<span class="nd">@permission_classes</span><span class="p">([</span><span class="n">AllowAny</span><span class="p">])</span>
+<span class="nd">@throttle_classes</span><span class="p">([</span><span class="n">AnonRateThrottle</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">like_article</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">slug</span><span class="p">):</span>
+    <span class="n">article</span> <span class="o">=</span> <span class="n">get_object_or_404</span><span class="p">(</span><span class="n">Article</span><span class="p">,</span> <span class="n">slug</span><span class="o">=</span><span class="n">slug</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)</span>
+    <span class="n">cookie_key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;liked_</span><span class="si">{</span><span class="n">article</span><span class="o">.</span><span class="n">slug</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">COOKIES</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cookie_key</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;detail&quot;</span><span class="p">:</span> <span class="s2">&quot;Already liked&quot;</span><span class="p">})</span>
+
+    <span class="n">article</span><span class="o">.</span><span class="n">likes_count</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">article</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;likes_count&quot;</span><span class="p">])</span>
+
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;likes_count&quot;</span><span class="p">:</span> <span class="n">article</span><span class="o">.</span><span class="n">likes_count</span><span class="p">})</span>
+    <span class="n">resp</span><span class="o">.</span><span class="n">set_cookie</span><span class="p">(</span><span class="n">cookie_key</span><span class="p">,</span> <span class="s2">&quot;1&quot;</span><span class="p">,</span> <span class="n">max_age</span><span class="o">=</span><span class="mi">86400</span> <span class="o">*</span> <span class="mi">365</span><span class="p">,</span> <span class="n">httponly</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">samesite</span><span class="o">=</span><span class="s2">&quot;Lax&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">resp</span>
+</code></pre></div>
+
+
+What makes it hold up:
+- The cookie lives for 365 days, which works out to one like per person per article
+- <code>httponly=True</code> keeps scripts from tampering with it
+- API rate limits stop anyone from farming likes
+<h3>Search</h3>
+
+Search rides on DRF's <code>SearchFilter</code> and matches across article titles and bodies:
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ArticleViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ReadOnlyModelViewSet</span><span class="p">):</span>
+    <span class="n">filter_backends</span> <span class="o">=</span> <span class="p">[</span><span class="n">DjangoFilterBackend</span><span class="p">,</span> <span class="n">filters</span><span class="o">.</span><span class="n">SearchFilter</span><span class="p">]</span>
+    <span class="n">filterset_fields</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;category__slug&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;exact&quot;</span><span class="p">],</span>
+        <span class="s2">&quot;tags__slug&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;exact&quot;</span><span class="p">],</span>
+    <span class="p">}</span>
+    <span class="n">search_fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">]</span>
+</code></pre></div>
+
+
+The frontend search page sends the keyword through a query parameter:
+<div class="codehilite"><pre><span></span><code><span class="nx">getArticles</span><span class="p">({</span><span class="w"> </span><span class="nx">search</span><span class="o">:</span><span class="w"> </span><span class="nx">keyword</span><span class="w"> </span><span class="p">})</span><span class="w">  </span><span class="c1">// → GET /api/articles/?search=vue</span>
+</code></pre></div>
+
+<h3>RSS and Sitemap</h3>
+
+So that search engines can pick the site up properly, the blog also exposes:
+<ul>
+<li><strong>RSS Feed</strong> (<code>/rss.xml</code>): built on Django's <code>Feed</code> class, emitting the latest published articles</li>
+<li><strong>Sitemap</strong> (<code>/sitemap.xml</code>): a dynamic article sitemap plus a static-page sitemap, with the site domain set to <code>zhoujungis.github.io</code></li>
+</ul>
+<h3>Email Subscription</h3>
+
+A deliberately small subscription endpoint with basic format validation and a frequency cap (5 per hour per IP):
+<div class="codehilite"><pre><span></span><code><span class="nd">@api_view</span><span class="p">([</span><span class="s2">&quot;POST&quot;</span><span class="p">])</span>
+<span class="nd">@throttle_classes</span><span class="p">([</span><span class="n">SubscribeThrottle</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">subscribe_newsletter</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">email</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;email&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">email</span> <span class="ow">or</span> <span class="s2">&quot;@&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">email</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="s2">&quot;Please enter a valid email address&quot;</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">created</span> <span class="o">=</span> <span class="n">Subscriber</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get_or_create</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">)</span>
+    <span class="c1"># ...</span>
+</code></pre></div>
+
+<hr>
+<h2>Performance and UX</h2>
+<h3>First Load</h3>
+<div class="codehilite"><pre><span></span><code>Approach                              Effect
+────────────────────────────────────────────────────
+Route lazy loading (Dynamic Import)   smaller initial JS bundle
+Vite code splitting                   automatic per-page chunks
+Skeleton screen                       no blank page, faster perceived load
+SCSS variables + CSS variables        one theme source, less duplicated CSS
+</code></pre></div>
+
+<h3>Designing for Every State</h3>
+
+Every page accounts for the full set of UI states:
+<div class="codehilite"><pre><span></span><code>┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+│ Loading  │───▶│  Empty   │    │  Error   │───▶│  Retry   │
+│(skeleton)│    │ (empty)  │    │ (error)  │    │ (retry)  │
+└──────────┘    └──────────┘    └──────────┘    └──────────┘
+     │                                                │
+     └───────────────▶  Data  ◀──────────────────────┘
+                      (loaded)
+</code></pre></div>
+
+<h3>Interaction Details</h3>
+<ul>
+<li><strong>Particle background</strong>: an animated particle network drawn on Canvas — light enough to stay smooth</li>
+<li><strong>Reading progress bar</strong>: a hairline at the top of the page that tracks how far you have read</li>
+<li><strong>Dark theme</strong>: CSS-variable driven, one click to switch, remembered in LocalStorage</li>
+<li><strong>Live2D mascot</strong>: a draggable character widget</li>
+<li><strong>Back to top</strong>: a floating button that appears on long pages</li>
+<li><strong>Page transitions</strong>: fade in and out between routes</li>
+</ul>
+<hr>
+<h2>The Admin Console</h2>
+
+A full admin console ships with the blog, reachable under <code>/admin</code>:
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Route</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sign-in</td>
+<td><code>/admin</code></td>
+<td>JWT authentication</td>
+</tr>
+<tr>
+<td>Dashboard</td>
+<td><code>/admin/dashboard</code></td>
+<td>Overview metrics</td>
+</tr>
+<tr>
+<td>Article list</td>
+<td><code>/admin/articles</code></td>
+<td>Create, edit, delete and re-status articles</td>
+</tr>
+<tr>
+<td>Article editor</td>
+<td><code>/admin/editor/:id?</code></td>
+<td>Vditor with live Markdown preview</td>
+</tr>
+<tr>
+<td>Comment moderation</td>
+<td><code>/admin/comments</code></td>
+<td>Review and manage comments</td>
+</tr>
+</tbody>
+</table>
+
+The editor is Vditor under the hood, which gives you:
+- Three modes: WYSIWYG, instant rendering and split preview
+- A toolbar with emoji, tables, Gantt charts, flowcharts and math
+- Image uploads straight to the backend
+- Autosaved drafts
+<hr>
+<h2>Project Layout</h2>
+<div class="codehilite"><pre><span></span><code><span class="n">zhoujungis</span><span class="o">.</span><span class="n">github</span><span class="o">.</span><span class="n">io</span><span class="o">/</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">frontend</span><span class="o">/</span><span class="w">                    </span><span class="c1"># Vue 3 frontend</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">src</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">api</span><span class="o">/</span><span class="w">                 </span><span class="c1"># API wrappers</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">client</span><span class="o">.</span><span class="n">js</span><span class="w">        </span><span class="c1">#   Axios instance + interceptors</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">articles</span><span class="o">.</span><span class="n">js</span><span class="w">      </span><span class="c1">#   article/category/tag APIs</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">admin</span><span class="o">.</span><span class="n">js</span><span class="w">         </span><span class="c1">#   admin APIs</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">comments</span><span class="o">.</span><span class="n">js</span><span class="w">      </span><span class="c1">#   comment APIs</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">components</span><span class="o">/</span><span class="w">          </span><span class="c1"># shared components (18)</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">pages</span><span class="o">/</span><span class="w">               </span><span class="c1"># page components</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">admin</span><span class="o">/</span><span class="w">           </span><span class="c1">#   admin pages</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">router</span><span class="o">/</span><span class="w">              </span><span class="c1"># Vue Router configuration</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">stores</span><span class="o">/</span><span class="w">              </span><span class="c1"># Pinia stores</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">App</span><span class="o">.</span><span class="n">vue</span><span class="w">              </span><span class="c1"># root component</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">main</span><span class="o">.</span><span class="n">js</span><span class="w">              </span><span class="c1"># entry point</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">deploy</span><span class="o">.</span><span class="n">sh</span><span class="w">                </span><span class="c1"># frontend deploy script</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">vite</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">js</span><span class="w">           </span><span class="c1"># Vite build config</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">package</span><span class="o">.</span><span class="n">json</span><span class="w">             </span><span class="c1"># dependency manifest</span>
+<span class="err">│</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">backend</span><span class="o">/</span><span class="w">                     </span><span class="c1"># Django backend</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">blog_api</span><span class="o">/</span><span class="w">                </span><span class="c1"># Django project config</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">settings</span><span class="o">.</span><span class="n">py</span><span class="w">          </span><span class="c1">#   settings</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">urls</span><span class="o">.</span><span class="n">py</span><span class="w">              </span><span class="c1">#   root URLconf</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">articles</span><span class="o">/</span><span class="w">                </span><span class="c1"># articles app</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">models</span><span class="o">.</span><span class="n">py</span><span class="w">            </span><span class="c1">#   models</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">views</span><span class="o">.</span><span class="n">py</span><span class="w">             </span><span class="c1">#   API views</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">serializers</span><span class="o">.</span><span class="n">py</span><span class="w">       </span><span class="c1">#   serializers</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">urls</span><span class="o">.</span><span class="n">py</span><span class="w">              </span><span class="c1">#   API routes</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">comments</span><span class="o">/</span><span class="w">                </span><span class="c1"># comments app</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">photos</span><span class="o">/</span><span class="w">                  </span><span class="c1"># photos app</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">friends</span><span class="o">/</span><span class="w">                 </span><span class="c1"># friends app</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">accounts</span><span class="o">/</span><span class="w">                </span><span class="c1"># accounts app</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">requirements</span><span class="o">.</span><span class="n">txt</span><span class="w">         </span><span class="c1"># Python dependencies</span>
+<span class="err">│</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">tools</span><span class="o">/</span><span class="w">                       </span><span class="c1"># CLI tooling</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">create_article</span><span class="o">.</span><span class="n">py</span><span class="w">        </span><span class="c1">#   create article</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">post_article</span><span class="o">.</span><span class="n">py</span><span class="w">          </span><span class="c1">#   publish article</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">update_article</span><span class="o">.</span><span class="n">py</span><span class="w">        </span><span class="c1">#   update article</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">setup_categories</span><span class="o">.</span><span class="n">py</span><span class="w">      </span><span class="c1">#   seed categories</span>
+<span class="err">│</span>
+<span class="err">├──</span><span class="w"> </span><span class="o">.</span><span class="n">claude</span><span class="o">/</span><span class="w">                     </span><span class="c1"># Claude Code config</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">skills</span><span class="o">/</span><span class="n">deploy</span><span class="o">/</span><span class="w">           </span><span class="c1">#   deploy skill definition</span>
+<span class="err">│</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">index</span><span class="o">.</span><span class="n">html</span><span class="w">                   </span><span class="c1"># GitHub Pages entry point</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">assets</span><span class="o">/</span><span class="w">                      </span><span class="c1"># build output (Vite)</span>
+<span class="err">└──</span><span class="w"> </span><span class="n">CNAME</span><span class="w">                        </span><span class="c1"># custom domain</span>
+</code></pre></div>
+
+<hr>
+<h2>Wrapping Up</h2>
+<h3>Reflections on the Stack</h3>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Choice</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Frontend framework</td>
+<td>Vue 3</td>
+<td>progressive, active community, gentle learning curve</td>
+</tr>
+<tr>
+<td>Build tool</td>
+<td>Vite</td>
+<td>cold start in a second, very fast HMR</td>
+</tr>
+<tr>
+<td>Backend framework</td>
+<td>Django</td>
+<td>batteries included, a strong ORM, works out of the box</td>
+</tr>
+<tr>
+<td>API style</td>
+<td>REST</td>
+<td>mature and stable, plays well with the frontend ecosystem</td>
+</tr>
+<tr>
+<td>Hosting</td>
+<td>GitHub Pages + PA</td>
+<td>free, no ops work, dependable</td>
+</tr>
+</tbody>
+</table>
+<h3>What's Next</h3>
+<ul>
+<li><strong>Better comments</strong>: move to GitHub Discussions or Giscus so GitHub OAuth replaces anonymous comments</li>
+<li><strong>Stronger full-text search</strong>: Elasticsearch or MeiliSearch are on the table</li>
+<li><strong>CI/CD automation</strong>: build and deploy on push with GitHub Actions</li>
+<li><strong>PWA support</strong>: offline caching through a Service Worker for a better mobile experience</li>
+<li><strong>Performance monitoring</strong>: Google Analytics, or a self-hosted Umami instance</li>
+</ul>
+<h3>Open Source, and Say Hello</h3>
+
+All the code behind this blog is open source and lives on GitHub; the layout above covers the structure and the details.
+
+If you are building a blog of your own, or you just like poking at web development, do come and say hello. 🚀
+
+Related posts on the same path: <a href="/article/test-manage-system-vue-django/">Building a Test Management System from Scratch: A Vue 3 + Django Full-Stack Walkthrough</a>, <a href="/article/django-pythonanywhere-deploy/">How to Deploy a Django Backend to PythonAnywhere</a>.
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/blog-tech-stack/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/blog-tech-stack/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>

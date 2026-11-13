@@ -9,6 +9,7 @@ import {
   FEED_ITEM_COUNT,
   FEED_FULL_TEXT_COUNT,
   HOME_ARTICLE_COUNT,
+  EN_LIST_PAGE_SIZE,
   sanitizeHtml,
   wrapTables,
   upsertMeta,
@@ -392,7 +393,8 @@ describe('renderSitemap', () => {
         EN_ARTICLES.length +
         6 +
         EN_TOPICS.length +
-        2,
+        2 +
+        Math.max(0, Math.ceil(EN_ARTICLES.length / EN_LIST_PAGE_SIZE) - 1),
     )
     expect(xml).toContain(`<loc>${SITE_ORIGIN}/</loc>`)
     for (const page of indexable) {

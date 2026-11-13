@@ -2377,6 +2377,7 @@ export {
   FEED_ITEM_COUNT,
   FEED_FULL_TEXT_COUNT,
   HOME_ARTICLE_COUNT,
+  EN_LIST_PAGE_SIZE,
   escapeHtml,
   sanitizeHtml,
   wrapTables,

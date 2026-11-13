@@ -980,6 +980,445 @@ t = esc(t);
 `,
   },
   {
+    slug: 'gpt-6-astra-release-2026',
+    zhSlug: 'gpt-6-astra-release-2026',
+    topicSlug: 'aiagent',
+    title: 'GPT-6 Astra Lands: OpenAI Declares the AGI Era — Eight Things Developers Need to Know',
+    excerpt: 'OpenAI\'s GPT-6 Astra succeeds GPT-5.6 Sol with state-of-the-art computer use, a 922K context window and its first Cybersecurity Critical rating — eight things developers should know.',
+    date: '2026-09-04',
+    readingTime: 13,
+    html: `
+<h1>GPT-6 Astra Lands: OpenAI Declares "Welcome to the AGI Era" — Eight Things Developers Need to Know</h1>
+
+<img alt="GPT-6 Astra release poster" src="https://images.ctfassets.net/kftzwdyauwt9/H9Mf4UPiWGb0N25sLJHUu/6d971b8e12cbab3db48c94617d703b5d/poster.webp?w=1920&amp;q=80&amp;fm=webp">
+<blockquote>
+
+<strong>Release: September 3, 2026 (US Pacific) / September 4 (Beijing time)</strong>. OpenAI president Greg Brockman closed the launch with the words <strong>"Welcome to the AGI era."</strong> This article draws on OpenAI's official post <em>GPT-6 Astra: A new generation of intelligence</em>, the API docs, the System Card, and reporting from Bloomberg, QbitAI and The Decoder. Data cut-off: 2026-09-04.
+</blockquote>
+<hr>
+<h2>The Bottom Line: What Is GPT-6 Astra?</h2>
+
+In one sentence: <strong>GPT-6 Astra is OpenAI's new flagship, built for "delivering complete tasks" rather than "single-turn Q&amp;A" — and it is the first model OpenAI has officially described as "most intelligent and aligned" while unilaterally declaring the AGI era open.</strong>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Key facts</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Positioning</strong></td>
+<td>The flagship that replaces GPT-5.6 Sol, pitched as a six-way all-rounder: Computer Use / Browser Use / software engineering / cybersecurity / science / professional work</td>
+</tr>
+<tr>
+<td><strong>Release</strong></td>
+<td>First shipped in the US on 2026-09-03, available that day to a limited set of enterprise customers; rolling out to all of ChatGPT Plus / Pro / Business / Enterprise over the following days</td>
+</tr>
+<tr>
+<td><strong>API name</strong></td>
+<td><code>gpt-6-astra</code>, available on both the OpenAI API and AWS Bedrock, with Zero Data Retention (ZDR) support</td>
+</tr>
+<tr>
+<td><strong>Context</strong></td>
+<td>Up to 922,000 input tokens and 128,000 output tokens; knowledge cut-off 2026-04-30</td>
+</tr>
+<tr>
+<td><strong>Pricing (Standard)</strong></td>
+<td>$10 per million input tokens, $50 per million output; $1 on cache hits, $12.5 for cache writes; inputs above 272K bill at 2× input / 1.5× output; Fast mode 2×; Batch/Flex 50% off</td>
+</tr>
+<tr>
+<td><strong>Tagline</strong></td>
+<td>Welcome to the AGI era</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+Astra is not simply "GPT-5.7" — OpenAI's post is explicit that it consolidates years of <strong>big bets on pretraining, reinforcement learning and alignment</strong>. But "the AGI era" remains, for now, OpenAI's narrative alone; academia and the eval community care far more about reproducible benchmarks.
+</blockquote>
+<hr>
+<h2>1. Why "Astra", and How Does It Relate to GPT-5.6 Sol?</h2>
+<ul>
+<li><strong>Sol → Astra</strong>: Sol (sun) was the codename for GPT-5.6, while Astra (a cluster of stars) is positioned as the next generation of agents that can "continuously execute full tasks". The official framing is an evolution from "answer, generate, call tools" to "continuously execute full tasks".</li>
+<li><strong>Not the ten-trillion-parameter myth</strong>: before launch, X was awash with leaks about "Astra has 10 trillion parameters" and "codename Doug ships at year-end". OpenAI has confirmed no parameter count whatsoever, and we don't buy any of it.</li>
+<li><strong>What it replaces</strong>: every internal comparison uses GPT-5.6 Sol (the API version) as the baseline, so startups can simply swap <code>gpt-5.6-sol</code> for <code>gpt-6-astra</code> and A/B them.</li>
+</ul>
+<hr>
+<h2>2. The New Capability Bar: Where the SOTA Sits Across Six Dimensions</h2>
+
+OpenAI's comparison table pits Astra against <strong>GPT-5.6 Sol / Claude Fable 5.1 / Claude Fable 5 / Claude Opus 5 / Gemini 3.8 Flash</strong>. Core numbers excerpted below (<em>max score at highest effort, run in OpenAI's research environment</em>):
+<h3>1. Computer Use — the Biggest Leap</h3>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>GPT-6 Astra</th>
+<th>GPT-5.6 Sol</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>OSWorld 2.0</strong> (offline subset)</td>
+<td><strong>72.6%</strong></td>
+<td>65.7%</td>
+<td>Offline web + desktop operation; Astra averages ~40 minutes vs 75 for Sol, 47% faster</td>
+</tr>
+<tr>
+<td><strong>ScreenSpot-Pro</strong> (no tools)</td>
+<td><strong>92.7%</strong></td>
+<td>76.9%</td>
+<td>Pure-vision UI grounding</td>
+</tr>
+<tr>
+<td><strong>Agents' Last Exam</strong></td>
+<td><strong>59.3%</strong></td>
+<td>53.6%</td>
+<td>Real software tasks in financial modeling, engineering, media production and more</td>
+</tr>
+</tbody>
+</table>
+
+<strong>What this means</strong>: filling in forms, updating the CRM, scheduling calendars, doing online research, analyzing scientific data and producing the plots, building a site and running frontend QA, installing and debugging software on its own — this grunt work is now Astra's home turf. Paired with the Codex harness's 1.9× speedup, it feels markedly faster on Mind2Web.
+<blockquote>
+
+Case study: OpenAI showed a 15-second compressed replay — Astra completing a PCB layout in KiCad, turning a schematic into a manufacturable board; and, after modeling in Blender, importing the result into Unreal Engine 5 to generate a walkable scene.
+</blockquote>
+<h3>2. Professional Work</h3>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>Astra</th>
+<th>Sol</th>
+<th>Highlight</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>AutomationBench</strong></td>
+<td><strong>41.4%</strong></td>
+<td>18.1%</td>
+<td>Cross-application automation</td>
+</tr>
+<tr>
+<td><strong>BenchCAD</strong></td>
+<td><strong>95.9%</strong></td>
+<td>83.3%</td>
+<td>Reconstructing 3D CAD code from multiple views</td>
+</tr>
+<tr>
+<td><strong>Internal Design / Data Science</strong></td>
+<td>50.0% / 40.9%</td>
+<td>47.4% / 30.5%</td>
+<td>Template adherence and chart distillation</td>
+</tr>
+</tbody>
+</table>
+
+Capability highlights: <strong>template-aligned slides, docs and sheets</strong> — hand it a few company templates and Astra matches tone and layout, pulling in only the context it needs instead of stuffing every scrap of history into the output. Combined with <a href="https://learn.chatgpt.com/docs/sites?surface=app" rel="noopener noreferrer" target="_blank">Sites</a> inside ChatGPT, you can stand up and host a site straight from a prompt.
+<h3>3. Coding</h3>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>Astra</th>
+<th>Sol</th>
+<th>Claude Fable 5.1</th>
+<th>Reading</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Terminal-Bench 4.0</strong></td>
+<td><strong>57.9%</strong></td>
+<td>37.3%</td>
+<td>55.8%</td>
+<td>Terminal-level software engineering, 9% cheaper than Sol</td>
+</tr>
+<tr>
+<td><strong>FrontierCode 1.1 Extended</strong></td>
+<td><strong>64.5%</strong></td>
+<td>60.6%</td>
+<td>63.6%</td>
+<td>Long-horizon generation</td>
+</tr>
+<tr>
+<td><strong>Internal DB Migration</strong></td>
+<td><strong>63.9%</strong></td>
+<td>42.7%</td>
+<td>57.8%</td>
+<td>Real database migration tasks</td>
+</tr>
+</tbody>
+</table>
+
+Two engineering changes are worth developers' attention:
+<ol>
+<li><strong>Cross-context memory</strong>: Astra adds an experimental <code>config.toml</code> setting to Codex — "notes" instead of "compacted summaries" to carry context across windows. Old windows stay searchable, so failure reasons that were never captured aren't lost. It becomes the default in a few weeks.</li>
+<li><strong>Easier to follow along</strong>: early evaluations from Jane Street and Lovable both note that "higher effort = more fresh rebuilds plus browser verification, and code closer to mergeable quality".</li>
+</ol>
+<h3>4. Science, Math and Health</h3>
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>Astra</th>
+<th>Sol</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FrontierMath Tier 4 v2</strong></td>
+<td><strong>97.6%</strong></td>
+<td>83.0%</td>
+</tr>
+<tr>
+<td><strong>GPQA Diamond</strong></td>
+<td><strong>96.0%</strong></td>
+<td>94.6%</td>
+</tr>
+<tr>
+<td><strong>Terminal-Bench Science 0.1</strong></td>
+<td><strong>64.6%</strong></td>
+<td>22.4%</td>
+</tr>
+<tr>
+<td><strong>HealthBench Professional</strong></td>
+<td><strong>63.4%</strong></td>
+<td>60.5%</td>
+</tr>
+</tbody>
+</table>
+
+What traveled furthest was <strong>two new proofs about prime gaps</strong> (with Julia Stadlmann at UIUC):
+<ul>
+<li><strong>Short gaps</strong>: pushed the bound "infinitely many pairs of primes with gap ≤ 246" — unchanged for over a decade — down to <strong>186</strong>;</li>
+<li><strong>Long gaps</strong>: improved a key term in an upper bound on long gaps that had not moved in more than 80 years.</li>
+</ul>
+
+Both proofs and abridged chains of thought are public. It is the clearest illustration that Astra can both solve mathematics and help prove it.
+<h3>5. Cybersecurity — Reaching the Critical Threshold for the First Time</h3>
+
+This is the most contested and most closely watched part of the launch. In <a href="https://openai.com/index/path-to-astra/" rel="noopener noreferrer" target="_blank">Path to Astra</a>, OpenAI concedes that <strong>Astra reaches the Critical level for Cybersecurity under the Preparedness Framework</strong> — that is, it can develop zero-day exploits in an undefended setting.
+<table>
+<thead>
+<tr>
+<th>Benchmark</th>
+<th>Astra</th>
+<th>Sol</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ExploitBench</strong></td>
+<td><strong>100%</strong></td>
+<td>78.5%</td>
+<td>Turning known vulnerabilities into working exploits</td>
+</tr>
+<tr>
+<td><strong>ExploitGym</strong></td>
+<td><strong>42.4%</strong></td>
+<td>30.3%</td>
+<td>And with fewer output tokens</td>
+</tr>
+<tr>
+<td><strong>ExploitBench (new June–Aug 2026 set)</strong></td>
+<td><strong>39.0%</strong></td>
+<td>11.5%</td>
+<td>20 high-severity V8 vulnerabilities from the past three months; Astra also <strong>found and exploited 2 unknown zero-days</strong> (disclosed to the vendors)</td>
+</tr>
+<tr>
+<td><strong>SRE-Bench</strong> (reverse)</td>
+<td><strong>88.0%</strong> single / 99.2% within four</td>
+<td>55.9% / 68.7%</td>
+<td>Understanding logic by reversing without source</td>
+</tr>
+<tr>
+<td><strong>SEC-Bench Pro</strong></td>
+<td><strong>85.4%</strong></td>
+<td>79.1%</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+
+<strong>A double-edged sword for offense and defense</strong>: Astra can help defenders audit code and generate patches, yet in an unguarded research configuration it can also achieve arbitrary code execution against a hardened browser and privilege escalation on a hardened OS. OpenAI's strategy is:
+<ul>
+<li>The launch version <strong>refuses</strong> to generate vulnerability PoCs;</li>
+<li>Through <a href="https://openai.com/daybreak/" rel="noopener noreferrer" target="_blank">OpenAI Daybreak</a>, trusted defenders get looser capabilities — PoC validation, malware analysis and the like — over the coming weeks;</li>
+<li>Harder resistance to jailbreaks, plus runtime monitoring.</li>
+</ul>
+<h3>6. Alignment — the Most Compliant Generation Yet, but Harder to Monitor</h3>
+<table>
+<thead>
+<tr>
+<th>Alignment benchmark</th>
+<th>Astra</th>
+<th>Sol</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Internal computer-use safety benchmark (lower is better)</td>
+<td><strong>2.4%</strong></td>
+<td>22.0%</td>
+<td>With additional safeguards added, Astra falls to 1.8%</td>
+</tr>
+<tr>
+<td>ExploigGym honeypot (accidental traps)</td>
+<td><strong>0.0%</strong></td>
+<td>48.2%</td>
+<td></td>
+</tr>
+<tr>
+<td>Attempts to bypass Auto-Review</td>
+<td><strong>0.00%</strong></td>
+<td>0.29%</td>
+<td>Even with Auto-Review deliberately configured to be bypassable, Astra never tried</td>
+</tr>
+<tr>
+<td>Capability hallucination</td>
+<td><strong>4.2%</strong></td>
+<td>12.2%</td>
+<td>Falsely claiming what it can do</td>
+</tr>
+</tbody>
+</table>
+
+But OpenAI also owns up to two regressions:
+<ul>
+<li><strong>Reduced monitorability</strong>: Astra's written reasoning is harder for monitoring models to catch, partly because it can solve problems in fewer steps;</li>
+<li><strong>Alignment is not absolute</strong>: alignment training is the core, misalignment monitoring is only a backstop, and the extra checks occasionally pause or interrupt legitimate tasks.</li>
+</ul>
+<hr>
+<h2>3. The API Changes Developers Care About Most</h2>
+<h3>Pricing and Billing</h3>
+<div class="codehilite"><pre><span></span><code>Text tokens (Standard)
+  Input          $10 / 1M
+  Cached input   $1  / 1M
+  Cache writes   $12.5 / 1M
+  Output         $50 / 1M
+
+Long context: for inputs &gt;272K, the whole request bills at 2× input/cached price, 1.5× output
+Batch / Flex: 50% off
+Fast mode: 2× Standard price, up to 2× the speed
+</code></pre></div>
+
+<blockquote>
+
+For comparison: even if GPT-5.6-era input/output prices were never publicly adjusted, Astra's absolute unit price is far from cheap. OpenAI emphasizes <strong>token efficiency</strong> — across most evals Astra scores higher while spending fewer output tokens, and on some tasks it costs 20%–40% less than Sol.
+</blockquote>
+<h3>Context and Reasoning</h3>
+<ul>
+<li><strong>922K input / 128K output / 2026-04-30 cut-off</strong>, with tiered <code>reasoning_effort</code> (low/medium/high map to different depths of iteration and verification);</li>
+<li><strong>1M context, measured</strong>: OpenAI MRCR v2 8-needle scores 100% at 256K–512K and 96.3% at 512K–1M (Sol: 91.5% / 73.8%);</li>
+<li><strong>Abstract reasoning</strong>: ARC-AGI-3 reaches <strong>99.9% [T7]</strong> (Sol manages just 7.8%), and ARC-AGI-2 comes in at 95.0% — OpenAI notes it used two Responses API settings to stay closer to real-world behavior.</li>
+</ul>
+<h3>Availability and Compliance</h3>
+<ul>
+<li><strong>Rollout cadence</strong>: limited enterprise customers on day one, full Plus/Pro/Business/Enterprise a few days later; API and Bedrock simultaneously;</li>
+<li><strong>Quotas</strong>: usage counts against existing subscription limits, with purchasable credits beyond that; Pro/Business/Enterprise additionally get <strong>GPT-6 Astra Pro</strong>;</li>
+<li><strong>Enterprise controls</strong>: off by default; an admin must explicitly enable it;</li>
+<li><strong>Privacy</strong>: compliant API customers can use ZDR, and <strong>Private Safety Processing</strong> is in pilot — safety monitoring that preserves privacy.</li>
+</ul>
+<hr>
+<h2>4. Price and Selection: Should You Switch to Astra Now?</h2>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Recommendation</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Computer/browser automation, long-horizon office workflows</strong></td>
+<td><strong>Go straight to Astra</strong></td>
+<td>OSWorld, BenchCAD and AutomationBench are a full generation ahead; both efficiency and alignment improve</td>
+</tr>
+<tr>
+<td><strong>Heavy coding and long-horizon refactors</strong></td>
+<td><strong>Astra first, Claude Fable 5.1 as the alternative</strong></td>
+<td>Astra leads Terminal-Bench, but Claude still holds a narrow 67.2 vs 67.0 edge on the Artificial Analysis Coding Agent Index</td>
+</tr>
+<tr>
+<td><strong>Cost-sensitive batch execution</strong></td>
+<td><strong>Evaluate before switching</strong></td>
+<td>Astra's unit price is high; if a task can run on a smaller model or hit the cache, DeepSeek/GLM/MiniMax remain cheaper at the execution layer, leaving Astra for planning and review</td>
+</tr>
+<tr>
+<td><strong>Security research / red teaming</strong></td>
+<td><strong>Wait for Daybreak access</strong></td>
+<td>The launch version refuses PoCs; the permissive version requires an application</td>
+</tr>
+<tr>
+<td><strong>Light personal use</strong></td>
+<td><strong>Already included in Plus, no extra charge</strong></td>
+<td>Run it on the default quota first, then decide whether to buy credits</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+The selection philosophy in one line: <strong>with Astra you are buying the ability to get it right the first time, plus alignment — not the cheapest price per million tokens.</strong> On high-value, long-chain, error-prone tasks Astra's total cost can come out lower; on high-throughput, low-reasoning batch work, cheap models can still do the execution.
+</blockquote>
+<hr>
+<h2>5. Limits and Second Thoughts: Don't Get Carried Away by "the AGI Era"</h2>
+<ol>
+<li><strong>The fight over who defines AGI</strong>: OpenAI's "AGI era" is a corporate narrative. On evals, Astra still trails competitors on GPQA and Humanity's Last Exam (57.2% with tools vs 65.0% for Claude Fable 5.1), so generality is nobody's monopoly.</li>
+<li><strong>Cybersecurity as a double-edged sword</strong>: 100% on ExploitBench means the offense/defense window has narrowed, and defenders must patch faster. OpenAI itself admits monitoring and blocking will occasionally hit legitimate tasks.</li>
+<li><strong>Monitorability regressing</strong>: shorter chains of thought are harder to audit — a real risk for finance and healthcare, where strong auditing is a requirement.</li>
+<li><strong>Price and quota</strong>: long inputs above 272K cost more, Fast mode is 2×, so do the math on very-long-document workflows.</li>
+<li><strong>Hallucination is not zero</strong>: capability hallucination fell from 12.2% to 4.2%, but it isn't zero, and high-stakes decisions still need human review.</li>
+</ol>
+<hr>
+<h2>6. Practical Advice for Three Kinds of Readers</h2>
+<h3>Everyday Users (ChatGPT Plus/Pro)</h3>
+<ul>
+<li>Start by handing "computer use" and "web browsing" tasks in ChatGPT to Astra — booking tickets, filling in forms, organizing a photo library, building a résumé site — and watch how it collaborates: it asks the key questions first, then proceeds on reasonable assumptions;</li>
+<li>For legal or financial output, lean on its habit of separating established facts from unsupported assumptions, and ask it to flag what it is unsure about.</li>
+</ul>
+<h3>Developers (API)</h3>
+<ul>
+<li><strong>Migration path</strong>: test <code>model: "gpt-6-astra"</code> in combination with <code>reasoning_effort: medium/high</code>. For FrontierCode, OpenAI recommends a developer message telling it to "avoid creating unnecessary test files, reuse existing tooling and follow repo conventions";</li>
+<li><strong>Long context</strong>: treat MRCR as a health check, watch the billing tier above 272K, and use cache writes/hits to cut the cost of repeated system prompts;</li>
+<li><strong>Codex users</strong>: flip the experimental cross-window notes switch in <code>config.toml</code> and measure recall over long sessions.</li>
+</ul>
+<h3>Enterprises and Teams</h3>
+<ul>
+<li>Off by default is a safety decision — enable it in a sandbox workspace first, and set up Auto-Review plus human review;</li>
+<li>If you need PoC or vulnerability validation capability, apply for the Daybreak allowlist in advance;</li>
+<li>Compliance-sensitive customers should evaluate ZDR combined with Private Safety Processing.</li>
+</ul>
+<hr>
+<h2>Closing Thoughts</h2>
+<blockquote>
+
+In English, Astra means "star"; in OpenAI's telling it is "the starting point of the next generation of intelligence". It genuinely lifts the ceiling on computer use, long context, mathematics and cybersecurity by a wide margin — and it lifts the floor on alignment too: 0% honeypot triggers, 0% review bypasses, fewer hallucinations.
+</blockquote>
+
+But "welcome to the AGI era" reads more like a signpost than a finish line. As EpochAI's Greg Burnham put it: "The end of one era, the beginning of another." — <strong>What Astra ends is the era of models that only answer; what it begins is the era of models that get the job done.</strong> Whether it can truly do the job right, do it auditable, and do it affordably still has to be proven in real workflows over the coming months.
+<hr>
+<h3>References</h3>
+<ul>
+<li>OpenAI, <a href="https://openai.com/index/gpt-6-astra/" rel="noopener noreferrer" target="_blank">GPT-6 Astra: A new generation of intelligence</a> (2026-09-03)</li>
+<li>OpenAI API Docs, <a href="https://developers.openai.com/api/docs/models/gpt-6-astra" rel="noopener noreferrer" target="_blank">GPT-6 Astra Model</a> &amp; <a href="https://developers.openai.com/api/docs/pricing" rel="noopener noreferrer" target="_blank">Pricing</a></li>
+<li>OpenAI, <a href="https://openai.com/index/path-to-astra/" rel="noopener noreferrer" target="_blank">Path to Astra</a> &amp; <a href="https://deploymentsafety.openai.com/gpt-6-astra" rel="noopener noreferrer" target="_blank">System Card</a></li>
+<li>Combined coverage of the Astra launch from Bloomberg / CNBC / 9to5Mac / The Decoder / Artificial Analysis / QbitAI (2026-09-04)</li>
+<li>Fan Weibin, "<a href="https://fanweibin.cn/posts/2026-09-04-openai-gpt-6-astra-fabu-jishu-jiexi" rel="noopener noreferrer" target="_blank">GPT-6 Astra Lands: Six Things Developers Should Care About</a>", for the pricing and reasoning_effort breakdown</li>
+</ul>
+
+<em>Data cut-off: 2026-09-04; models and prices change with official updates — check the OpenAI documentation before you ship.</em>
+
+Further reading along the same thread: <a href="/article/chinese-llm-august-2026-releases-preview/">The August Offensive: A Preview of Chinese LLM Releases in August 2026</a>, <a href="/article/vllm-vs-sglang-llm-inference-framework-war/">From vLLM to SGLang: The Ultimate Involution of LLM Inference Frameworks</a>.
+`,
+  },
+  {
     slug: 'halo-music-square-architecture',
     zhSlug: 'halo-music-square-architecture',
     topicSlug: 'projects',
@@ -14518,7 +14957,7 @@ fn a_fixed_task_costs_no_more_than_the_baseline() {
   {
     slug: 'queueing-theory-capacity-planning',
     zhSlug: 'queueing-theory-capacity-planning',
-    topicSlug: 'backend',
+    topicSlug: 'aiagent',
     title: 'Eight machines were slower than four: queueing theory and capacity planning',
     excerpt:
       'Utilisation amplifies latency nonlinearly, variance matters as much as the mean, and past an optimal node count adding machines makes things worse. A quantitative framework for whether to scale out, and how much headroom to keep.',
@@ -16256,7 +16695,7 @@ SELECT * FROM users WHERE email LIKE 'abc%';
   {
     slug: 'cursor-pagination-deep-dive',
     zhSlug: 'cursor-pagination-deep-dive',
-    topicSlug: 'backend',
+    topicSlug: 'database',
     title: 'Why a deep offset gets slower, and what cursor pagination fixes',
     excerpt:
       'An offset makes the database pay for skipping. A cursor makes it pay for seeking. Everything else, including the signed token and the missing page numbers, follows from that one sentence.',
@@ -16478,7 +16917,7 @@ LIMIT 20;
   {
     slug: 'redis-distributed-lock-deep-dive',
     zhSlug: 'redis-distributed-lock-deep-dive',
-    topicSlug: 'backend',
+    topicSlug: 'database',
     title: 'Redis distributed locks: the right shape, and where they stop working',
     excerpt:
       'Five versions of the same idea, from a naive SETNX to Redlock, plus the two situations no TTL-based lock can fix. Most teams are still shipping version one.',
@@ -16707,7 +17146,7 @@ WHERE id = 1 AND fence &lt; 11;   -- a stale token cannot write
   {
     slug: 'distributed-id-deep-dive',
     zhSlug: 'distributed-id-deep-dive',
-    topicSlug: 'backend',
+    topicSlug: 'database',
     title: 'Distributed IDs, measured: page splits, a thousand clock rollbacks, and segments',
     excerpt:
       'Four approaches implemented and two controversies actually tested. How much the unordered write pattern costs, and what happens when the clock goes backwards without protection.',
@@ -18010,7 +18449,7 @@ constexpr uint32_t LOCK_INSERT_INTENTION = 2048;
   {
     slug: 'cache-consistency-deep-dive',
     zhSlug: 'cache-consistency-deep-dive',
-    topicSlug: 'backend',
+    topicSlug: 'database',
     title: 'Delete the cache first or the database first? Cache consistency in practice',
     excerpt:
       'Four write paths, the narrow window that actually breaks them, and the three classic cache failures with measured numbers: penetration, breakdown and avalanche.',
@@ -18516,7 +18955,7 @@ def get_article_safe(article_id):
   {
     slug: 'django-slow-query-index-tuning',
     zhSlug: 'django-slow-query-index-tuning',
-    topicSlug: 'backend',
+    topicSlug: 'database',
     title: 'The index is there, so why is the sort unindexed? A slow query investigation',
     excerpt:
       'Two queries per request is cheap until each one scans a million rows. An index whose direction disagrees with the ordering is worth nothing, and at nine rows you cannot see it.',
@@ -20763,7 +21202,7 @@ logging.getLogger().addFilter(TraceContextFilter())
   {
     slug: 'django-zero-downtime-migration',
     zhSlug: 'django-zero-downtime-migration',
-    topicSlug: 'backend',
+    topicSlug: 'database',
     title: 'At deploy time the database rebuilds the whole table',
     excerpt:
       'One line in models.py can turn into an eight second full table copy that locks everything. Read the SQL first, then pick one of four escape routes.',
@@ -26869,7 +27308,7 @@ Link: &lt;/docs/migration/v1-to-v2&gt;; rel="migration"
   {
     slug: 'cache-trio-deep-dive',
     zhSlug: 'cache-trio-deep-dive',
-    topicSlug: 'backend',
+    topicSlug: 'database',
     title: 'Three hundred concurrent requests, one database hit',
     excerpt:
       'Textbook defences fail in textbook ways: empty-value caching fills memory with one-shot keys, a mutex fills the thread pool, and TTL jitter does nothing when the cache disappears. Measured numbers for what works.',
@@ -39426,7 +39865,7 @@ answer   = min over t &lt;= maxTime of dp[t][n-1]
   {
     slug: 'django-n1-query-kill',
     zhSlug: 'django-n1-query-kill',
-    topicSlug: 'django',
+    topicSlug: 'backend',
     title: 'From 21 SQL statements to 2: three rounds against N plus one',
     excerpt:
       'The article list shows ten posts. Count the queries: one for the list, then two per post for category and tags. The fix is one line, but the discipline is reading the serializer line by line.',
@@ -40294,7 +40733,7 @@ def kth_largest(nums, k, dedupe=False):
   {
     slug: 'django-anon-like-dedup',
     zhSlug: 'django-anon-like-dedup',
-    topicSlug: 'django',
+    topicSlug: 'backend',
     title: 'Why I let anonymous visitors like: five layers of anti-abuse',
     excerpt:
       'Opening a write endpoint to the whole internet takes more than a counter. Identity must live server-side, counting must be atomic, and the dedup table must not grow forever.',
@@ -40450,7 +40889,7 @@ article.save()
   {
     slug: 'django-subscribe-mass-mail',
     zhSlug: 'django-subscribe-mass-mail',
-    topicSlug: 'django',
+    topicSlug: 'backend',
     title: 'Do not let one bad address poison a whole mail run',
     excerpt:
       'Validation, state transitions, batching and triggering. Each link in the chain has poisoned the batch at least once, and the worst failures are the ones that log nothing.',
@@ -40783,6 +41222,1004 @@ Article.objects.filter(
 `,
   },
 
+  {
+    slug: 'lsm-vs-btree-amplification',
+    zhSlug: 'lsm-vs-btree-amplification',
+    topicSlug: 'database',
+    title: 'LSM-Tree vs B+Tree: How Many Times Does One Write Actually Hit the Disk?',
+    excerpt: 'Same 1M records: SQLite needs 200 s of random writes and writes 12.8 GB, RocksDB needs 4 s and 0.6 GB. But sequential writes are equally fast. A measured teardown of write, read and space amplification.',
+    date: '2026-11-13',
+    readingTime: 28,
+    html: `
+<blockquote>
+<p>Who this is for: people who have written a KV store or are currently picking a storage engine; people who were persuaded by one-line verdicts like "LSMs write fast, B+trees read fast" without ever looking at the ledger; people choosing between SQLite, RocksDB, LevelDB and InnoDB who want to know which layer the cost actually lands on
+Verdict up front: a B+tree spreads random writes into "random page writes"; an LSM turns random writes into "sequential append + background rewrite". The former's write amplification depends on how many pages each transaction touches, the latter's on how many levels compaction rewrites. Neither comes with a free lunch — only a choice about whether to put the cost on the write path, the read path, or a background thread.
+Reading time: about 28 minutes | Level: advanced | What you get: a reproducible set of measured data over 1,000,000 records, write-amplification formulas broken down term by term, why B+tree random writes can amplify to 100×, the compaction bill an LSM has to pay, and a decision table for choosing by workload</p>
+</blockquote>
+<p><strong>Contents</strong></p>
+<ul>
+<li>1. Two counterintuitive observations</li>
+<li>2. Experiment setup and metric definitions</li>
+<li>3. The B+tree write path: pages, splits and full-page WAL</li>
+<li>4. The LSM write path: memtable, SST and compaction</li>
+<li>5. The write-amplification formula: which layer is really paying</li>
+<li>6. The read path: tree height, Bloom filters and read amplification</li>
+<li>7. Updates and deletes: in-place modification vs tombstones</li>
+<li>8. Space amplification: file size doesn't lie</li>
+<li>9. When to pick an LSM, when to pick a B+tree</li>
+<li>10. Source map: from one put to one fsync</li>
+<li>11. Reproducing the experiment: scripts, parameters and pitfalls</li>
+<li>12. Wrap-up: asking the right question</li>
+</ul>
+<h2>1. Two Counterintuitive Observations</h2>
+<p>Start with the first set of numbers. 1,000,000 records, keys are 24-byte <code>user:%016d</code>, values are 100 bytes of incompressible random data — roughly 124 MB of logical data in total. Written in random order, committing every 500 records:</p>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>Write time</th>
+<th>Logical throughput</th>
+<th>Process bytes written</th>
+<th>Write amplification</th>
+<th>Database size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite (B+tree, WAL)</td>
+<td>201.6 s</td>
+<td>0.62 MB/s</td>
+<td>12822.9 MB</td>
+<td>103.4×</td>
+<td>149.9 MB</td>
+</tr>
+<tr>
+<td>RocksDB (LSM)</td>
+<td>4.0 s</td>
+<td>30.7 MB/s</td>
+<td>584.7 MB</td>
+<td>4.7×</td>
+<td>116.4 MB</td>
+</tr>
+</tbody>
+</table>
+<p>For the same data, SQLite is about 50× slower and writes 103× the logical bytes to disk; RocksDB writes only 4.7×. But the second set of numbers immediately breaks the impression that "LSMs are faster at everything": change the write order to an ascending sequential append and SQLite needs only 4.7 seconds, with write amplification down to 2.9× — essentially in the same league as RocksDB's 2.8 seconds and 2.0×.</p>
+<p>The third observation is subtler still: over 50,000 random reads, SQLite's p50 is 25.2 µs and p99 is 135 µs; RocksDB's p50 is 29.7 µs and p99 is 119 µs. Read latency is nearly identical, even though an LSM theoretically has more levels to probe.</p>
+<p>All three observations point at the same conclusion: <strong>the performance gap isn't in the word "tree" — it's in where the write path puts the randomness, and whether the log records a whole page or a change.</strong> Let's open up the ledger and do the arithmetic.</p>
+<h2>2. Experiment Setup and Metric Definitions</h2>
+<p>First, the reproducible conditions, written down plainly. Every number comes from a single Windows 11 (build 26200) machine: Intel Core 5 210H, 8 cores / 12 threads, 15.5 GB of RAM, NTFS; Python 3.13.14, SQLite 3.50.4, RocksDB driven through <code>rocksdict</code> 0.3.29, process I/O sampled with <code>psutil</code> 7.2.2.</p>
+<p>The workload comes from a single generator:</p>
+<pre><code class="language-python">import hashlib, random
+
+N = 1_000_000
+keys = list(range(N))
+random.shuffle(keys)          # or keep 0..N-1 for the sequential control run
+keys = [f'user:{i:016d}'.encode() for i in keys]
+
+def value(k):
+    return hashlib.shake_128(k).digest(100)   # 100 bytes, incompressible
+</code></pre>
+<p>Writes commit every 500 records. SQLite uses a <code>WITHOUT ROWID</code> table, guaranteeing a single B+tree clustered on the key; the settings are <code>journal_mode=WAL</code>, <code>synchronous=NORMAL</code>, <code>page_size=4096</code>, <code>cache_size=256 MB</code>. RocksDB runs default compression with <code>write_buffer_size=4 MB</code>, <code>max_write_buffer_number=3</code>, <code>target_file_size_base=8 MB</code>, <code>max_background_jobs=4</code>; the memtable was shrunk on purpose so that multi-level compaction actually shows up at 124 MB of data, instead of parking the whole dataset in one giant memtable.</p>
+<p>Three metrics, defined precisely:</p>
+<ul>
+<li><strong>Write amplification (WA)</strong>: bytes written by the process ÷ logical bytes. Process bytes include the WAL, the data files and compaction output, but not filesystem metadata. It's closer to the real write path than "how much did the database file grow" — but it is still not physical writes at disk-granularity level.</li>
+<li><strong>Read amplification (RA)</strong>: bytes read from storage per point lookup, on average. Because there was no administrator privilege to drop the OS page cache, this number is cache-affected; it's valid for same-machine comparison, not for cross-machine comparison.</li>
+<li><strong>Space amplification (SA)</strong>: total database file size ÷ logical data size. It answers "how much disk does the same data occupy".</li>
+</ul>
+<p>The limitations, up front too: single-threaded client, single machine, Windows, incompressible values, SQLite's WAL recording full page images, RocksDB with block compression enabled. The last two in particular decide this: <strong>the 103× below cannot be extrapolated to InnoDB.</strong> InnoDB's redo log records in-page changes; it does not write a fresh 16 KB image of every dirty page on every transaction. Its write path is closer to "record which bytes changed" than to SQLite WAL's "record what the whole page now looks like". We'll come back to this separately later in the article.</p>
+<h2>3. The B+tree Write Path: Pages, Splits and Full-Page WAL</h2>
+<p>The B+tree write path compresses into one sentence: <strong>find the leaf page the key belongs to and modify it; if the page is full, split it; log every change first, then write the data file back at checkpoint.</strong></p>
+<p>SQLite's page size is 4096 bytes. After the page header, the cell pointer array and free space, a leaf page holds roughly twenty-odd 124-byte records. The 1,000,000 records end up in about 36,000 leaf pages; including internal nodes, the database file comes to about 150 MB, which matches the measured 149.9 MB.</p>
+<p>Under random insertion, 500 keys land on almost 500 distinct leaf pages. When a transaction commits, the WAL has to append one frame for <strong>every modified page</strong>: a 24-byte frame header plus a full 4096-byte page image. SQLite's WAL format is spelled out clearly in the official documentation — the frame header carries the page number, the database size in pages after commit, a salt and a checksum, and the frame data is one complete page. Recovery scans the WAL sequentially once, validates frame by frame, and stops at the first bad checksum. That design makes WAL writes very direct, and makes the WAL brutally unfriendly to small random transactions.</p>
+<p>Here's a rough estimate that's good enough to make the point: each transaction touches about 500 leaf pages, plus new pages from splits, parent node updates and freelist pages — call it 600 pages conservatively, at 4 KB each, so 2.4 MB written per transaction and 4.8 GB across 2000 transactions. The observed figure is 12.8 GB. The extra comes from page splits (a split allocates a page and rewrites the parent), from checkpoint copying WAL content back into the main database (the same pages written a second time), and from the WAL itself being reused over several rounds. The order of magnitude lines up perfectly.</p>
+<p>Which also explains why sequential writes are fast: keys increase monotonically, so each write touches only the rightmost leaf page and a few internal pages, and a transaction's dirty page count drops from 500 to single digits. Measured write amplification falls from 103.4× to 2.9×, and elapsed time from 201 s to 4.7 s. <strong>A B+tree isn't afraid of writes; it's afraid of "one transaction touching many random pages".</strong></p>
+<p>Put that into a formula:</p>
+<pre><code class="language-text">WA_btree ≈ (average number of distinct pages touched per transaction × page size)
+           ÷ (logical bytes written per transaction)
+</code></pre>
+<p>Random, 500 records: <code>500 × 4096 / (500 × 124) ≈ 33</code>; stack splits and duplicate checkpoint writes on top of that and 100× is no surprise. Sequential, 500 records: <code>2 × 4096 / (500 × 124) ≈ 0.13</code>; now WAL frame headers, commit overhead and checkpoint become the main cost, landing around 3× overall.</p>
+<p>Swap in InnoDB and the "page size" in that formula is still 16 KB, but "pages touched per transaction" gets rewritten by the buffer pool and the change buffer: random inserts into secondary indexes can be recorded in the change buffer and merged when the page is read in, and redo records in-page changes rather than a full page image per transaction. So InnoDB's random write amplification is usually far below SQLite WAL's 100×. <strong>That's an implementation difference, not a theoretical floor for B+trees.</strong></p>
+<h2>4. The LSM Write Path: memtable, SST and Compaction</h2>
+<p>An LSM's write path also compresses into one sentence: <strong>every write appends to the WAL, then enters the in-memory memtable; when the memtable fills up it's frozen and flushed sequentially into an L0 SST file; background compaction then merges L0 downward level by level.</strong></p>
+<p>Take LevelDB: a handful of key constants define its shape. Four L0 files trigger a compaction; a write backlog of 8 starts slowing writes and 12 stops them outright; each level's capacity is 10× the one above; the SST target size is 2 MB. RocksDB's defaults are larger (64 MB memtable, 64 MB target file, 256 MB base level capacity) but the mechanism is identical. To actually see compaction at 124 MB of data, we dropped the memtable to 4 MB.</p>
+<p>An LSM's write amplification decomposes into three parts:</p>
+<pre><code class="language-text">WA_lsm = WA_wal + WA_flush + WA_compaction
+</code></pre>
+<ul>
+<li><strong>WAL</strong>: each record appended once, roughly 1× the logical bytes (plus frame header overhead).</li>
+<li><strong>flush</strong>: when the memtable fills, it's written out wholesale as an L0 file, roughly 1×.</li>
+<li><strong>compaction</strong>: L0 merges with the next level down and emits new files; that level then merges with the one below it. Every record gets rewritten once per level.</li>
+</ul>
+<p>If level capacity grows by a factor of T, the amortized write amplification of each level's compaction is about <code>1 / (1 - 1/T)</code> — roughly 1.11 at T=10. For data spanning L levels, total compaction write amplification is roughly <code>L × T/(T-1)</code>. The more data and the more levels, the more expensive this part gets.</p>
+<p>Measured in this run (random writes):</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>RocksDB statistics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WAL</td>
+<td>0.12 GB</td>
+</tr>
+<tr>
+<td>flush</td>
+<td>0.109 GB</td>
+</tr>
+<tr>
+<td>compaction writes</td>
+<td>0.43–0.50 GB</td>
+</tr>
+<tr>
+<td>Total process writes</td>
+<td>0.58–0.66 GB</td>
+</tr>
+<tr>
+<td>Logical data</td>
+<td>0.124 GB</td>
+</tr>
+<tr>
+<td>Measured WA</td>
+<td>4.7–5.3</td>
+</tr>
+</tbody>
+</table>
+<p>With sequential writes, compaction does almost no reading: the newly written keys are already in order and L0 files don't overlap, so merging just moves files down a level. Measured compaction writes drop from 0.43 GB to 0.11 GB and total WA from 4.7 to 2.0. <strong>An LSM's advantage on sequential writes comes from having "no random pages"; its advantage on random writes comes from "deferring the randomness to background compaction", not from abolishing it.</strong></p>
+<h2>5. The Write-Amplification Formula: Which Layer Is Really Paying</h2>
+<p>Put both engines on the same ledger:</p>
+<table>
+<thead>
+<tr>
+<th>Cost item</th>
+<th>B+tree (SQLite WAL)</th>
+<th>LSM (RocksDB)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Logging</td>
+<td>one full 4 KB page per dirty page</td>
+<td>one append per record</td>
+</tr>
+<tr>
+<td>Data persisted</td>
+<td>checkpoint writes dirty pages back</td>
+<td>memtable flushed sequentially to L0</td>
+</tr>
+<tr>
+<td>Extra rewriting</td>
+<td>page splits, duplicate checkpoint writes</td>
+<td>compaction rewriting level by level</td>
+</tr>
+<tr>
+<td>Cost of random writes</td>
+<td>dirty pages per transaction × page size</td>
+<td>bandwidth and CPU of background compaction</td>
+</tr>
+<tr>
+<td>Cost of sequential writes</td>
+<td>very small</td>
+<td>very small</td>
+</tr>
+<tr>
+<td>Latency profile</td>
+<td>write latency directly tied to dirty page count</td>
+<td>write latency steady, compaction can cause spikes</td>
+</tr>
+</tbody>
+</table>
+<p>One easily overlooked point: <strong>write amplification isn't just "wearing out the disk"</strong>. It consumes page cache, filesystem writeback bandwidth and SSD endurance all at once. Of SQLite's 12.8 GB of writes, only 124 MB was new data that actually needed to be kept; the rest was the same set of pages in different versions at different moments. For a read-mostly blog database that's a non-issue; for an ingestion service taking thousands of random writes per second, it's longevity and money.</p>
+<p>Conversely, LSM compaction isn't free either. It occupies background threads and disk bandwidth and can compete with foreground reads; L0 files piling up trigger write stalls; the deeper the levels, the more bytes a single compaction has to rewrite. RocksDB exposes <code>max_background_jobs</code>, <code>level_zero_slowdown_writes_trigger</code>, <code>max_bytes_for_level_base</code> and friends — all of which are, at bottom, knobs for balancing write amplification, read amplification, space amplification and tail latency against each other.</p>
+<h2>5.5 Two Knobs: Commit Batch Size and Value Size</h2>
+<p>Write amplification isn't a fixed constant; two very ordinary parameters move it significantly — how many records per commit, and how big each value is. Plenty of tuning sessions stare only at engine parameters and skip these two entirely.</p>
+<p>Commit batch size first. Fix 100,000 random keys and 100-byte values, and change only the number of records per batch:</p>
+<table>
+<thead>
+<tr>
+<th>Records per batch</th>
+<th>SQLite WA</th>
+<th>SQLite throughput</th>
+<th>RocksDB WA</th>
+<th>RocksDB throughput</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>95.8×</td>
+<td>1.56 MB/s</td>
+<td>3.04×</td>
+<td>10.75 MB/s</td>
+</tr>
+<tr>
+<td>10</td>
+<td>94.5×</td>
+<td>1.74 MB/s</td>
+<td>2.91×</td>
+<td>35.38 MB/s</td>
+</tr>
+<tr>
+<td>100</td>
+<td>86.5×</td>
+<td>2.05 MB/s</td>
+<td>2.89×</td>
+<td>43.04 MB/s</td>
+</tr>
+<tr>
+<td>1000</td>
+<td>59.0×</td>
+<td>2.68 MB/s</td>
+<td>2.89×</td>
+<td>51.91 MB/s</td>
+</tr>
+</tbody>
+</table>
+<p>SQLite's write amplification falls from 95.8× to 59.0×, but with <strong>no change in order of magnitude</strong>. The reason is the same as before: what drives the cost is "how many distinct pages one transaction touches", not "how many records one transaction contains". Even committing 1000 random keys at once still touches nearly a thousand leaf pages, and each page still costs a full frame. Batching reduces the commit count, WAL frame headers and sync overhead — so throughput improves only modestly.</p>
+<p>RocksDB's write amplification barely moves (2.89–3.04×), yet throughput climbs from 10.75 MB/s to 51.91 MB/s. Because the LSM write path is sequential appends to begin with, batching mainly removes the fixed per-write overhead; compaction's workload is set by data volume, not by commit count.</p>
+<p>Now value size. Fix 200,000 records at 500 per batch, and change only the value length:</p>
+<table>
+<thead>
+<tr>
+<th>Value size</th>
+<th>SQLite WA</th>
+<th>SQLite SA</th>
+<th>RocksDB WA</th>
+<th>RocksDB SA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10 B</td>
+<td>163.1×</td>
+<td>1.22×</td>
+<td>1.64×</td>
+<td>0.58×</td>
+</tr>
+<tr>
+<td>100 B</td>
+<td>83.8×</td>
+<td>1.21×</td>
+<td>3.42×</td>
+<td>0.94×</td>
+</tr>
+<tr>
+<td>1000 B</td>
+<td>27.4×</td>
+<td>4.58×</td>
+<td>4.55×</td>
+<td>1.00×</td>
+</tr>
+</tbody>
+</table>
+<p>Small values push SQLite's write amplification to 163×: a 34-byte record still occupies a 4 KB page frame, so the WAL's page-header overhead is a hundred times the record itself. As values grow, fewer records fit per page and each transaction touches fewer pages, so write amplification actually falls; but 1000-byte random inserts shatter the B+tree into finer fragments and space amplification shoots to 4.58× — a 938 MB database file holding only 205 MB of logical data. That's the textbook trade: write amplification down, space amplification up.</p>
+<p>RocksDB trends the opposite way: the bigger the value, the more bytes compaction rewrites, so write amplification climbs from 1.64 to 4.55; but SST space utilization stays steady around 1×, with none of SQLite's fragmentation blow-up. The two curves point in different directions, which is exactly why you can't tune against a single metric.</p>
+<h2>6. The Read Path: Tree Height, Bloom Filters and Read Amplification</h2>
+<p>A B+tree point lookup is a single descent from root to leaf. With 1,000,000 records at about 30 per page, the tree is roughly 4 levels tall (root, two internal levels, leaf). If the buffer pool holds the upper nodes, a lookup really needs just one leaf page read; worst case is four page reads. Range scans are where it wins outright: leaf pages are linked to one another, so you just read forward.</p>
+<p>An LSM point lookup probes the memtable, then the immutable memtable, then several L0 files, and finally does a binary search within each level. Without a Bloom filter, a lookup for a missing key may read a lot of files; with one, most files can be ruled out by a single in-memory check. RocksDB builds a Bloom filter for every SST by default; LevelDB requires an explicit <code>FilterPolicy</code>.</p>
+<p>Measured over 50,000 random lookups of keys that exist:</p>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>p50</th>
+<th>p99</th>
+<th>Total disk read</th>
+<th>Disk read per lookup</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite (database after random writes)</td>
+<td>25.2 µs</td>
+<td>135.0 µs</td>
+<td>115.6 MB</td>
+<td>2.3 KB</td>
+</tr>
+<tr>
+<td>RocksDB (database after random writes)</td>
+<td>29.7 µs</td>
+<td>119.4 µs</td>
+<td>414.2 MB</td>
+<td>8.3 KB</td>
+</tr>
+<tr>
+<td>SQLite (database after sequential writes)</td>
+<td>19.0 µs</td>
+<td>106.7 µs</td>
+<td>114.9 MB</td>
+<td>2.3 KB</td>
+</tr>
+<tr>
+<td>RocksDB (database after sequential writes)</td>
+<td>15.3 µs</td>
+<td>57.6 µs</td>
+<td>189.6 MB</td>
+<td>3.8 KB</td>
+</tr>
+</tbody>
+</table>
+<p>The column most worth staring at here is "disk read per lookup": the B+tree reads about 2.3 KB each time, essentially one page; the LSM after random writes reads 8.3 KB, a bit more than two pages — meaning the Bloom filter eliminated most files but a few still had to be genuinely read. p99 is not notably worse either, because the LSM's levels stay shallow and its block cache hit rate is decent; the real read amplification shows up in the number of bytes read and the CPU spent merging iterators, not in per-lookup latency.</p>
+<p>Range scans are a different matter. A B+tree walks forward along the leaf linked list, which is prefetch-friendly; an LSM has to open iterators across several levels and merge them, costing more CPU, though the sequential I/O is still fine. For workloads that "pull a batch of events in a time range", LSMs often do very well, because data is ordered by key and the range is contiguous.</p>
+<h2>7. Updates and Deletes: In-Place Modification vs Tombstones</h2>
+<p>Updates are where the gap between the two engines most easily flips. A B+tree usually updates in place: find the record, change the value, mark the page dirty. An LSM doesn't modify in place — it appends a new version, and the old version is discarded only when compaction merges down to a deeper level. Deletes work the same way: the LSM writes a tombstone and keeps it until compaction clears it together with the old value.</p>
+<p>After the 1,000,000 random writes, we run another 200,000 random updates (each updating a 100-byte value, committing every 500):</p>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>Update time</th>
+<th>Update throughput</th>
+<th>Bytes written by updates</th>
+<th>Update write amplification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite (WAL)</td>
+<td>21.04 s</td>
+<td>1.18 MB/s</td>
+<td>1621.7 MB</td>
+<td>65.4×</td>
+</tr>
+<tr>
+<td>RocksDB</td>
+<td>0.75 s</td>
+<td>33.21 MB/s</td>
+<td>169.7 MB</td>
+<td>6.8×</td>
+</tr>
+</tbody>
+</table>
+<p>SQLite's update write amplification is even higher than its insert amplification, because every update touches an existing leaf page and the WAL must write a full new page image; 500 updates can touch 500 pages, which is 2 MB of WAL per transaction. RocksDB writes the new version first and lets compaction merge it; the write path is fast, but compaction will rewrite the files containing the old versions in the background. <strong>An LSM doesn't skip the write on update — it defers it and does it in batches.</strong></p>
+<p>Implementation differences once more: an InnoDB update writes undo records and modifies the clustered index page, with redo recording in-page changes; random secondary index updates can also go through the change buffer. Its update write amplification is nothing like SQLite WAL's straightforward "dirty pages × 16 KB". Taking this article's SQLite numbers to argue that "all B+tree updates are 30× slower" is a bad extrapolation.</p>
+<h2>8. Space Amplification: File Size Doesn't Lie</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>SQLite</th>
+<th>RocksDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Logical data</td>
+<td>124.0 MB</td>
+<td>124.0 MB</td>
+</tr>
+<tr>
+<td>Database size</td>
+<td>149.9 MB</td>
+<td>116.4 MB</td>
+</tr>
+<tr>
+<td>Space amplification</td>
+<td>1.21×</td>
+<td>0.94×</td>
+</tr>
+</tbody>
+</table>
+<p>SQLite's 1.21× comes from free space inside pages, half-full pages left behind by splits, and B+tree internal nodes. Random inserts lower page fill factor; the sequentially inserted database is 146.5 MB, slightly smaller but essentially the same. <code>VACUUM</code> can rebuild the database and reclaim fragmentation, at the price of extra space and time.</p>
+<p>RocksDB's 116.4 MB is smaller than the logical data, thanks to block compression (even with incompressible random values, keys, block headers and indexes still compress) and SST's compact encoding. LSM space amplification is not constant: during compaction the input and output files coexist, so instantaneous space can approach 2×; in delete-heavy or update-heavy databases, old versions keep occupying space until compaction catches up. RocksDB controls that window with <code>max_background_jobs</code> and compaction priorities, but it can't eliminate it.</p>
+<p>One frequently overlooked entry on the ledger: <strong>space amplification feeds back into read amplification</strong> — the more files there are and the deeper the levels, the more files a point lookup has to probe. Tuning an LSM is fundamentally a triangular trade among the three amplifications; you can't watch only one of them.</p>
+<h2>9. When to Pick an LSM, When to Pick a B+tree</h2>
+<p>Turning the conclusions into a table, under the premise of "same hardware, same data, single-node embedded or single-instance":</p>
+<table>
+<thead>
+<tr>
+<th>Workload characteristic</th>
+<th>Better fit</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>High-frequency random writes, more writes than reads</td>
+<td>LSM</td>
+<td>append-only writes plus background compaction, steady foreground latency</td>
+</tr>
+<tr>
+<td>Append-only logs, events, time-series data</td>
+<td>LSM</td>
+<td>shortest sequential write path, compaction can partition by time</td>
+</tr>
+<tr>
+<td>Read-heavy, write-light, mostly point lookups</td>
+<td>B+tree</td>
+<td>one tree descent, stable read amplification</td>
+</tr>
+<tr>
+<td>Complex range queries, sorting, joins</td>
+<td>B+tree</td>
+<td>leaf linked list, ordered scans, mature optimizer</td>
+</tr>
+<tr>
+<td>Strong transactions, cross-table consistency</td>
+<td>B+tree (InnoDB)</td>
+<td>row locks, MVCC, undo, a complete foreign-key ecosystem</td>
+</tr>
+<tr>
+<td>Write throughput first, background jitter acceptable</td>
+<td>LSM</td>
+<td>compaction is tunable, write stalls are observable</td>
+</tr>
+<tr>
+<td>Limited ops headcount, modest data volume</td>
+<td>B+tree</td>
+<td>no compaction tuning, no write stalls</td>
+</tr>
+<tr>
+<td>Predictable p99 required</td>
+<td>Depends on tuning</td>
+<td>LSM's p99 is shaped by compaction, B+tree's by checkpoint</td>
+</tr>
+</tbody>
+</table>
+<p>A few common misconceptions:</p>
+<ol>
+<li><strong>"An LSM is always faster at writing than a B+tree."</strong> Only true for random writes, batched commits and moderately sized values. On sequential writes the two are close; with small single-record transactions, the WAL's fsync dominates.</li>
+<li><strong>"A B+tree always reads faster."</strong> Point lookup latency depends on cache and tree height, and with a Bloom filter the LSM gap is tiny; the B+tree is steadier on range scans, but the LSM's sequential I/O isn't bad either.</li>
+<li><strong>"Write amplification only affects SSD lifespan."</strong> It also affects write throughput, checkpoint spikes and backup windows. 103× write amplification means the same logical writes consume 103× the write bandwidth.</li>
+<li><strong>"SQLite's numbers represent InnoDB."</strong> SQLite WAL's full-page images are an implementation choice, not an inevitable consequence of B+trees. When choosing, look at the specific engine's log format, buffer pool and change buffer.</li>
+</ol>
+<h2>9.5 Three Selection Walkthroughs on Real Workloads</h2>
+<p>Comparing "LSM vs B+tree" in the abstract is easy; once you land on a concrete system it's rarely black and white. Here are three typical workloads walked through the decision, still using the measurements from earlier.</p>
+<p><strong>Scenario one: 200,000 monitoring events written per minute, queried by time range over the last hour.</strong></p>
+<p>Writes are append-style with mostly monotonic keys and values from tens to hundreds of bytes; queries are time-range scans with the occasional tag filter. This workload is very friendly to an LSM: the sequential write path is shortest, compaction can partition by time, and range scans follow the ordered keys. A B+tree can do it too, but random primary keys or a time index still cause page splits; if each batch of events lands across many index pages, SQLite-style full-page WAL will push write amplification into the tens of times.</p>
+<p>Two things to watch if you pick an LSM: first, stagger compaction away from query traffic, otherwise background rewrites will steal I/O; second, expire old data outside the retention window promptly with a TTL, otherwise compaction keeps doing useless work for historical data. With a B+tree, focus on partitioning/sharding and index maintenance, so a single table doesn't grow without bound.</p>
+<p><strong>Scenario two: a user-profile KV store, reads far outnumbering writes, with a stable p99 requirement.</strong></p>
+<p>The typical operation is <code>GET user:&lt;id&gt;</code>; writes are the occasional profile update, reads dominate, values are a few KB. This workload fits a B+tree better: one tree descent fetches the record and read amplification is stable; updates are in-place, so no pile of old versions accumulates in the background. InnoDB's buffer pool keeps hot pages in memory, and secondary index updates can go through the change buffer.</p>
+<p>If you insist on an LSM, you must configure the Bloom filter properly, give the block cache enough memory, and accept that reads pull more bytes. For services extremely sensitive to p99, LSM compaction jitter has to be suppressed with rate limiting and priorities; otherwise a single large compaction can push read latency up.</p>
+<p><strong>Scenario three: an order database with strong transactions, multi-table relationships, and complex queries by status and date.</strong></p>
+<p>This one is barely a decision: pick a B+tree engine with full transaction support and a mature optimizer, usually InnoDB or PostgreSQL. Not because B+trees are innately faster, but because row locks, MVCC, undo, foreign keys, joins and subqueries represent years of engineering. An LSM can do KV and single-table transactions, but complex queries and cross-row consistency are not its home turf.</p>
+<p>What really deserves caution: don't migrate an order database to an LSM just because "write volume went up", while ignoring transaction semantics, secondary indexes and reporting queries. Write bottlenecks have many remedies — batching, partitioning, going asynchronous, adding caches — and changing the storage engine is usually the most expensive option with the hardest rollback.</p>
+<p>The common thread across the three: <strong>first pin down what reads and writes look like, where the transaction boundaries are, and what the p99 budget is; then talk about engines.</strong> Engine selection is the last step, not the first.</p>
+<h2>10. Source Map: From One put to One fsync</h2>
+<p>If you only want to remember a few entry points, read along this map:</p>
+<p><strong>SQLite (B+tree)</strong></p>
+<ul>
+<li><code>btree.c</code>: <code>sqlite3BtreeInsert</code> locates the cursor position and writes the cell; when a page is full, <code>balance_nonroot</code> performs splits and redistribution.</li>
+<li><code>pager.c</code>: <code>pager_write</code> marks pages dirty, and <code>sqlite3PagerCommitPhaseOne</code> writes the log during the commit phase; rollback mode writes a journal, WAL mode hands dirty pages to the WAL.</li>
+<li><code>wal.c</code>: <code>sqlite3WalFrames</code>/<code>walFrames</code> write each dirty page as "24-byte frame header + the whole page"; the commit frame records the database size in pages in its header.</li>
+<li>Recovery: one sequential scan of the WAL, frame-by-frame validation, stopping at the first bad checksum; <code>mxFrame</code> takes the last valid commit frame.</li>
+</ul>
+<p><strong>LevelDB / RocksDB (LSM)</strong></p>
+<ul>
+<li><code>DBImpl::Write</code>: writes the WAL, writes the memtable; <code>MakeRoomForWrite</code> freezes the memtable when it fills and triggers a flush.</li>
+<li><code>VersionSet::PickCompaction</code>: selects a compaction based on L0 file count, bytes per level and file overlap.</li>
+<li><code>DBImpl::BackgroundCompaction</code>: merges the input files and writes the next level's SSTs; <code>TableBuilder</code> handles blocks and indexes.</li>
+<li>Bloom filter: LevelDB's <code>FilterPolicy</code>, RocksDB's <code>FullFilterBlockBuilder</code> — they push the "this key isn't in that file" decision into memory.</li>
+</ul>
+<p><strong>InnoDB (for contrast; do not extrapolate this article's numbers to it)</strong></p>
+<ul>
+<li>The clustered index is the table; secondary index leaves store the primary key. Updates write undo, redo records in-page changes, and the change buffer absorbs random secondary index writes.</li>
+<li>Crash recovery: tablespace discovery → redo apply → roll back uncommitted transactions → change buffer merge → purge. The official documentation states plainly that rolling back an interrupted transaction can take three to four times as long as the transaction itself ran.</li>
+<li>Half-written pages are protected by the doublewrite buffer: pages are first written sequentially into the doublewrite area and fsynced, then written to the data file; on recovery a complete copy repairs the torn page.</li>
+</ul>
+<h2>11. Reproducing the Experiment: Scripts, Parameters and Pitfalls</h2>
+<p>The core script isn't long; the important part is keeping "writing" and "measuring" separate:</p>
+<pre><code class="language-python">import hashlib, os, random, sqlite3, time
+import psutil
+from rocksdict import Rdict, Options, WriteBatch
+
+N, BATCH = 1_000_000, 500
+keys = [f'user:{i:016d}'.encode() for i in range(N)]
+random.shuffle(keys)
+
+def value(k):
+    return hashlib.shake_128(k).digest(100)
+
+def io_write():
+    return psutil.Process().io_counters().write_bytes
+
+# SQLite
+con = sqlite3.connect('bench.db')
+con.execute('PRAGMA journal_mode=WAL')
+con.execute('PRAGMA synchronous=NORMAL')
+con.execute('PRAGMA page_size=4096')
+con.execute('CREATE TABLE kv(k TEXT PRIMARY KEY, v BLOB) WITHOUT ROWID')
+start, t0 = io_write(), time.perf_counter()
+for i in range(0, N, BATCH):
+    con.executemany('INSERT INTO kv(k,v) VALUES(?,?)',
+                    [(k, value(k)) for k in keys[i:i+BATCH]])
+    con.commit()
+con.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+print('sqlite', time.perf_counter()-t0, io_write()-start)
+
+# RocksDB
+opt = Options()
+opt.set_write_buffer_size(4 * 1024 * 1024)
+opt.set_max_write_buffer_number(3)
+opt.set_target_file_size_base(8 * 1024 * 1024)
+db = Rdict('bench-rocks', options=opt)
+start, t0 = io_write(), time.perf_counter()
+for i in range(0, N, BATCH):
+    wb = WriteBatch()
+    for k in keys[i:i+BATCH]:
+        wb[k] = value(k)
+    db.write(wb)
+db.flush()
+print('rocks', time.perf_counter()-t0, io_write()-start)
+</code></pre>
+<p>Three pitfalls we hit along the way:</p>
+<ol>
+<li><strong>Values must be incompressible.</strong> The first experiment built 100-byte values by concatenating <code>sha256(k)</code> repeatedly, and RocksDB's block compression squeezed 124 MB down to 45 MB, distorting both write and space amplification. Only after switching to <code>shake_128(k).digest(100)</code> were the numbers comparable.</li>
+<li><strong>Process I/O counters are not physical disk writes.</strong> They count the read/write bytes issued by the process, including the WAL, data files and compaction, but not filesystem metadata or the SSD's internal write amplification. They're reliable for same-machine comparison; leave headroom when doing absolute capacity planning.</li>
+<li><strong>You must wait for compaction to settle.</strong> Reading the counters immediately after RocksDB finishes writing will miss compaction still running in the background. The script polls the compaction lines of <code>rocksdb.stats</code> and only samples the numbers once two consecutive reads are identical.</li>
+</ol>
+<p>Also note that SQLite's random-write elapsed time varies widely between runs (140–202 seconds this time). Windows writeback, antivirus scanning and disk cache state all influence the result; write amplification stays stable at around 103×, so read the timings as a trend rather than a precise benchmark.</p>
+<h2>12. Wrap-up: Asking the Right Question</h2>
+<p>Back to the question we started with: how many times does a single write actually hit the disk?</p>
+<ul>
+<li><strong>B+tree + full-page WAL</strong>: as many pages as one transaction touches, that's how many pages get written; small random transactions push write amplification into the tens or hundreds.</li>
+<li><strong>LSM</strong>: each record is appended to the WAL once, then flushed to L0, then rewritten level by level during compaction; write amplification depends on the number of levels and the compaction policy.</li>
+<li><strong>Reads</strong>: one descent for a B+tree, with stable read amplification; an LSM uses a Bloom filter to keep most files out of the picture in memory, but it still reads more bytes.</li>
+<li><strong>Space</strong>: a B+tree carries in-page fragmentation, an LSM carries old versions and compaction's temporary files; both need maintenance.</li>
+</ul>
+<p>So the question worth asking isn't "which is faster, an LSM or a B+tree", but:</p>
+<ol>
+<li>Are my writes random or sequential? How big are my transactions?</li>
+<li>Would I rather tolerate foreground write-latency jitter, or background compaction jitter?</li>
+<li>Are my reads mostly point lookups or range scans? What's my p99 budget?</li>
+<li>Which specific engine am I using? Does its log record whole pages or changes? Does it have a buffer pool, a change buffer, doublewrite?</li>
+<li>Can I monitor write, read and space amplification, and tune before they get out of hand?</li>
+</ol>
+<p>Answer these five and the selection basically settles itself. As for "which one is more advanced" — that's a question for papers, not for production.</p>
+`,
+  },
+  {
+    slug: 'crash-recovery-redo-undo',
+    zhSlug: 'crash-recovery-redo-undo',
+    topicSlug: 'database',
+    title: 'After the Power Cut: How redo, undo and torn pages save the database',
+    excerpt: 'A killed process, a power cut, a corrupt WAL frame, a half-written page: what saves a database in each case? Using 55 crashes, three WAL-corruption tests and a torn-page model, this piece separates redo, undo, checksums and doublewrite.',
+    date: '2026-11-13',
+    readingTime: 28,
+    html: `
+<blockquote>
+<p>Who this is for: people who have written a WAL or a storage engine but cannot say what each step of "recovery" actually does; people puzzled that their data was still there after a <code>kill -9</code>; people currently tuning <code>synchronous</code>, <code>innodb_flush_log_at_trx_commit</code> and checkpoint parameters; people who want to know what the doublewrite buffer really protects against.
+Bottom line first: recovery is not as simple as "replay the log once". It is made of three things: <strong>the log reaches disk before the data (write-ahead)</strong>, <strong>idempotent redo replay</strong>, and <strong>undo rollback of uncommitted transactions</strong>. Atomicity comes from the log, durability from fsync, integrity from checksums and doublewrite. Drop any one of them and you end up with "looks recovered, but the data is already wrong".
+Reading time: about 28 minutes | Level: advanced | What you get: 55 real crash experiments, the exact number of surviving rows after WAL frame corruption, how transaction shape changes undo/redo volume, why redo can sometimes rescue a torn page and sometimes cannot, and a recovery drill checklist you can actually run</p>
+</blockquote>
+<p><strong>Contents</strong></p>
+<ul>
+<li>1. Four failures, four ways to survive</li>
+<li>2. First, separate the failure models</li>
+<li>3. The three basic rules of recovery</li>
+<li>4. The SQLite rollback journal: undo with old page images</li>
+<li>5. SQLite WAL: redo with new page images</li>
+<li>6. Experiment 1: 55 recoveries after a process crash</li>
+<li>7. Experiment 2: transaction shape decides log volume</li>
+<li>8. Experiment 3: deliberately corrupting one WAL frame</li>
+<li>9. InnoDB: redo, undo and the three phases of recovery</li>
+<li>10. Torn pages: why redo can sometimes fix them and sometimes cannot</li>
+<li>11. Configuration, monitoring and recovery drills</li>
+<li>12. Source map and reproduction scripts</li>
+<li>13. Summary: recovery is a chain of time</li>
+</ul>
+<h2>1. Four failures, four ways to survive</h2>
+<p>Start with four scenarios that really happen:</p>
+<ol>
+<li><strong>The process gets <code>kill -9</code>'d</strong>: the OS is still alive, the page cache is still there, the kernel closes the file descriptors. When the database starts next time it may see a half-written WAL, a leftover journal, or nothing at all.</li>
+<li><strong>The machine loses power</strong>: the page cache in memory is gone, and only part of what was written may have reached the disk; the last WAL frame may be half a frame, and a data page may have only one sector written.</li>
+<li><strong>One frame in the middle of the WAL goes bad</strong>: bad sectors, a bit flip, or deliberate damage. Every frame after the bad one may still be perfectly good — but is the database still willing to use them?</li>
+<li><strong>Only half a page was written (torn page)</strong>: 2 KB of a 4 KB page made it to disk and the other 2 KB is old data, zeros or garbage. The checksum can detect it — but once detected, what do you repair it with?</li>
+</ol>
+<p>These four scenarios map onto four different mechanisms: a process crash mainly tests the log's <strong>atomic commit and recovery procedure</strong>; a power cut tests <strong>fsync ordering and log durability</strong>; a bad frame tests <strong>checksums and the truncation strategy</strong>; a torn page tests <strong>doublewrite or full-page images</strong>.</p>
+<p>Lump them together and you get plausible-sounding nonsense like "the database has a WAL, so it cannot lose data". Let's take them apart one at a time.</p>
+<h2>2. First, separate the failure models</h2>
+<p>The easiest mistake to make in recovery experiments is simulating a power cut by "copying the files". That is exactly what we did the first time: the writer process was still running while the parent process copied <code>.db</code>, <code>-wal</code>, <code>-journal</code> and <code>-shm</code> one by one into another directory, then opened the copy. Several of the 25 runs failed outright with <code>database disk image is malformed</code>.</p>
+<p>That is not a database bug — it is that <strong>copying across files is not an atomic snapshot</strong>. On a real power cut, the filesystem guarantees the ordering of each <code>write</code> and <code>fsync</code>; when you copy, the main database, the WAL and the journal are read at different instants and can combine into a state that never physically existed. Any conclusion you draw about recovery logic from such a copy is untrustworthy.</p>
+<p>So we split the experiments into three kinds:</p>
+<ul>
+<li><strong>Process crash</strong>: <code>kill</code> the process, wait for it to exit, then copy the files. This simulates "the process is gone but the OS cache and the files are still there", and it validates the recovery procedure and atomicity.</li>
+<li><strong>Log corruption</strong>: flip a single byte at a precise offset in an already-written WAL, then open the database. This simulates bad sectors / bit flips and validates checksums and the truncation strategy.</li>
+<li><strong>Torn page</strong>: use a small page/redo simulator to control which half of the write succeeds and what the other half becomes, validating what doublewrite is responsible for.</li>
+</ul>
+<p>The three kinds answer different questions and cannot substitute for each other. Every number below says which kind it came from.</p>
+<h2>3. The three basic rules of recovery</h2>
+<p>Whatever the database, crash recovery cannot get around three rules.</p>
+<p><strong>Rule one: the log must reach disk before the data.</strong></p>
+<p>Before a page is modified, the log describing that modification must already be durable. Otherwise, after a power cut the data page is new and the log is old, and recovery has no idea why the page looks the way it does. SQLite's rollback journal writes the old page image before it writes the data page; WAL appends the new page image to the WAL and fsyncs it before commit (with <code>synchronous=FULL</code>). InnoDB must make sure the corresponding redo is in the log file before it flushes a dirty page.</p>
+<p><strong>Rule two: redo must be idempotent.</strong></p>
+<p>Replaying the same redo record once and replaying it ten times must give the same result. Physical logging usually records "change the N bytes starting at offset O of page P to X", which is naturally idempotent; logical logging records "add 100 to account A", and replaying that twice adds 200, so logical logs need LSNs or a transaction table to deduplicate. InnoDB's redo is page-level physical logging that records in-page changes; SQLite's WAL is a whole-page image, so replay means overwrite, which is also idempotent.</p>
+<p><strong>Rule three: uncommitted transactions must be rollback-able.</strong></p>
+<p>Recovery does not only roll forward, it also rolls back. A transaction that was running when the crash hit may already have written part of its data pages, or may have written only to the log. The recovery procedure must be able to tell which transactions committed and which did not, and then undo the changes of the ones that did not. SQLite rolls back using the old page images in the journal; InnoDB rolls back using the undo log, and once the rollback is finished the purge thread cleans up the old versions.</p>
+<p>Hold on to these three rules and specific implementations stop being confusing.</p>
+<h2>4. The SQLite rollback journal: undo with old page images</h2>
+<p>SQLite's default rollback journal mode works on a very direct idea: <strong>before modifying a page, write that page's old contents to the journal file.</strong></p>
+<p>A transaction roughly goes like this:</p>
+<ol>
+<li>Take a RESERVED lock on the database file and create the <code>-journal</code> file.</li>
+<li>Write the journal header: magic, page count, checksum, database size, sector size, page size.</li>
+<li>For every page about to be modified, append a record: page number + old page contents + checksum.</li>
+<li>Flush the journal to disk (<code>synchronous=FULL</code>) so the old contents are durable.</li>
+<li>Modify the pages in the database file; on commit, release the lock and delete the journal.</li>
+<li>If it crashes partway through, the next open finds a journal that exists but has no matching lock, treats it as a "hot journal", writes the old page images back page by page, and then deletes the journal.</li>
+</ol>
+<p>So the journal is essentially a <strong>physical undo log</strong>. It records what things looked like before the change, and recovery performs a rollback rather than a replay. It does not need to know anything about transaction logic: restore the pages to their old versions and the uncommitted changes are gone.</p>
+<p>That also explains why the journal size depends on "how many existing pages were modified" rather than on "how many rows were inserted". With sequential appends most pages are new, and the only old pages are the one or two rightmost ones, so the journal is just 12.8 KB; with 2000 random updates you touch over a thousand existing pages and the journal grows to 1–7 MB.</p>
+<p><code>PRAGMA synchronous</code> controls how hard the journal is flushed: <code>FULL</code> fsyncs at the critical points, <code>NORMAL</code> reduces the number of syncs, and <code>OFF</code> leaves the ordering to the operating system. <code>OFF</code> can leave you with a corrupt database after a power cut, because the journal may never have reached disk while the data pages were already written.</p>
+<h2>5. SQLite WAL: redo with new page images</h2>
+<p>WAL mode turns the direction around: <strong>it does not write old pages, it appends new pages to the WAL file.</strong></p>
+<p>A WAL file consists of a 32-byte header and a number of frames. Each frame is a 24-byte frame header plus one whole page of data:</p>
+<pre><code class="language-text">WAL header (32 bytes)
+├─ magic / version / page_size / checkpoint_seq / salt / checksum
+Frame 1
+├─ page number (4)
+├─ database size after commit (4)   ← non-zero means this is a commit frame
+├─ salt1 / salt2 (8)
+├─ checksum1 / checksum2 (8)
+└─ page data (page_size)
+Frame 2 ...
+</code></pre>
+<p>At commit, SQLite appends every page this transaction modified to the WAL as a frame, and writes a non-zero "database size after commit" in the last frame to mark the end of the transaction. To read, it first consults the WAL index (<code>-shm</code>) for the newest frame of each page in the WAL, and only reads the main database file when the page is not there.</p>
+<p>The SQLite documentation states the recovery rule plainly: <strong>scan the WAL once, sequentially, from the start, verifying the checksum of each frame, and stop at the first invalid checksum; <code>mxFrame</code> is the last valid commit frame.</strong> That means WAL recovery is prefix-shaped: commits before the bad frame are valid, and frames after it are not used even if their bytes are intact. The experiment in the next section shows exactly this.</p>
+<p>With <code>synchronous=FULL</code>, every commit fsyncs the WAL; with <code>NORMAL</code>, it only syncs at key points such as checkpoint. The difference shows up after a power cut as "whether the last few committed transactions are lost", and is usually invisible after a process crash, because the OS cache is still there.</p>
+<h2>6. Experiment 1: 55 recoveries after a process crash</h2>
+<p>Setup: the writer commits every 200 rows and keeps inserting 120-byte random values; once it is in steady-state writing, the parent waits a random 0.15–1.2 seconds, <code>kill</code>s it, then copies the database file, WAL and journal, opens the copy, and runs <code>PRAGMA integrity_check</code> plus a count.</p>
+<p>Three configurations, 55 runs in total:</p>
+<table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th>Transaction size</th>
+<th>Recovered</th>
+<th>Row count stayed atomic</th>
+<th>Median recovery time</th>
+<th>Median log size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rollback journal + FULL</td>
+<td>200 rows</td>
+<td>20/20</td>
+<td>20/20</td>
+<td>8.26 ms</td>
+<td>journal 12.8 KB</td>
+</tr>
+<tr>
+<td>WAL + FULL</td>
+<td>200 rows</td>
+<td>20/20</td>
+<td>20/20</td>
+<td>3.98 ms</td>
+<td>WAL 4.13 MB</td>
+</tr>
+<tr>
+<td>WAL + NORMAL</td>
+<td>200 rows</td>
+<td>20/20</td>
+<td>20/20</td>
+<td>6.76 ms</td>
+<td>WAL 4.15 MB</td>
+</tr>
+<tr>
+<td>rollback journal + FULL</td>
+<td>2000 rows</td>
+<td>15/15</td>
+<td>15/15</td>
+<td>6.53 ms</td>
+<td>journal 12.8 KB</td>
+</tr>
+<tr>
+<td>WAL + FULL</td>
+<td>2000 rows</td>
+<td>15/15</td>
+<td>15/15</td>
+<td>10.15 ms</td>
+<td>WAL 4.29 MB</td>
+</tr>
+</tbody>
+</table>
+<p>"Row count stayed atomic" means the row count after recovery is always a whole multiple of the transaction size — you never see a transaction with only half of its rows in place. All 55 runs passed, which says that under the <strong>process crash</strong> failure model, both journal rollback and WAL recovery in SQLite preserve atomicity.</p>
+<p>Recovery times are modest: a few milliseconds up to the low teens. The WAL log is much bigger (around 4 MB), yet its recovery time is not notably worse than the journal's, because WAL recovery is fast while the <code>-shm</code> index is still there and only needs a full scan if that index is lost. Note that this measures "time to open the database and execute the first statement", not the full table scan and <code>integrity_check</code> that follow.</p>
+<p>The process crash experiment has one important limitation: it does not simulate a power cut. After <code>kill</code>, the OS cache still writes the data back to disk, so what SQLite sees may differ from what it would see after a real power cut. To study power cuts you have to control log corruption, or use storage that can simulate power loss.</p>
+<h2>7. Experiment 2: transaction shape decides log volume</h2>
+<p>The second batch changes one variable: the database already holds 300,000 rows, and the transaction no longer appends but randomly updates 2000 rows. Everything else stays the same.</p>
+<table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th>Recovered</th>
+<th>Row counts correct</th>
+<th>Log size</th>
+<th>Median recovery time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rollback journal + FULL</td>
+<td>8/8</td>
+<td>8/8</td>
+<td>1.2–7.4 MB</td>
+<td>92.25 ms</td>
+</tr>
+<tr>
+<td>WAL + FULL</td>
+<td>8/8</td>
+<td>8/8</td>
+<td>7.4–7.5 MB</td>
+<td>19.61 ms</td>
+</tr>
+</tbody>
+</table>
+<p>Same table, same transaction size — the only difference being that we are modifying existing pages — and the journal jumps from 12.8 KB to several MB while recovery time goes from 8 ms to 92 ms. Section 4 already gave the reason: the journal records old page images, and random updates touch a large number of existing pages, whereas sequential inserts only modify the rightmost pages so the old page images are nearly zero.</p>
+<p>The WAL log also grows, but its recovery time actually comes out shorter than the journal's. This is not "WAL always recovers faster"; the two do different work during recovery. The journal has to write several MB of old pages back into the main database, while the WAL mostly scans frames and rebuilds an index, and can defer writing the pages back to checkpoint. <strong>Log volume and recovery time are not a simple linear relationship — what matters is what the recovery phase actually does.</strong></p>
+<p>This set of numbers is useful for capacity planning: if a service is dominated by random updates, the undo/redo volume will be far above what "how much I insert" suggests. Sizing log space by inserted row count tends to underestimate by an order of magnitude.</p>
+<h2>8. Experiment 3: deliberately corrupting one WAL frame</h2>
+<p>The third batch damages the WAL directly. First we generate a WAL containing 40 transactions of 200 rows each: 379 frames, 41 commit frames (including the one from creating the table), 1.56 MB. Then we flip one byte at each of three positions:</p>
+<ul>
+<li><strong>The first frame after the first frame</strong> (frame 2): damages the first data frame.</li>
+<li><strong>A frame in the middle</strong> (frame 189): damages the halfway point.</li>
+<li><strong>The last frame</strong> (frame 378): damages the final commit frame.</li>
+</ul>
+<p>Results:</p>
+<table>
+<thead>
+<tr>
+<th>Corruption site</th>
+<th>Frame</th>
+<th>Rows after recovery</th>
+<th>Rows expected</th>
+<th>integrity_check</th>
+<th>Recovery time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>After the first frame</td>
+<td>2</td>
+<td>0</td>
+<td>8000</td>
+<td>ok</td>
+<td>6.51 ms</td>
+</tr>
+<tr>
+<td>Middle</td>
+<td>189</td>
+<td>3800</td>
+<td>8000</td>
+<td>ok</td>
+<td>8.57 ms</td>
+</tr>
+<tr>
+<td>Last</td>
+<td>378</td>
+<td>7800</td>
+<td>8000</td>
+<td>ok</td>
+<td>10.91 ms</td>
+</tr>
+</tbody>
+</table>
+<p>The three results map exactly onto the prefix property of WAL:</p>
+<ul>
+<li>Corrupting frame 2 leaves recovery able to see only the table-creation commit (frame 1); every data frame after it is discarded, so the table exists with 0 rows.</li>
+<li>Corrupting frame 189 makes recovery stop at the commit in frame 180 (19 transactions × 200 rows = 3800 rows); the commits after frame 190 are not used even though their bytes are intact.</li>
+<li>Corrupting the last frame keeps the first 39 transactions (7800 rows) and loses only the final one.</li>
+</ul>
+<p>All three <code>integrity_check</code> runs returned <code>ok</code>. That is the crucial part: <strong>the database is not "corrupt" — it has simply chosen a consistent version of history.</strong> The WAL checksums let recovery stop cleanly at the last trustworthy commit point instead of splicing in the "looks fine to me" data after the bad frame.</p>
+<p>Which is why both "a bad WAL means everything is gone" and "WAL has checksums so it cannot lose data" are wrong: checksums guarantee consistency, not completeness. Transactions committed after the bad frame really are lost, but the database will not keep serving with half a transaction in it.</p>
+<h2>9. InnoDB: redo, undo and the three phases of recovery</h2>
+<p>The SQLite experiments only tell us about one family of implementations, the "page image log" family. InnoDB's log format is different, and its recovery procedure is more involved.</p>
+<p>InnoDB's redo log is <strong>page-level physical logging</strong>: it records "which page of which tablespace, at what offset, changed to what", not a whole-page image. A modification is written to redo first, and dirty pages are flushed to the data files at an appropriate later moment. Every page has an LSN (log sequence number), and the checkpoint records "changes before which LSN have already reached disk". Recovery starts at the checkpoint and replays everything after it.</p>
+<p>The documentation breaks crash recovery into several phases:</p>
+<ol>
+<li><strong>tablespace discovery</strong>: scan the data directory and find the tablespaces the redo refers to.</li>
+<li><strong>redo log application</strong>: replay redo from the checkpoint, bringing data pages up to their latest pre-crash state. If all dirty pages had already been flushed when the crash happened, redo application is skipped; if the redo files are missing it is also skipped (but data may be lost).</li>
+<li><strong>rollback of incomplete transactions</strong>: after the replay, undo the transactions that were uncommitted at the crash. The documentation explicitly warns that <strong>rolling back an interrupted transaction can take three to four times as long as the transaction took to execute</strong>, depending on server load, and that the rollback cannot be cancelled.</li>
+<li><strong>change buffer merge</strong>: merge buffered secondary-index changes into the leaf pages.</li>
+<li><strong>purge</strong>: clean up old row versions that are no longer visible.</li>
+</ol>
+<p>Here you can see the division of labour between redo and undo: <strong>redo is responsible for restoring all physical changes, committed or not, while undo is responsible for removing the logical transactions that never committed.</strong> Roll forward to the latest state, then roll back the part that should not exist. This is a different route from SQLite's rollback journal, which restores old pages directly: the journal is undo-only (it does not replay committed transactions, because the data pages were already in place), and WAL is redo-only (committed transactions are all in the log, and uncommitted ones never write a commit frame).</p>
+<p>InnoDB also needs the undo log to support MVCC: a row may have several historical versions, and reads pick a visible version according to the Read View. After crash recovery finishes, undo cannot be deleted immediately — purge can only clean up once no active transaction needs those versions any more. This is why long-running transactions block purge and let the undo tablespace grow.</p>
+<h2>9.5. Three recovery strategies in one table</h2>
+<p>SQLite journal, SQLite WAL and InnoDB represent three different sets of trade-offs. Line them up by "what is written before commit, which direction recovery moves, how a bad page is repaired" and the boundaries become much easier to see:</p>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>SQLite rollback journal</th>
+<th>SQLite WAL</th>
+<th>InnoDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Written before commit</td>
+<td>old page images</td>
+<td>new page images</td>
+<td>redo (in-page changes)</td>
+</tr>
+<tr>
+<td>Commit marker</td>
+<td>journal header + sync</td>
+<td>commit frame (dbsize≠0)</td>
+<td>commit LSN in redo</td>
+</tr>
+<tr>
+<td>Recovery direction</td>
+<td>undo only</td>
+<td>redo only</td>
+<td>redo first, then undo</td>
+</tr>
+<tr>
+<td>Uncommitted transactions</td>
+<td>overwritten by old pages, gone automatically</td>
+<td>no commit frame, so never seen</td>
+<td>rolled back by undo</td>
+</tr>
+<tr>
+<td>Bad page repair</td>
+<td>old page from the journal</td>
+<td>new page from the WAL frame</td>
+<td>doublewrite + redo</td>
+</tr>
+<tr>
+<td>Recovery cost mainly depends on</td>
+<td>journal size</td>
+<td>frame count and index state</td>
+<td>redo volume after the checkpoint + rollback volume</td>
+</tr>
+<tr>
+<td>Typical weakness</td>
+<td>journal balloons under random updates</td>
+<td>committed work lost after a bad frame</td>
+<td>slow rollback of long transactions, undo growth</td>
+</tr>
+</tbody>
+</table>
+<p>This table answers a common confusion: why does SQLite's journal recovery not need to "decide whether a transaction committed"? Because it never replays transactions at all; it just restores pages to how they looked before the transaction started. An uncommitted transaction never had complete page modifications, so restoring the old pages makes it vanish; a committed transaction's journal was deleted at commit, so it cannot be rolled back. The price is that the journal must reach disk before the data pages, and that the bigger the journal, the more has to be written back during recovery.</p>
+<p>WAL makes the opposite choice: it only records new pages, and the commit frame is the transaction boundary. Recovery needs no "rollback", because an uncommitted transaction has no commit frame and <code>mxFrame</code> will never move past it. The price is that the WAL keeps growing and has to be reclaimed by checkpoints, and that a bad frame truncates every commit after it.</p>
+<p>InnoDB wants both: redo guarantees "page modifications that already happened are not lost", undo guarantees "logical transactions that did not commit do not take effect". That buys more capability (MVCC, rollback, staying up after a crash) and more complexity (undo tablespaces, purge, long transactions).</p>
+<h2>9.6. Is redo a physical log or a logical log?</h2>
+<p>InnoDB's redo is often described as a "physiological log", which is a confusing phrase. Take it apart:</p>
+<ul>
+<li><strong>Physical</strong>: it records "which page, which offset within the page, changed to which bytes", not "which SQL statement ran". So replay needs no query optimiser and no transaction context, and it is fast and idempotent.</li>
+<li><strong>Logical</strong>: at the in-page level it records a set of changes (insert a record, update a field, modify the page header) rather than a whole-page image. Recovery has to apply those changes to the page rather than simply overwrite it.</li>
+</ul>
+<p>Contrast that with SQLite WAL's "whole-page image": one WAL frame is one 4 KB new page and replay is an overwrite, while one InnoDB redo record may be only a few dozen bytes describing a single in-page change. The former has high write amplification and simple recovery; the latter has low write amplification and recovery that must understand page structure.</p>
+<p>The idempotence of physical logging comes from "recording the final value": change the N bytes at offset O to X, and doing it once or ten times gives the same result. Logical logging is not necessarily idempotent — "add 100 to the balance" run twice is simply wrong. That is why InnoDB's redo must be physical/physiological, whereas a logical log like the binlog needs GTIDs, server_id and log positions to deduplicate.</p>
+<p>One more easily missed detail: InnoDB writes redo in units of mini-transactions (mtrs), and a single user transaction may contain several mtrs, each flushing its redo into the shared log buffer when it ends. Recovery replays them in LSN order and does not care which user transaction they belong to; transaction boundaries are determined by undo and by commit records. This layering — mtr at the physical level, transaction at the logical level — is the key to InnoDB achieving high concurrency and crash recovery at the same time.</p>
+<h2>10. Torn pages: why redo can sometimes fix them and sometimes cannot</h2>
+<p>Now the most widely misunderstood piece: the torn page.</p>
+<p>Say page P's old version is V0 and its new version is V1. The transaction modified some bytes of P, and redo recorded the new values of those bytes. When the dirty page is flushed, the disk only completes half the write: the first 2 KB is V1, the last 2 KB is still V0 (or has become zeros or garbage). After the power cut and restart, recovery reads P and the checksum does not match.</p>
+<p>So what happens?</p>
+<p><strong>Case one: the unwritten second half still holds V0.</strong> Replaying redo writes the modified bytes to their V1 values; the bytes that were never modified were already V0, which agrees with V1. After the replay the page is exactly V1 and the checksum passes. <strong>Redo alone repairs this kind of torn write.</strong></p>
+<p><strong>Case two: the unwritten second half has become zeros or garbage.</strong> Redo only covers the modified bytes; the bytes that were not modified but have been overwritten with zeros appear in no redo record at all. After the replay the page is still incomplete and the checksum fails. <strong>Redo cannot repair it — you need a complete copy of V1.</strong></p>
+<p>Doublewrite exists for case two. When InnoDB flushes a dirty page it first writes the pages sequentially into the doublewrite area and fsyncs, then writes them to their real location in the data files. During recovery, if a page in the data file fails its checksum, the complete copy is found in doublewrite, written back over it, and redo is applied on top. The documentation points out that doublewrite is <strong>a large sequential write plus a single fsync</strong>, not two random I/Os per page, so its cost is far below the literal reading of "write everything twice".</p>
+<p>We validated this division of labour with a simulator running 4000 trials per group. The model: 4 KB pages with a CRC, redo records the after-image of several byte ranges, a torn write puts V1 in the first half and V0 or zeros in the second, and recovery replays redo and compares the result against V1.</p>
+<table>
+<thead>
+<tr>
+<th>The other half of the torn page</th>
+<th>Without doublewrite</th>
+<th>With doublewrite</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keeps the old bytes V0</td>
+<td>0% corrupt</td>
+<td>0% corrupt</td>
+</tr>
+<tr>
+<td>Becomes zeros</td>
+<td>100% corrupt</td>
+<td>0% corrupt</td>
+</tr>
+</tbody>
+</table>
+<p>These numbers say: <strong>doublewrite does not protect against "all torn writes", it protects against "the bytes redo cannot cover getting destroyed".</strong> If the disk guarantees that unwritten sectors keep their old contents, redo is enough; if it may return zeros or garbage, you need a complete copy. The sector atomicity, write cache and power-loss behaviour of the real hardware decide which cell you land in, which is why enabling doublewrite by default in production is reasonable.</p>
+<p>One caveat: this is a model, not InnoDB itself. After a page is modified for the first time, InnoDB also records a full-page image, which shifts the boundary of "can redo repair this by itself"; behaviour also differs between versions and between different <code>innodb_flush_method</code> settings. The model's value is in separating two variables — "what redo covers" and "what the medium actually wrote" — not in producing a percentage that applies to every engine.</p>
+<h2>11. Configuration, monitoring and recovery drills</h2>
+<p>Bringing the mechanisms above down to day-to-day operations, you can check them against this list:</p>
+<p><strong>Durability configuration</strong></p>
+<ul>
+<li>SQLite: <code>synchronous=FULL</code> is the floor for power-cut safety; <code>NORMAL</code> in WAL mode only guarantees consistency, and recent commits may be lost; <code>OFF</code> is unsuitable for anything that cannot lose data.</li>
+<li>InnoDB: <code>innodb_flush_log_at_trx_commit=1</code> means fsync redo on every commit; <code>=2</code> only writes to the OS cache, which is faster but may lose the last second; <code>=0</code> lets a background thread flush once a second, which is riskier still.</li>
+<li>Log file size: too small a WAL/redo means frequent checkpoints, too large means long recovery. Work backwards from your write rate and acceptable RTO.</li>
+</ul>
+<p><strong>Metrics to watch</strong></p>
+<ul>
+<li>WAL/redo growth rate and checkpoint frequency;</li>
+<li>recovery time (from start to serving) versus log size;</li>
+<li>periodic results of <code>integrity_check</code> / <code>CHECK TABLE</code>;</li>
+<li>the disk's power-loss protection (PLP), write cache policy and sector size;</li>
+<li>InnoDB's purge lag, history list length and undo tablespace size.</li>
+</ul>
+<p><strong>Recovery drills</strong></p>
+<ol>
+<li>Backup + log replay: restore from a full backup to a point in time and record the RTO.</li>
+<li>Simulated accidental deletion: drop a table, replay from binlog/WAL back to just before the drop, and verify the data is complete.</li>
+<li>Simulated bad frame: flip one byte in a copy of the WAL on a test database and confirm the database starts and reports the lost range.</li>
+<li>Simulated torn page: exercise the doublewrite path on storage that supports fault injection, or with a simulator.</li>
+<li>Record "how many transactions were actually lost" for every drill, instead of only checking "did it start".</li>
+</ol>
+<p>Recovery capability is not configured, it is drilled. A backup that has never been restored does not count as a backup.</p>
+<h2>12. Source map and reproduction scripts</h2>
+<p><strong>SQLite</strong></p>
+<ul>
+<li><code>pager.c</code>: <code>pager_write</code> marks pages dirty, <code>pager_playback</code> replays the journal, <code>sqlite3PagerCommitPhaseOne</code> handles the log writes in the commit phase.</li>
+<li><code>wal.c</code>: <code>sqlite3WalFrames</code>/<code>walFrames</code> append frames, <code>walIndexRecover</code> scans the WAL, verifies checksums and sets <code>mxFrame</code>.</li>
+<li>Official documentation: <a href="https://www.sqlite.org/walformat.html">WAL-mode File Format</a>, <a href="https://www.sqlite.org/fileformat2.html">Database File Format</a>.</li>
+</ul>
+<p><strong>InnoDB</strong></p>
+<ul>
+<li><code>log0recv.cc</code>: the main redo recovery flow, scanning and replaying from the checkpoint.</li>
+<li><code>buf0dblwr.cc</code>: doublewrite writing and recovery.</li>
+<li><code>trx0rec.cc</code> / <code>trx0roll.cc</code>: undo records and transaction rollback.</li>
+<li>Official documentation: <a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-recovery.html">InnoDB Recovery</a>, <a href="https://dev.mysql.com/doc/refman/8.4/en/innodb-doublewrite-buffer.html">Doublewrite Buffer</a>.</li>
+</ul>
+<p><strong>Minimal scripts that reproduce the experiments</strong>:</p>
+<pre><code class="language-python">import os, random, sqlite3, subprocess, sys, time, shutil
+
+BATCH = 200
+
+# writer: commits every BATCH inserts, stops when killed
+WRITER = '''
+import os, sqlite3, sys
+db, mode, sync, ready = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+con = sqlite3.connect(db)
+con.execute(f&quot;PRAGMA journal_mode={mode}&quot;)
+con.execute(f&quot;PRAGMA synchronous={sync}&quot;)
+con.execute(&quot;CREATE TABLE IF NOT EXISTS kv(id INTEGER PRIMARY KEY, v BLOB)&quot;)
+con.commit()
+open(ready, &quot;w&quot;).close()
+payload = os.urandom(120)
+while True:
+    con.execute(&quot;BEGIN&quot;)
+    for _ in range(%d):
+        con.execute(&quot;INSERT INTO kv(v) VALUES(?)&quot;, (payload,))
+    con.commit()
+''' % BATCH
+
+# parent: wait for ready, random delay, kill, then copy the files
+# open the copy and run PRAGMA integrity_check and count(*)
+</code></pre>
+<p>The key to the WAL corruption experiment is parsing the frame layout:</p>
+<pre><code class="language-python">import struct
+
+data = open('db-wal', 'rb').read()
+magic, version, page_size = struct.unpack('&gt;III', data[:12])
+frame_size = 24 + page_size
+frames = (len(data) - 32) // frame_size
+for i in range(frames):
+    off = 32 + i * frame_size
+    pgno, dbsize = struct.unpack('&gt;II', data[off:off + 8])
+    # dbsize != 0 means this is a commit frame
+</code></pre>
+<p>Pitfalls we hit:</p>
+<ol>
+<li><strong>Do not copy while writes are in flight</strong>. Copying across files is not an atomic snapshot and produces states that never physically existed; kill first, then copy.</li>
+<li><strong><code>integrity_check</code> scans the whole table</strong>. Folding it into your recovery time gets you the wrong conclusion that "bigger database, slower recovery"; recovery time should only count from opening the database to the first statement.</li>
+<li><strong>WAL frame checksums are cumulative</strong>. Damage one frame in the middle and every later frame is discarded even though its bytes are intact; that is the design, not a bug.</li>
+<li><strong>A process crash is not a power cut</strong>. To verify fsync semantics you have to work on real power loss or on storage that can inject faults.</li>
+</ol>
+<h2>13. Summary: recovery is a chain of time</h2>
+<p>Compress the whole article into one chain of time:</p>
+<ol>
+<li>Before a modification happens, the old pages (journal) or the new pages (WAL/redo) reach disk first — <strong>write-ahead</strong>.</li>
+<li>At commit, an explicit commit point appears in the log — the transaction is either entirely visible or entirely invisible.</li>
+<li>After a crash, replay the log from the checkpoint — <strong>redo</strong>, pushing the physical state to the latest version.</li>
+<li>Roll back the uncommitted transactions — <strong>undo</strong>, pulling the logical state back to a consistent point.</li>
+<li>Checksums find bad pages and bad frames; doublewrite or a complete copy repairs torn writes.</li>
+<li>Checkpointing and purge clean up, and the database returns to normal service.</li>
+</ol>
+<p>SQLite's journal and WAL sit at the two ends, "undo-only" and "redo-only", while InnoDB is the combination "redo + undo". Their concrete formats differ, but the division of responsibility across these six steps is the same.</p>
+<p>What you really need to remember is not some function name or parameter, but three questions:</p>
+<ul>
+<li><strong>Does my log reach disk before my data?</strong></li>
+<li><strong>Can my recovery state plainly which transactions count?</strong></li>
+<li><strong>Does my storage guarantee what the unwritten part contains?</strong></li>
+</ul>
+<p>Only when you can answer those three do you get to talk about "crash recovery".</p>
+`,
+  },
   {
     slug: 'english-site-without-js',
     zhSlug: 'english-site-without-js',
@@ -41280,6 +42717,7998 @@ if (hit) {
 `,
   },
 
+  {
+    slug: 'ai-subscription-price-comparison-2026',
+    zhSlug: 'ai-subscription-price-comparison-2026',
+    topicSlug: 'aiagent',
+    title: 'Chinese LLMs All Raised Prices. Where Does That Leave Regular Users?',
+    excerpt: 'DeepSeek, GLM, Kimi and MiniMax all cost more by August 2026. A practical comparison of what individual developers actually pay for web memberships, Coding Plans, and API entry points, plus which one to buy.',
+    date: '2026-08-18',
+    readingTime: 19,
+    html: `
+<h1>Chinese LLMs All Raised Prices. Where Does That Leave Regular Users?</h1>
+<blockquote>
+
+<strong>Data cutoff: August 18, 2026.</strong> This article compares the web memberships, Coding Plans, and API entry points individual developers buy most often, not enterprise contract pricing. USD prices are included for cross-reference only; rough CNY conversion uses 1 USD ≈ 6.8 CNY and ignores taxes, payment-channel fees, and regional differences. Models, quotas, and rate limits can all change, so open the official page and confirm before you buy.
+</blockquote>
+
+<img alt="Cover comparing Chinese LLM subscription prices and performance" src="https://zhoujungis.github.io/photos/ai-subscription-price-2026-08-18.png">
+<h2>The short version</h2>
+<ul>
+<li><strong>Around ¥50 a month and mostly writing code in China: pick GLM Lite.</strong> It is cheap, and both the Chinese tooling and the payment story are friendly, but it is a Coding Plan rather than a general-purpose API, and quotas refresh on a 5-hour and weekly basis.</li>
+<li><strong>About $10 a month and comfortable in a terminal: OpenCode Go is currently the most flexible coding entry point.</strong> It is not a model; it is a subscription that packs a curated set of models — GLM, Kimi, MiniMax, DeepSeek and others — into one plan. The trade-off is that every model burns quota at a different rate, so do not read it as “unlimited use of all models.”</li>
+<li><strong>Everyday office work, writing, search, images and code: ChatGPT Plus or Claude Pro is less hassle.</strong> Plus has the more complete tool integration; Claude Pro is more appealing for hard code and long-running tasks. Neither publishes a fixed monthly quota you can convert precisely into tokens.</li>
+<li><strong>Heavy text or code workloads: MiniMax Plus has the biggest headline quota and DeepSeek Flash still has a low unit price, but after DeepSeek's August price change it is no longer the unconditional cheapest.</strong> You only capture DeepSeek's cost advantage if you can reuse long stable prefixes and push work into off-peak hours.</li>
+<li><strong>Best single-shot success rate: Claude Opus 5 and GPT-5.6 Sol remain the top tier.</strong> Opus is better suited to deep code review and long-horizon execution; GPT has the more complete speed, tooling, and office ecosystem. Neither is a good fit as “a cheap unlimited API.”</li>
+</ul>
+<h2>Prices and quotas at a glance</h2>
+
+The table below puts subscription price and real usable volume side by side. Every product meters usage differently, so you cannot just divide one prompt by a million tokens; the quota column therefore keeps each vendor's original wording.
+<table>
+<thead>
+<tr>
+<th>Product / entry point</th>
+<th>Monthly fee</th>
+<th>Official quota basis (as of Aug 18)</th>
+<th>What you get</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>DeepSeek API</strong></td>
+<td>No monthly plan; pay as you go</td>
+<td>V4 Flash: cache hit / cache miss / output — off-peak <strong>$0.007/$0.22/$0.66</strong>, peak <strong>$0.014/$0.44/$1.32</strong>; V4 Pro: <strong>$0.022/$0.66/$1.98</strong>, peak <strong>$0.044/$1.32/$3.96</strong> (per million tokens)</td>
+<td>V4 Flash, V4 Pro, 1M context</td>
+<td>People wiring up their own apps who can manage caching and timing</td>
+</tr>
+<tr>
+<td><strong>GLM Coding Plan</strong></td>
+<td>Lite ¥49; Pro ¥149; Max ¥469</td>
+<td>5-hour credits: 2,000/12,000/28,000; weekly: 10,000/60,000/140,000. At a 90.9% cache hit rate, GLM-5.3 works out to roughly <strong>43–87M, 263–526M, and 613–1,226M tokens per week</strong></td>
+<td>GLM-5.3, GLM-5-Turbo, GLM-4.7; works with designated tools such as OpenCode, Claude Code, and Cursor</td>
+<td>Coding agents in China, Chinese-language projects, people who want a fixed budget</td>
+</tr>
+<tr>
+<td><strong>Kimi membership</strong></td>
+<td>Moderato $19; Allegretto $39; Allegro $99; Vivace $199</td>
+<td>Agent credits 60/150/360/720; Kimi Code at 1×/5×/15×/30×; all features draw from one shared quota pool, plus separate 5-hour and weekly rate limits for Kimi Code</td>
+<td>K2.6 chat is free and does not consume quota; K3, Kimi Code, Work, Deep Research, PPT, Claw and more</td>
+<td>Long documents, research, Chinese-language office work, and agent workflows</td>
+</tr>
+<tr>
+<td><strong>MiniMax Token Plan</strong></td>
+<td>Plus $20; Max $50; Ultra $120</td>
+<td>M3 reference quota is roughly <strong>1.7B / 5.1B / 12.5B tokens per month</strong>; concurrent agents roughly 3–4/4–5/6–7; text, images, speech, and music share the quota</td>
+<td>M3, M2.7, images, speech, music; Max/Ultra also include daily video</td>
+<td>Heavy code plus multimodal work, for people who can live with a shared quota</td>
+</tr>
+<tr>
+<td><strong>OpenCode Go</strong></td>
+<td>$5 for the first month, then $10</td>
+<td>Global caps of $12 of value per 5 hours, $30 per week, $60 per month; for example, within 5 hours: about 880 GLM-5.2 requests, 110 Kimi K3, 3,200 MiniMax M3, 31,650 DeepSeek V4 Flash</td>
+<td>A vetted set of open and open-weight models, usable through OpenCode or another agent</td>
+<td>Coders who want to switch between models</td>
+</tr>
+<tr>
+<td><strong>ChatGPT Plus / Pro</strong></td>
+<td>Plus $20; Pro $100 (5×) or $200 (20×)</td>
+<td>Plus is an expanded quota; Pro gives you 5× or 20× the Plus quota. Text chat is sustainable under the reasonable-use policy, but advanced models, Codex, and deep research each have their own limits</td>
+<td>GPT-5.6 family, Codex, deep research, files, images, desktop Work, and more</td>
+<td>One-stop office work, research, code, and multimodal</td>
+</tr>
+<tr>
+<td><strong>Claude Pro / Max (Opus)</strong></td>
+<td>Pro $20 (monthly; $17 equivalent annually); Max 5× $100; Max 20× $200</td>
+<td>Pro is the standard allowance; Max is 5× or 20× per 5-hour window, plus a weekly cap. Opus 5 is available on Pro/Max, and the actual number of messages varies with context and model</td>
+<td>Claude Opus 5, Sonnet 5, Claude Code, Research, Cowork and more</td>
+<td>Complex code, review, long-horizon agents, and high-reliability output</td>
+</tr>
+</tbody>
+</table>
+
+Official pages: <a href="https://api-docs.deepseek.com/quick_start/pricing" rel="noopener noreferrer" target="_blank">DeepSeek pricing</a>, <a href="https://docs.bigmodel.cn/cn/coding-plan/overview" rel="noopener noreferrer" target="_blank">GLM Coding Plan</a>, <a href="https://www.kimi.ai/zh-hans/help/membership/membership-pricing" rel="noopener noreferrer" target="_blank">Kimi pricing</a>, <a href="https://platform.minimax.io/subscribe/token-plan?tab=individual__monthly" rel="noopener noreferrer" target="_blank">MiniMax Token Plan</a>, <a href="https://opencode.ai/docs/go/" rel="noopener noreferrer" target="_blank">OpenCode Go</a>, <a href="https://chatgpt.com/pricing/" rel="noopener noreferrer" target="_blank">ChatGPT pricing</a>, <a href="https://claude.com/pricing" rel="noopener noreferrer" target="_blank">Claude pricing</a>.
+<h2>DeepSeek: is it still cheap after the price hike?</h2>
+
+DeepSeek is now closer to a <strong>low-cost API vendor</strong> than to a membership product with a defined monthly quota. V4 Flash and V4 Pro both offer 1M context, and cache hits, cache misses, and output are billed separately; that means a coding agent's real bill depends on three variables: whether the system prompt is stable, whether the context hits the cache, and whether requests land in peak or off-peak hours.
+
+The price list that took effect on August 17 separates the earlier promotional pricing from the official rate. Per million tokens, V4 Pro off-peak is $0.022 for cache-hit input, $0.66 for cache-miss input, and $1.98 for output; peak doubles all three. V4 Flash off-peak is $0.007, $0.22, and $0.66. The cache-hit price rose the most dramatically, but it was also unusually low to begin with; for a short Q&A app with no long-prefix reuse, what actually matters is cache-miss input and output.
+
+One community user repriced <strong>4.02 billion tokens across 18,445 requests</strong> from July 19 to August 16 at the new rates: about $53.38 originally; about $130.48 with everything off-peak, about $168.53 averaged across the whole day, and about $260.95 with everything at peak. This is not an official promise, but it shows that “how much did the price go up” cannot be read off a single line item: the cache hit rate and the time distribution of traffic decide the final bill. <a href="https://www.reddit.com/r/DeepSeek/comments/1vqm15m/deepseek_v4_pricing_change_repricing_28_days_of/" rel="noopener noreferrer" target="_blank">Repricing data and formulas</a>
+
+<strong>So how do you use them, performance-wise?</strong> V4 Pro is better for planning, hard reasoning, and review; V4 Flash is better for execution, bulk file edits, and high concurrency. In the independent, small-sample Revelo Code Index, V4 Flash's aggregate pass rate across four coding tasks came out above V4 Pro — which does not mean Flash is smarter on every problem, only that it is faster and cheaper, and that the test harness, model versions, and context settings all affect the outcome. <a href="https://research.revelo.com/code-index/" rel="noopener noreferrer" target="_blank">Revelo Code Index</a>
+
+My take: <strong>DeepSeek is still a good “cheap execution layer,” but it is not the right thing to run every long-context agent on without watching the bill.</strong> If you can schedule off-peak work, hit cache reliably, or reach it through OpenCode Go, the value is still excellent; otherwise GLM Lite, OpenCode Go, or even MiniMax Plus may be easier to budget with.
+<h2>GLM: after the price rise, the Coding Plan sells quota and a local experience</h2>
+
+GLM's change was not a simple multiplier on the monthly fee; the tiers, models, and quotas were redesigned. The current mainland-China version is Lite ¥49, Pro ¥149, Max ¥469; legacy-user migrations, first-purchase discounts, and overseas Z.AI pricing should not be compared in the same breath. Every plan supports GLM-5.3, GLM-5-Turbo, and GLM-4.7, and calls to older models are routed to the new versions automatically. <a href="https://docs.bigmodel.cn/cn/coding-plan/overview" rel="noopener noreferrer" target="_blank">Official plan description</a>
+
+GLM uses a <strong>rolling 5-hour quota plus a weekly quota</strong>. The part that is easier to overlook is peak hours: on weekdays between 14:00 and 18:00 (UTC+8) credits are deducted at the base rate, while off-peak deductions are 50%. Lite's “reference weekly token figure” is therefore not a fixed number but a 43–87M range, and Pro and Max show the same 2× band. When a plan runs out it does not automatically fall back to your regular API balance — you wait for the next 5-hour window to reset.
+
+This design has three advantages for developers in China: payment in CNY, domestic network access, and support for Chinese-language repository tooling. The downside is equally clear: <strong>it only works inside the vendor's designated tools, and you cannot hand a Coding Plan key to your own SaaS as a general API key.</strong> If you touch one small-to-medium repository a day, Lite is enough; running several agents continuously or working in a large monolith makes Pro the more sensible choice; Max only makes economic sense if you exhaust both the 5-hour and the weekly quota every day.
+
+On performance, GLM-5.2's public results are still the best baseline for judging GLM-5.3: Zhipu's own report puts Terminal-Bench 2.1 at 81.0, close to Opus 4.8's 85.0 — but that is a vendor-run test and cannot be read as a third-party leaderboard. In Revelo's independent small sample, GLM-5.2 posts an aggregate pass rate of about 30.8%, below Kimi K3, at a much lower cost. <strong>GLM's value is not “first place on every metric”; it is the overall balance of Chinese-language requirement comprehension, tool integration, and a fixed monthly fee.</strong>
+<h2>Kimi: the most complete feature set, but the quota pool matters more than the price</h2>
+
+Kimi's four tiers have grown from a plain chat membership into a workspace subscription: Moderato $19, Allegretto $39, Allegro $99, Vivace $199. Agents, PPT, deep research, Kimi Code, Work, Claw, and the rest all draw from a single quota pool; K2.6 is free for all users in chat and does not consume quota, while K3 is available from Moderato upward and 1M context only unlocks at Allegretto. <a href="https://www.kimi.ai/zh-hans/help/membership/membership-overview" rel="noopener noreferrer" target="_blank">Kimi plan overview</a>
+
+So Kimi's “60/150/360/720 agent credits” are a normalization of typical tasks, not a fixed request count. A complex research report, a web deployment, and a coding-agent run can consume wildly different token volumes; Kimi Claw's cloud host also quietly draws on part of the quota. If you mostly chat, free K2.6 already covers a lot; if you switch between research, documents, and code, Allegretto at $39 is the more balanced tier; buying Vivace purely for code usually works out worse than OpenCode Go or Claude Code.
+
+Kimi K3's hallmarks are its very large scale, 1M context, and long-horizon engineering tasks. In independent tests its aggregate pass rate and cost both land in the middle: stronger than GLM-5.2 and MiniMax M3, but on the slow side; the vendor's own comparisons concede that a different harness changes the result. It suits <strong>long context, Chinese-language knowledge work, and projects that need multi-turn agent memory</strong>, not users who only care how many requests they get per dollar.
+<h2>MiniMax: M3's quota is large, but multimodal features drink from the same pool</h2>
+
+In the MiniMax M3 era the Token Plan is Plus $20, Max $50, Ultra $120. The official reference figures based on M3 usage are roughly 1.7B, 5.1B, and 12.5B tokens per month, and text, images, speech, and music share one quota pool; Max and Ultra also include daily video generation, with agent concurrency of roughly 3–4, 4–5, and 6–7. <a href="https://platform.minimax.io/subscribe/token-plan?tab=individual__monthly" rel="noopener noreferrer" target="_blank">Official MiniMax monthly plans</a>
+
+MiniMax's headline token count far exceeds most chat memberships, but you should not read it as “12.5 billion tokens to call at will”: the vendor also imposes a rolling 5-hour window and a weekly window, throttles dynamically during peak hours, and does not roll over unused quota; a single request from a complex agent also includes multiple rounds of tool calls. In other words, <strong>Plus is very cheap if you only write code, but when code, images, speech, and music share the plan, the quota disappears faster than you would expect.</strong>
+
+M3's strengths are long context, agent concurrency, and integrated multimodality. In Revelo's tests its coding pass rate trails Kimi K3, GLM-5.2, and DeepSeek Flash, but its per-run cost is lower; it is closer to a “high-throughput execution model” than a first choice for every hard planning task. For people building OpenClaw, automation scripts, and multimodal prototypes, Max is the sweeter spot than Ultra; Ultra is only worth it when you genuinely need both the concurrency and the video quota.
+<h2>OpenCode: not a model, but a channel that decouples price from model</h2>
+
+OpenCode has two product lines that are easy to confuse:
+<ol>
+<li><strong>OpenCode Zen</strong> is a model gateway billed per request or per token; the vendor tests model-and-provider combinations, and you can also bring your own key from OpenAI, Anthropic, or a Chinese vendor.</li>
+<li><strong>OpenCode Go</strong> is a $10/month subscription ($5 for the first month) that gives a set of open models a unified usage cap: $12 of value per 5 hours, $30 per week, $60 per month. <a href="https://opencode.ai/docs/go/" rel="noopener noreferrer" target="_blank">Official Go quota description</a></li>
+</ol>
+
+Go's usage is not “one quota per model.” The official examples show, within 5 hours, about 880 GLM-5.2 requests, about 110 Kimi K3, about 3,200 MiniMax M3, and about 31,650 DeepSeek V4 Flash. Expensive models get fewer requests because the quota is normalized to each model's dollar cost; once you hit the cap you can switch to a free model or top up your Zen balance and keep paying.
+
+That explains why OpenCode Go is such good value: for $10 you buy <strong>a switchable basket of models, stable agent integration, and a single billing ceiling</strong>, rather than unlimited access to one model. If you mostly write code and are willing to split planning models from execution models, Go is the top recommendation in this comparison; if you just want one Chinese model, buying GLM Lite directly is simpler.
+<h2>ChatGPT and Claude Opus: you are paying for product completeness, not per-token pricing</h2>
+<h3>ChatGPT</h3>
+
+ChatGPT Plus is $20/month; Pro comes in $100 (5× Plus usage) and $200 (20× usage). The core value of Plus/Pro is the GPT-5.6 family, Codex, deep research, file and image tools, projects and tasks — not a published API token bundle. <a href="https://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers" rel="noopener noreferrer" target="_blank">OpenAI's Pro tier notes</a> <a href="https://chatgpt.com/pricing/" rel="noopener noreferrer" target="_blank">ChatGPT pricing page</a>
+
+If every day you write emails, read PDFs, build spreadsheets, look things up, generate images, and occasionally fix code, Plus is excellent value overall. If your main job is running Codex continuously, Plus's advanced-tool limits will bite sooner than web chat will, and Pro at $100 is the better upgrade; $200 only makes sense when parallel projects, long deep-research sessions, and heavy Codex use are all part of your day. ChatGPT computes limits separately per product, per model, and per time window, so “unlimited text chat” does not imply unlimited Codex.
+<h3>Claude Opus</h3>
+
+Opus here is a model, not a separate subscription. Claude Pro is $20/month ($17 equivalent annually), Max 5× is $100, Max 20× is $200; Max's 5×/20× refers to per-5-hour-session capacity relative to Pro, and there is also a weekly cap. <a href="https://support.claude.com/en/articles/11049741-what-is-the-max-plan" rel="noopener noreferrer" target="_blank">Official Claude Max notes</a> <a href="https://claude.com/pricing" rel="noopener noreferrer" target="_blank">Claude plan comparison</a>
+
+In terms of product experience, Claude Code's terminal workflow, code review, cross-file edits, and long-task stability remain Opus's strengths. In Revelo's 80-task aggregate test, Claude Opus 5 passes 57.1% and GPT-5.6 Sol 51.2%; but Opus averages about $6.44 per task against roughly $2.05 for GPT and $1.12 for Kimi K3. The result says Opus's edge is success rate and reliability, not cheapness. <a href="https://research.revelo.com/code-index/" rel="noopener noreferrer" target="_blank">Revelo Code Index methodology and results</a>
+
+If you only occasionally ask Claude for help, Pro at $20 already gives you access to Opus; if it is your primary agent every day, Max 5× at $100 is the lowest tier that keeps you from getting cut off. Claude API pricing for Opus 5 is the standard $5 input and $25 output per million tokens — a separate ledger from the monthly subscription, and the two should not be mixed. <a href="https://claude.com/pricing" rel="noopener noreferrer" target="_blank">Anthropic model pricing</a>
+<h2>Can you really judge performance from a single leaderboard?</h2>
+
+As of August 18, one of the more useful independent coding tests is the Revelo Code Index: 80 tasks, four sub-benchmarks, three attempts per task. Its aggregate results are as follows:
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Aggregate pass rate</th>
+<th>Average cost per task</th>
+<th>How to read it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Opus 5</td>
+<td>57.1%</td>
+<td>$6.44</td>
+<td>Highest success rate, highest price</td>
+</tr>
+<tr>
+<td>GPT-5.6 Sol</td>
+<td>51.2%</td>
+<td>$2.05</td>
+<td>Better balance of speed and cost</td>
+</tr>
+<tr>
+<td>Kimi K3</td>
+<td>39.6%</td>
+<td>$1.12</td>
+<td>Strong on long tasks and Chinese, slower</td>
+</tr>
+<tr>
+<td>GLM-5.2</td>
+<td>30.8%</td>
+<td>$1.86</td>
+<td>The friendliest Chinese toolchain among Coding Plans</td>
+</tr>
+<tr>
+<td>DeepSeek V4 Flash 0731</td>
+<td>30.4%</td>
+<td>$0.14</td>
+<td>Outstanding value as an execution layer</td>
+</tr>
+<tr>
+<td>MiniMax M3</td>
+<td>17.9%</td>
+<td>$0.76</td>
+<td>Its multimodal and concurrency value outweighs its pure-code score</td>
+</tr>
+<tr>
+<td>DeepSeek V4 Pro</td>
+<td>19.6%</td>
+<td>$1.52</td>
+<td>The heavier reasoning did not convert into a higher pass rate in this test</td>
+</tr>
+</tbody>
+</table>
+
+This table has three limitations. First, GLM-5.3, the new August DeepSeek releases, and Opus 5's server-side configuration are all still in flux. Second, each model ran on its own vendor's recommended agent harness. Third, coding pass rate says nothing about writing, factual Q&amp;A, vision, Chinese-language expression, or enterprise compliance. So treat it here as <strong>one coordinate system for cost versus coding success</strong>, not a verdict on who is permanently first.
+<h2>Buying advice by scenario</h2>
+<h3>1. Students, personal blogs, light coding</h3>
+
+Start with <strong>GLM Lite at ¥49</strong> or <strong>OpenCode Go at $5 for the first month</strong>. The former suits the domestic environment and Chinese repositories; the latter suits trying out several models. DeepSeek's API works as a no-monthly-fee supplement — set a balance cap and cache your repeated prefixes.
+<h3>2. Coding every day, budget capped around ¥150</h3>
+
+Go with <strong>OpenCode Go plus a DeepSeek Flash/GLM split between execution and planning</strong>. Use GLM or Kimi for planning and Flash/MiniMax for execution; do not throw every request at Kimi K3 or DeepSeek Pro. If you would rather not juggle model switching, take GLM Pro at ¥149.
+<h3>3. Beyond code: research, spreadsheets, images, and meeting materials</h3>
+
+<strong>ChatGPT Plus at $20</strong> is the pick. Its value is tool integration and cross-task context, not first place on a single coding benchmark. Google AI Pro is also $19.99/month and suits people already deep in Gmail, Docs, Drive, and NotebookLM, but availability and payment methods in mainland China need to be confirmed separately. <a href="https://one.google.com/about/plans" rel="noopener noreferrer" target="_blank">Official Google AI Pro notes</a>
+<h3>4. Large repositories, complex refactors, code review</h3>
+
+Start with <strong>Claude Pro at $20 and upgrade to Max 5× at $100 once you use it heavily</strong>; if you would rather split planning, execution, and review across different models, pay-as-you-go OpenCode Zen is more flexible. Opus's per-run success rate is worth paying for on high-risk code, but it should not be your high-throughput batch model.
+<h3>5. Multimodality and agent concurrency</h3>
+
+<strong>MiniMax Plus/Max</strong> is the recommendation. It puts M3, images, speech, music, and video into one quota pool, which suits prototyping and automation; if 90% of your work is plain text code, MiniMax's multimodal perks turn into a “free gift” you pay for and never use.
+<h2>Final ranking: by value, not by raw strength</h2>
+<ol>
+<li><strong>Pure coding, low budget: OpenCode Go</strong></li>
+<li><strong>Chinese-language coding in China: GLM Lite / Pro</strong></li>
+<li><strong>General productivity: ChatGPT Plus</strong></li>
+<li><strong>Reliability on complex code: Claude Pro, then Max 5× once you are a heavy user</strong></li>
+<li><strong>Multimodal agents: MiniMax Plus / Max</strong></li>
+<li><strong>Long documents and Chinese research: Kimi Allegretto</strong></li>
+<li><strong>Batch API calls: DeepSeek Flash off-peak; use Pro only when a task demands it</strong></li>
+</ol>
+
+In one sentence: <strong>after August 18, the optimal answer is not “buy the single strongest product” — it is to cap your agent spend with a fixed monthly fee, execute with cheap models, and use GLM/Kimi/ChatGPT/Opus for planning and review.</strong> DeepSeek's price increase is a reminder for everyone: caching, peak versus off-peak windows, context length, and tool calls are the variables that actually drive your AI bill.
+<h3>References</h3>
+<ul>
+<li><a href="https://api-docs.deepseek.com/quick_start/pricing" rel="noopener noreferrer" target="_blank">DeepSeek Models &amp; Pricing</a></li>
+<li><a href="https://api-docs.deepseek.com/news/news260424/" rel="noopener noreferrer" target="_blank">DeepSeek V4 technical and model notes</a></li>
+<li><a href="https://docs.bigmodel.cn/cn/coding-plan/overview" rel="noopener noreferrer" target="_blank">Zhipu GLM Coding Plan overview</a></li>
+<li><a href="https://www.kimi.ai/zh-hans/help/membership/membership-pricing" rel="noopener noreferrer" target="_blank">Kimi membership pricing details</a></li>
+<li><a href="https://platform.minimax.io/subscribe/token-plan?tab=individual__monthly" rel="noopener noreferrer" target="_blank">MiniMax Token Plan monthly pricing</a></li>
+<li><a href="https://opencode.ai/docs/go/" rel="noopener noreferrer" target="_blank">OpenCode Go usage limits</a></li>
+<li><a href="https://help.openai.com/en/articles/9793128-about-chatgpt-pro-tiers" rel="noopener noreferrer" target="_blank">OpenAI ChatGPT Pro tiers</a></li>
+<li><a href="https://claude.com/pricing" rel="noopener noreferrer" target="_blank">Anthropic Claude plans and model pricing</a></li>
+<li><a href="https://research.revelo.com/code-index/" rel="noopener noreferrer" target="_blank">Revelo Code Index</a></li>
+</ul>
+
+Further reading along the same trail: <a href="/article/ai-token-coding-plan-comparison-2026/">The most complete 2026 comparison of AI Token Plans and Coding Plans: 20+ platforms at home and abroad</a>, <a href="/article/2026-chinese-ai-models-comparison/">The 2026 ultimate showdown of Chinese LLMs: eight contenders including GLM and DeepSeek, side by side</a>.
+`,
+  },
+  {
+    slug: 'cloud-deployment-guide-cn-vs-global',
+    zhSlug: 'cloud-deployment-guide-cn-vs-global',
+    topicSlug: 'backend',
+    title: 'Cloud Deployment in China and Abroad: Domestic Cloud, Overseas VPS, and the Cloudflare Free Stack',
+    excerpt: 'Domestic cloud, an overseas VPS, or Cloudflare\'s free edge stack? A practical comparison of cost, latency, filing requirements, and ops burden to help you pick the right path.',
+    date: '2026-08-10',
+    readingTime: 11,
+    html: `
+<h1>Cloud Deployment in China and Abroad: Domestic Cloud, Overseas VPS, and the Cloudflare Free Stack</h1>
+
+<img alt="Data center" src="https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+<blockquote>
+
+In 2026, there have never been more ways to put a project online: the three big domestic cloud providers are locked in a price war, capable-but-cheap overseas VPS plans are everywhere, and Cloudflare has pushed "free" about as far as it will go. This article lines up the three paths — domestic cloud, overseas cloud, and edge platforms — side by side, so you can find the deployment strategy that actually fits your situation.
+</blockquote>
+<h2>Why Is Choosing Where to Deploy Getting Harder?</h2>
+
+A few years ago, "going to the cloud" basically meant buying a cloud server (IaaS): pick one of Alibaba Cloud, Tencent Cloud, or AWS and you were done. Today, deployment has split into <strong>three fundamentally different paths</strong>:
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Examples</th>
+<th>Form</th>
+<th>Key traits</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Domestic cloud servers</td>
+<td>Alibaba Cloud / Tencent Cloud / Huawei Cloud</td>
+<td>IaaS virtual machines</td>
+<td>Fast access inside China, requires an ICP filing, expensive bandwidth</td>
+</tr>
+<tr>
+<td>Overseas cloud</td>
+<td>AWS/Azure/GCP + Vultr/Hetzner</td>
+<td>IaaS/PaaS</td>
+<td>No filing required, global regions, billed in USD, unstable latency from China</td>
+</tr>
+<tr>
+<td>Edge platforms</td>
+<td>Cloudflare Pages/Workers</td>
+<td>Static hosting + serverless</td>
+<td>Astonishing free tiers, global CDN, near-zero ops</td>
+</tr>
+</tbody>
+</table>
+
+The real question isn't "which provider is best" but <strong>which path matches the shape of your business</strong>. Let's take them one by one.
+<h2>Is Domestic Cloud Actually Cheap Now?</h2>
+
+<img alt="Team collaboration" src="https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+
+According to IDC, China's public cloud IaaS market topped 400 billion yuan in 2025, with Alibaba Cloud, Tencent Cloud, and Huawei Cloud holding the top three spots. In 2026 the competition has turned into an outright price war: entry-level specs have been pushed down to a few dozen yuan a year.
+<h3>Current Promotional Prices (mid-2026 reference)</h3>
+<table>
+<thead>
+<tr>
+<th>Spec</th>
+<th>Alibaba Cloud</th>
+<th>Tencent Cloud</th>
+<th>Huawei Cloud</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2 vCPU / 2 GB</td>
+<td>Lightweight 38-68 yuan/yr; ECS "99 Plan" 99 yuan/yr (same price on renewal)</td>
+<td>Lightweight ~82-99 yuan/yr; CVM S5 199 yuan/yr</td>
+<td>Flexus L 38-98 yuan/yr</td>
+</tr>
+<tr>
+<td>2 vCPU / 4 GB</td>
+<td>ECS u1 199 yuan/yr</td>
+<td>Fengchi BF1 from ~417 yuan/yr</td>
+<td>Flexus L ~165-199 yuan/yr</td>
+</tr>
+<tr>
+<td>4 vCPU / 8 GB</td>
+<td>ECS ~955 yuan/yr</td>
+<td>Lightweight ~450 yuan/yr</td>
+<td>Flexus X from 338 yuan/yr</td>
+</tr>
+</tbody>
+</table>
+
+A few "unwritten rules" worth paying attention to when choosing a plan:
+<ol>
+<li><strong>Signup price isn't the long-term price</strong>: many of these deals are new-customer-only, and renewal doubles the bill. Favor promotions that explicitly state "same price on renewal" (like Alibaba Cloud's 99 Plan or Tencent Cloud's plans that treat new and existing customers alike).</li>
+<li><strong>Bandwidth is a hidden expense</strong>: cheap tiers often ship with 1-3 Mbps of fixed bandwidth or a "peak bandwidth" figure, so be careful with image-heavy sites and download mirrors. By comparison, Alibaba Cloud's lightweight 200 Mbps peak with unmetered traffic is the friendliest option for sudden spikes.</li>
+<li><strong>An ICP filing is mandatory</strong>: any mainland China node requires one, and the process takes 7-20 business days. If you can't wait, pick a Hong Kong or overseas node — no filing, but noticeably slower access from mainland China.</li>
+</ol>
+<h3>Where Domestic Cloud Genuinely Wins</h3>
+<ul>
+<li><strong>Network quality</strong>: multi-line BGP access means low, stable latency in every province — something an overseas VPS simply cannot match.</li>
+<li><strong>Mature ecosystem</strong>: object storage, CDN, SMS, payments, and AI services integrated in one place, so you get to production fast.</li>
+<li><strong>Payments and compliance</strong>: pay directly with WeChat Pay or Alipay, with invoicing, real-name verification, and regulatory oversight handled end to end — a good fit for legitimate commercial use.</li>
+</ul>
+
+China Mobile Cloud, JD Cloud, and Baidu AI Cloud are also buying market share with aggressive pricing (China Mobile Cloud 2 vCPU / 4 GB at roughly 151 yuan a year, Huawei Cloud 2 vCPU / 2 GB at 38 yuan a year). They're worth comparing when budget is tight, though the big three still lead on ecosystem breadth and documentation.
+<h2>2. Overseas Cloud: Freedom Without a Filing, Priced in Dollars</h2>
+
+<img alt="Analyzing data" src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+
+Overseas deployment comes in two flavors: <strong>hyperscale public cloud</strong> (AWS, Azure, GCP) and <strong>developer-friendly VPS</strong> (Vultr, DigitalOcean, Hetzner, Linode).
+<h3>Hyperscalers vs. VPS: Completely Different Positioning</h3>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>AWS / Azure / GCP</th>
+<th>Vultr / DO / Hetzner</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Positioning</td>
+<td>Full-stack enterprise cloud platform</td>
+<td>Lightweight, developer-friendly IaaS</td>
+</tr>
+<tr>
+<td>Entry price</td>
+<td>Usage-based; even the smallest instance runs $5-10/month, with egress billed separately</td>
+<td>From $2.5-6/month</td>
+</tr>
+<tr>
+<td>Free credits</td>
+<td>A free tier for the first 12 months</td>
+<td>Deposit-matched credit (Vultr $300 / DO $200)</td>
+</tr>
+<tr>
+<td>Complexity</td>
+<td>High; bills spiral easily (egress is the assassin)</td>
+<td>Low; hourly billing, transparent pricing</td>
+</tr>
+<tr>
+<td>Access from China</td>
+<td>Standard international routes, visible packet loss at peak hours</td>
+<td>Same; neither offers CN2 GIA optimized routing</td>
+</tr>
+</tbody>
+</table>
+
+<strong>Key numbers (2026 comparison)</strong>: for the same 2 vCPU / 4 GB spec, a Hetzner CX22 costs about €4.5/month (including 20 TB of egress), DigitalOcean/Vultr about $24/month (including 1-3 TB), while AWS EC2 costs several times more with egress billed on top — which is exactly where "the same job can cost 10-50× more on AWS" comes from.
+<h3>Each Provider's Strength, at a Glance</h3>
+<ul>
+<li><strong>Hetzner</strong> (Germany): the price-performance king of Europe, with 20 TB of free egress that is effectively unlimited — the default choice for EU workloads and GDPR compliance.</li>
+<li><strong>Vultr</strong>: 32 data centers worldwide, covering Tokyo, Seoul, Singapore, and other Asian locations, the most flexible hourly billing, plus GPU instances.</li>
+<li><strong>DigitalOcean</strong>: the industry benchmark for docs and tutorials; App Platform takes you from git push to live, and Kubernetes and managed databases work out of the box.</li>
+<li><strong>AWS/Azure/GCP</strong>: the ceiling on ecosystem, suited to multinational operations and larger projects that need managed pieces like S3 or a cloud database.</li>
+</ul>
+
+The pain points of overseas VPS are equally clear: <strong>latency from mainland China is typically 180-250 ms</strong>, with packet loss at peak hours; <strong>payment requires an international credit card</strong>; and some platforms ban proxy use. If you need fast access from China, you'll have to pick a vendor that runs CN2 GIA optimized routes — that costs more, and mind the compliance side.
+<h2>3. Cloudflare: The Patron Saint of Free Tiers</h2>
+
+<img alt="Laptop and code" src="https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+
+If the first two paths still cost money, Cloudflare has taken "freeloading" to its logical extreme — it stopped being just a CDN vendor long ago and is now a complete edge computing platform. <strong>For 90% of personal projects and small-to-medium applications, the free tier is enough.</strong>
+<h3>Free Tier Cheat Sheet</h3>
+<table>
+<thead>
+<tr>
+<th>Product</th>
+<th>Free allowance</th>
+<th>What it's for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DNS + CDN</td>
+<td>Unlimited bandwidth, unmetered traffic</td>
+<td>The acceleration layer under every site, plus origin IP masking</td>
+</tr>
+<tr>
+<td>Free SSL</td>
+<td>Automatically issued and renewed</td>
+<td>Instant HTTPS</td>
+</tr>
+<tr>
+<td>WAF</td>
+<td>Basic rules + 5 custom rules</td>
+<td>Block scrapers and attacks, geo-block by country</td>
+</tr>
+<tr>
+<td>Pages</td>
+<td>Unlimited bandwidth, 500 builds/month</td>
+<td>Static site and frontend hosting on a global CDN</td>
+</tr>
+<tr>
+<td>Workers</td>
+<td>100,000 requests/day</td>
+<td>Serverless APIs, reverse proxying, edge logic</td>
+</tr>
+<tr>
+<td>R2 storage</td>
+<td>10 GB, <strong>egress free forever</strong></td>
+<td>Image hosting and file storage, the S3 counterpart</td>
+</tr>
+<tr>
+<td>KV / D1</td>
+<td>1 GB KV / 5 GB D1</td>
+<td>Caching, sessions, SQLite databases</td>
+</tr>
+<tr>
+<td>Tunnel</td>
+<td>Unlimited traffic</td>
+<td>Expose a private network without a public IP, steadier than frp</td>
+</tr>
+<tr>
+<td>Email Routing</td>
+<td>Unlimited forwarding rules</td>
+<td>Free email on a custom domain</td>
+</tr>
+<tr>
+<td>Workers AI</td>
+<td>Free daily tokens</td>
+<td>Run model inference at the edge</td>
+</tr>
+</tbody>
+</table>
+<h3>Cloudflare's Deployment Philosophy: A Zero-Cost Layered Architecture</h3>
+<div class="codehilite"><pre><span></span><code>User request → Cloudflare CDN (edge node)
+              ↓
+    Pages (static frontend assets)
+              ↓
+    Workers (API / edge logic)
+              ↓
+      KV + R2 + D1 (the storage stack)
+              ↓
+    Tunnel → your own VPS (fallback for heavy jobs)
+</code></pre></div>
+
+
+Take a real scenario: frontend on Pages, API on Workers, images in R2, data in D1, and heavy jobs routed back through Tunnel to your own $5 VPS — <strong>the whole stack's monthly cost can come down to the price of a single VPS</strong>. Next to the $88-320/month bill of a traditional "cloud server + database + CDN + object storage" setup, that advantage is an order of magnitude.
+
+Two traps to avoid: on the free Workers plan, CPU time is capped at 10 ms per request (time spent awaiting I/O doesn't count, so don't do CPU-heavy work there); and free-tier limits do get adjusted, so check the official pricing page before you launch. Paid plans start at Workers Paid $5/month, still a floor price.
+<h2>4. The Three-Way Showdown</h2>
+
+<img alt="Comparison and decision-making" src="https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Domestic cloud (Alibaba/Tencent/Huawei)</th>
+<th>Overseas cloud (Vultr/Hetzner/AWS)</th>
+<th>Cloudflare</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Entry cost</td>
+<td>38-199 yuan/year</td>
+<td>$2.5-6/month</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Speed from China</td>
+<td>★★★★★</td>
+<td>★★☆</td>
+<td>★★★★ (not top-tier, but stable)</td>
+</tr>
+<tr>
+<td>Speed from overseas</td>
+<td>★★★</td>
+<td>★★★★★</td>
+<td>★★★★★</td>
+</tr>
+<tr>
+<td>No filing required</td>
+<td>✗ (mandatory for mainland nodes)</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Deployment flexibility</td>
+<td>High (full cloud servers)</td>
+<td>High (full VPS)</td>
+<td>Medium (no long-running processes; heavy work goes through Tunnel)</td>
+</tr>
+<tr>
+<td>Operational overhead</td>
+<td>Medium</td>
+<td>Medium-high</td>
+<td>Very low</td>
+</tr>
+<tr>
+<td>Long-term cost traps</td>
+<td>Renewal hikes, bandwidth fees</td>
+<td>Egress fees, credit card requirement</td>
+<td>Free-tier ceilings</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>China-facing consumer products, filing requirements</td>
+<td>Going global, learning and tinkering</td>
+<td>Blogs/docs/APIs/zero-budget projects</td>
+</tr>
+</tbody>
+</table>
+<h2>5. A Verdict for Each Scenario</h2>
+
+<strong>1. Personal blog / docs site / portfolio (zero budget first)</strong>
+→ Cloudflare Pages + GitHub Pages. Connect a GitHub repo and deploys happen automatically: unlimited bandwidth plus a global CDN for not a single cent. Go with GitHub Pages for maximum simplicity, Cloudflare Pages for speed and extensibility.
+
+<strong>2. A serious China-facing project / company website (filing required)</strong>
+→ One of the big three domestic clouds. If budget is tight, read the renewal terms on the promotional pricing; if stability comes first, take Alibaba Cloud's 99 Plan or Tencent Cloud's new-and-existing-customer plans. Consider Huawei Cloud only if you need its ecosystem or domestic-stack (xinchuang) requirements.
+
+<strong>3. Going global / sites aimed at overseas users</strong>
+→ Start with Vultr (broad Asian coverage) or Hetzner (European price-performance), then move up to AWS once you've scaled. Don't forget to put Cloudflare CDN in front.
+
+<strong>4. A personal project that needs a backend API plus a database</strong>
+→ Two options: the full edge stack of Cloudflare Workers + D1 + R2 (cheapest), or a single overseas VPS where you install everything yourself (most flexible). If most of your users are in China, take a small instance from a domestic cloud.
+
+<strong>5. You already have a server and want to cut costs and speed things up</strong>
+→ No need to migrate. Just point your domain at Cloudflare's free plan: CDN acceleration, WAF protection, and free certificates in one go, plus origin IP masking.
+<h2>How Is This Site Deployed?</h2>
+
+<img alt="Close-up of code" src="https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+
+Let this blog speak for itself — it runs exactly the "zero cost + low cost" hybrid approach:
+<ul>
+<li><strong>Frontend</strong>: built with Vue 3 and pushed to GitHub Pages — free static hosting with version control built in.</li>
+<li><strong>Backend</strong>: a Django API deployed on PythonAnywhere's free tier, which is enough to serve the article endpoints and likes.</li>
+<li><strong>Images</strong>: served from Unsplash's remote image host, so local storage costs nothing.</li>
+</ul>
+
+It's a working example of running a complete frontend-plus-backend project without owning a server. If PythonAnywhere's limits ever fall short, the next step is to swap the backend for Cloudflare Workers and the images for R2 — and that migration path already exists. Which is exactly the point this article wants to make: <strong>a deployment plan isn't a one-time purchase. Start with a free or low-cost option, then evolve on demand as the business grows — that's the most pragmatic way to go to the cloud.</strong>
+<h2>What Are the Pitfalls When Choosing a Deployment?</h2>
+<ol>
+<li><strong>Read the renewal terms carefully</strong> — a cheap first purchase with a doubled renewal is the biggest trap in domestic cloud; look for "same price on renewal".</li>
+<li><strong>Egress is a hidden assassin</strong> — AWS and peers bill per GB, so run the numbers before you commit if you serve lots of images or downloads; R2 and Hetzner are free forever.</li>
+<li><strong>Remember to cancel free trials</strong> — automatic billing at expiry is a classic incident; set billing alerts and budget caps.</li>
+<li><strong>Always back data up off-site</strong> — cheap VPS plans make no redundancy promises; regular <code>rsync</code>/<code>restic</code> backups are the baseline.</li>
+<li><strong>Compliance comes first</strong> — mainland China nodes require an ICP filing, and proxy-type uses need to respect the provider's TOS and local law.</li>
+</ol>
+
+<strong>May everyone get their projects online, reliably, at the most sensible cost.</strong>
+
+Further reading along the same pipeline: <a href="/article/django-pythonanywhere-deploy/">How to Deploy a Django Backend to PythonAnywhere</a>, <a href="/article/vue-github-pages-deploy/">How to Deploy a Vue Frontend to GitHub Pages</a>.
+`,
+  },
+  {
+    slug: 'chinese-llm-august-2026-releases-preview',
+    zhSlug: 'chinese-llm-august-2026-releases-preview',
+    topicSlug: 'aiagent',
+    title: 'August Offensive: A Preview of China\'s LLM Releases for August 2026',
+    excerpt: 'Late July brought a burst of Chinese model launches, and August\'s calendar is already full: DeepSeek V4-Pro is expected on August 3, with Zhipu GLM-5.3 and MiniMax M3Pro close behind.',
+    date: '2026-08-03',
+    readingTime: 9,
+    html: `
+<h1>August Offensive: A Preview of China's LLM Releases for August 2026</h1>
+
+<img alt="China's LLM August offensive" src="https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=1600&amp;q=80&amp;auto=format&amp;fit=crop">
+<blockquote>
+
+Chinese model vendors spent the end of July "handing in their homework" en masse, and August's calendar is already full: multiple signals point to the official DeepSeek V4-Pro release on August 3, while brokerage notes flag Zhipu GLM-5.3 and MiniMax M3Pro as major catalysts. With the parameter race back in the 2-trillion era and Chinese models holding all top five spots by call volume on OpenRouter, every launch event this August is worth watching.
+</blockquote>
+<hr>
+<h2>Introduction: A Battlefield With No Off-Season</h2>
+
+For Chinese foundation-model vendors, the 2026 calendar has no slow season. July 31 alone delivered a three-in-a-row — MiniMax H3, ByteDance Seedance 2.5, and the official DeepSeek V4-Flash release all arrived on the same day; a week earlier, on July 27, Moonshot AI open-sourced Kimi K3, the largest model in the world by parameter count. And judging by multiple brokerage research reports and industry signals, <strong>August's release slate is just as dense: the official DeepSeek V4-Pro, Zhipu GLM-5.3, and MiniMax M3Pro</strong> are all in the final countdown.
+
+Drawing on the latest developments from late July and on market signals, this post rounds up the Chinese models most worth anticipating in August — and the industry trends behind them.
+<hr>
+<h2>What Makes the Official DeepSeek V4-Pro Release Worth Watching?</h2>
+
+If there is one "must-see launch" in August, it is DeepSeek's.
+
+<strong>Timing signals point to August 3.</strong> When the company opened the V4-Flash official API beta on July 31, it explicitly teased that V4-Pro would launch officially in <strong>early August</strong>. Several external signals further corroborate that schedule:
+<ul>
+<li><strong>SiliconFlow sharply raised the cache-hit price for V4 Pro on August 3</strong>: from ¥0.1 to ¥1.0 per million tokens. The tenfold jump is widely read across the industry as "price positioning" ahead of the official launch;</li>
+<li>Developer communities noticed that some DeepSeek APIs can now correctly answer questions they previously got wrong — a staged rollout is ramping up in waves;</li>
+<li>The V4 official release had originally been slated for mid-July and slipped once; now the word is that "the wait won't be long this time."</li>
+</ul>
+
+<strong>Performance expectations</strong>: The prevailing view is that V4's official release will land somewhere between GLM-5.2 and Claude Opus 4.8. For reference, V4-Flash (284B total parameters / 13B active), which entered public beta on July 31, already brings a substantial upgrade in agentic and coding capability: a score of 82.7 on Terminal Bench 2.1, native support for the Responses API, Codex compatibility, and the lowest pricing of any Chinese frontier model.
+
+<strong>The bonus</strong>: DeepSeek's official AI coding tool <strong>Harness</strong> has opened internal testing and is widely expected to debut alongside the official V4-Pro release. Add a recently closed Series A of roughly ¥51 billion (at a valuation near ¥400 billion), and V4-Pro's release cadence and commercialization playbook deserve close attention.
+<hr>
+<h2>2. The Next Baton in Brokerage Research: GLM-5.3 and MiniMax M3Pro</h2>
+
+The market has pinned August's other two high-stakes variables on Zhipu and MiniMax.
+<ul>
+<li><strong>Zhipu GLM-5.3</strong>: In its weekly report, Zheshang Securities explicitly identifies model version iterations (Zhipu GLM-5.3, MiniMax M3Pro) as important sector catalysts going forward. Zhipu shipped GLM-5.2 only in June (with 1M lossless context), and its coding model has been rated SOTA on multiple leaderboards, so GLM-5.3 will most likely keep betting on long context plus coding and agent capability.</li>
+<li><strong>MiniMax M3Pro</strong>: MiniMax released H3, its first open-source omni-modal generation model, on July 31, while the next flagship, M3Pro, is reported to carry <strong>more than 2 trillion parameters</strong>. MiniMax is also expected to qualify for and formally <strong>join the Southbound Stock Connect</strong> in August — capital-market catalysts moving in lockstep with product launches, an intent that is hard to miss.</li>
+</ul>
+
+Kaiyuan Securities likewise notes in its research that "the official V4-Pro release will ship as soon as possible," putting DeepSeek's cadence alongside the other two as a core watch item.
+<hr>
+<h2>3. The Backdrop: July 31's Collective Homework Drop</h2>
+
+August's anticipation rests on the dense cluster of releases at the end of July. Looking back at that wave:
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Vendor</th>
+<th>Highlights</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MiniMax H3</strong></td>
+<td>MiniMax</td>
+<td>Its first open-source omni-modal generation model, unifying text/image/audio/video; generates 2K audiovisual video of up to 15 seconds directly, ranks first worldwide on video-editing leaderboards, priced at roughly one-third of a comparable flagship, with weights to be released soon</td>
+</tr>
+<tr>
+<td><strong>Seedance 2.5</strong></td>
+<td>ByteDance</td>
+<td>Single-pass generation doubled from 15 to 30 seconds, supports multi-round extension, accepts up to 30 images / 10 video clips / 10 audio clips as multimodal references in a single pass, and emphasizes long-form narrative plus timestamp-precise editing</td>
+</tr>
+<tr>
+<td><strong>Official V4-Flash release</strong></td>
+<td>DeepSeek</td>
+<td>Substantially upgraded agent and coding capability, 82.7 on Terminal Bench 2.1, native Responses API, Codex compatibility, lowest price among Chinese frontier models</td>
+</tr>
+</tbody>
+</table>
+
+A week further back: <strong>Kimi K3</strong> (2.78 trillion parameters, the world's largest open-source model, which topped Hugging Face's overall trending chart within an hour of release), <strong>Qwen3.8 Max</strong> (roughly 2.4 trillion parameters), and <strong>Tencent Hunyuan Hy3</strong> (MoE, 295B total / 21B active, 256K context, call volume up 68× within a week of launch) all shipped in quick succession.
+<hr>
+<h2>4. The Bigger Picture: The Parameter Race Restarts, 2 Trillion Becomes Table Stakes</h2>
+
+Put those names side by side and one signal is unmistakable — <strong>the parameter race is officially back</strong>.
+
+According to the Economic Observer, China's leading model vendors are collectively pushing past 2 trillion parameters: Kimi K3 (2.78T), Qwen3.8 Max (2.4T), ERNIE 5.0 (2.4T), and MiniMax's next generation (2T+) — <strong>2 trillion is now the entry ticket, and 3 trillion is seen as the next stop</strong>.
+
+The technical focus has shifted in step: long-horizon tasks, coding, agentic behavior, and multimodality have become the four directions. V4-Flash's reinforcement of agent capability, GLM's coding SOTA, and H3's omni-modal unification are all concrete footnotes to that shift.
+<hr>
+<h2>5. Leading Globally: All Top Five on OpenRouter Are Chinese Models</h2>
+
+By August 2026, the question "can Chinese models compete?" had turned into a matter of data:
+<ul>
+<li><strong>Chinese companies hold all five top spots on OpenRouter's call-volume leaderboard</strong>: Xiaomi MiMo-V2.5 tops it with 10.5 trillion Tokens in a single week (first on both the weekly and monthly charts, more than a sixfold increase in two months), two DeepSeek models sit at second and fifth, and Tencent Hunyuan Hy3 ranks third with a week-over-week gain above 999%;</li>
+<li><strong>Hugging Face downloads</strong>: Chinese open-source models rank first globally in cumulative downloads, with Alibaba's Qwen series topping the chart at over 1 billion downloads;</li>
+<li>One frequently cited figure: <strong>80% of US AI startups use Chinese open-source models in their fundraising pitches</strong>, and more than 200 derivative models built on Chinese foundation models appear every day.</li>
+</ul>
+
+Every launch in August will rewrite that leaderboard directly.
+<hr>
+<h2>6. Price Cuts and Open Source: Moving AI From "Usable" to "Easy to Use"</h2>
+
+Running parallel to the parameter race is another thread — <strong>price cuts plus open source</strong>:
+<ul>
+<li>V4-Flash enters at the lowest price point among Chinese frontier models; SiliconFlow's steep hike to V4 Pro's cache-hit price actually suggests that the low price is a strategic move to subsidize its way to market share;</li>
+<li>Kimi K3's full weights were released on July 27; MiniMax H3 became the first open-source mainstream multimodal generation model and plans to open its weights for enterprise on-premises deployment;</li>
+<li>Institutional views hold that price cuts and open source are pushing AI from "usable" toward "easy to use," and that enterprise AI deployment could accelerate markedly — competition among foundation models is spreading from "who is stronger" to "who is cheaper and easier to use."</li>
+</ul>
+<hr>
+<h2>Can Domestic Chip Supply Keep Up?</h2>
+
+Behind the dense release schedule is a domestic relay on compute supply. A China Merchants Securities International research note points out that <strong>mass production of domestic chips in the second half — such as Huawei's Ascend 950 series — will be a significant catalyst for model efficiency</strong>, with inference costs expected to keep falling.
+
+Infrastructure is filling in at the same pace: on August 2, the <strong>National Supercomputing Internet officially launched API access and model files for DeepSeek-V4-Flash-0731</strong>; the platform has become the country's first hundred-thousand-card-class supercomputing-and-intelligence resource pool, and the AI community has aggregated more than 1,700 open-source models from China and abroad. Compute, models, and platforms accelerating together are what give August's packed launch calendar its confidence.
+<hr>
+<h2>Conclusion: August Is Bound to Be Eventful</h2>
+
+Back to the schedule from the opening: <strong>August 3</strong> may be the day the official DeepSeek V4-Pro lands; after that, GLM-5.3 and MiniMax M3Pro are poised to go; add domestic chip mass production as a catalyst and leaderboard data that keeps refreshing — August's Chinese LLM battlefield will have launches, price hikes, open-source drops, and funding rounds, but no off-season.
+
+What to ship, how big, and how cheap — those are the three questions every launch event this month has to answer.
+<hr>
+
+<em>Sources: 36Kr, ZOL, Chinaz, Economic Observer, Stockstar (brokerage weeklies), ITHome, Guangming Online, Zhitong Finance, and other public reports.</em>
+
+Further reading along the same thread: <a href="/article/gpt-6-astra-release-2026/">"GPT-6 Astra Launches: Eight Things Developers Need to Know"</a>, <a href="/article/2026-chinese-ai-models-comparison/">"The 2026 Chinese LLM Showdown: GLM, DeepSeek, and Six Rivals Compared"</a>.
+`,
+  },
+  {
+    slug: 'vllm-vs-sglang-llm-inference-framework-war',
+    zhSlug: 'vllm-vs-sglang-llm-inference-framework-war',
+    topicSlug: 'aiagent',
+    title: 'From vLLM to SGLang: The Ultimate Arms Race in LLM Inference Frameworks',
+    excerpt: 'The LLM battle has moved to inference. We put vLLM, SGLang, TensorRT-LLM, TGI, and LMDeploy on one table to see what each bets on, and where the real competition lies.',
+    date: '2026-07-27',
+    readingTime: 16,
+    html: `
+<h1>From vLLM to SGLang: The Ultimate Arms Race in LLM Inference Frameworks</h1>
+
+<img alt="The evolution of LLM inference frameworks" src="https://images.unsplash.com/photo-1620712943543-bcc967d681bf?w=1600&amp;q=80&amp;auto=format&amp;fit=crop">
+<blockquote>
+
+As competition among training frameworks gradually converges, the fight is shifting wholesale to the inference side. A single paper, a single PR, a single commit can double a framework's throughput overnight — that is business as usual in the 2025–2026 LLM inference ecosystem. This article puts vLLM, SGLang, TensorRT-LLM, TGI, and LMDeploy on the same table to see what each one is betting on, and what exactly they are all racing to optimize.
+</blockquote>
+<hr>
+<h2>Introduction: Why Inference Frameworks Became Contested Ground</h2>
+
+For the past three years, the story of large models was one of "<strong>training</strong>": whoever had more parameters, more data, more GPUs won. But once Scaling Laws pushed training costs into the hundreds of millions of dollars, the industry's attention began to shift to another battlefield — <strong>inference</strong>.
+
+Three changes turned inference frameworks into a core arena overnight:
+<ol>
+<li><strong>Models grew enormous</strong>: GPT-4o, DeepSeek V4, Kimi K2, and GLM-5.2 routinely carry hundreds of billions of MoE parameters, and the compute cost per token scales linearly with the number of experts;</li>
+<li><strong>Call volume exploded</strong>: the agent paradigm turns one "conversation" into dozens or hundreds of round trips, pushing inference QPS orders of magnitude above early ChatGPT;</li>
+<li><strong>End-to-end costs inverted</strong>: training is a one-time investment, inference is a recurring expense — by Gartner's reckoning, 70%–80% of the compute over a large model's lifetime goes to inference.</li>
+</ol>
+
+In one sentence: <strong>training decides whether you get to play; inference decides how long you survive.</strong> That is why the company behind vLLM went from a blank whiteboard to a team of dozens, why SGLang raised hundreds of millions of dollars in under two years, and why Nvidia rewrites the kernels for every generation of TensorRT-LLM.
+<hr>
+<h2>1. What Are Inference Frameworks Actually Competing On?</h2>
+
+Strip away the slogans and an inference framework really has to answer three questions:
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Plain-English explanation</th>
+<th>Why it is hard</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Throughput</strong></td>
+<td>How many tokens one machine can emit per second</td>
+<td>Directly determines per-GPU ROI</td>
+</tr>
+<tr>
+<td><strong>Latency</strong></td>
+<td>How long a user waits from pressing Enter to seeing the first character</td>
+<td>Directly determines the product experience</td>
+</tr>
+<tr>
+<td><strong>Memory</strong></td>
+<td>How many requests a single H100 can serve at once</td>
+<td>VRAM is a physical gift from HBM — every inch you save counts</td>
+</tr>
+</tbody>
+</table>
+
+Throughput and latency are inherently in tension: bigger batches raise throughput, but every request must wait for the batch to fill, so latency climbs. Every framework's "engineering arms race" is really a search for a new Pareto frontier inside that three-way trade-off — making possible the compromise points others considered impossible.
+
+Here is how each of the five plays its hand.
+<hr>
+<h2>2. vLLM: The First Cut, Opened by PagedAttention</h2>
+
+Before <strong>vLLM</strong>, KV cache waste was the elephant in the room for serving frameworks.
+
+The conventional approach pre-allocated a contiguous slab of VRAM per request, sized for the longest possible sequence. Real request lengths vary wildly — 10% of long requests eat 80% of the reserved memory, while short requests leave holes behind. The result: <strong>memory fragmentation and utilization below 40%</strong>, so the concurrency a single 80GB H100 could sustain was capped by memory before anything else.
+
+vLLM's contribution was to move the operating system's <strong>paged virtual memory</strong> onto the GPU:
+<ul>
+<li>KV cache is chopped into fixed-size <strong>blocks</strong> (typically 16 tokens each);</li>
+<li>a logical sequence uses a <strong>block table</strong> to point at physical blocks, which can be scattered, shared, and allocated on demand;</li>
+<li>just as with OS pages, logically adjacent does not mean physically adjacent, so fragmentation dissolves on its own.</li>
+</ul>
+
+Paired with a rewritten <strong>PagedAttention</strong> kernel that lets attention read K/V straight out of scattered blocks — that was the hardest engineering cut of all.
+<blockquote>
+
+In its 2023 paper, vLLM reported <strong>2–24× higher throughput than HuggingFace Transformers</strong>. The keyword: "<strong>Continuous Batching</strong>" — dynamically packing new requests into a running batch so the GPU does not idle just because one request finished early.
+</blockquote>
+
+<strong>Where vLLM stands</strong>: general-purpose, easy to use, thickest ecosystem. Nearly every open-source model gets a vLLM adaptation on release day. The trade-off: in narrow niches such as structured generation, long context, and disaggregated batching, it is not the fastest one.
+<hr>
+<h2>3. SGLang: RadixAttention and a New Paradigm for Structured Generation</h2>
+
+<strong>SGLang</strong> was released in 2024 by the LMSYS team (the same people behind Vicuna and Chatbot Arena), and it targeted not "general inference" but an overlooked scenario — <strong>structured output</strong>.
+
+Honestly: getting an LLM to emit valid JSON, a SQL statement, or a tool-call schema is something traditional frameworks do badly. Three reasons:
+<ol>
+<li><strong>Constrained decoding</strong> has to mask out illegal tokens at every step, and that is not cheap;</li>
+<li><strong>Shared prefixes</strong> go unreused — ten requests all start with "You are a translation assistant," yet the framework computes that same prefix ten times;</li>
+<li><strong>Branching generation</strong> is inherently wasteful — asking for several candidate answers or several tool calls spins up several independent KV caches.</li>
+</ol>
+
+SGLang's move was to organize the KV cache as a <strong>radix tree</strong>:
+<ul>
+<li>each edge of the tree corresponds to a span of tokens, and each node stores the KV for that span;</li>
+<li>multiple requests that share a prefix automatically reuse the same subtree — <strong>prefix caching got native support at the data-structure level for the first time</strong>;</li>
+<li>the multi-candidate branches of structured generation ("give me 3 different translations") hang directly off the tree, branch nodes share the root, and redundant computation disappears.</li>
+</ul>
+
+Combined with the <strong>Zero-Overhead Scheduler</strong> and a <strong>compressed finite state machine (FSM)</strong>, SGLang reports being <strong>3–7× faster than vLLM</strong> on JSON, SQL, and function-calling workloads, with a 5× average end-to-end improvement.
+<blockquote>
+
+SGLang's real killer feature is not raw single-point speed; it is that the idea "<strong>generation is structured and reusable</strong>" was written into the underlying abstraction. Once your application is an agent, a workflow, or a multi-turn tool caller, SGLang's advantage compounds.
+</blockquote>
+
+<strong>Where SGLang stands</strong>: long context, structured output, shared prefixes, branching generation — across every niche where vLLM is weak, SGLang is redefining the baseline.
+<hr>
+<h2>4. Head-to-Head: Choosing Among Five Mainstream Frameworks</h2>
+
+Here are the five frameworks everyone names, side by side:
+<table>
+<thead>
+<tr>
+<th>Framework</th>
+<th>Camp</th>
+<th>Core technology</th>
+<th>Strongest scenario</th>
+<th>Weak spot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>vLLM</strong></td>
+<td>UC Berkeley / independent, VC-backed</td>
+<td>PagedAttention + Continuous Batching</td>
+<td>General open-source models, easy deployment, thickest ecosystem</td>
+<td>Not the strongest for structured generation or long context</td>
+</tr>
+<tr>
+<td><strong>SGLang</strong></td>
+<td>LMSYS / commercialized</td>
+<td>RadixAttention + compressed FSM + zero-overhead scheduling</td>
+<td>Structured output, shared prefixes, agent workflows</td>
+<td>Started later on general-purpose serving; smaller community than vLLM</td>
+</tr>
+<tr>
+<td><strong>TensorRT-LLM</strong></td>
+<td>Nvidia</td>
+<td>Operator fusion + in-flight batching + INT8/FP8</td>
+<td>Nvidia hardware, minimal latency, enterprise RAG</td>
+<td>Locked to Nvidia cards, hard to modify kernels, unusable on non-NV hardware</td>
+</tr>
+<tr>
+<td><strong>TGI</strong></td>
+<td>Hugging Face</td>
+<td>Continuous Batching + quantization</td>
+<td>HF ecosystem, Dockerized deployment, European market</td>
+<td>Performance often trails vLLM by half a release; slow iteration</td>
+</tr>
+<tr>
+<td><strong>LMDeploy</strong></td>
+<td>OpenMMLab / Shanghai AI Lab</td>
+<td>TurboMind kernels + KV quantization</td>
+<td>Domestic-hardware support, quantization, the Chinese community</td>
+<td>Thin international ecosystem; narrower model coverage than vLLM</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+Three one-liners:
+- Want the fastest path to a working deployment → <strong>vLLM</strong>
+- Writing lots of agents / tool calling → <strong>SGLang</strong>
+- Must squeeze latency to single-digit ms and only run NV cards → <strong>TensorRT-LLM</strong>
+</blockquote>
+
+Below, we take apart the four focal technologies of this arms race, because those four are exactly what these five are competing over.
+<hr>
+<h2>5. Focal Point One: KV Cache Management</h2>
+
+KV cache is the biggest line item in inference memory — the longer the sequence, the more it takes; the larger the batch, the more it takes.
+<table>
+<thead>
+<tr>
+<th>Approach</th>
+<th>Exemplar</th>
+<th>Idea</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>PagedAttention</strong></td>
+<td>vLLM</td>
+<td>OS-style paging plus a block table; scattered allocation eliminates fragmentation</td>
+<td>Requires rewriting the kernel</td>
+</tr>
+<tr>
+<td><strong>RadixAttention</strong></td>
+<td>SGLang</td>
+<td>KV organized as a radix tree; prefixes reused by construction</td>
+<td>More complex write path</td>
+</tr>
+<tr>
+<td><strong>PagedAttention-MoE / cache pooling</strong></td>
+<td>Nvidia / industry practice</td>
+<td>Reuse KV across requests and across experts</td>
+<td>Requires hardware coherence support</td>
+</tr>
+</tbody>
+</table>
+
+The industry trend worth calling out separately is <strong>Prefix Cache</strong> — persisting the KV of system prompts and long document prefixes in VRAM or host memory and reusing it across requests. vLLM added <code>--enable-prefix-caching</code> in late 2024; SGLang built it into its data structures from day 1. In RAG, tool-calling, and long-system-prompt scenarios, <strong>prefix caching can cut time-to-first-token by more than 60%</strong>, which makes it one of the hottest optimization directions today.
+<hr>
+<h2>6. Focal Point Two: Continuous Batching and Schedulers</h2>
+
+Traditional batching is static — wait for N requests, start, run to completion, then admit the next batch. The GPU burns a lot of time waiting for batches.
+
+<strong>Continuous Batching</strong> lets the in-flight batch change dynamically:
+<ul>
+<li>a request that finishes generating exits immediately and frees its memory;</li>
+<li>a new request fills the free slot right away, so the GPU almost never idles;</li>
+<li>with iteration-level scheduling, prefill (the first pass that computes KV) and decode (token-by-token generation) can even be mixed into the same batch.</li>
+</ul>
+<div class="codehilite"><pre><span></span><code>Traditional batching:
+  [A,B,C] ──────────── wait until full ────────────► [done]   [D,E] ───►
+       ^ the long-tail request C drags the whole batch down, leaving lots of GPU idle time
+
+Continuous batching:
+  [A,B,C      ] ─► [A,B,C,D] ─► [  B,D,E,F] ─► [     D,E,F]
+       A finishes early → D takes the slot at once → E,F flow in → GPU utilization nears the ceiling
+</code></pre></div>
+
+
+The next level of this race is <strong>disaggregated prefill/decode</strong> — splitting prefill and decode onto different GPUs or clusters:
+<ul>
+<li>prefill is compute-bound and suits cards built for raw math;</li>
+<li>decode is memory-bandwidth-bound and suits high-bandwidth cards;</li>
+<li>once separated, each class of card does what it does best, and overall throughput takes another step up. vLLM, SGLang, and TRT-LLM all followed this path in 2025–2026.</li>
+</ul>
+<hr>
+<h2>7. Focal Point Three: Speculative Decoding and Speculative Sampling</h2>
+
+Autoregressive LLMs run the entire model forward once per token, <strong>burning compute on guessing a single character</strong>. Speculative decoding works like this:
+<ol>
+<li>a small draft model quickly "guesses" K tokens;</li>
+<li>the large model verifies all K tokens in parallel in a single forward pass (one pass = K candidates);</li>
+<li>correct guesses are accepted outright; wrong ones are rolled back and recomputed.</li>
+</ol>
+
+<strong>Payoff</strong>: 2–3× end-to-end speedup when the draft and target distributions are close enough.
+<table>
+<thead>
+<tr>
+<th>Variant</th>
+<th>Idea</th>
+<th>Representative implementations</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Vanilla speculative decoding</strong></td>
+<td>Small model guesses, large model verifies</td>
+<td>Already supported by vLLM, TGI, and TRT-LLM</td>
+</tr>
+<tr>
+<td><strong>N-gram / Prompt Lookup</strong></td>
+<td>No draft model; look up candidate n-grams directly in the prompt</td>
+<td>vLLM <code>--speculative-model "[ngram]"</code></td>
+</tr>
+<tr>
+<td><strong>EAGLE-2 / EAGLE-3</strong></td>
+<td>Drafting at the feature-vector level, pushing acceptance rates above 60%</td>
+<td>Integrated in the SGLang and vLLM communities</td>
+</tr>
+<tr>
+<td><strong>Medusa</strong></td>
+<td>Add multiple heads that guess several tokens in parallel</td>
+<td>TRT-LLM</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+Speculative decoding is currently the best value-for-money acceleration technique out there: no touching model weights, no retraining, just a few lines of scheduling on the inference side, and throughput can double. That is why <strong>virtually every mainstream framework put "supports some form of speculative decoding" on the first line of its release notes in 2025</strong>.
+</blockquote>
+<hr>
+<h2>8. Focal Point Four: Quantization</h2>
+
+Quantization is fundamentally about representing the same weights and activations with fewer bits, squeezing memory down to the last drop.
+<table>
+<thead>
+<tr>
+<th>Quantization scheme</th>
+<th>Bit width</th>
+<th>Calibration required</th>
+<th>Accuracy loss</th>
+<th>Best supported by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>GPTQ / AWQ</strong></td>
+<td>INT4/INT8</td>
+<td>Yes</td>
+<td>Moderate</td>
+<td>vLLM, LMDeploy, TGI</td>
+</tr>
+<tr>
+<td><strong>SmoothQuant</strong></td>
+<td>INT8</td>
+<td>Yes</td>
+<td>Small</td>
+<td>TRT-LLM, LMDeploy</td>
+</tr>
+<tr>
+<td><strong>FP8</strong> (post-H100)</td>
+<td>E4M3 / E5M2</td>
+<td>No</td>
+<td>Minimal</td>
+<td>TRT-LLM, vLLM 0.6+</td>
+</tr>
+<tr>
+<td><strong>INT4 GEMM (W4A16)</strong></td>
+<td>INT4 weights / FP16 activations</td>
+<td>Yes</td>
+<td>Moderate</td>
+<td>TRT-LLM, LMDeploy TurboMind</td>
+</tr>
+</tbody>
+</table>
+
+Worth emphasizing on its own: <strong>FP8</strong>.
+<ul>
+<li>H100 / H200 natively support FP8 Tensor Cores, <strong>doubling compute density versus FP16</strong>;</li>
+<li>it needs almost no calibration, and the accuracy loss sits inside benchmark noise;</li>
+<li>since 2025 it has become the "<strong>infrastructure-grade</strong>" default — one flag in vLLM 0.6+, the out-of-the-box setting in TRT-LLM.</li>
+</ul>
+
+In short: quantization before FP8 was "saves memory but is not necessarily faster"; after FP8 it is "<strong>both fast and cheap</strong>". It is the gift Nvidia's hardware handed to the inference ecosystem.
+<hr>
+<h2>9. Selection Advice: Which Card to Play in Which Scenario</h2>
+<table>
+<thead>
+<tr>
+<th>Your scenario</th>
+<th>Recommended framework</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>General chat / compatibility with all HuggingFace models</td>
+<td><strong>vLLM</strong></td>
+<td>Thickest ecosystem, broadest model coverage, fastest community response</td>
+</tr>
+<tr>
+<td>Agents / tool calling / heavy JSON output</td>
+<td><strong>SGLang</strong></td>
+<td>RadixAttention reuses prefixes; structured generation is 3–7× faster</td>
+</tr>
+<tr>
+<td>Long-context RAG with shared system prompts</td>
+<td><strong>SGLang, or vLLM + Prefix Cache</strong></td>
+<td>KV reuse halves time-to-first-token outright</td>
+</tr>
+<tr>
+<td>All-Nvidia cluster, enterprise SLA, single-digit ms required</td>
+<td><strong>TensorRT-LLM</strong></td>
+<td>Operator fusion + FP8 define the latency floor</td>
+</tr>
+<tr>
+<td>Domestic accelerators (Huawei / MetaX / Biren / Enflame)</td>
+<td><strong>LMDeploy / vLLM</strong></td>
+<td>LMDeploy has the most complete domestic support; vLLM has the broader open ecosystem</td>
+</tr>
+<tr>
+<td>Multimodal / LLaVA / Qwen-VL</td>
+<td><strong>vLLM</strong></td>
+<td>Fastest multimodal branches and model onboarding</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+A rule of thumb: <strong>get it running on vLLM first, then ask where the business bottleneck actually is</strong>.
+- Bottleneck is "long context / repeated system prompts" → add Prefix Cache or move to SGLang;
+- Bottleneck is "latency will not go any lower" → speculative decoding + FP8, and TRT-LLM if that is still not enough;
+- Bottleneck is "memory" → quantization + PagedAttention, plus prefill/decode disaggregation when necessary.
+</blockquote>
+<hr>
+<h2>10. Where the Ultimate Arms Race Leads: From Framework to Infrastructure</h2>
+
+Stack all of this competition together and one common trend appears — inference frameworks are shedding their "framework" shell and becoming <strong>a class of infrastructure</strong>:
+<ol>
+<li><strong>From single node to cluster</strong>: yesterday's inference framework managed a few cards in one box; today it has to handle cross-machine request routing, KV migration, prefill/decode separation, and expert routing and scheduling;</li>
+<li><strong>From general to scenario-specific</strong>: vLLM is no longer "any model, any scenario," and SGLang is no longer just "structured generation" — each framework is growing <strong>its own domain language</strong> (vLLM's <code>LLMEngine</code>, SGLang's <code>@function</code>, TRT-LLM's builder DSL);</li>
+<li><strong>From software to software-hardware co-design</strong>: FP8, CPO, IBGDA, NVLink C2C — every step in hardware rewrites the optimization space available to software. When RDMA halves cross-node latency, the engineering payoff of prefill/decode disaggregation climbs another notch;</li>
+<li><strong>From inference to "inference + training"</strong>: DeepEP, NCCL, and SGLang's explorations on the training side — the people whose frameworks understand both inference and training will be the ones holding scheduling in their hands.</li>
+</ol>
+<blockquote>
+
+So the essence of this arms race is not who is faster, but <strong>who becomes the default choice of infrastructure for the large-model era</strong>. vLLM is betting on "general-purpose dominance," SGLang on "structure and agents," TRT-LLM on "the full Nvidia stack," and LMDeploy on "domestic hardware and quantization."
+</blockquote>
+<hr>
+<h2>Closing Notes</h2>
+<blockquote>
+
+<em>The ultimate arms race in inference frameworks is not about squeezing another 10% of throughput; it is about making "one card's worth of GPUs do the work of two" into a gift beyond what physics already gave us.</em>
+</blockquote>
+
+Back to the three questions from the beginning — throughput, latency, memory — three years of engineering practice has produced these answers:
+<ul>
+<li>once <strong>PagedAttention</strong> swept away memory fragmentation, the concurrency a single machine could hold made its first order-of-magnitude leap;</li>
+<li>once <strong>Continuous Batching</strong> stopped the GPU from idling, the throughput baseline was drawn a second time;</li>
+<li>once <strong>RadixAttention</strong> wrote prefixes into the data structure, structured generation went from "barely workable" to "natively efficient";</li>
+<li>once <strong>FP8, speculative decoding, and prefill/decode disaggregation</strong> stacked on top of each other, the marginal cost per token fell to a level unimaginable three years ago;</li>
+<li>once <strong>ecosystem co-building</strong> pulled training, communication, inference, and scheduling into a single drawer, inference frameworks became eligible for infrastructure status for the first time.</li>
+</ul>
+
+None of those five on its own rewrote history, but stacked together they have already made deploying a hundred-billion-parameter MoE model in 2026 cheaper than deploying a 7B model was in 2023. That is the most valuable legacy this arms race leaves the industry.
+
+Over the next three years, the inference framework story will shift from "<strong>who is faster</strong>" to "<strong>who is the default</strong>." As for who gets that ticket — vLLM, SGLang, or some dark horse that has not surfaced yet — that is not a question one technical article can answer. But one thing is certain: <strong>single-point optimization is no longer enough; whoever can stake throughput, latency, memory, and ecosystem on the same card is the one with a chance to stay at the table.</strong>
+<hr>
+<blockquote>
+
+📚 <strong>Further reading</strong>
+- vLLM paper: <em>Efficient Memory Management for Large Language Model Serving with PagedAttention</em> (SOSP 2023)
+- SGLang paper: <em>SGLang: Efficient Execution of Structured Language Model Programs</em> (NeurIPS 2024)
+- DeepSeek-V3 technical report: speculative decoding + FP8 practice on the training side
+- Nvidia TensorRT-LLM official documentation and the in-flight batching design
+
+<em>This article is a technical overview; the cited figures come from each framework's public papers and release notes, and may drift out of date as versions iterate.</em>
+</blockquote>
+
+The same thread continues here: <a href="/article/queueing-theory-capacity-planning/">"Going from 4 Machines to 8 Made It Slower: Queueing Theory and Capacity Planning"</a>, <a href="/article/ibgda-domestic-gpu-rdma-demo-waic2026/">"No Nvidia NICs Required: A Hands-On Test of Direct GPU Passthrough on Domestic Hardware"</a>.
+`,
+  },
+  {
+    slug: 'ai-token-coding-plan-comparison-2026',
+    zhSlug: 'ai-token-coding-plan-comparison-2026',
+    topicSlug: 'aiagent',
+    title: 'AI Token Plans and Coding Plans in 2026: 20+ Platforms from China and Abroad, Compared',
+    excerpt: 'Prices, quotas and rate limits for 20+ Token Plans and Coding Plans in 2026, from Alibaba Model Studio, Kimi, Zhipu, MiniMax and the telecom carriers to ChatGPT, Claude, Cursor and Copilot.',
+    date: '2026-07-22',
+    readingTime: 19,
+    html: `
+<h2>Introduction: 2026 and the All-Out Subscription War</h2>
+
+In the first half of 2026, AI platforms at home and abroad moved en masse into the <strong>“Token Plan / Coding Plan subscription”</strong> era. From Alibaba Model Studio to Baidu Qianfan, from Kimi to MiniMax, from the three state telecom carriers to ChatGPT, Claude and Gemini — nearly every vendor now sells a monthly or quarterly plan.
+
+With <strong>20+ platforms and 50+ plans</strong> to choose from, how is a developer actually supposed to decide?
+
+This article works from the latest public pricing as of July 2026 and puts the Token Plans and Coding Plans of <strong>20 mainstream AI platforms</strong> in China and overseas side by side — <strong>the most complete comparison anywhere</strong>.
+<hr>
+<h2>1. What Exactly Are Token Plans and Coding Plans?</h2>
+<div class="codehilite"><pre><span></span><code>┌──────────────────────────────────────────┬──────────────────────────────────────────┐
+│                       How the two subscription models differ                        │
+├──────────────────────────────────────────┼──────────────────────────────────────────┤
+│    Token Plan                            │    Coding Plan                           │
+├──────────────────────────────────────────┼──────────────────────────────────────────┤
+│ • General chat and reasoning quota       │ • Purpose-built for AI coding            │
+│ • Metered by tokens consumed             │ • Metered by requests or agent tasks     │
+│ • Fits: writing, analysis, translation   │ • Fits: completion, agents, refactoring  │
+│ • Examples: Model Studio Token Plan      │ • Examples: Model Studio Coding Plan     │
+│   MiniMax Token                          │   Zhipu Coding Plan                      │
+│   StepFun Step Plan                      │   Cursor / Copilot                       │
+└──────────────────────────────────────────┴──────────────────────────────────────────┘
+</code></pre></div>
+
+<blockquote>
+
+Put simply: <strong>a Token Plan is a ration book for general AI use; a Coding Plan is a coupon book for programming.</strong> If you mostly use AI to write code, reach for a Coding Plan first. For general-purpose work, take the Token Plan.
+</blockquote>
+<hr>
+<h2>2. Which Chinese Platforms Sell Token Plans?</h2>
+<h3>2.1 The Alibaba Family</h3>
+<h4>Alibaba Cloud Model Studio (Token Plan)</h4>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Quota</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Standard</td>
+<td><strong>¥198/month</strong></td>
+<td>625K Credits</td>
+<td>The full Qwen model family</td>
+</tr>
+<tr>
+<td>Advanced</td>
+<td><strong>¥698/month</strong></td>
+<td>2,500K Credits</td>
+<td>More calls to premium models</td>
+</tr>
+<tr>
+<td>Flagship</td>
+<td><strong>¥1,398/month</strong></td>
+<td>6,000K Credits</td>
+<td>Enterprise-scale quota</td>
+</tr>
+</tbody>
+</table>
+<h4>Alibaba Cloud Model Studio (Coding Plan)</h4>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Quota</th>
+<th>Models supported</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lite</td>
+<td><strong>¥40/month</strong></td>
+<td>18,000 requests</td>
+<td>Qwen Coder, DeepSeek and more</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td><strong>¥200/month</strong></td>
+<td>90,000 requests</td>
+<td>Top-tier models such as Qwen, Kimi and GLM</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+It works with mainstream AI coding tools such as Cursor, Claude Code and OpenCode — one subscription, many tools.
+</blockquote>
+<h4>Qoder CN (formerly Tongyi Lingma; the all-in-one suite)</h4>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Credits</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Trial</td>
+<td><strong>Free</strong></td>
+<td>300 Credits + 2-week Pro trial</td>
+<td>Basic completion + limited chat</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td><strong>¥59/month</strong></td>
+<td>2,000 Credits</td>
+<td>Shared across the IDE, CLI and Work suite</td>
+</tr>
+<tr>
+<td>Pro+</td>
+<td><strong>¥169/month</strong></td>
+<td>6,000 Credits</td>
+<td>For heavy users</td>
+</tr>
+<tr>
+<td>Teams</td>
+<td><strong>¥99/seat·month</strong></td>
+<td>3,000 Credits/seat</td>
+<td>Company teams</td>
+</tr>
+<tr>
+<td>VPC</td>
+<td><strong>¥199/seat·month</strong></td>
+<td>3,000 Credits/seat</td>
+<td>Private deployment, 50 seats minimum</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+Top-up packs: ¥40 per 1,000 Credits for individuals, ¥80 per 2,000 Credits for enterprises.
+</blockquote>
+<hr>
+<h3>2.2 Kimi (Moonshot AI)</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Agent quota</th>
+<th>Highlights</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Adagio</td>
+<td><strong>Free</strong></td>
+<td>~6 agent units</td>
+<td>Entry-level experience</td>
+</tr>
+<tr>
+<td>Andante</td>
+<td><strong>¥49/month</strong></td>
+<td>~30 agent units</td>
+<td>Includes Kimi Code quota</td>
+</tr>
+<tr>
+<td>Moderato</td>
+<td><strong>¥99/month</strong></td>
+<td>~60 agent units</td>
+<td>More parallel tasks</td>
+</tr>
+<tr>
+<td>Allegretto</td>
+<td><strong>¥199/month</strong></td>
+<td>~150 agent units</td>
+<td>Includes database access</td>
+</tr>
+<tr>
+<td>Allegro</td>
+<td><strong>¥699/month</strong></td>
+<td>~360 agent units</td>
+<td>Top tier, everything unlocked</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+Kimi K3 supports a 1M context (2.8T parameters), tops the Arena coding leaderboard, and stands out in coding scenarios.
+</blockquote>
+<hr>
+<h3>2.3 Zhipu AI (GLM / CodeGeeX)</h3>
+<h4>Coding Plan (billed quarterly)</h4>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Quarterly fee</th>
+<th>Effective monthly</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lite</td>
+<td><strong>$30/quarter (~¥216)</strong></td>
+<td>~¥72/month</td>
+<td>Everyday coding</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td><strong>$90/quarter (~¥648)</strong></td>
+<td>~¥216/month</td>
+<td>Premium models + a larger quota</td>
+</tr>
+<tr>
+<td>Max</td>
+<td><strong>$240/quarter (~¥1,728)</strong></td>
+<td>~¥576/month</td>
+<td>Top tier</td>
+</tr>
+</tbody>
+</table>
+<h4>CodeGeeX (IDE plugin)</h4>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Individual</td>
+<td><strong>Free</strong></td>
+<td>Basic completion + chat</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td><strong>¥74/month</strong></td>
+<td>Premium models + enterprise knowledge base</td>
+</tr>
+</tbody>
+</table>
+<h4>Metered API pricing, for reference</h4>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Input (¥ per million tokens)</th>
+<th>Output (¥ per million tokens)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GLM-5</td>
+<td>7.2</td>
+<td>23</td>
+</tr>
+<tr>
+<td>GLM-4.7</td>
+<td>4.3</td>
+<td>15.8</td>
+</tr>
+<tr>
+<td>GLM-4 Flash</td>
+<td><strong>Free</strong></td>
+<td><strong>Free</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+GLM-5.2 supports a 1M context (744B parameters), and the Flash line is free forever.
+</blockquote>
+<hr>
+<h3>2.4 MiniMax (Hailuo AI)</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Starter</td>
+<td><strong>¥29/month</strong></td>
+<td>Getting started</td>
+</tr>
+<tr>
+<td>Plus</td>
+<td><strong>¥49/month</strong></td>
+<td>Covers every model on the open platform</td>
+</tr>
+<tr>
+<td>Max</td>
+<td><strong>¥119/month</strong></td>
+<td>3–7 agents in parallel</td>
+</tr>
+<tr>
+<td>Ultra</td>
+<td><strong>¥469/month</strong></td>
+<td>Top tier, large quota</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+Extra credits: ¥7 per 1,000. Multimodal (text + video + voice).
+</blockquote>
+<hr>
+<h3>2.5 StepFun (Step Plan)</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Flash Mini</td>
+<td><strong>¥49/month</strong></td>
+<td>Lightweight inference</td>
+</tr>
+<tr>
+<td>Plus</td>
+<td><strong>¥99/month</strong> (est.)</td>
+<td>Standard development</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td><strong>¥199/month</strong> (est.)</td>
+<td>Premium models</td>
+</tr>
+<tr>
+<td>Max</td>
+<td><strong>¥399/month</strong> (est.)</td>
+<td>Full-speed inference, uncapped</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+Launched in March 2026 with four tiers, all of which run inference at full speed. The pitch is “no slowdown”.
+</blockquote>
+<hr>
+<h3>2.6 Baidu Qianfan (ERNIE)</h3>
+<h4>Token Plan</h4>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mini</td>
+<td><strong>From ¥4.9</strong> (50% off first purchase)</td>
+<td>Getting started</td>
+</tr>
+<tr>
+<td>Lite</td>
+<td><strong>¥40/month</strong></td>
+<td>Base quota</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td><strong>¥200/month</strong></td>
+<td>Large quota</td>
+</tr>
+<tr>
+<td>Max</td>
+<td>On demand</td>
+<td>Enterprise</td>
+</tr>
+</tbody>
+</table>
+<h4>Coding Plan</h4>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Quota</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lite</td>
+<td><strong>¥40/month</strong></td>
+<td>Base coding requests</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td><strong>¥200/month</strong></td>
+<td>Advanced coding + agents</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+The ERNIE 4.5 family prices tokens as low as 50% of the going market rate.
+</blockquote>
+<hr>
+<h3>2.7 iFlytek (Spark)</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lite API</td>
+<td><strong>Free forever</strong></td>
+<td>Basic model calls</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td><strong>¥39/month</strong></td>
+<td>Spark Pro / Max models</td>
+</tr>
+<tr>
+<td>Efficiency</td>
+<td><strong>¥199/month</strong></td>
+<td>Large quota + advanced features</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+In 2026 iFlytek put ¥1 billion into founding “Token Spark”, bringing token costs down to a third of what its peers charge. The Spark Lite API is free forever.
+</blockquote>
+<hr>
+<h3>2.8 Volcano Engine (ByteDance / Doubao)</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Coding Plan</td>
+<td>Lite</td>
+<td><strong>¥40/month</strong></td>
+<td>Everyday coding</td>
+</tr>
+<tr>
+<td>Coding Plan</td>
+<td>Pro</td>
+<td><strong>¥200/month</strong></td>
+<td>Advanced coding + agents</td>
+</tr>
+<tr>
+<td>Agent Plan</td>
+<td>Standard</td>
+<td><strong>¥50–200/month</strong></td>
+<td>Agent tasks</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+Its Trae IDE China edition is <strong>completely free for basic use</strong> and has passed 6 million users.
+</blockquote>
+<hr>
+<h3>2.9 Xiaomi (MiMo)</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lite</td>
+<td><strong>¥39/month</strong></td>
+<td>Lightweight inference</td>
+</tr>
+<tr>
+<td>Standard</td>
+<td><strong>¥99/month</strong></td>
+<td>Standard development</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td><strong>¥329/month</strong></td>
+<td>Premium models</td>
+</tr>
+<tr>
+<td>Max</td>
+<td><strong>¥659/month</strong></td>
+<td>Top tier</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3>2.10 Jiuzhang Yunji (DataCanvas)</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Starter</td>
+<td><strong>¥199/month</strong></td>
+<td>Base token quota</td>
+</tr>
+<tr>
+<td>Advanced</td>
+<td><strong>¥399/month</strong></td>
+<td>Larger quota + multiple models</td>
+</tr>
+<tr>
+<td>Flagship</td>
+<td><strong>¥699/month</strong></td>
+<td>Full enterprise feature set</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3>2.11 The Three Telecom Carriers (Token Bundles)</h3>
+In June 2026 the three state carriers piled into the token business together, leading with <strong>mass-market pricing</strong>:
+<table>
+<thead>
+<tr>
+<th>Carrier</th>
+<th>Starting price</th>
+<th>Quota</th>
+<th>Characteristics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>China Telecom</strong></td>
+<td><strong>¥9.9/month</strong></td>
+<td>10 million tokens</td>
+<td>Up to ¥299.9/month, multiple tiers</td>
+</tr>
+<tr>
+<td><strong>China Mobile</strong></td>
+<td><strong>¥5/month</strong></td>
+<td>2.5 million tokens (¥9 tier)</td>
+<td>Flexible province-level pricing, ¥1 = 400K tokens</td>
+</tr>
+<tr>
+<td><strong>China Unicom</strong></td>
+<td>Three tiers: Lite / Pro / Max</td>
+<td>Scales with the tier</td>
+<td>Billions of AI calls per day</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+Carrier bundles suit <strong>light users and the curious</strong>. Model choice is fairly limited, but the price war has genuinely scraped the floor.
+</blockquote>
+<hr>
+<h3>2.12 DeepSeek</h3>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Cost</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pay-as-you-go</td>
+<td>~¥33/month (moderate use)</td>
+<td>No subscription — pay for what you use</td>
+</tr>
+<tr>
+<td>API</td>
+<td>Input ¥1/million tokens, output ¥4/million tokens</td>
+<td>V4 supports a 1024K context</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+DeepSeek refuses the subscription model and sticks to metered billing. The 1024K context is its biggest selling point.
+</blockquote>
+<hr>
+<h2>3. Overseas Platforms, Head to Head</h2>
+<h3>3.1 OpenAI (ChatGPT / Codex)</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Free</td>
+<td><strong>$0</strong></td>
+<td>Limited GPT-4o usage</td>
+</tr>
+<tr>
+<td>Plus</td>
+<td><strong>$20/month</strong></td>
+<td>Standard quota for GPT-4o + o4-mini</td>
+</tr>
+<tr>
+<td>Pro 5x</td>
+<td><strong>$100/month</strong></td>
+<td>5× the capacity of Plus</td>
+</tr>
+<tr>
+<td>Pro 20x</td>
+<td><strong>$200/month</strong></td>
+<td>20× the capacity of Plus</td>
+</tr>
+<tr>
+<td>Codex</td>
+<td>Included with Plus and above</td>
+<td>Cloud coding agent</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3>3.2 Anthropic (Claude Code)</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pro</td>
+<td><strong>$20/month</strong></td>
+<td>Light coding, Claude Sonnet 4</td>
+</tr>
+<tr>
+<td>Max 5x</td>
+<td><strong>$100/month</strong></td>
+<td>5× the capacity of Pro</td>
+</tr>
+<tr>
+<td>Max 20x</td>
+<td><strong>$200/month</strong></td>
+<td>20× the capacity of Pro, includes Opus 4</td>
+</tr>
+<tr>
+<td>Team</td>
+<td><strong>$30/seat·month</strong></td>
+<td>Team collaboration</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+Claude Code is a terminal-native agent with, at present, the deepest code comprehension.
+</blockquote>
+<hr>
+<h3>3.3 Google (Gemini)</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Free</td>
+<td><strong>$0</strong></td>
+<td>Limited Gemini 2.5 Flash quota</td>
+</tr>
+<tr>
+<td>Advanced</td>
+<td><strong>$19.99/month</strong></td>
+<td>Google One AI Premium, includes Gemini 2.5 Pro</td>
+</tr>
+<tr>
+<td>Code Assist</td>
+<td><strong>$19/month</strong></td>
+<td>IDE coding plugin</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+Gemini 2.5 Pro supports a 1M token context, and the Advanced subscription bundles 2TB of Google One storage.
+</blockquote>
+<hr>
+<h3>3.4 GitHub Copilot</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Free</td>
+<td><strong>$0</strong></td>
+<td>Limited premium requests</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td><strong>$10/month</strong></td>
+<td>Standard coding assistant</td>
+</tr>
+<tr>
+<td>Pro+</td>
+<td><strong>$39/month</strong></td>
+<td>More premium requests</td>
+</tr>
+<tr>
+<td>Max</td>
+<td><strong>$100/month</strong></td>
+<td>Large quota + premium models</td>
+</tr>
+<tr>
+<td>Business</td>
+<td><strong>$19/seat·month</strong></td>
+<td>Company teams</td>
+</tr>
+<tr>
+<td>Enterprise</td>
+<td><strong>$39/seat·month</strong></td>
+<td>Enterprise + knowledge base</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3>3.5 Cursor</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Quota</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hobby</td>
+<td><strong>$0</strong></td>
+<td>Extremely limited</td>
+<td>Trial</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td><strong>$20/month</strong></td>
+<td>$20 of API usage at list price</td>
+<td>The main workhorse plan</td>
+</tr>
+<tr>
+<td>Pro+</td>
+<td><strong>$60/month</strong></td>
+<td>$70 of API usage at list price</td>
+<td>For heavy users</td>
+</tr>
+<tr>
+<td>Ultra</td>
+<td><strong>$200/month</strong></td>
+<td>$400 of API usage at list price</td>
+<td>Top tier</td>
+</tr>
+<tr>
+<td>Teams</td>
+<td><strong>$40/seat·month</strong></td>
+<td>—</td>
+<td>Enterprise standard</td>
+</tr>
+<tr>
+<td>Teams Premium</td>
+<td><strong>$120/seat·month</strong></td>
+<td>—</td>
+<td>Enterprise premium</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+Cursor 3.0 adds parallel agent factories and cloud agents. Note that heavy agent use can burn through the $20 allowance in 3–5 days.
+</blockquote>
+<hr>
+<h3>3.6 OpenCode (open source)</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Open source</td>
+<td><strong>Free</strong></td>
+<td>Bring your own API key, fully open source</td>
+</tr>
+<tr>
+<td>Go</td>
+<td><strong>$10/month</strong></td>
+<td>Officially hosted model service</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+OpenCode is the hottest open-source AI coding tool of 2026 (70K+ GitHub stars) and can plug into any model API. Paired with a domestic Model Studio or Zhipu Coding Plan it is exceptional value.
+</blockquote>
+<hr>
+<h3>3.7 Ollama (local models)</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Monthly fee</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Local</td>
+<td><strong>Free</strong></td>
+<td>Run open-source models locally</td>
+</tr>
+<tr>
+<td>Pro</td>
+<td><strong>$20/month</strong></td>
+<td>Managed cloud</td>
+</tr>
+<tr>
+<td>Max</td>
+<td><strong>$100/month</strong></td>
+<td>Large cloud quota</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>4. How Far Apart Are the Prices?</h2>
+<h3>4.1 Chinese Platforms, Entry Tier (¥29–59/month)</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Entry price</th>
+<th>Type</th>
+<th>Key selling point</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>China Telecom Token</td>
+<td>¥9.9</td>
+<td>Token</td>
+<td>Cheapest of the lot, 10M tokens</td>
+</tr>
+<tr>
+<td>MiniMax Starter</td>
+<td>¥29</td>
+<td>Token</td>
+<td>Multimodal</td>
+</tr>
+<tr>
+<td>iFlytek Pro</td>
+<td>¥39</td>
+<td>Token</td>
+<td>Spark Lite is free forever</td>
+</tr>
+<tr>
+<td>Xiaomi Lite</td>
+<td>¥39</td>
+<td>Token</td>
+<td>Ecosystem integration</td>
+</tr>
+<tr>
+<td>Model Studio Coding Lite</td>
+<td>¥40</td>
+<td>Coding</td>
+<td>Works with mainstream IDE tools</td>
+</tr>
+<tr>
+<td>Volcano Coding Lite</td>
+<td>¥40</td>
+<td>Coding</td>
+<td>Free Trae + Doubao models</td>
+</tr>
+<tr>
+<td>Baidu Lite</td>
+<td>¥40</td>
+<td>Token/Coding</td>
+<td>50% off first purchase</td>
+</tr>
+<tr>
+<td>Kimi Andante</td>
+<td>¥49</td>
+<td>Token</td>
+<td>1M context (K3)</td>
+</tr>
+<tr>
+<td>MiniMax Plus</td>
+<td>¥49</td>
+<td>Token</td>
+<td>Every model included</td>
+</tr>
+<tr>
+<td>StepFun Flash Mini</td>
+<td>¥49</td>
+<td>Token</td>
+<td>Full speed on every tier, no throttling</td>
+</tr>
+<tr>
+<td>Zhipu Lite</td>
+<td>~¥72</td>
+<td>Coding</td>
+<td>GLM-5.2 + CodeGeeX</td>
+</tr>
+<tr>
+<td>Qoder CN Pro</td>
+<td>¥59</td>
+<td>Coding</td>
+<td>One suite shared across platforms</td>
+</tr>
+</tbody>
+</table>
+<h3>4.2 Chinese Platforms, Mid and Upper Tiers (¥99–200/month)</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Price</th>
+<th>Type</th>
+<th>Key selling point</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Kimi Moderato</td>
+<td>¥99</td>
+<td>Token</td>
+<td>60 agent units</td>
+</tr>
+<tr>
+<td>Xiaomi Standard</td>
+<td>¥99</td>
+<td>Token</td>
+<td>—</td>
+</tr>
+<tr>
+<td>StepFun Plus</td>
+<td>¥99</td>
+<td>Token</td>
+<td>—</td>
+</tr>
+<tr>
+<td>MiniMax Max</td>
+<td>¥119</td>
+<td>Token</td>
+<td>Parallel agents</td>
+</tr>
+<tr>
+<td>Qoder CN Pro+</td>
+<td>¥169</td>
+<td>Coding</td>
+<td>6,000 Credits</td>
+</tr>
+<tr>
+<td>iFlytek Efficiency</td>
+<td>¥199</td>
+<td>Token</td>
+<td>Large quota</td>
+</tr>
+<tr>
+<td>Kimi Allegretto</td>
+<td>¥199</td>
+<td>Token</td>
+<td>150 agent units</td>
+</tr>
+<tr>
+<td>Jiuzhang Starter</td>
+<td>¥199</td>
+<td>Token</td>
+<td>Enterprise-grade</td>
+</tr>
+<tr>
+<td>Model Studio Coding Pro</td>
+<td>¥200</td>
+<td>Coding</td>
+<td>90,000 requests</td>
+</tr>
+<tr>
+<td>Volcano Coding Pro</td>
+<td>¥200</td>
+<td>Coding</td>
+<td>Agents + premium models</td>
+</tr>
+<tr>
+<td>Baidu Pro</td>
+<td>¥200</td>
+<td>Token/Coding</td>
+<td>ERNIE 4.5</td>
+</tr>
+</tbody>
+</table>
+<h3>4.3 Overseas Platforms (priced in USD)</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Entry</th>
+<th>Mid</th>
+<th>High</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>OpenCode Go</td>
+<td>$10</td>
+<td>—</td>
+<td>—</td>
+<td>Coding (open source)</td>
+</tr>
+<tr>
+<td>Copilot</td>
+<td>$10</td>
+<td>$39</td>
+<td>$100</td>
+<td>Coding</td>
+</tr>
+<tr>
+<td>Gemini</td>
+<td>$19.99</td>
+<td>—</td>
+<td>—</td>
+<td>Token</td>
+</tr>
+<tr>
+<td>ChatGPT</td>
+<td>$20</td>
+<td>$100</td>
+<td>$200</td>
+<td>Token + Coding</td>
+</tr>
+<tr>
+<td>Claude Code</td>
+<td>$20</td>
+<td>$100</td>
+<td>$200</td>
+<td>Coding</td>
+</tr>
+<tr>
+<td>Cursor</td>
+<td>$20</td>
+<td>$60</td>
+<td>$200</td>
+<td>Coding</td>
+</tr>
+<tr>
+<td>Ollama</td>
+<td>$20</td>
+<td>—</td>
+<td>$100</td>
+<td>Token (local)</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>5. Model Coding Benchmarks (as of July 2026)</h2>
+When you pick a subscription, <strong>the coding ability of the model underneath</strong> is the thing that actually matters. Here is how the latest flagship models stack up as of July 2026:
+<h3>5.1 SWE-bench Verified (pass rate on real GitHub issues)</h3>
+<table>
+<thead>
+<tr>
+<th>Rank</th>
+<th>Model</th>
+<th>Pass rate</th>
+<th>Platform</th>
+<th>Released</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>GPT-5.6 Sol</strong></td>
+<td><strong>96.2%</strong></td>
+<td>OpenAI (ChatGPT/Codex)</td>
+<td>2026.7.9</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Claude Mythos 5</td>
+<td><strong>95.5%</strong></td>
+<td>Anthropic</td>
+<td>2026.5</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Claude Fable 5</strong></td>
+<td><strong>95.0%</strong></td>
+<td>Anthropic (Claude Code)</td>
+<td>2026.6</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Kimi K3</strong></td>
+<td><strong>~90%</strong></td>
+<td>Kimi (Moonshot AI)</td>
+<td>2026.7.16</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Qwen3.8 Max Preview</strong></td>
+<td><strong>~89%</strong></td>
+<td>Alibaba Model Studio / Qoder CN</td>
+<td>2026.7.19</td>
+</tr>
+<tr>
+<td>6</td>
+<td>DeepSeek V4 Pro Max</td>
+<td><strong>80.6%</strong></td>
+<td>DeepSeek / Model Studio</td>
+<td>2026.5</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>GLM-5.2</strong></td>
+<td><strong>~80%</strong></td>
+<td>Zhipu AI / CodeGeeX</td>
+<td>2026.7</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Gemini 2.5 Pro</td>
+<td><strong>63.8%</strong></td>
+<td>Google</td>
+<td>2025</td>
+</tr>
+</tbody>
+</table>
+<h3>5.2 SWE-bench Pro (a stricter, multi-file engineering test)</h3>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Pass rate</th>
+<th>Remark</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Claude Fable 5</strong></td>
+<td><strong>80.0%</strong></td>
+<td>Widely regarded as the strongest in real-world coding</td>
+</tr>
+<tr>
+<td>GPT-5.6 Sol</td>
+<td>64.6%</td>
+<td>Strong on benchmarks, a little behind in real engineering work</td>
+</tr>
+<tr>
+<td><strong>GLM-5.2</strong></td>
+<td><strong>62.1%</strong></td>
+<td>Beats GPT-5.5 (58.6%), the best domestic model</td>
+</tr>
+<tr>
+<td>Kimi K3</td>
+<td>~60%</td>
+<td>Tops the Arena coding blind-test leaderboard (1,679 points)</td>
+</tr>
+</tbody>
+</table>
+<h3>5.3 Flagship Model Specifications</h3>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Parameters</th>
+<th>Context</th>
+<th>Highlights</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Kimi K3</strong></td>
+<td><strong>2.8T</strong></td>
+<td><strong>1M</strong></td>
+<td>The largest open-source model in the world, No. 1 on the Arena coding board</td>
+</tr>
+<tr>
+<td><strong>Qwen3.8 Max</strong></td>
+<td><strong>2.4T</strong></td>
+<td>256K</td>
+<td>Rates itself second only to Fable 5; open source soon</td>
+</tr>
+<tr>
+<td><strong>GLM-5.2</strong></td>
+<td><strong>744B</strong></td>
+<td><strong>1M</strong></td>
+<td>Coding costs a sixth of GPT-5.5</td>
+</tr>
+<tr>
+<td>GPT-5.6 Sol</td>
+<td>Undisclosed</td>
+<td>128K</td>
+<td>No. 1 on SWE-bench Verified</td>
+</tr>
+<tr>
+<td>Claude Fable 5</td>
+<td>Undisclosed</td>
+<td>200K</td>
+<td>Considered the best for real engineering work and agents</td>
+</tr>
+<tr>
+<td>DeepSeek V4</td>
+<td>Undisclosed</td>
+<td><strong>1024K</strong></td>
+<td>Ultra-long context, pay-as-you-go</td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code>Coding capability tiers (July 2026):
+T0 (95%+)  ████████████████████████████████████████  GPT-5.6 Sol / Mythos 5 / Fable 5
+T1 (88-94) ████████████████████████████████████      Kimi K3 / Qwen3.8
+T2 (78-85) ████████████████████████████████          DeepSeek V4 / GLM-5.2
+T3 (60-70) █████████████████████████                 Gemini 2.5 Pro
+</code></pre></div>
+<blockquote>
+<strong>Key takeaways</strong>:
+1. <strong>Fable 5 is the strongest in real-world coding</strong> — its SWE-bench Verified score sits slightly below GPT-5.6 Sol, but on the stricter, multi-file SWE-bench Pro it leads by a wide margin at 80%, and it is widely considered the best agentic coding experience.
+2. <strong>Chinese models broke out together</strong> — Kimi K3 (2.8T) tops the Arena coding blind-test leaderboard, Qwen3.8 (2.4T) rates itself second only to Fable 5, and GLM-5.2 beats GPT-5.5 on SWE-bench Pro. The coding gap between China and the US has narrowed to 1–4%.
+3. <strong>The cost gap is enormous</strong> — GLM-5.2 codes at a sixth of GPT-5.5's price, and on price-performance the domestic models flatten the overseas ones.
+</blockquote>
+<hr>
+<h2>6. Quotas and Call Limits in Detail</h2>
+<h3>6.1 Coding Plan Quotas</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Tier</th>
+<th>Monthly request cap</th>
+<th>5-hour cap</th>
+<th>Weekly cap</th>
+<th>Context length</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Model Studio Coding</strong></td>
+<td>Lite</td>
+<td>18,000</td>
+<td>—</td>
+<td>—</td>
+<td>128K</td>
+</tr>
+<tr>
+<td><strong>Model Studio Coding</strong></td>
+<td>Pro</td>
+<td>90,000</td>
+<td>6,000</td>
+<td>45,000</td>
+<td>128K</td>
+</tr>
+<tr>
+<td><strong>Zhipu Coding</strong></td>
+<td>Lite</td>
+<td>~24,000</td>
+<td>—</td>
+<td>—</td>
+<td>200K</td>
+</tr>
+<tr>
+<td><strong>Zhipu Coding</strong></td>
+<td>Pro</td>
+<td>~60,000</td>
+<td>—</td>
+<td>—</td>
+<td>200K</td>
+</tr>
+<tr>
+<td><strong>Volcano Coding</strong></td>
+<td>Lite</td>
+<td>~18,000</td>
+<td>—</td>
+<td>—</td>
+<td>128K</td>
+</tr>
+<tr>
+<td><strong>Volcano Coding</strong></td>
+<td>Pro</td>
+<td>~90,000</td>
+<td>—</td>
+<td>—</td>
+<td>128K</td>
+</tr>
+<tr>
+<td><strong>Qoder CN</strong></td>
+<td>Pro</td>
+<td>2,000 Credits</td>
+<td>—</td>
+<td>—</td>
+<td>128K</td>
+</tr>
+<tr>
+<td><strong>Qoder CN</strong></td>
+<td>Pro+</td>
+<td>6,000 Credits</td>
+<td>—</td>
+<td>—</td>
+<td>128K</td>
+</tr>
+</tbody>
+</table>
+<h3>6.2 Token Plan Quotas</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Tier</th>
+<th>Monthly quota</th>
+<th>Context</th>
+<th>Model choice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Kimi</strong></td>
+<td>Andante ¥49</td>
+<td>~30 agent units</td>
+<td>1M</td>
+<td>Kimi K3</td>
+</tr>
+<tr>
+<td><strong>Kimi</strong></td>
+<td>Moderato ¥99</td>
+<td>~60 agent units</td>
+<td>1M</td>
+<td>Kimi K3</td>
+</tr>
+<tr>
+<td><strong>MiniMax</strong></td>
+<td>Plus ¥49</td>
+<td>Standard credits</td>
+<td>128K</td>
+<td>Every model on the platform</td>
+</tr>
+<tr>
+<td><strong>MiniMax</strong></td>
+<td>Max ¥119</td>
+<td>3–7 parallel agents</td>
+<td>128K</td>
+<td>Every model on the platform</td>
+</tr>
+<tr>
+<td><strong>StepFun</strong></td>
+<td>Flash Mini ¥49</td>
+<td>Base quota</td>
+<td>128K</td>
+<td>Step series</td>
+</tr>
+<tr>
+<td><strong>iFlytek</strong></td>
+<td>Pro ¥39</td>
+<td>Standard quota</td>
+<td>128K</td>
+<td>Spark Pro / Max</td>
+</tr>
+<tr>
+<td><strong>China Telecom</strong></td>
+<td>¥9.9</td>
+<td>10M tokens</td>
+<td>32K</td>
+<td>Limited model selection</td>
+</tr>
+<tr>
+<td><strong>China Mobile</strong></td>
+<td>¥9</td>
+<td>2.5M tokens</td>
+<td>32K</td>
+<td>Limited model selection</td>
+</tr>
+<tr>
+<td><strong>DeepSeek</strong></td>
+<td>Metered</td>
+<td>No cap (pay per use)</td>
+<td><strong>1024K</strong></td>
+<td>DeepSeek V4</td>
+</tr>
+</tbody>
+</table>
+<h3>6.3 Overseas Platform Quotas</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Tier</th>
+<th>How the quota works</th>
+<th>Context</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ChatGPT</strong></td>
+<td>Plus $20</td>
+<td>Standard capacity</td>
+<td>128K</td>
+<td>GPT-4o + o4-mini</td>
+</tr>
+<tr>
+<td><strong>ChatGPT</strong></td>
+<td>Pro 5x $100</td>
+<td>5× capacity</td>
+<td>128K</td>
+<td>Includes the Codex agent</td>
+</tr>
+<tr>
+<td><strong>Claude Code</strong></td>
+<td>Pro $20</td>
+<td>Light coding</td>
+<td>200K</td>
+<td>Mostly Sonnet 4</td>
+</tr>
+<tr>
+<td><strong>Claude Code</strong></td>
+<td>Max 20x $200</td>
+<td>20× capacity</td>
+<td>200K</td>
+<td>Includes Opus 4</td>
+</tr>
+<tr>
+<td><strong>Cursor</strong></td>
+<td>Pro $20</td>
+<td>$20 of API value</td>
+<td>128K</td>
+<td>Heavy agent use drains it in 3–5 days</td>
+</tr>
+<tr>
+<td><strong>Cursor</strong></td>
+<td>Ultra $200</td>
+<td>$400 of API value</td>
+<td>128K</td>
+<td>Top tier</td>
+</tr>
+<tr>
+<td><strong>Copilot</strong></td>
+<td>Pro $10</td>
+<td>Standard premium requests</td>
+<td>128K</td>
+<td>Base models do not consume quota</td>
+</tr>
+<tr>
+<td><strong>Gemini</strong></td>
+<td>Advanced $19.99</td>
+<td>Included in Google One</td>
+<td><strong>1M</strong></td>
+<td>Longest context here</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+⚠️ <strong>A word on quota burn</strong>: in agent mode, token consumption is far higher than in ordinary chat. Measured tests show a single simple instruction burning 49,000 tokens (data from carrier-bundle trials), and heavy agent users can get through tens of millions of tokens a month.
+</blockquote>
+<hr>
+<h2>7. Sign-Up Difficulty and Practical Barriers</h2>
+<h3>7.1 Chinese Platforms</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Difficulty</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Trae China edition</strong></td>
+<td>⭐ Very easy</td>
+<td>Download straight from the official site, free to use, sign up with a phone number</td>
+</tr>
+<tr>
+<td><strong>CodeGeeX</strong></td>
+<td>⭐ Very easy</td>
+<td>Install from the IDE plugin marketplace, free</td>
+</tr>
+<tr>
+<td><strong>iFlytek Spark Lite</strong></td>
+<td>⭐ Very easy</td>
+<td>Register on the site and go; the API is free forever</td>
+</tr>
+<tr>
+<td><strong>Kimi</strong></td>
+<td>⭐ Very easy</td>
+<td>Sign up on the site or in the app; paid plans activate immediately</td>
+</tr>
+<tr>
+<td><strong>MiniMax</strong></td>
+<td>⭐ Very easy</td>
+<td>Sign up on the site; paid plans activate immediately</td>
+</tr>
+<tr>
+<td><strong>StepFun</strong></td>
+<td>⭐ Very easy</td>
+<td>Sign up on the site; paid plans activate immediately</td>
+</tr>
+<tr>
+<td><strong>Qoder CN</strong></td>
+<td>⭐⭐ Easy</td>
+<td>An Alibaba Cloud account; paid plans activate immediately</td>
+</tr>
+<tr>
+<td><strong>Baidu Qianfan</strong></td>
+<td>⭐⭐ Easy</td>
+<td>A Baidu Cloud account, with a discount on the first purchase</td>
+</tr>
+<tr>
+<td><strong>Jiuzhang Yunji</strong></td>
+<td>⭐⭐ Easy</td>
+<td>Sign up on the site; enterprises must be verified</td>
+</tr>
+<tr>
+<td><strong>The three carriers</strong></td>
+<td>⭐⭐ Easy</td>
+<td>Apply at a store or in the app; real-name registration required</td>
+</tr>
+<tr>
+<td><strong>Alibaba Model Studio Coding Pro</strong></td>
+<td>⭐⭐⭐⭐ Hard</td>
+<td><strong>A limited drop every day at 9:30</strong>, often sold out in seconds! One purchase per account</td>
+</tr>
+<tr>
+<td><strong>Volcano Coding Pro</strong></td>
+<td>⭐⭐⭐ Moderate</td>
+<td>Capped now and then; watch for restocks</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+🚨 <strong>How to win the Model Studio Coding Plan Pro drop</strong>: stock is replenished at 9:30 sharp every day, so be on the page five minutes early. The Lite tier has been withdrawn, leaving only Pro (¥200/month). If you miss it, fall back to the Token Plan team edition or claim the 70 million free tokens instead.
+</blockquote>
+<h3>7.2 Overseas Platforms (for users in China)</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Difficulty</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>GitHub Copilot</strong></td>
+<td>⭐⭐ Easy</td>
+<td>A GitHub account plus an international card or Alipay — <strong>no VPN needed</strong></td>
+</tr>
+<tr>
+<td><strong>OpenCode</strong></td>
+<td>⭐⭐ Easy</td>
+<td>Open source and free; paired with a domestic API it needs no VPN</td>
+</tr>
+<tr>
+<td><strong>Cursor</strong></td>
+<td>⭐⭐⭐ Moderate</td>
+<td>Needs a VPN to download; Alipay works via a virtual card; steady network access required in daily use</td>
+</tr>
+<tr>
+<td><strong>ChatGPT/OpenAI</strong></td>
+<td>⭐⭐⭐⭐ Hard</td>
+<td>A VPN, an overseas or virtual phone number to register, and international payment</td>
+</tr>
+<tr>
+<td><strong>Claude Code</strong></td>
+<td>⭐⭐⭐⭐ Hard</td>
+<td>A VPN plus overseas payment; in China you also have to set proxy environment variables</td>
+</tr>
+<tr>
+<td><strong>Gemini Advanced</strong></td>
+<td>⭐⭐⭐⭐ Hard</td>
+<td>A VPN, a Google account, and it is unavailable in some regions</td>
+</tr>
+<tr>
+<td><strong>Ollama</strong></td>
+<td>⭐ Very easy</td>
+<td>Open source and local, no network needed, but you need a GPU</td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code>Difficulty at a glance:
+No friction from China: Trae / CodeGeeX / iFlytek / Kimi / MiniMax / StepFun / Qoder CN / Model Studio / Copilot / OpenCode
+Some friction:          Cursor (VPN + payment) / Model Studio Pro (restock drops)
+Quite a bit of work:    ChatGPT / Claude Code / Gemini (VPN + overseas signup + payment)
+No barrier at all:      Ollama local (needs a GPU) / DeepSeek API (pay-as-you-go)
+</code></pre></div>
+<h3>7.3 Payment Methods</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Alipay</th>
+<th>WeChat Pay</th>
+<th>International card</th>
+<th>Other</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>All Chinese platforms</td>
+<td>✅</td>
+<td>✅</td>
+<td>—</td>
+<td>Alibaba Cloud / Baidu Cloud balance</td>
+</tr>
+<tr>
+<td>GitHub Copilot</td>
+<td>✅</td>
+<td>❌</td>
+<td>✅</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Cursor</td>
+<td>✅ (virtual card)</td>
+<td>❌</td>
+<td>✅</td>
+<td>Alipay top-up agents</td>
+</tr>
+<tr>
+<td>ChatGPT</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+<td>Virtual credit card</td>
+</tr>
+<tr>
+<td>Claude Code</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+<td>Virtual credit card</td>
+</tr>
+<tr>
+<td>Gemini</td>
+<td>❌</td>
+<td>❌</td>
+<td>✅</td>
+<td>Google Play balance</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>8. Value for Money, in Depth</h2>
+<h3>8.1 Monthly Cost Ladder for Individual Developers</h3>
+<div class="codehilite"><pre><span></span><code>Monthly cost (¥)
+ │
+700│                                              ┌───┐ Kimi Allegro
+   │                                              │   │
+660│                                         ┌───┐│   │ Xiaomi Max
+   │                                         │   ││   │
+470│                                    ┌───┐│   ││   │ MiniMax Ultra
+   │                                    │   ││   ││   │
+200│         ┌───┐                 ┌───┐│   ││   ││   │ Model Studio Coding Pro
+   │         │   │ Qoder Pro+ ¥169│   ││   ││   ││   │
+144│    ┌───┐│   │                │   ││   ││   ││   │ Cursor Pro
+   │    │   ││   │  Copilot Pro   │   ││   ││   ││   │
+ 59│┌───┐│   ││   │  ~¥72         │   ││   ││   ││   │
+   ││   ││   ││   │               │   ││   ││   ││   │
+  0│┴───┴┴───┴┴───┴───────────────┴───┴┴───┴┴───┴┴───┴──
+  Trae CodeGeeX Qoder Copilot Cursor StepFun Kimi  MiniMax
+  free  free   CN Pro  Pro     Pro           Allegro Ultra
+</code></pre></div>
+<h3>8.2 Value Rankings (individual coding)</h3>
+<table>
+<thead>
+<tr>
+<th>Rank</th>
+<th>Option</th>
+<th>Monthly cost</th>
+<th>Why it made the list</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Trae China edition + DeepSeek API</strong></td>
+<td>¥0–33</td>
+<td>Start at zero cost; metered billing keeps it flexible</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Model Studio Coding Lite + OpenCode</strong></td>
+<td>¥40</td>
+<td>18,000 requests, compatible with every open-source tool</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Qoder CN Pro</strong></td>
+<td>¥59</td>
+<td>One subscription shared across the whole suite; the most complete domestic ecosystem</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Copilot Pro</strong></td>
+<td>~¥72</td>
+<td>The most mature ecosystem, seamless inside VS Code</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Kimi Andante</strong></td>
+<td>¥49</td>
+<td>1M context (K3); good for both general work and coding</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Cursor Pro</strong></td>
+<td>~¥144</td>
+<td>The best AI-native IDE experience</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>Claude Code Pro</strong></td>
+<td>~¥144</td>
+<td>The deepest terminal agent</td>
+</tr>
+</tbody>
+</table>
+<h3>8.3 Value for Teams (50 people, monthly)</h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Total per month</th>
+<th>Per year</th>
+<th>Characteristics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Qoder CN Teams</td>
+<td>¥4,950</td>
+<td>¥59,400</td>
+<td>The domestic default, with a private-deployment option</td>
+</tr>
+<tr>
+<td>Model Studio Coding Pro × 50</td>
+<td>¥10,000</td>
+<td>¥120,000</td>
+<td>Switch between multiple models</td>
+</tr>
+<tr>
+<td>Copilot Business</td>
+<td>~¥6,840</td>
+<td>~¥82,080</td>
+<td>For cross-border teams</td>
+</tr>
+<tr>
+<td>Cursor Teams</td>
+<td>~¥14,400</td>
+<td>~¥172,800</td>
+<td>Best IDE experience</td>
+</tr>
+<tr>
+<td>Claude Team</td>
+<td>~¥10,800</td>
+<td>~¥129,600</td>
+<td>Agent depth</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>9. Which Token Plan Fits Your Needs?</h2>
+<div class="codehilite"><pre><span></span><code>What is your core need?
+│
+├─ “Zero budget / student”
+│   ├─ Everyday coding → Trae China edition (free) + CodeGeeX (free)
+│   ├─ General AI → iFlytek Spark Lite (free) + GLM-4 Flash (free)
+│   └─ Trying things out → China Telecom Token ¥9.9/month (10M tokens)
+│
+├─ “Individual developer, ¥40-60 a month”
+│   ├─ Mostly coding → Model Studio Coding Lite ¥40 + OpenCode (open source)
+│   ├─ The all-in-one suite → Qoder CN Pro ¥59
+│   ├─ General + coding → Kimi Andante ¥49
+│   └─ VS Code user → Copilot Pro ~¥72
+│
+├─ “Heavy developer, ¥100-200 a month”
+│   ├─ AI-native IDE → Cursor Pro ~¥144
+│   ├─ Terminal agent → Claude Code Pro ~¥144
+│   ├─ Domestic, large quota → Model Studio Coding Pro ¥200 (90,000 requests)
+│   └─ Heavy general use → Kimi Allegretto ¥199
+│
+├─ “Enterprise team (in China)”
+│   ├─ Value first → Qoder CN Teams ¥99/seat
+│   ├─ Security and compliance → Qoder CN VPC ¥199/seat
+│   └─ Multiple models needed → Model Studio Coding Pro ¥200/person
+│
+└─ “Enterprise team (multinational / overseas)”
+    ├─ Mature ecosystem → Copilot Business $19/seat
+    ├─ IDE experience → Cursor Teams $40/seat
+    └─ Agent depth → Claude Team $30/seat
+</code></pre></div>
+<hr>
+<h2>10. What to Expect in the Second Half of 2026</h2>
+<h3>10.1 The Shape of the Market</h3>
+<div class="codehilite"><pre><span></span><code>┌───────────────────────────────────────────────────────────────────────────┐
+│                 2026 Token Subscription Market Structure                  │
+├───────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│   Tier 1 (ecosystem plays)                                                │
+│   ┌────────────────┬────────────────┬────────────────┬────────────────┐   │
+│   │ Model Studio   │ +Qoder CN      │ Baidu Qianfan  │ +ERNIE Bot     │   │
+│   │                │                │                │                │   │
+│   │ Volcano Engine │ +Trae          │ OpenAI         │ +Codex         │   │
+│   └────────────────┴────────────────┴────────────────┴────────────────┘   │
+│                                                                           │
+│   Tier 2 (model makers)                                                   │
+│   ┌────────────────┬────────────────┬────────────────┬────────────────┐   │
+│   │ Kimi           │ Moonshot AI    │ Zhipu          │ GLM            │   │
+│   │                │                │                │                │   │
+│   │ MiniMax        │ Hailuo AI      │ Anthropic      │ Claude         │   │
+│   └────────────────┴────────────────┴────────────────┴────────────────┘   │
+│                                                                           │
+│   Tier 3 (channel plays)                                                  │
+│   ┌────────────────┬────────────────┬────────────────┬────────────────┐   │
+│   │ China Telecom  │ Tianyi AI      │ China Mobile   │ Mobile Cloud   │   │
+│   │                │                │                │                │   │
+│   │ China Unicom   │ Unicom Cloud   │ Google         │ Gemini         │   │
+│   └────────────────┴────────────────┴────────────────┴────────────────┘   │
+│                                                                           │
+└───────────────────────────────────────────────────────────────────────────┘
+</code></pre></div>
+<h3>10.2 Key Trends</h3>
+<ol>
+<li><strong>Coding Plans become table stakes</strong>: Alibaba, Zhipu, Baidu and Volcano all ship a dedicated Coding Plan, metered separately from the general Token Plan</li>
+<li><strong>The carriers crash the party</strong>: China Telecom's ¥9.9/month token bundle drags pricing to the floor and forces the internet platforms to cut prices</li>
+<li><strong>Open-source tools plus a subscription API becomes the mainstream pairing</strong>: OpenCode (70K stars) on top of a Model Studio or Zhipu Coding Plan outclasses closed-source IDEs on value</li>
+<li><strong>Credits get unified</strong>: Qoder CN is first to share one Credits pool across IDE, CLI, Work and Mobile</li>
+<li><strong>Free tiers keep expanding</strong>: Trae, CodeGeeX, iFlytek Lite and GLM-4 Flash are free forever, so the barrier to entry is zero</li>
+<li><strong>Agent consumption far exceeds expectations</strong>: a single “hello” can burn 49,000 tokens, and heavy agent users can spend tens of millions of tokens a month</li>
+</ol>
+<hr>
+<h2>11. Final Recommendations</h2>
+<table>
+<thead>
+<tr>
+<th>Who you are</th>
+<th>Recommended setup</th>
+<th>Monthly cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Student / beginner</td>
+<td>Trae (free) + iFlytek Lite (free) + China Telecom ¥9.9</td>
+<td>¥0–10</td>
+</tr>
+<tr>
+<td>Individual full-stack developer</td>
+<td>Model Studio Coding Lite ¥40 + OpenCode</td>
+<td>¥40</td>
+</tr>
+<tr>
+<td>Deep in the domestic ecosystem</td>
+<td>Qoder CN Pro (the full suite)</td>
+<td>¥59</td>
+</tr>
+<tr>
+<td>Chasing the best experience</td>
+<td>Cursor Pro + Claude Code Pro</td>
+<td>~¥288</td>
+</tr>
+<tr>
+<td>Enterprise team in China</td>
+<td>Qoder CN Teams / Model Studio Coding Pro</td>
+<td>¥99–200/person</td>
+</tr>
+<tr>
+<td>Multinational enterprise</td>
+<td>Copilot Business + Cursor Teams</td>
+<td>$59/person</td>
+</tr>
+<tr>
+<td>Light general-purpose user</td>
+<td>Kimi Andante / MiniMax Plus</td>
+<td>¥49</td>
+</tr>
+<tr>
+<td>Privacy-sensitive / offline</td>
+<td>Ollama local + DeepSeek API</td>
+<td>¥0–33</td>
+</tr>
+</tbody>
+</table>
+<strong>In one sentence</strong>:
+<blockquote>
+In the 2026 AI subscription market, <strong>pick Model Studio or Qoder CN in China (the most complete ecosystem), Claude or Cursor overseas (the strongest experience), and Trae plus free models on a zero budget (good enough)</strong>. Do not spread yourself thin: choosing one or two plans and going deep beats subscribing to five and barely touching them, ten times over.
+</blockquote>
+<hr>
+<h2>Sources</h2>
+<ul>
+<li><a href="https://help.aliyun.com/zh/model-studio/coding-plan-overview" rel="noopener noreferrer" target="_blank">Alibaba Cloud Model Studio: Coding Plan overview</a></li>
+<li><a href="https://help.aliyun.com/document_detail/2796963.html" rel="noopener noreferrer" target="_blank">Alibaba Cloud Qoder CN billing documentation</a></li>
+<li><a href="https://www.kimi.com/zh-cn/help/membership/membership-pricing" rel="noopener noreferrer" target="_blank">Kimi membership pricing and plan overview</a></li>
+<li><a href="https://vibecoding.app/blog/zh/zhipu-glm-jiage-2026" rel="noopener noreferrer" target="_blank">Zhipu GLM pricing fully explained, 2026</a></li>
+<li><a href="https://platform.minimaxi.com/docs/guides/pricing-token-plan" rel="noopener noreferrer" target="_blank">MiniMax Token Plan official documentation</a></li>
+<li><a href="https://m.10jqka.com.cn/20260323/c675482569.html" rel="noopener noreferrer" target="_blank">StepFun launches Step Plan</a></li>
+<li><a href="https://cloud.baidu.com/product/qianfan_home/token-plan-activity.html" rel="noopener noreferrer" target="_blank">Baidu Qianfan Token Plan, individual edition</a></li>
+<li><a href="https://aiproductivity.ai/blog/cursor-pricing/" rel="noopener noreferrer" target="_blank">Cursor Pricing 2026</a></li>
+<li><a href="https://docs.github.com/zh/copilot/concepts/billing/individual-plans" rel="noopener noreferrer" target="_blank">GitHub Copilot individual plans</a></li>
+<li><a href="https://www.getaiperks.com/zh/ai/claude-code-pricing" rel="noopener noreferrer" target="_blank">Claude Code pricing explained</a></li>
+<li><a href="https://github.com/xiaotiewinner/coding-plan" rel="noopener noreferrer" target="_blank">A panoramic comparison of Coding Plans in China and abroad, 2026 (GitHub)</a></li>
+<li><a href="https://finance.sina.com.cn/jjxw/2026-07-21/doc-iniiqefa9311356.shtml" rel="noopener noreferrer" target="_blank">Comparing the three carriers' token bundles</a></li>
+<li><a href="https://www.wuaishare.cn/9478.html" rel="noopener noreferrer" target="_blank">A quick comparison of Chinese LLM plans in 2026</a></li>
+<li><a href="https://baijiahao.baidu.com/s?id=1865027244790522605" rel="noopener noreferrer" target="_blank">A wide-ranging review of AI platform plan subscriptions in China</a></li>
+<li><a href="https://watermelonwater.tech/insights/%E6%B5%B7%E5%A4%96ai%E7%BC%96%E7%A8%8B%E5%A5%97%E9%A4%90%E6%A8%AA%E8%AF%84/" rel="noopener noreferrer" target="_blank">A comparison of overseas AI coding plans in 2026</a></li>
+</ul>
+<hr>
+<blockquote>
+📅 Data collected on July 22, 2026. Pricing on every platform can change at any time, so check the official pages for the latest.
+</blockquote>
+Two more posts on the same thread: <a href="/article/how-to-choose-ai-coding-tools/">“How to Choose AI Coding Tools: A Full Comparison and Buying Guide”</a>, <a href="/article/ai-subscription-price-comparison-2026/">“Chinese LLMs All Raised Prices: Where Does That Leave Regular Users?”</a>.
+`,
+  },
+  {
+    slug: 'ibgda-domestic-gpu-rdma-demo-waic2026',
+    zhSlug: 'ibgda-domestic-gpu-rdma-demo-waic2026',
+    topicSlug: 'aiagent',
+    title: 'No NVIDIA NICs Required: Domestic GPU Passthrough Benchmarked, Throughput Soars and Latency Halved',
+    excerpt: 'At WAIC 2026, Qiyi Moore and Biren Technology demonstrated IBGDA running domestic GPUs directly over domestic RDMA NICs: roughly double the throughput and 44% lower latency, with no NVIDIA ConnectX in the loop.',
+    date: '2026-07-20',
+    readingTime: 13,
+    html: `
+<h1>No NVIDIA NICs Required: Domestic GPU Passthrough Benchmarked, Throughput Soars and Latency Halved</h1>
+
+<img alt="Qiyi Moore at WAIC 2026" src="https://zhoujungis.github.io/photos/waic-cover.svg">
+<blockquote>
+
+<strong>WAIC 2026</strong> — the World Artificial Intelligence Conference, held alongside the High-Level Meeting on Global AI Governance — ran from July 17 to 20, 2026, opening in parallel across "three districts, four venues" in Shanghai's Expo Area, Zhangjiang, and West Bund. This article walks through why the report card from <strong>Qiyi Moore</strong>, a full-stack AI networking interconnect provider, has the domestic compute community so energized — and above all why the <strong>IBGDA Demo</strong> it showed is putting pressure on NVIDIA's ConnectX line.
+</blockquote>
+<hr>
+<h2>1. Qiyi Moore Debuts at WAIC 2026</h2>
+
+As a leading provider of full-stack AI networking interconnect products and solutions, Qiyi Moore <strong>appeared at WAIC 2026 for the first time</strong> and hosted the "<strong>Interconnect as the Engine · Advancing as One — AI Networking Frontier Ecosystem Forum</strong>" during the show.
+
+The lineup covered nearly every key player in the domestic compute stack, from silicon to applications:
+<ul>
+<li><strong>Academic institutions</strong>: Shanghai AI Laboratory, HKUST (Guangzhou)</li>
+<li><strong>Domestic GPU vendors</strong>: SenseTime, Biren Technology</li>
+<li><strong>Domestic AI chips</strong>: DataCanvas, Sunrise Technology, MetaX, Tianshu Zhizhu, Enflame Technology</li>
+<li><strong>Infrastructure</strong>: Kehua Cloud, Sugon</li>
+<li><strong>Optics / quantum ecosystem</strong>: TuringQ, Turing XinQing, Qidian Photonics</li>
+</ul>
+
+<strong>Qiyi Moore founder and chairman Tian Mochen</strong> set out the central thesis in his forum remarks:
+<blockquote>
+
+<em>"Network interconnect is the vital thread that breaks down compute islands and weaves individual strong points into one efficient system. No single company can walk the entire chain alone, from the underlying silicon to the top-layer application."</em>
+</blockquote>
+
+<img alt="Tian Mochen speaking at the AI Networking Frontier Ecosystem Forum" src="https://zhoujungis.github.io/photos/keynote-speaker.svg">
+<blockquote>
+
+Illustration of the on-site keynote, with the "Interconnect as the Engine · Advancing as One" theme displayed on the large screen at right.
+</blockquote>
+
+Building on that thesis, Qiyi Moore put five cards on the table at this year's WAIC in one go:
+<ol>
+<li>The <strong>Domestic Supernode Ecosystem Co-Building Initiative</strong> was officially launched</li>
+<li>The <strong>Co-Packaged Optics (CPO) Technical Whitepaper</strong> was officially released</li>
+<li>A <strong>full-stack solution</strong> for domestic supernode interconnect was unveiled</li>
+<li>A live <strong>IBGDA Demo</strong> of domestic GPUs talking directly to domestic RDMA NICs, <strong>built jointly with Biren Technology</strong></li>
+<li>Joint results on <strong>next-generation optical interconnect</strong> were shown</li>
+</ol>
+<hr>
+<h2>Why Is Domestic Compute "Strong at the Single Point, Weak as a System"?</h2>
+
+Why does this forum matter so much? Answering that means first seeing the structural imbalance domestic compute faces today.
+
+Qiyi Moore's product portfolio spans three scales:
+<table>
+<thead>
+<tr>
+<th>Interconnect scale</th>
+<th>Scope</th>
+<th>Corresponding products</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Scale-Out</strong></td>
+<td>Inter-node networking</td>
+<td>RDMA NICs · ToR/Spine switching</td>
+</tr>
+<tr>
+<td><strong>Scale-Up</strong></td>
+<td>XPU-to-XPU interconnect within a supernode</td>
+<td>OSU IO chiplets · CPO optical engines</td>
+</tr>
+<tr>
+<td><strong>Next-generation optical interconnect</strong></td>
+<td>Full-stack solution</td>
+<td>Heterogeneous packaging · optoelectronic integration</td>
+</tr>
+</tbody>
+</table>
+
+The core predicament is "<strong>strong at the single point, weak as a system</strong>": on-die, die-to-die, node-to-node, and cluster-to-cluster interconnect each grew up as its own silo, with no unified full-stack view and no system-level coordination — so system-level performance never scales linearly with the number of chips.
+
+<strong>Qiyi Moore co-founder and vice president of product and solutions Zhu Jundong</strong> put it this way:
+<blockquote>
+
+<em>"The core value of this full-stack solution is the </em><em>evolvable, collaborative, and vendor-agnostic</em><em> system-level infrastructure it hands to domestic AI compute."</em>
+</blockquote>
+
+<img alt="Illustration of a domestic supernode interconnect full-stack cabinet" src="https://zhoujungis.github.io/photos/supernode-cabinet.svg">
+<blockquote>
+
+The cabinet illustration above shows a domestic supernode. The middle cabinet highlights the <strong>IBGDA Demo platform</strong>: eight domestic GPUs plus Kiwi SNIC 800G domestic RDMA NICs, paired with OSU IO chiplets and CPO optical interconnect to form an evolvable full-stack node.
+</blockquote>
+<hr>
+<h2>How Do Domestic GPUs Work Together with RDMA NICs?</h2>
+<h3>3.1 Background: Why Does MoE Need IBGDA?</h3>
+
+In typical <strong>MoE (Mixture of Experts)</strong> training or inference, <strong>Expert Parallelism</strong> communication has two core phases:
+<ul>
+<li><strong>Dispatch</strong>: route each token to its corresponding experts</li>
+<li><strong>Combine</strong>: aggregate the expert outputs back onto the original tokens</li>
+</ul>
+
+Both phases involve <strong>enormous volumes of fine-grained data exchange</strong> — the perennial headache of AI cluster networking.
+
+In conventional cross-node communication, the GPU has to relay its instructions through the CPU, which adds <strong>extra latency</strong> and <strong>CPU overhead</strong>. <strong>IBGDA (InfiniBand GPU Direct Async)</strong> exists precisely to solve this: by <strong>bypassing the CPU on the data path</strong>, it sharply cuts the wait for instruction relay and delivers <strong>higher throughput</strong> and <strong>lower latency</strong> in <strong>All-to-All</strong> traffic.
+<h3>3.2 The International Benchmark and the Domestic Gap</h3>
+<table>
+<thead>
+<tr>
+<th>Camp</th>
+<th>Status quo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🟢 NVIDIA</td>
+<td>Deep <strong>GPU + ConnectX NIC</strong> co-design made it the first to deliver an IBGDA implementation</td>
+</tr>
+<tr>
+<td>🟡 Domestic GPUs</td>
+<td>Must support NVSHMEM-like programming, the latest NCCL communication libraries, DeepEP and other collective communication libraries</td>
+</tr>
+<tr>
+<td>🟡 Domestic RDMA NICs</td>
+<td>Must be adapted to domestic GPUs at both the software and hardware levels before GPUs can talk to NICs efficiently</td>
+</tr>
+<tr>
+<td>🔴 Deployment at scale</td>
+<td><strong>Large-scale deployments of domestic GPUs running over domestic RDMA NICs remain relatively rare</strong></td>
+</tr>
+</tbody>
+</table>
+
+Qiyi Moore's IBGDA Demo exists to fill exactly that gap.
+<h3>3.3 Specifications of the Qiyi Moore IBGDA Solution</h3>
+
+<strong>Specifications at a glance:</strong>
+<ul>
+<li>✅ <strong>Single-channel 400G RDMA ASIC engine</strong></li>
+<li>✅ Built on the <strong>Kiwi SNIC 800G</strong> platform architecture</li>
+<li>✅ Completed through <strong>joint hardware and software development</strong></li>
+<li>✅ Compatible with <strong>collective communication libraries</strong> tuned specifically for MoE models (benchmarked against DeepEP)</li>
+<li>✅ <strong>Native IBGDA support</strong> (GPUs initiate communication directly)</li>
+</ul>
+
+<img alt="Kiwi SNIC 800G platform architecture" src="https://zhoujungis.github.io/photos/kiwi-snic-arch.svg">
+<blockquote>
+
+The <strong>Kiwi SNIC 800G</strong> platform architecture above: on the left, domestic GPUs running NVSHMEM- and DeepEP-class communication libraries; in the middle, the single-channel 400G RDMA ASIC engine (PCIe Gen5 host interface, IBGDA core, reliable transport / QP scheduling, 400G MAC + 112G SerDes); on the right, domestic ToR / Spine switches on the open Ethernet side. The entire design is built on the <strong>open Ethernet</strong> ecosystem, giving domestic compute clusters a Scale-Out network option that is both high-performance and self-determined.
+</blockquote>
+<h3>3.4 Core Test Results</h3>
+
+The IBGDA Demo testbed is benchmarked against NVIDIA's published IBGDA data, and the measured results land at a comparable level:
+
+<img alt="IBGDA vs conventional IBRC performance comparison" src="https://zhoujungis.github.io/photos/ibgda-perf-chart.svg">
+<blockquote>
+
+The chart above compares <strong>IBGDA vs conventional IBRC</strong> on an All-to-All workload: the left half shows four throughput comparisons (single small-message bandwidth, raw small-packet throughput, batched send throughput, All-to-All bandwidth), with blue for the IBGDA direct path and grey for the conventional IBRC path; beneath that is the latency comparison (18 μs → 10 μs, roughly 44% shorter); the right half summarizes the headline gains.
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Improvement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Single small-message bandwidth</td>
+<td><strong>Sharp jump</strong> (15 → 52 GB/s, up about 247%)</td>
+</tr>
+<tr>
+<td>Raw small-packet throughput</td>
+<td><strong>A leap in kind, not just degree</strong> (22 → 75 GB/s, up about 240%)</td>
+</tr>
+<tr>
+<td>Batched send throughput</td>
+<td><strong>A leap in kind, not just degree</strong> (28 → 82 GB/s, up about 193%)</td>
+</tr>
+<tr>
+<td><strong>All-to-All communication latency</strong></td>
+<td><strong>Cut sharply, close to a twofold gain</strong> (18 → 10 μs, down 44%)</td>
+</tr>
+<tr>
+<td>Small-packet penalty</td>
+<td><strong>Eliminated entirely</strong></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+💡 <strong>Key insight</strong>: with latency down 44% and throughput doubled, the most immediate payoff is that the "expert communication wall" in MoE training and inference is broken down. At the same time, CPU cycles are handed back to foreground work, so <strong>overall cluster throughput</strong> and <strong>per-node compute utilization</strong> improve together.
+</blockquote>
+<hr>
+<h2>4. Chiplet Bet on OSU Supernode Interconnect, Anchored to the Next Generation of Optics</h2>
+<h3>4.1 The Co-Packaged Optics (CPO) Technical Whitepaper Is Released</h3>
+
+<img alt="Release of the Co-Packaged Optics (CPO) Technical Whitepaper" src="https://zhoujungis.github.io/photos/cpo-whitepaper.svg">
+<blockquote>
+
+Illustration of the Co-Packaged Optics (CPO) Technical Whitepaper release: the cover of the whitepaper launched at this year's show sits in the center, with the <strong>initiators</strong> and <strong>contributing organizations</strong> listed on either side, and the whitepaper's five main messages summarized in the lower right corner.
+</blockquote>
+
+<strong>Initiators and contributors:</strong>
+<ul>
+<li><strong>Initiator</strong>: HKUST (Guangzhou)</li>
+<li><strong>Contributing authors</strong>: Qiyi Moore, Sunrise, Biren Technology, TuringQ, Qidian Photonics</li>
+</ul>
+<h3>4.2 The Optical Interconnect Roadmap: The Closer, the Stronger</h3>
+
+The whitepaper lays out a clear five-stage path for optics moving from "pluggable" to "intrinsic":
+
+<img alt="Evolution path of optical interconnect" src="https://zhoujungis.github.io/photos/optics-evolution.svg">
+<blockquote>
+
+The five-stage evolution of optical interconnect: <strong>pluggable optical modules → NPO → CPO → OIO → intrinsic optics (integrated inside the compute die)</strong>. The closer the optics sit to the compute unit, the shorter the reach and the more the DSP can be dropped, which <strong>lowers latency, simplifies system design, and cuts power and cost</strong>. Qiyi Moore is focused on the CPO stage and is pushing toward the next stage together with ecosystem partners.
+</blockquote>
+<h3>4.3 Qiyi Moore's Chiplet Layout</h3>
+
+Qiyi Moore has already laid out, well ahead of time, the <strong>convergence path</strong> between its <strong>OSU (Optical Scale-Up) IO chiplet products</strong> and future CPO iterations.
+
+<img alt="OSU IO chiplet and CPO converged architecture" src="https://zhoujungis.github.io/photos/osu-osio-arch.svg">
+<blockquote>
+
+The <strong>OSU IO chiplet + CPO converged architecture</strong> above: on an advanced packaging substrate, the xPU chiplet (domestic GPU/NPU), the OSU IO chiplet (electrical-to-optical modulation), and the CPO co-packaged optical module (laser / modulator / optical waveguide / photodetector) work in concert and transmit outward over fiber. Compared with conventional pluggable approaches, it delivers <strong>lower latency, lower power, and higher bandwidth density</strong>.
+</blockquote>
+<h3>4.4 Ecosystem Collaboration Results</h3>
+<ul>
+<li><strong>× TuringQ</strong>: jointly developing next-generation xPU-CPO key technologies</li>
+<li><strong>× Qidian Photonics</strong>: jointly exploring NPO / CPO technology based on high-speed die-to-die data interfaces</li>
+</ul>
+<hr>
+<h2>5. Winning Together: The "Domestic Supernode Ecosystem Co-Building Initiative" Officially Launches</h2>
+<h3>5.1 Industry Insight: Three Exponential Curves Pulling at Once</h3>
+
+Demand for large-model compute is being driven by <strong>three exponential curves</strong> at the same time:
+<ol>
+<li><strong>Scaling laws on the training side</strong> — model scale and data scale expanding in lockstep</li>
+<li><strong>Test-time scaling on the inference side</strong> — compute per inference growing exponentially</li>
+<li><strong>An explosion in call volume driven by agent applications</strong> — the agent paradigm sending inference call frequency sharply higher</li>
+</ol>
+<blockquote>
+
+Which means what actually decides the landscape increasingly comes down to <strong>interconnect, full systems, software, and system-level coordination</strong>.
+</blockquote>
+
+<strong>Yang Lian, secretary-general of the Shanghai Computing Network Association</strong>, noted that domestic supernodes still face <strong>fragmentation</strong> and <strong>chokepoint</strong> risk in <strong>system architecture definition, Scale-Up interconnect protocols, hardware-software co-optimization, and cluster RAS capabilities</strong>.
+<h3>5.2 Participants in the Initiative</h3>
+
+<img alt="Domestic supernode ecosystem co-building initiative" src="https://zhoujungis.github.io/photos/ecosystem-initiative.svg">
+<blockquote>
+
+The ecosystem map of the "Domestic Supernode Ecosystem Co-Building Initiative": the core goal — co-building the domestic supernode ecosystem — sits at the center, ringed by the initiating organizations, the witnesses, and participating companies including ZTE, Biren, MetaX, Tianshu Zhizhu, Enflame, SenseTime, Sugon, and Qiyi Moore.
+</blockquote>
+
+<strong>Witness</strong>: Yang Peijiang, director of the Radio Management Division, Shanghai Municipal Commission of Economy and Informatization
+
+<strong>Initiating organizations</strong>:
+<ul>
+<li>Shanghai Computing Network Association</li>
+<li>Shanghai AI Laboratory</li>
+<li>CAICT East China Branch</li>
+</ul>
+
+<strong>Participating companies</strong>: ZTE, Biren Technology, MetaX, Tianshu Zhizhu, Enflame Technology, SenseTime, Sugon, Qiyi Moore
+<hr>
+<h2>6. Summary: The Five Items on Qiyi Moore's Report Card</h2>
+
+To close, one table to recap every major announcement from Qiyi Moore's first WAIC appearance:
+<table>
+<thead>
+<tr>
+<th>No.</th>
+<th>Item</th>
+<th>Highlights</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>High-caliber ecosystem forum</strong></td>
+<td>Interconnect as the Engine · Advancing as One</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Domestic Supernode Ecosystem Co-Building Initiative</strong></td>
+<td>Three initiators + eight participating companies</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Co-Packaged Optics (CPO) Technical Whitepaper</strong></td>
+<td>Initiated by HKUST (Guangzhou), co-authored by five parties</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>A fully domestic supernode interconnect full-stack solution</strong></td>
+<td>Scale-Out + Scale-Up + next-generation optical interconnect</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Joint IBGDA demonstration</strong></td>
+<td>Domestic GPUs + domestic RDMA NICs, double the throughput / half the latency</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Supernode die-to-die interconnect validation platform based on the OISA protocol</strong></td>
+<td>A domestic path equivalent to NVSwitch</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>In Closing</h2>
+<blockquote>
+
+<em>No single company can walk the entire chain alone, from the underlying silicon to the top-layer application.</em>
+</blockquote>
+
+That line is more than Qiyi Moore's clear-eyed self-assessment; it is close to a shared self-portrait of the domestic AI compute industry right now. And the report card handed in at <strong>WAIC 2026</strong> makes one thing visible: <strong>domestic AI networking is no longer a supporting act — it is genuinely stepping into the center of the stage</strong>.
+<ul>
+<li>Once <strong>IBGDA</strong> takes the CPU out of the communication path, domestic GPU clusters have, for the first time, a plausible route to NVIDIA-class scaling efficiency;</li>
+<li>Once <strong>CPO</strong> packs the optical engine inside the package, the physical basis of next-generation Scale-Up interconnect is redefined;</li>
+<li>Once <strong>OSU IO chiplets</strong> carry "light" into the compute chiplet itself, the ceiling on domestic compute rises again;</li>
+<li>Once the <strong>ecosystem co-building initiative</strong> brings eight companies to one table, the chokepoint problem finally has a systemic answer.</li>
+</ul>
+
+The WAIC 2026 stage belonged to the entire domestic compute community, and Qiyi Moore laid out its hardest-core work in front of everyone, in full, for the first time.
+<hr>
+<blockquote>
+
+🌐 <strong>Original source</strong>: <a href="https://aisig.aqara.com/thread?topicId=27101" rel="noopener noreferrer" target="_blank">aisig.aqara.com - Domestic GPU passthrough benchmarked without NVIDIA NICs</a>
+
+<em>The images in this article are AI-generated SVG diagrams (architecture, performance comparison, ecosystem map, and so on), used in place of on-site photos from the original that are no longer accessible.</em>
+</blockquote>
+
+More reading along the same thread: <a href="/article/vllm-vs-sglang-llm-inference-framework-war/">"From vLLM to SGLang: The Ultimate Arms Race in LLM Inference Frameworks"</a>, <a href="/article/queueing-theory-capacity-planning/">"Scaling Out to Eight Nodes Made It Slower: Queueing Theory and Capacity Planning"</a>.
+`,
+  },
+  {
+    slug: 'agent-network-octo',
+    zhSlug: 'agent-network-octo',
+    topicSlug: 'aiagent',
+    title: 'Agents Have Their Own Internet Now',
+    excerpt: 'Octo is an open-source Agent collaboration network where Bots get identity and a work record, Channels and Threads organize the work, and Matters turn chat into deliverables. Agents do; humans decide.',
+    date: '2026-07-16',
+    readingTime: 20,
+    html: `
+<h1>Agents Have Their Own Internet Now</h1>
+
+<img alt="Cover — Agent collaboration network" src="https://images.unsplash.com/photo-1677442136019-21780ecad995?w=1600&amp;q=80&amp;auto=format&amp;fit=crop">
+<blockquote>
+
+🤝 This time it isn't computers that got networked — it's a group of Agents that actually know how to get work done. Once a group of Agents can divide labor, communicate, hand off, review, and let experience accumulate, the way organizations work truly starts to be rebuilt.
+</blockquote>
+<hr>
+<h2>Introduction: From Standalone AI to an Agent Network</h2>
+
+In the past, using AI felt more like each of us spinning up our own standalone machine.
+
+Claude Code writes code, Codex runs tasks, another Agent does research, and yet another Agent edits documents. Each one is capable enough, but most of the time they work in isolation — the context for a single project ends up scattered across multiple terminals, and nobody knows what anyone else did, changed, or got stuck on.
+
+Which raises the question:
+
+When one person has one Agent, that's a productivity tool. When an organization starts to have ten, a hundred, or even more Agents, things get a lot less simple. At that point they need a network — one that can divide labor, communicate, hand off, review, and distill the experience of every collaboration into something that accumulates.
+
+That is exactly the opening that MiningLamp Technology is aiming at with its open-source release of <strong>Octo</strong>.
+
+In the example below, you only need to hand a task to a single Agent, and it will automatically bring the other Agents along to work on it together:
+<blockquote>
+
+📺 Video: <a href="https://mp.weixin.qq.com/s/dXFJfseigkhtWGTH0Gp7pA" rel="noopener noreferrer" target="_blank">https://mp.weixin.qq.com/s/dXFJfseigkhtWGTH0Gp7pA</a>
+</blockquote>
+
+Put simply, what Octo wants to be is an <strong>open-source, trustworthy Agent collaboration network</strong> — a single collaboration system that people, Agents, and external tools all enter together:
+<ul>
+<li><strong>Open</strong> — open and self-hostable</li>
+<li><strong>Context</strong> — let work context flow through collaboration</li>
+<li><strong>Taste</strong> — keep human judgment, preferences, and taste on the record</li>
+<li><strong>Orchestration</strong> — orchestrate people, Agents, and tools in one collaboration layer</li>
+</ul>
+
+In a single sentence: <strong>Agents do. Humans decide.</strong>
+
+Behind that sentence sits a key shift in the next stage of AI applications: AI is no longer just answering questions in a chat box. It is entering organizational processes and becoming a <strong>digital workforce</strong> that can be assigned work, managed, and held to acceptance criteria.
+<hr>
+<h2>What Three Core Concepts Does an Agent Network Need?</h2>
+
+The first thing Octo has to do is give an Agent a desk it can take inside organizational collaboration. That comes down to three core concepts: <strong>Bot, Channel/Thread, and Matter</strong>.
+<h3>🔹 Bot — Giving Each Agent a Business Card</h3>
+
+In Octo, an Agent isn't a feature button you invoke ad hoc. It joins the team as a <strong>Bot identity</strong>, complete with an identity, a business card, a description of what it can do, and a work record.
+
+A Bot that's strong at writing code may be mediocre at documentation; another Bot that does solid research may be better suited to writing industry reports. If every Agent is nothing more than an entry point in a chat box, the organization has a hard time knowing who is good at what, who has done what, and whose output is more reliable.
+
+<strong>That is the problem Bot solves.</strong>
+
+It turns an Agent from a tool entry point into a <strong>digital colleague</strong>. Every Bot has its own AgentCard, with an owner, capability boundaries, and a work history. You can connect mainstream Agent tools such as OpenClaw, Hermes, Codex, Claude Code, and WorkBuddy, and manage them all uniformly as Bots inside the same system.
+<h3>🔹 Channel &amp; Thread — Where You Collaborate, and What You're Collaborating On</h3>
+
+<strong>Channel</strong> is best understood as a project group or work channel. People and Bots align on intent, discuss approaches, assign tasks, and track progress in the same channel.
+
+What separates it from an ordinary group chat is that an Agent isn't just @-mentioned to come back with one line. It can receive context, join the discussion, and keep pushing the task forward. Channel answers the question of “where do we collaborate.”
+
+<strong>Thread</strong> is one specific piece of work. In a product launch project, for example, you might have a communications plan, an engineering write-up, website copy, a customer case study, and an FAQ all under discussion at the same time. If every message piles into one group, they get washed out fast. The value of Thread is keeping the background, the discussion, and the final conclusion of a single matter in the same place.
+<h3>🔹 Matter — Turning Chat into Delivery</h3>
+
+<strong>Matter</strong> addresses “how do we turn chat into action, and action into delivery.”
+
+Many people have had this experience with AI tools: the conversation flows smoothly and you feel the AI has understood; but once it's over, everything is still scattered across the chat window. You're the one who has to copy it out, tidy it up, create tasks, chase progress, and check the output.
+
+Matter's approach: when follow-up work emerges in a discussion, an Agent can summarize the key points, and once a human confirms, turn them into a <strong>matter</strong>. That matter has an owner, deliverables, acceptance criteria, and a complete record running from the brief through the discussion, the output, the feedback, and the acceptance decision.
+
+In other words, the work AI does finally has <strong>a place to be delivered</strong>. It no longer just hands you a paragraph of answer — it pushes the work into a state that can be tracked, reviewed, and signed off.
+<blockquote>
+
+📺 Video: <a href="https://mp.weixin.qq.com/s/dXFJfseigkhtWGTH0Gp7pA" rel="noopener noreferrer" target="_blank">https://mp.weixin.qq.com/s/dXFJfseigkhtWGTH0Gp7pA</a>
+</blockquote>
+<hr>
+<h2>What Are the Six Multi-Agent Collaboration Modes?</h2>
+
+Mention multi-agent today and many people picture the same scene: spin up a group, drop a few Agents in, and let them talk it over. That is one form of collaboration, but it's nowhere near enough.
+
+Collaboration in real work is complicated — some tasks need open discussion, while others need to be done independently so Agents don't influence each other; some need to be built and then reviewed, some need to move down a pipeline; and some are best run as several parallel attempts so you can pick whichever works best.
+
+Octo lays out <strong>six collaboration modes</strong> directly:
+<h3>1️⃣ Solo — One Bot, Done</h3>
+
+A single Bot completes the task on its own. Good for small tasks with clear boundaries and a well-defined goal — rewriting a piece of copy, cleaning up meeting notes, adding a code comment.
+<h3>2️⃣ Roundtable — Open Discussion</h3>
+
+Several Bots discuss the same question openly, each able to see the others' views. Good for brainstorming, multi-angle analysis, topic selection, and strategic judgment. Take a product-launch topic: you can have a technical Bot, a user-facing Bot, and a business Bot each give their read, then have the Leader converge them.
+<h3>3️⃣ Critic — Independent Review</h3>
+
+One Bot builds, another Bot reviews. The reviewer can send it back for rework. Good for quality-sensitive work such as code review, fact-checking, poking holes in a proposal, or flagging contract risk.
+
+The key to this mode is keeping “building” and “reviewing” separate. After all, in a real company we wouldn't have the same person draft the document and give the final sign-off. Once AI collaboration enters real work, it needs similar <strong>checks and balances</strong>.
+<h3>4️⃣ Pipeline — Assembly Line</h3>
+
+A finishes and hands off to B; B finishes and hands off to C. Each step's output is the next step's input. Good for multi-step tasks with a clear order — research first, then analysis, then a report, then polishing it into something publishable.
+<h3>5️⃣ Split — Divide and Conquer</h3>
+
+Break the large task into pieces, have different Bots process them in parallel, and let the Leader merge the results at the end. Good for tasks with a lot of material and relatively independent modules. For an industry study, one Bot can cover overseas companies, one can cover domestic companies, one can cover the technology roadmap, and you consolidate at the end.
+<h3>6️⃣ Swarm — Compete, Then Pick</h3>
+
+Send the same brief to several Bots, let each complete it independently, then choose the stronger result. Good for creative tasks — headlines, visual concepts, campaign planning, product naming.
+<div>
+
+
+  
+    .title { font-size: 18px; font-weight: 700; fill: #0b0b0b; }
+    .subtitle { font-size: 12px; fill: #52514e; }
+    .mode-card { fill: #ffffff; stroke: #d8d6cc; stroke-width: 1; rx: 10; }
+    .mode-title { font-size: 13px; font-weight: 700; fill: #0b0b0b; }
+    .mode-name { font-size: 11px; font-weight: 600; fill: #2a78d6; letter-spacing: 0.5px; }
+    .mode-desc { font-size: 11px; fill: #52514e; }
+    .mode-best { font-size: 10px; fill: #898781; font-style: italic; }
+    .axis { stroke: #c3c2b7; stroke-width: 1; }
+  
+  Octo's six collaboration modes
+  From solo work to Swarm's competitive selection, covering the complex collaboration structures of real organizations
+
+  
+  
+    
+    1. SOLO
+    Solo execution
+    
+    
+    One Bot completes the task alone,
+    with clear boundaries and a defined goal.
+    Good for:
+    copy edits, meeting notes, code comments
+  
+
+  
+  
+    
+    2. ROUNDTABLE
+    Roundtable discussion
+    
+      
+      
+      
+      
+    
+    Multiple Bots discuss openly,
+    each seeing the others' views.
+    Good for:
+    brainstorming, multi-angle analysis, topic selection
+  
+
+  
+  
+    
+    3. CRITIC
+    Independent review
+    
+      
+      
+      
+      
+      ✓
+    
+    One builds, one reviews,
+    and the reviewer can send it back for rework.
+    Good for:
+    code review, fact-checking, risk flags
+  
+
+  
+  
+    
+    4. PIPELINE
+    Assembly line
+    
+      
+      
+      
+      
+      
+    
+    A → B → C handed off in order;
+    each step's output is the next step's input.
+    Good for:
+    research → analysis → report → polish
+  
+
+  
+  
+    
+    5. SPLIT
+    Divide and conquer
+    
+      
+      
+      
+      
+      
+      
+      
+    
+    The task is broken up, run in parallel,
+    then merged by the Leader.
+    Good for:
+    industry research, multi-region source gathering
+  
+
+  
+  
+    
+    6. SWARM
+    Compete, then pick
+    
+      
+      
+      
+      
+      
+      
+    
+    Several Bots run the same brief in parallel,
+    and the best-performing result is chosen.
+    Good for:
+    creative work like headlines, visuals, and naming
+  
+
+
+</div>
+
+
+The example below — <strong>four Agents in a single group chat, going from finding a bug to shipping a product</strong> — gives you a feel for how Agents collaborate with no human intervention at all:
+<blockquote>
+
+📺 Video: <a href="https://mp.weixin.qq.com/s/dXFJfseigkhtWGTH0Gp7pA" rel="noopener noreferrer" target="_blank">https://mp.weixin.qq.com/s/dXFJfseigkhtWGTH0Gp7pA</a>
+</blockquote>
+
+Taken together, these six modes show that what Octo is solving isn't simply getting Agents to chat. What it really handles is <strong>the structural problem of organizational collaboration</strong> — who can see which information, who owns which step, who reviews, who merges, and when a human has to make the call.
+
+Previously these rules were mostly held up by people. In an era with ever more Agents, the collaboration system itself has to have them written in. This is also where Octo differs from traditional IM tools.
+
+Tools like Feishu, Slack, and DingTalk were designed primarily for person-to-person work — they excel at messaging, meeting coordination, and document flow. But once Agents become work subjects too, the system has extra problems to handle: AI identity management, AI task tracking, AI collaboration modes. Old tools can certainly bolt AI capabilities on, but if the number of Agents keeps growing, hanging an AI entry point next to the chat box will eventually not be enough.
+<hr>
+<h2>Four Surfaces: Putting Octo Where the Work Happens</h2>
+
+For a collaboration platform to actually get used, a philosophy isn't enough. It has to get into people's day-to-day work.
+
+In product form, Octo covers several entry points: <strong>Web App, mobile (iOS/Android), browser extension, and CLI</strong>. Wherever people work, that's where Agents should show up.
+<h3>🌐 Web App — The Full Collaboration Workbench</h3>
+
+Channels, Matters, Bot work records, and project progress can all be managed in one place. Good for driving complex projects, and for managing a digital team made up of multiple Bots.
+<h3>📱 Mobile — Feedback and Acceptance</h3>
+
+Plenty of AI tasks don't need you watching the whole time, but the key moments do need your decision. When a Bot hands back a milestone, for example, you glance at it on your phone, approve it if it's good, or send it back for more work if it isn't. This kind of lightweight judgment fits mobile perfectly.
+<h3>🧩 Browser Extension — Summon an Agent Where the Work Is</h3>
+
+The value of the browser extension isn't in moving your Feishu docs, GitHub Issues, and web reports into Octo. What it does is <strong>summon an Agent right beside the page you're already working in, and bring the current page context along with it</strong>.
+
+Say you're reading an industry report: select a passage and have a Bot summarize, translate, or rewrite it. Say you're looking at a GitHub Issue: have a Bot break down a repair plan based on the current problem. Say you're stuck in a document: summon a Bot to draft the next version for you.
+
+The payoff is that <strong>your workflow doesn't get interrupted</strong>. AI tools have historically asked users to switch windows, copy context, and re-describe the task. The browser extension shortens that step — wherever you work, the Agent stands by.
+<h3>⌨️ CLI — Built for Developers and Native Agent Operation</h3>
+
+For developers, a lot of work already happens in the terminal. Through the CLI, Agent tasks hook into command-line workflows, which suits anything involving code, automation, or runtime environments especially well.
+
+So Octo's product thinking is not about having an organization tear everything down and start over. It's more like adding, across documents, code platforms, project-management tools, browser pages, and terminals, a <strong>connection layer where people and Agents collaborate together</strong>.
+
+This also explains the emphasis on open source and private deployment. For an enterprise, the genuinely valuable AI asset is usually not any single answer, but the <strong>business context, collaboration records, preference judgments, and working methods</strong> behind it. Left to accumulate on a third-party platform, that material is hard for the enterprise to truly own; accumulated in the enterprise's own environment, it can become a long-term asset.
+<blockquote>
+
+📺 Video: <a href="https://mp.weixin.qq.com/s/dXFJfseigkhtWGTH0Gp7pA" rel="noopener noreferrer" target="_blank">https://mp.weixin.qq.com/s/dXFJfseigkhtWGTH0Gp7pA</a>
+</blockquote>
+<hr>
+<h2>How We Collaborate Is Being Rebuilt in the Agent Era</h2>
+
+There is a bigger judgment behind Octo.
+
+What the AI era is rebuilding is not just individual tools, but <strong>how we collaborate</strong>. Organizational collaboration used to happen mainly between people and people. In the future it will very likely happen between people and people, people and Agents, and Agents and Agents, all at the same time.
+
+That raises a very practical question: <strong>where exactly should people stand?</strong>
+
+Treat AI as a smarter search box and people still have to break down the task, organize the process, and check the result themselves; AI just answers faster. But treat Agents as a digital workforce and the human role changes — you don't have to execute every step in person, but you do have to set direction at the key moments, define standards, make judgments, and review results.
+
+That is what <strong>“Agents do. Humans decide.”</strong> means.
+
+Agents handle thinking, analysis, generation, execution, and scheduling; humans decide what's right, what's good, and what fits the business trade-offs.
+
+You kick off the task, and the Bot drives execution. The Bot hands back a milestone, you sign off. Not satisfied? Send it back. Satisfied? Approve it. Every annotation, rejection, and preference choice you make keeps shaping how the Bot works the next time around.
+
+That forms a <strong>flywheel</strong>: assign task → review and give feedback → accumulate preferences and skills → work more efficiently next time. In Octo, every collaboration accumulates three kinds of assets:
+<ul>
+<li><strong>Context</strong> — project background, past decisions, discussion records. New members or new Bots don't have to align from zero.</li>
+<li><strong>Taste</strong> — every sign-off, rejection, annotation, and style choice records what you and your team actually like, endorse, and reject.</li>
+<li><strong>Skill</strong> — the conventions for writing code, the structure for a report, the template for a retrospective. These ways of working can be reused across the organization.</li>
+</ul>
+
+These are also the four letters of <strong>O.C.T.O.</strong> we mentioned a moment ago — <strong>Open, Context, Taste, Orchestration</strong>.
+
+Strung together, these four dimensions mean Octo wants to be more than an AI office tool. It looks more like <strong>a layer of organizational infrastructure for the PrivateAI era</strong>.
+
+Because once AI genuinely takes part in the work, what enterprises care about isn't only “is this model smart.” The more critical questions are:
+<ul>
+<li>Where does my data live?</li>
+<li>Can my collaboration experience accumulate?</li>
+<li>Will my organization's style be lost the next time the model changes?</li>
+<li>Can my Agents understand the business better the more they're used?</li>
+</ul>
+
+Looked at that way, the significance of Octo going open source isn't just giving developers one more project to try out. It represents a trend — <strong>AI applications are migrating from “personal productivity tools” toward “organizational collaboration networks.”</strong>
+<hr>
+<h2>Conclusion: Let Agents Be Colleagues, Not Just Assistants</h2>
+
+A strong Agent can make one person more productive. Only when a group of Agents can collaborate under a shared set of rules does it start to be possible to change how an organization works.
+
+The internet released real network effects only once computers were connected to one another. In the Agent era, a similar question comes around again — when every person, every team, and every business process has Agents in it, who connects them?
+
+Octo's answer is to <strong>put Agents into organizational collaboration first</strong>. Give them identity, a desk, tasks, sign-off, and records, along with preferences and skills that build up piece by piece.
+
+In the end, Agents don't truly enter a company because they can say a few clever things in a chat box. They enter because they can <strong>take the work, push it forward, hand the results back, and understand this organization a little better with every round of feedback</strong>.
+
+Only when Agents stop working solo does AI really have a chance to go from <strong>assistant</strong> to <strong>colleague</strong>.
+
+Further reading along the same thread: <a href="/article/agent-multiagent-subagents-board-and-gate/">“Agent Multi-Body: Sub-Agents, Task Boards, and Rate Limits”</a>, <a href="/article/agent-loop-two-hundred-lines/">“What an Agent Really Is: A Two-Hundred-Line Loop”</a>.
+`,
+  },
+  {
+    slug: 'iot-future-next-decade',
+    zhSlug: 'iot-future-next-decade',
+    topicSlug: 'aiagent',
+    title: 'The Next Decade of the Internet of Things: Mapping the Future of the IoT Industry',
+    excerpt: 'IoT is no longer a future tense — it has quietly reshaped our cities, factories and homes. A map of the next decade: market size, the four technology engines, real-world scenarios, hidden risks and the trends through 2030.',
+    date: '2026-07-14',
+    readingTime: 20,
+    html: `
+<h1>The Next Decade of the Internet of Things: Mapping the Future of the IoT Industry</h1>
+
+<img alt="The future landscape of the IoT industry" src="https://images.unsplash.com/photo-1518770660439-4636190af475?w=1200&amp;q=80&amp;auto=format&amp;fit=crop">
+<blockquote>
+
+🌐 The Internet of Things is no longer a future tense — it has already quietly reshaped our cities, factories, and homes. Where does IoT go in the next decade?
+</blockquote>
+<hr>
+<h2>Introduction: The Leap from "Connectivity" to "Intelligence"</h2>
+
+In 2025, the number of connected IoT devices worldwide has passed <strong>20 billion</strong>, with a market worth more than <strong>USD 547 billion</strong> (source: MarketsandMarkets). That is more than a number — it is a clear signal that we are moving out of the internet era of "people connected to people" and into the IoT era of "everything connected."
+
+If the past decade of IoT was about <strong>"putting devices online"</strong>, the next decade has exactly one keyword: <strong>"making devices think"</strong>.
+
+Large AI models, edge computing, digital twins, 5G/6G — these technologies are converging into a single enormous force that pushes IoT from "remote control" toward "autonomous decision-making." This article maps the next decade of the IoT industry across five dimensions: the market landscape, technological evolution, application scenarios, challenges and hidden risks, and predictions for the future.
+<hr>
+<h2>How Big Is the Global IoT Market?</h2>
+
+The chart below aggregates 2025–2030 IoT market forecasts from several authoritative research firms. Whether you look at market size or device connections, both trace a <strong>steep growth curve</strong> — a compound annual growth rate (CAGR) between 9% and 15%.
+<div>
+
+
+  
+    .title { font-size: 18px; font-weight: 600; fill: #0b0b0b; }
+    .subtitle { font-size: 12px; fill: #52514e; }
+    .axis { stroke: #c3c2b7; stroke-width: 1; }
+    .grid { stroke: #e1e0d9; stroke-width: 1; stroke-dasharray: 2 2; }
+    .label { font-size: 11px; fill: #52514e; }
+    .value { font-size: 11px; font-weight: 600; fill: #0b0b0b; }
+    .panel-title { font-size: 13px; font-weight: 600; fill: #0b0b0b; }
+    .panel-unit { font-size: 10px; fill: #898781; }
+  
+  Global IoT market growth, 2025–2030
+  Sources: MarketsandMarkets / Statista / IDC, compiled
+
+  
+  
+    Market size (USD billion)
+    MarketsandMarkets, 9.6% CAGR
+    
+    
+    
+    
+    
+    
+    
+    0
+    300
+    600
+    900
+    1200
+    
+    
+    
+      
+      
+      
+      
+      
+      
+    
+    
+    547
+    655
+    720
+    790
+    860
+    950
+    
+    2025
+    2026
+    2027
+    2028
+    2029
+    2030
+  
+
+  
+  
+    Connected devices (billions)
+    Statista / IDC composite forecast
+    
+    
+    
+    
+    
+    
+    
+    
+    0
+    10
+    20
+    30
+    40
+    50
+    
+    
+    
+      
+      
+      
+      
+      
+      
+    
+    
+    19.8
+    24
+    29
+    35
+    42
+    50
+    
+    2025
+    2026
+    2027
+    2028
+    2029
+    2030
+  
+
+  By 2030 the global IoT market will double, and connected devices will grow 2.5×
+
+
+</div>
+
+
+Three key trends stand out:
+<ol>
+<li><strong>Steady market growth</strong> — from USD 547 billion to USD 950 billion in five years, closing in on the trillion-dollar threshold.</li>
+<li><strong>An explosion in connections</strong> — over 20% annual growth, reaching roughly six IoT devices per person by 2030.</li>
+<li><strong>A structural shift from consumer-driven to industry-driven</strong> — industrial IoT, smart cities, and connected vehicles will supply the bulk of the incremental growth.</li>
+</ol>
+<hr>
+<h2>What Are the Four Technology Engines Behind IoT?</h2>
+
+The next phase of IoT will not come from a single breakthrough but from <strong>the combined explosion of several technologies</strong>. The chart below shows the four-layer architecture of the IoT stack:
+<div>
+
+
+  
+    .title { font-size: 18px; font-weight: 600; fill: #0b0b0b; }
+    .subtitle { font-size: 12px; fill: #52514e; }
+    .layer-name { font-size: 15px; font-weight: 600; fill: #ffffff; }
+    .layer-desc { font-size: 12px; fill: #ffffff; opacity: 0.92; }
+    .layer-tag { font-size: 11px; fill: #ffffff; opacity: 0.85; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  
+  The four-layer IoT technology stack
+  From physical sensing up to intelligent applications, abstracting one layer at a time
+
+  
+  
+    
+    Application Layer · Application
+    Smart home · Smart manufacturing · Smart city · Connected vehicles · Smart healthcare
+  
+
+  
+  
+    
+    Platform Layer · AIoT Platform
+    Device management · Data lake · AI inference · Federated learning · Digital twins
+  
+
+  
+  
+    
+    Network Layer · Connectivity
+    5G / 6G · NB-IoT · LoRa · Wi-Fi 7 · Matter / Thread · BLE
+  
+
+  
+  
+    
+    Sensing Layer · Sensing &amp; Edge
+    Sensors · MCU / SoC · Edge AI chips (NPU) · Energy harvesting · Security hardware
+  
+
+  
+  ↑ Value ↑
+  ↑
+  ↑
+  ↑ Scale
+
+  Every layer is being rebuilt by AI: the sensing layer grows a "cerebellum," the platform layer grows a "brain"
+
+
+</div>
+
+
+Let's break down the four key engines:
+<h3>1️⃣ AIoT: From "Perception" to "Cognition"</h3>
+
+Conventional IoT devices can only collect and report, while AIoT gives them <strong>on-device inference</strong>. TinyML models run on MCUs that cost less than a dollar, letting even a temperature-and-humidity sensor recognize events such as "an elderly person has fallen." Representative technologies: TinyML, federated learning, on-device distillation of large models.
+<h3>2️⃣ Edge Computing: Moving Compute to the Site</h3>
+
+Gartner predicts that by 2030, <strong>75% of enterprise data will be created and processed at the edge</strong>, far more than in the cloud. Edge computing is not a replacement for the cloud but the cloud's "forward nerve endings" — responsible for real-time response, local decisions, and privacy protection. Representative platforms: NVIDIA Jetson, AWS Greengrass, Azure Edge.
+<h3>3️⃣ Digital Twins: A Digital Mirror of the Physical World</h3>
+
+From the factory floor to city traffic, from a single wind turbine to an entire power grid, <strong>digital twins give the physical world something it has never had: a digital copy that can be computed on, simulated, and predicted</strong>. As IoT devices collect real-time data, the twin stays in sync at millisecond latency and runs its "what if…" scenarios. McKinsey estimates that digital twins will create <strong>USD 1.3 trillion</strong> in economic value over the next five years.
+<h3>4️⃣ 5G / 6G + Security: The Bedrock of Connectivity and Trust</h3>
+
+5G RedCap (reduced-capability 5G) has already given low- and medium-rate IoT devices low-power cellular connectivity. <strong>The 6G vision</strong> is more radical still: peak rates of 1 Tbps, sub-millisecond latency, and coverage spanning space, air, and sea — paving the way for holographic communication and embodied intelligence. But the more connections there are, the larger the attack surface, so hardware-level security (TPM, secure boot) is becoming table stakes for IoT devices.
+<hr>
+<h2>3. Three Real-World Deployment Scenarios</h2>
+
+The chart below shows how IoT value will be distributed across the major application scenarios in 2030:
+<div>
+
+
+  
+    .title { font-size: 18px; font-weight: 600; fill: #0b0b0b; }
+    .subtitle { font-size: 12px; fill: #52514e; }
+    .bar-label { font-size: 13px; fill: #0b0b0b; font-weight: 500; }
+    .bar-value { font-size: 12px; fill: #ffffff; font-weight: 600; }
+    .pct { font-size: 12px; fill: #0b0b0b; font-weight: 600; }
+    .legend { font-size: 11px; fill: #52514e; }
+  
+  Where IoT value sits across the three major scenarios (2030 forecast)
+  Consumer IoT remains the base; industrial IoT grows fastest
+
+  
+  
+  Consumer IoT (smart home / wearables)
+  
+  42%
+  ¥399B
+
+  
+  Industrial IoT (smart manufacturing / energy)
+  
+  31%
+  ¥294.5B
+
+  
+  Smart cities (transportation / public safety)
+  
+  15%
+  ¥142.5B
+
+  
+  Connected vehicles (V2X / smart cockpit)
+  
+  8%
+  ¥76B
+
+  
+  Smart healthcare (remote monitoring / digital therapeutics)
+  
+  4%
+  ¥38B
+
+  
+  Consumer IoT
+  Industrial IoT
+  Smart cities
+  Connected vehicles
+  Smart healthcare
+
+  Illustrative estimates combining multi-source forecasts from IDC, Gartner, and McKinsey
+
+
+</div>
+
+<h3>🏠 Consumer IoT: From Single Devices to Scene-Level Intelligence</h3>
+
+Smart speakers, smart locks, and robot vacuums are already everywhere, but <strong>genuinely whole-home intelligence is still in its early days</strong>. The release of Matter 1.0 in 2022 marked the start of the unified-protocol era — the Apple, Google, and Amazon ecosystems shook hands for the first time. In the next stage, <strong>an AI agent becomes the home's central brain</strong>: it learns your daily rhythm and adjusts lighting, temperature, and security automatically, so you are no longer opening one app after another to do it by hand.
+<h3>🏭 Industrial IoT: The Core Engine of Smart Manufacturing</h3>
+
+Industrial IoT is <strong>the largest growth market</strong> of the next decade. Predictive maintenance can cut equipment downtime by 50% and raise first-pass yield by 20%. The combination of <strong>5G + edge AI + digital twins</strong> is reshaping the factory: every machine tool, every robot, every production line becomes a sensing "neuron," and the whole plant turns into a self-learning agent.
+<h3>🏙️ Smart Cities: A New Paradigm for Urban Governance</h3>
+
+From adaptive traffic signals to manhole-cover displacement alarms, from real-time grid load scheduling to flood warnings, <strong>IoT gives cities their peripheral nerves</strong>. Singapore's "Virtual Singapore" project and Amsterdam's IoT lamppost network are early exemplars. China's "East Data, West Computing" initiative will also give smart cities a powerful compute foundation.
+<hr>
+<h2>4. Challenges and Hidden Risks</h2>
+
+Behind the impressive numbers, the IoT industry also faces five structural challenges:
+<div>
+
+
+  
+    .title { font-size: 18px; font-weight: 600; fill: #0b0b0b; }
+    .subtitle { font-size: 12px; fill: #52514e; }
+    .axis-label { font-size: 12px; font-weight: 600; fill: #0b0b0b; }
+    .value { font-size: 11px; fill: #52514e; font-weight: 500; }
+    .center { font-size: 13px; fill: #52514e; font-weight: 500; }
+  
+  The five major IoT challenges (severity score, 0–10)
+  The higher the score, the more severe the challenge
+
+  
+  
+  
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
+    
+
+    
+    
+    
+    
+    
+    
+
+    
+    🔒 Security vulnerabilities
+    9.0
+    👁 Privacy leaks
+    8.0
+    🔀 Fragmented standards
+    7.0
+    ⚡ Energy pressure
+    6.0
+    👥 Talent shortage
+    7.0
+
+    
+    Score 0–10
+  
+
+
+</div>
+
+<h3>🔒 Security: The Biggest and Most Complex Challenge</h3>
+
+The Mirai botnet, the Verkada camera breach, smart homes hijacked remotely — <strong>IoT devices have already become the primary entry point for cyberattacks</strong>. Because a huge number of devices have firmware that cannot be updated and default passwords that cannot be changed, security will remain a chronic ailment for a long time to come.
+<h3>👁 Privacy: The Fight Over Data Sovereignty</h3>
+
+Smart home devices capture voice, video, and location data around the clock. If the cloud is breached or a vendor misuses that data, the consequences are hard to overstate. <strong>On-device AI, federated learning, and trusted execution environments (TEE)</strong> are the technical answers, but law and regulation matter just as much — the EU's GDPR and China's Personal Information Protection Law are both pushing the industry toward standardization.
+<h3>🔀 Fragmented Standards: The "Tower of Babel" of Interoperability</h3>
+
+Wi-Fi, Zigbee, Z-Wave, Thread, Matter, Bluetooth Mesh, LoRa, NB-IoT… <strong>the protocol war is far from over</strong>. Matter is a positive signal, but true "one protocol to rule them all" is still five to ten years away.
+<h3>⚡ Energy Consumption and 🌱 Green IoT</h3>
+
+By 2030, the electricity consumed by IoT devices will account for <strong>1.5%</strong> of global power use (IEA estimate). Energy harvesting (photovoltaics, vibration, temperature differentials), ultra-low-power chips, and smart sleep strategies are moving "green IoT" from concept to engineering reality.
+<h3>👥 The Talent Gap</h3>
+
+IoT is a textbook <strong>interdisciplinary field</strong> — it needs people who combine embedded systems, AI, networking, security, and domain knowledge (healthcare, manufacturing, cities). University curricula lag behind industry demand, so university–industry collaboration will be the key to breaking the deadlock.
+<hr>
+<h2>What Are the Five Major IoT Trends from 2026 to 2030?</h2>
+
+Finally, a timeline threads together the key milestones of the next five years:
+<div>
+
+
+  
+    .title { font-size: 18px; font-weight: 600; fill: #0b0b0b; }
+    .subtitle { font-size: 12px; fill: #52514e; }
+    .year { font-size: 18px; font-weight: 700; fill: #ffffff; }
+    .milestone { font-size: 12px; fill: #0b0b0b; font-weight: 500; }
+    .tag { font-size: 11px; fill: #52514e; }
+  
+  Key IoT milestones, 2026–2030
+  5 trends × 5 points in time
+
+  
+  
+
+  
+  
+    
+    
+    26
+    
+    Edge AI chips
+    Shipments surge +60%
+    2026
+
+    
+    
+    27
+    
+    Digital twins go mainstream
+    60% of leading factories deploy
+    2027
+
+    
+    
+    28
+    
+    6G pilot deployments
+    New IoT scenarios open up
+    2028
+
+    
+    
+    29
+    
+    Matter protocol
+    Truly unifies the smart home
+    2029
+
+    
+    
+    30
+    
+    Sustainable IoT
+    Becomes an industry standard
+    2030
+  
+
+  Hardware + connectivity + intelligence + standards + sustainability form a complete evolutionary loop
+
+
+</div>
+
+<h3>🔮 Trend 1: Edge AI Chip Shipments Explode (2026)</h3>
+
+As the TinyML toolchain matures, edge AI MCUs priced under a dollar will ship at scale. <strong>By 2026, the global edge AI chip market will pass USD 25 billion</strong>.
+<h3>🔮 Trend 2: Digital Twins Enter the Mainstream (2027)</h3>
+
+Gartner predicts that by 2027 <strong>60% of large industrial enterprises will have digital twins deployed</strong>. No longer a toy reserved for the corporate giants, the twin becomes a productivity tool that even small and mid-sized firms can afford.
+<h3>🔮 Trend 3: 6G Pilots Open Up New IoT Scenarios (2028)</h3>
+
+Early 6G trials will land first in <strong>holographic communication, remote surgery, and autonomous mining trucks</strong>. 6G is not merely a faster 5G — it redefines the very shape of IoT devices, extending them from the ground into the air, underwater, and deep underground.
+<h3>🔮 Trend 4: Matter Truly Unifies the Smart Home (2029)</h3>
+
+After seven years of market cultivation, the Matter 1.0 → 2.0 → 3.0 iterations will complete the decisive evolution. <strong>Apple, Google, Amazon, Samsung, Xiaomi, and Huawei</strong> will for the first time deliver real interconnection, where every device speaks one shared protocol.
+<h3>🔮 Trend 5: Sustainable IoT Becomes an Industry Standard (2030)</h3>
+
+Carbon-neutrality targets are forcing the IoT industry to go green across the board. <strong>Energy-harvesting chips, ultra-low-power communication, and recyclable materials</strong> will go from bonus points to a passing grade.
+<hr>
+<h2>Conclusion: Everything Connected, Everything Intelligent</h2>
+
+The IoT story is far from over. From the "Smarter Planet" concept first proposed in 2008, to the 20-billion-device behemoth of 2025, to an intelligent ecosystem approaching a trillion dollars by 2030 — <strong>IoT is becoming the "operating system" that fuses the digital and physical worlds</strong>.
+
+In the next decade, the most exciting thing will not be the intelligence of any single device but <strong>the intelligence of whole systems — homes, factories, cities</strong>. As edge AI, digital twins, 6G, the Matter standard, and green energy converge, we will watch IoT move from "connection" to "symbiosis" —
+<blockquote>
+
+🌍 Devices are no longer just <strong>tools to be controlled, but partners that understand our needs and take part in our decisions</strong>.
+</blockquote>
+
+As developers, students, and observers, we are standing right at this turning point. Whether you write embedded code, work on algorithms, or design products, understanding the full picture of IoT will help you find your place in the next decade.
+<hr>
+
+<strong>References and further reading:</strong>
+<ul>
+<li>📊 MarketsandMarkets — <em>Internet of Things Market Report 2025-2030</em></li>
+<li>📈 Statista — <em>IoT Devices Installed Base Worldwide 2035</em></li>
+<li>🏭 McKinsey — <em>The Internet of Things: Catching up to an accelerating opportunity</em></li>
+<li>🧠 Gartner — <em>Top Strategic Technology Trends for 2026</em> (edge AI, digital twins)</li>
+<li>🌐 IEA — <em>Data Centres and Data Transmission Networks</em> (energy consumption forecast)</li>
+<li>🌸 Further reading: "<a href="/article/google-matter-smart-home-dev-guide">The Complete Guide to Google Matter Smart Home Development: From First Steps to Certification</a>" (this blog)</li>
+</ul>
+<hr>
+
+🌸 Observe the future with care, build the future with care 🌸
+`,
+  },
+  {
+    slug: 'blog-tech-stack',
+    zhSlug: 'blog-tech-stack',
+    topicSlug: 'backend',
+    title: 'How This Blog Is Built: Vue 3 + Django With a Decoupled Frontend',
+    excerpt: 'A tour of the stack behind this blog: a Vue 3 SPA on GitHub Pages talking to a Django REST Framework API on PythonAnywhere, plus the Markdown pipeline, cookie-based likes, search, RSS and the deploy scripts that hold it together.',
+    date: '2026-07-07',
+    readingTime: 13,
+    html: `
+<h2>Introduction</h2>
+
+I had wanted a technical blog of my own for a long time — a place to write down what I learn and to trade notes with people who care about the same things. After a fair amount of tinkering, it is finally live.
+
+This post goes through the architecture, how the core features are built, and how the whole thing is deployed, in the hope that it saves a few detours for anyone putting together a personal blog.
+<hr>
+<h2>Architecture at a Glance</h2>
+
+The blog is built as a <strong>decoupled frontend and backend</strong> architecture, with each side deployed on its own platform:
+<div class="codehilite"><pre><span></span><code>┌──────────────────────────────────────────────────────────┐
+│                       User Browser                       │
+│               https://zhoujungis.github.io               │
+└───────────────┬──────────────────────────┬───────────────┘
+                │                          │
+                │ static assets (JS/CSS)  │ API calls
+                │                          │
+        ┌───────▼────────┐       ┌─────────▼──────────┐
+        │  GitHub Pages  │       │   PythonAnywhere   │
+        │                │       │                    │
+        │   Vue 3 SPA    │ ───▶  │  Django REST API   │
+        │  (Vite build)  │       │    (DRF + JWT)     │
+        │                │       │                    │
+        └────────────────┘       │  SQLite database   │
+                                 └────────────────────┘
+</code></pre></div>
+
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Stack</th>
+<th>Platform</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Frontend</td>
+<td>Vue 3 + Vite + Vue Router + Pinia</td>
+<td>GitHub Pages</td>
+</tr>
+<tr>
+<td>Backend</td>
+<td>Django 6.0 + Django REST Framework</td>
+<td>PythonAnywhere</td>
+</tr>
+<tr>
+<td>Database</td>
+<td>SQLite</td>
+<td>PythonAnywhere file storage</td>
+</tr>
+<tr>
+<td>Auth</td>
+<td>Simple JWT (Access + Refresh Token)</td>
+<td>-</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>What Does the Frontend Use?</h2>
+<h3>The Core Stack</h3>
+
+Everything on the frontend sits on the <strong>Vue 3</strong> ecosystem with a deliberately modern toolchain:
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;dependencies&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;vue&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^3.5.39&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;vue-router&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^4.6.4&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;pinia&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^3.0.4&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;axios&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^1.18.1&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;vditor&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^3.11.2&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;highlight.js&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^11.11.1&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;echarts&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^6.1.0&quot;</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;devDependencies&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;vite&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^8.1.1&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;@vitejs/plugin-vue&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^6.0.7&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;sass&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^1.101.0&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h4>Why These Choices?</h4>
+<ul>
+<li><strong>Vite</strong> over Webpack: near-instant cold start from an ESM dev server, HMR that lands in milliseconds</li>
+<li><strong>Pinia</strong> over Vuex: a smaller API surface, first-class TypeScript, better tree-shaking</li>
+<li><strong>Vditor</strong>: a Markdown editor with three modes — WYSIWYG, instant rendering and split preview — plus built-in code highlighting and math typesetting</li>
+</ul>
+<h3>Routing</h3>
+
+Routes are lazy-loaded through Vue Router, so every page is fetched on demand and the initial bundle stays small:
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/&#39;</span><span class="p">,</span><span class="w">              </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Home.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/article/:slug&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/ArticleDetail.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/categories&#39;</span><span class="p">,</span><span class="w">    </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Categories.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/tags&#39;</span><span class="p">,</span><span class="w">          </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Tags.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/search&#39;</span><span class="p">,</span><span class="w">        </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Search.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/archives&#39;</span><span class="p">,</span><span class="w">      </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Archives.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/photos&#39;</span><span class="p">,</span><span class="w">        </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/PhotoWall.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/friends&#39;</span><span class="p">,</span><span class="w">       </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/FriendLinks.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/footprints&#39;</span><span class="p">,</span><span class="w">    </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Footprints.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/about&#39;</span><span class="p">,</span><span class="w">         </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/About.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="p">]</span>
+</code></pre></div>
+
+
+A route guard protects the admin pages and sends anyone who is not signed in straight to the login screen:
+<div class="codehilite"><pre><span></span><code><span class="nx">router</span><span class="p">.</span><span class="nx">beforeEach</span><span class="p">((</span><span class="nx">to</span><span class="p">,</span><span class="w"> </span><span class="kr">from</span><span class="p">,</span><span class="w"> </span><span class="nx">next</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">to</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">requiresAuth</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">authStore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useAuthStore</span><span class="p">()</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">authStore</span><span class="p">.</span><span class="nx">isAuthenticated</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">next</span><span class="p">({</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;AdminLogin&#39;</span><span class="w"> </span><span class="p">})</span><span class="w">  </span><span class="c1">// not signed in → go to login</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">next</span><span class="p">()</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">next</span><span class="p">()</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">})</span>
+</code></pre></div>
+
+<h3>State Management</h3>
+
+Pinia holds the article list and the article currently being read:
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">useArticleStore</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">defineStore</span><span class="p">(</span><span class="s1">&#39;article&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">state</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">({</span>
+<span class="w">    </span><span class="nx">articles</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">    </span><span class="nx">currentArticle</span><span class="o">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">categories</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">    </span><span class="nx">tags</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">    </span><span class="nx">loading</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">pagination</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">count</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">page</span><span class="o">:</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="nx">pageSize</span><span class="o">:</span><span class="w"> </span><span class="mf">10</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">}),</span>
+<span class="w">  </span><span class="nx">actions</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">async</span><span class="w"> </span><span class="nx">fetchArticles</span><span class="p">(</span><span class="nx">params</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{})</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="k">async</span><span class="w"> </span><span class="nx">fetchArticleBySlug</span><span class="p">(</span><span class="nx">slug</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="k">async</span><span class="w"> </span><span class="nx">fetchCategories</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="k">async</span><span class="w"> </span><span class="nx">fetchTags</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="p">})</span>
+</code></pre></div>
+
+<h3>The API Layer</h3>
+
+A single Axios instance wraps the shared request and response interceptors:
+<ul>
+<li><strong>Request interceptor</strong>: reads the JWT out of localStorage and attaches it to every request header</li>
+<li><strong>Response interceptor</strong>: on a 401 it clears the token and redirects to the login page</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">axios</span><span class="p">.</span><span class="nx">create</span><span class="p">({</span>
+<span class="w">  </span><span class="nx">baseURL</span><span class="o">:</span><span class="w"> </span><span class="k">import</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">VITE_API_BASE_URL</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;http://localhost:8000/api/&#39;</span><span class="p">,</span>
+<span class="p">})</span>
+
+<span class="c1">// attach the JWT automatically</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">interceptors</span><span class="p">.</span><span class="nx">request</span><span class="p">.</span><span class="nx">use</span><span class="p">((</span><span class="nx">config</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">getItem</span><span class="p">(</span><span class="s1">&#39;token&#39;</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">token</span><span class="p">)</span><span class="w"> </span><span class="nx">config</span><span class="p">.</span><span class="nx">headers</span><span class="p">.</span><span class="nx">Authorization</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">\`Bearer </span><span class="si">\${</span><span class="nx">token</span><span class="si">}</span><span class="sb">\`</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">config</span>
+<span class="p">})</span>
+
+<span class="c1">// handle 401s in one place</span>
+<span class="nx">client</span><span class="p">.</span><span class="nx">interceptors</span><span class="p">.</span><span class="nx">response</span><span class="p">.</span><span class="nx">use</span><span class="p">(</span>
+<span class="w">  </span><span class="p">(</span><span class="nx">response</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">response</span><span class="p">,</span>
+<span class="w">  </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">error</span><span class="p">.</span><span class="nx">response</span><span class="o">?</span><span class="p">.</span><span class="nx">status</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">401</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">localStorage</span><span class="p">.</span><span class="nx">removeItem</span><span class="p">(</span><span class="s1">&#39;token&#39;</span><span class="p">)</span>
+<span class="w">      </span><span class="nb">window</span><span class="p">.</span><span class="nx">location</span><span class="p">.</span><span class="nx">href</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;/admin&#39;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nb">Promise</span><span class="p">.</span><span class="nx">reject</span><span class="p">(</span><span class="nx">error</span><span class="p">)</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="p">)</span>
+</code></pre></div>
+
+<h3>Signature Components</h3>
+
+The blog ships a set of deliberately designed UI components:
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ParticleBg.vue</code></td>
+<td>Animated particle background on Canvas</td>
+</tr>
+<tr>
+<td><code>Live2DWidget.vue</code></td>
+<td>Interactive Live2D mascot widget</td>
+</tr>
+<tr>
+<td><code>ReadingProgress.vue</code></td>
+<td>Reading progress bar</td>
+</tr>
+<tr>
+<td><code>ThemeToggle.vue</code></td>
+<td>Light and dark theme switching</td>
+</tr>
+<tr>
+<td><code>LoadingScreen.vue</code></td>
+<td>Loading skeleton screen</td>
+</tr>
+<tr>
+<td><code>MarkdownView.vue</code></td>
+<td>Markdown renderer (built on Vditor)</td>
+</tr>
+<tr>
+<td><code>TocNav.vue</code></td>
+<td>Table-of-contents navigation</td>
+</tr>
+<tr>
+<td><code>ShareButtons.vue</code></td>
+<td>Social share buttons</td>
+</tr>
+<tr>
+<td><code>CommentList.vue</code></td>
+<td>Comment list with nested replies</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>What Does the Backend Use?</h2>
+<h3>The Stack</h3>
+
+The backend is built on <strong>Django 6.0</strong> and <strong>Django REST Framework</strong>:
+<div class="codehilite"><pre><span></span><code><span class="nx">django</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">Django</span><span class="w"> </span><span class="m m-Double">6.0.6</span><span class="w">              </span><span class="err">#</span><span class="w"> </span><span class="nx">Web</span><span class="w"> </span><span class="nx">framework</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">djangorestframework</span><span class="w"> </span><span class="m m-Double">3.17</span><span class="w">  </span><span class="err">#</span><span class="w"> </span><span class="nx">REST</span><span class="w"> </span><span class="nx">API</span><span class="w"> </span><span class="nx">framework</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">django</span><span class="o">-</span><span class="nx">cors</span><span class="o">-</span><span class="nx">headers</span><span class="w"> </span><span class="m m-Double">4.9</span><span class="w">   </span><span class="err">#</span><span class="w"> </span><span class="nx">CORS support</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">django</span><span class="o">-</span><span class="nx">filter</span><span class="w"> </span><span class="m m-Double">25.2</span><span class="w">        </span><span class="err">#</span><span class="w"> </span><span class="nx">queryset filtering</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">djangorestframework</span><span class="o">-</span><span class="nx">simplejwt</span><span class="w"> </span><span class="m m-Double">5.5</span><span class="w">  </span><span class="err">#</span><span class="w"> </span><span class="nx">JWT</span><span class="w"> </span><span class="nx">auth</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">Markdown</span><span class="w"> </span><span class="m m-Double">3.10</span><span class="w">             </span><span class="err">#</span><span class="w"> </span><span class="nx">Markdown</span><span class="w"> </span><span class="nx">rendering</span>
+<span class="err">├──</span><span class="w"> </span><span class="nx">Pillow</span><span class="w"> </span><span class="m m-Double">12.3</span><span class="w">               </span><span class="err">#</span><span class="w"> </span><span class="nx">image handling</span>
+<span class="err">└──</span><span class="w"> </span><span class="nx">Pygments</span><span class="w"> </span><span class="m m-Double">2.20</span><span class="w">             </span><span class="err">#</span><span class="w"> </span><span class="nx">syntax highlighting</span>
+</code></pre></div>
+
+<h3>The Data Model</h3>
+
+At the center sits the <strong>Article</strong> model, with four states — draft, published, archived and scheduled:
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Article</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Status</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">TextChoices</span><span class="p">):</span>
+        <span class="n">DRAFT</span> <span class="o">=</span> <span class="s2">&quot;draft&quot;</span><span class="p">,</span> <span class="s2">&quot;Draft&quot;</span>
+        <span class="n">PUBLISHED</span> <span class="o">=</span> <span class="s2">&quot;published&quot;</span><span class="p">,</span> <span class="s2">&quot;Published&quot;</span>
+        <span class="n">ARCHIVED</span> <span class="o">=</span> <span class="s2">&quot;archived&quot;</span><span class="p">,</span> <span class="s2">&quot;Archived&quot;</span>
+        <span class="n">SCHEDULED</span> <span class="o">=</span> <span class="s2">&quot;scheduled&quot;</span><span class="p">,</span> <span class="s2">&quot;Scheduled&quot;</span>
+
+    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
+    <span class="n">slug</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">SlugField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">()</span>              <span class="c1"># raw Markdown</span>
+    <span class="n">html_content</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">editable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># rendered HTML</span>
+    <span class="n">excerpt</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">editable</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>       <span class="c1"># generated excerpt</span>
+    <span class="n">category</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">Category</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+    <span class="n">tags</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ManyToManyField</span><span class="p">(</span><span class="n">Tag</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+    <span class="n">status</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">Status</span><span class="o">.</span><span class="n">choices</span><span class="p">)</span>
+    <span class="n">is_top</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>       <span class="c1"># pinned to the top</span>
+    <span class="n">views_count</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">PositiveIntegerField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">likes_count</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">PositiveIntegerField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">cover_image</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">URLField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">scheduled_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">created_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">updated_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+
+Saving an article triggers all of the following automatically:
+<ol>
+<li><strong>Markdown → HTML</strong>: handled by Python-Markdown with the code highlighting, table and TOC extensions switched on</li>
+<li><strong>Auto excerpt</strong>: strips the Markdown syntax and keeps the first 50 words</li>
+<li><strong>Scheduled publishing</strong>: once the appointed time arrives, the status flips from <code>scheduled</code> to <code>published</code></li>
+</ol>
+<h3>RESTful API Design</h3>
+
+The API follows REST conventions through DRF's ViewSet + Router:
+<div class="codehilite"><pre><span></span><code>GET    /api/articles/               article list (pagination, search, category/tag filters)
+GET    /api/articles/{slug}/        article detail (bumps the view counter)
+GET    /api/categories/             category list (with article counts)
+GET    /api/tags/                   tag list (with article counts)
+POST   /api/articles/{slug}/like/   like an article (deduplicated by cookie)
+POST   /api/subscribe/              email subscription
+POST   /api/token/                  JWT login, returns tokens
+POST   /api/token/refresh/          refresh the access token
+POST   /api/admin/articles/         create an article (auth required)
+PUT    /api/admin/articles/{id}/    update an article (auth required)
+DELETE /api/admin/articles/{id}/    delete an article (auth required)
+</code></pre></div>
+
+
+API hardening:
+- <strong>Rate limiting</strong>: 30 requests per minute for anonymous users, 100 for authenticated ones, 3 for comments and 5 per hour for subscriptions
+- <strong>JWT auth</strong>: access tokens expire after 60 minutes, refresh tokens after one day
+- <strong>CORS</strong>: only the frontend origin may call the API
+<h3>Smart Relations on the Article Detail Endpoint</h3>
+
+The detail endpoint does more than return the body — it works out the article's neighborhood in the same pass:
+<ul>
+<li><strong>Previous and next article</strong>: context navigation ordered by publish date</li>
+<li><strong>Related articles</strong>: matched on shared tags, three at most</li>
+<li><strong>Reading-time estimate</strong>: (characters + English words) ÷ 250 gives the minute count</li>
+</ul>
+<hr>
+
+<h2>How Is It Deployed?</h2>
+<h3>Two Platforms, One Site</h3>
+<div class="codehilite"><pre><span></span><code><span class="err">┌─────────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">              </span><span class="err">Dev machine</span><span class="w"> </span><span class="p">(</span><span class="n">Windows</span><span class="p">)</span><span class="w">      </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                         </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="n">git</span><span class="w"> </span><span class="n">push</span><span class="w"> </span><span class="n">origin</span><span class="w"> </span><span class="k">master</span><span class="w">                 </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="n">cd</span><span class="w"> </span><span class="n">frontend</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">bash</span><span class="w"> </span><span class="n">deploy</span><span class="o">.</span><span class="n">sh</span><span class="w">          </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                         </span><span class="err">│</span>
+<span class="err">└──────┬──────────────┬───────────────────┘</span>
+<span class="w">       </span><span class="err">│</span><span class="w">              </span><span class="err">│</span>
+<span class="w">       </span><span class="err">│</span><span class="w">  </span><span class="err">source push</span><span class="w"> </span><span class="err">│</span><span class="w">  </span><span class="n">API</span><span class="w"> </span><span class="err">call</span><span class="w"> </span><span class="p">(</span><span class="err">build output push</span><span class="p">)</span>
+<span class="w">       </span><span class="err">▼</span><span class="w">              </span><span class="err">▼</span>
+<span class="err">┌──────────────┐</span><span class="w">  </span><span class="err">┌──────────────────┐</span>
+<span class="err">│</span><span class="w">  </span><span class="n">GitHub</span><span class="w">      </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="n">PythonAnywhere</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">              </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">                  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">source repo</span><span class="w"> </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="n">Django</span><span class="w"> </span><span class="err">backend</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="o">+</span><span class="w"> </span><span class="err">output</span><span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">git</span><span class="w"> </span><span class="n">pull</span><span class="w">     </span><span class="err">│</span>
+<span class="err">│</span><span class="w">              </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">├─</span><span class="w"> </span><span class="n">migrate</span><span class="w">      </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="n">GitHub</span><span class="w">      </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="err">└─</span><span class="w"> </span><span class="n">Reload</span><span class="w">       </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="n">Pages</span><span class="w">       </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">                  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="err">auto-deploy</span><span class="w"> </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="n">your</span><span class="o">-</span><span class="n">account</span><span class="w">    </span><span class="err">│</span>
+<span class="err">│</span><span class="w">              </span><span class="err">│</span><span class="w">  </span><span class="err">│</span><span class="w">  </span><span class="o">.</span><span class="n">pythonanywhere</span><span class="w"> </span><span class="err">│</span>
+<span class="err">└──────────────┘</span><span class="w">  </span><span class="err">└──────────────────┘</span>
+</code></pre></div>
+
+<h3>Frontend Deployment</h3>
+
+<code>deploy.sh</code> is a script that automates the whole frontend deploy:
+<div class="codehilite"><pre><span></span><code><span class="ch">#!/bin/bash</span>
+<span class="nb">set</span><span class="w"> </span>-e
+
+<span class="c1"># 1. Build the Vue app</span>
+npm<span class="w"> </span>run<span class="w"> </span>build
+
+<span class="c1"># 2. Copy the build output to the repo root (GitHub Pages serves from there)</span>
+cp<span class="w"> </span>-r<span class="w"> </span>dist/*<span class="w"> </span>../
+
+<span class="c1"># 3. Copy the Live2D assets (if any)</span>
+<span class="k">if</span><span class="w"> </span><span class="o">[</span><span class="w"> </span>-d<span class="w"> </span><span class="s2">&quot;../public-live2d&quot;</span><span class="w"> </span><span class="o">]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">  </span>cp<span class="w"> </span>-r<span class="w"> </span>../public-live2d/*<span class="w"> </span>../live2dw/
+<span class="k">fi</span>
+
+<span class="c1"># 4. Commit and push to GitHub</span>
+git<span class="w"> </span>add<span class="w"> </span>-A
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;deploy: update site </span><span class="k">$(</span>date<span class="w"> </span>+%Y-%m-%d_%H:%M<span class="k">)</span><span class="s2">&quot;</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>master
+</code></pre></div>
+
+
+A few deliberate choices:
+- GitHub Pages serves from the repository root, so the build output has to be copied there
+- Source lives under <code>frontend/</code>, build output lives at the root, and <code>.gitignore</code> keeps the two apart
+- A deploy is one git commit + push — small and auditable
+<h3>Backend Deployment</h3>
+
+The backend runs on PythonAnywhere's free plan and is driven from the Web console:
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>~/zhoujungis.github.io/backend
+git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>master<span class="w">           </span><span class="c1"># pull the latest code</span>
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate<span class="w">         </span><span class="c1"># activate the virtualenv</span>
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt<span class="w">  </span><span class="c1"># install dependencies (if anything changed)</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>migrate<span class="w">         </span><span class="c1"># run migrations (if models changed)</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>collectstatic<span class="w"> </span>--noinput<span class="w">  </span><span class="c1"># collect static files</span>
+<span class="c1"># then hit Reload on the Web tab</span>
+</code></pre></div>
+
+<hr>
+<h2>Core Features</h2>
+<h3>The Markdown Pipeline</h3>
+
+An article travels a full rendering pipeline between being written and being read:
+<div class="codehilite"><pre><span></span><code>Markdown source
+    │
+    ▼
+Python-Markdown render (on save, backend)
+    ├── fenced_code       → fenced code blocks
+    ├── codehilite        → Pygments syntax highlighting
+    ├── tables            → table support
+    ├── extra             → extra syntax extensions
+    └── toc               → auto-generated table of contents
+    │
+    ▼
+html_content column stored in the database
+    │
+    ▼
+rendered in Vditor preview mode on the frontend
+    ├── highlight.js      → frontend syntax highlighting
+    └── responsive images → mobile layout
+</code></pre></div>
+
+<h3>The Like Button (Deduplicated by Cookie)</h3>
+
+Likes are gated by a cookie rather than an account, so nobody has to sign in to react:
+<div class="codehilite"><pre><span></span><code><span class="nd">@api_view</span><span class="p">([</span><span class="s2">&quot;POST&quot;</span><span class="p">])</span>
+<span class="nd">@permission_classes</span><span class="p">([</span><span class="n">AllowAny</span><span class="p">])</span>
+<span class="nd">@throttle_classes</span><span class="p">([</span><span class="n">AnonRateThrottle</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">like_article</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">slug</span><span class="p">):</span>
+    <span class="n">article</span> <span class="o">=</span> <span class="n">get_object_or_404</span><span class="p">(</span><span class="n">Article</span><span class="p">,</span> <span class="n">slug</span><span class="o">=</span><span class="n">slug</span><span class="p">,</span> <span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)</span>
+    <span class="n">cookie_key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;liked_</span><span class="si">{</span><span class="n">article</span><span class="o">.</span><span class="n">slug</span><span class="si">}</span><span class="s2">&quot;</span>
+
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">COOKIES</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">cookie_key</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;detail&quot;</span><span class="p">:</span> <span class="s2">&quot;Already liked&quot;</span><span class="p">})</span>
+
+    <span class="n">article</span><span class="o">.</span><span class="n">likes_count</span> <span class="o">+=</span> <span class="mi">1</span>
+    <span class="n">article</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;likes_count&quot;</span><span class="p">])</span>
+
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;likes_count&quot;</span><span class="p">:</span> <span class="n">article</span><span class="o">.</span><span class="n">likes_count</span><span class="p">})</span>
+    <span class="n">resp</span><span class="o">.</span><span class="n">set_cookie</span><span class="p">(</span><span class="n">cookie_key</span><span class="p">,</span> <span class="s2">&quot;1&quot;</span><span class="p">,</span> <span class="n">max_age</span><span class="o">=</span><span class="mi">86400</span> <span class="o">*</span> <span class="mi">365</span><span class="p">,</span> <span class="n">httponly</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">samesite</span><span class="o">=</span><span class="s2">&quot;Lax&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">resp</span>
+</code></pre></div>
+
+
+What makes it hold up:
+- The cookie lives for 365 days, which works out to one like per person per article
+- <code>httponly=True</code> keeps scripts from tampering with it
+- API rate limits stop anyone from farming likes
+<h3>Search</h3>
+
+Search rides on DRF's <code>SearchFilter</code> and matches across article titles and bodies:
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ArticleViewSet</span><span class="p">(</span><span class="n">viewsets</span><span class="o">.</span><span class="n">ReadOnlyModelViewSet</span><span class="p">):</span>
+    <span class="n">filter_backends</span> <span class="o">=</span> <span class="p">[</span><span class="n">DjangoFilterBackend</span><span class="p">,</span> <span class="n">filters</span><span class="o">.</span><span class="n">SearchFilter</span><span class="p">]</span>
+    <span class="n">filterset_fields</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;category__slug&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;exact&quot;</span><span class="p">],</span>
+        <span class="s2">&quot;tags__slug&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;exact&quot;</span><span class="p">],</span>
+    <span class="p">}</span>
+    <span class="n">search_fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">]</span>
+</code></pre></div>
+
+
+The frontend search page sends the keyword through a query parameter:
+<div class="codehilite"><pre><span></span><code><span class="nx">getArticles</span><span class="p">({</span><span class="w"> </span><span class="nx">search</span><span class="o">:</span><span class="w"> </span><span class="nx">keyword</span><span class="w"> </span><span class="p">})</span><span class="w">  </span><span class="c1">// → GET /api/articles/?search=vue</span>
+</code></pre></div>
+
+<h3>RSS and Sitemap</h3>
+
+So that search engines can pick the site up properly, the blog also exposes:
+<ul>
+<li><strong>RSS Feed</strong> (<code>/rss.xml</code>): built on Django's <code>Feed</code> class, emitting the latest published articles</li>
+<li><strong>Sitemap</strong> (<code>/sitemap.xml</code>): a dynamic article sitemap plus a static-page sitemap, with the site domain set to <code>zhoujungis.github.io</code></li>
+</ul>
+<h3>Email Subscription</h3>
+
+A deliberately small subscription endpoint with basic format validation and a frequency cap (5 per hour per IP):
+<div class="codehilite"><pre><span></span><code><span class="nd">@api_view</span><span class="p">([</span><span class="s2">&quot;POST&quot;</span><span class="p">])</span>
+<span class="nd">@throttle_classes</span><span class="p">([</span><span class="n">SubscribeThrottle</span><span class="p">])</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">subscribe_newsletter</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">email</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;email&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">email</span> <span class="ow">or</span> <span class="s2">&quot;@&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">email</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="s2">&quot;Please enter a valid email address&quot;</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">created</span> <span class="o">=</span> <span class="n">Subscriber</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get_or_create</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">)</span>
+    <span class="c1"># ...</span>
+</code></pre></div>
+
+<hr>
+<h2>Performance and UX</h2>
+<h3>First Load</h3>
+<div class="codehilite"><pre><span></span><code>Approach                              Effect
+────────────────────────────────────────────────────
+Route lazy loading (Dynamic Import)   smaller initial JS bundle
+Vite code splitting                   automatic per-page chunks
+Skeleton screen                       no blank page, faster perceived load
+SCSS variables + CSS variables        one theme source, less duplicated CSS
+</code></pre></div>
+
+<h3>Designing for Every State</h3>
+
+Every page accounts for the full set of UI states:
+<div class="codehilite"><pre><span></span><code>┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
+│ Loading  │───▶│  Empty   │    │  Error   │───▶│  Retry   │
+│(skeleton)│    │ (empty)  │    │ (error)  │    │ (retry)  │
+└──────────┘    └──────────┘    └──────────┘    └──────────┘
+     │                                                │
+     └───────────────▶  Data  ◀──────────────────────┘
+                      (loaded)
+</code></pre></div>
+
+<h3>Interaction Details</h3>
+<ul>
+<li><strong>Particle background</strong>: an animated particle network drawn on Canvas — light enough to stay smooth</li>
+<li><strong>Reading progress bar</strong>: a hairline at the top of the page that tracks how far you have read</li>
+<li><strong>Dark theme</strong>: CSS-variable driven, one click to switch, remembered in LocalStorage</li>
+<li><strong>Live2D mascot</strong>: a draggable character widget</li>
+<li><strong>Back to top</strong>: a floating button that appears on long pages</li>
+<li><strong>Page transitions</strong>: fade in and out between routes</li>
+</ul>
+<hr>
+<h2>The Admin Console</h2>
+
+A full admin console ships with the blog, reachable under <code>/admin</code>:
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Route</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sign-in</td>
+<td><code>/admin</code></td>
+<td>JWT authentication</td>
+</tr>
+<tr>
+<td>Dashboard</td>
+<td><code>/admin/dashboard</code></td>
+<td>Overview metrics</td>
+</tr>
+<tr>
+<td>Article list</td>
+<td><code>/admin/articles</code></td>
+<td>Create, edit, delete and re-status articles</td>
+</tr>
+<tr>
+<td>Article editor</td>
+<td><code>/admin/editor/:id?</code></td>
+<td>Vditor with live Markdown preview</td>
+</tr>
+<tr>
+<td>Comment moderation</td>
+<td><code>/admin/comments</code></td>
+<td>Review and manage comments</td>
+</tr>
+</tbody>
+</table>
+
+The editor is Vditor under the hood, which gives you:
+- Three modes: WYSIWYG, instant rendering and split preview
+- A toolbar with emoji, tables, Gantt charts, flowcharts and math
+- Image uploads straight to the backend
+- Autosaved drafts
+<hr>
+<h2>Project Layout</h2>
+<div class="codehilite"><pre><span></span><code><span class="n">zhoujungis</span><span class="o">.</span><span class="n">github</span><span class="o">.</span><span class="n">io</span><span class="o">/</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">frontend</span><span class="o">/</span><span class="w">                    </span><span class="c1"># Vue 3 frontend</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">src</span><span class="o">/</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">api</span><span class="o">/</span><span class="w">                 </span><span class="c1"># API wrappers</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">client</span><span class="o">.</span><span class="n">js</span><span class="w">        </span><span class="c1">#   Axios instance + interceptors</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">articles</span><span class="o">.</span><span class="n">js</span><span class="w">      </span><span class="c1">#   article/category/tag APIs</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">admin</span><span class="o">.</span><span class="n">js</span><span class="w">         </span><span class="c1">#   admin APIs</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">comments</span><span class="o">.</span><span class="n">js</span><span class="w">      </span><span class="c1">#   comment APIs</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">components</span><span class="o">/</span><span class="w">          </span><span class="c1"># shared components (18)</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">pages</span><span class="o">/</span><span class="w">               </span><span class="c1"># page components</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">admin</span><span class="o">/</span><span class="w">           </span><span class="c1">#   admin pages</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">router</span><span class="o">/</span><span class="w">              </span><span class="c1"># Vue Router configuration</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">stores</span><span class="o">/</span><span class="w">              </span><span class="c1"># Pinia stores</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">App</span><span class="o">.</span><span class="n">vue</span><span class="w">              </span><span class="c1"># root component</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">main</span><span class="o">.</span><span class="n">js</span><span class="w">              </span><span class="c1"># entry point</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">deploy</span><span class="o">.</span><span class="n">sh</span><span class="w">                </span><span class="c1"># frontend deploy script</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">vite</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">js</span><span class="w">           </span><span class="c1"># Vite build config</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">package</span><span class="o">.</span><span class="n">json</span><span class="w">             </span><span class="c1"># dependency manifest</span>
+<span class="err">│</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">backend</span><span class="o">/</span><span class="w">                     </span><span class="c1"># Django backend</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">blog_api</span><span class="o">/</span><span class="w">                </span><span class="c1"># Django project config</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">settings</span><span class="o">.</span><span class="n">py</span><span class="w">          </span><span class="c1">#   settings</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">urls</span><span class="o">.</span><span class="n">py</span><span class="w">              </span><span class="c1">#   root URLconf</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">articles</span><span class="o">/</span><span class="w">                </span><span class="c1"># articles app</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">models</span><span class="o">.</span><span class="n">py</span><span class="w">            </span><span class="c1">#   models</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">views</span><span class="o">.</span><span class="n">py</span><span class="w">             </span><span class="c1">#   API views</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">serializers</span><span class="o">.</span><span class="n">py</span><span class="w">       </span><span class="c1">#   serializers</span>
+<span class="err">│</span><span class="w">   </span><span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">urls</span><span class="o">.</span><span class="n">py</span><span class="w">              </span><span class="c1">#   API routes</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">comments</span><span class="o">/</span><span class="w">                </span><span class="c1"># comments app</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">photos</span><span class="o">/</span><span class="w">                  </span><span class="c1"># photos app</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">friends</span><span class="o">/</span><span class="w">                 </span><span class="c1"># friends app</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">accounts</span><span class="o">/</span><span class="w">                </span><span class="c1"># accounts app</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">requirements</span><span class="o">.</span><span class="n">txt</span><span class="w">         </span><span class="c1"># Python dependencies</span>
+<span class="err">│</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">tools</span><span class="o">/</span><span class="w">                       </span><span class="c1"># CLI tooling</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">create_article</span><span class="o">.</span><span class="n">py</span><span class="w">        </span><span class="c1">#   create article</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">post_article</span><span class="o">.</span><span class="n">py</span><span class="w">          </span><span class="c1">#   publish article</span>
+<span class="err">│</span><span class="w">   </span><span class="err">├──</span><span class="w"> </span><span class="n">update_article</span><span class="o">.</span><span class="n">py</span><span class="w">        </span><span class="c1">#   update article</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">setup_categories</span><span class="o">.</span><span class="n">py</span><span class="w">      </span><span class="c1">#   seed categories</span>
+<span class="err">│</span>
+<span class="err">├──</span><span class="w"> </span><span class="o">.</span><span class="n">claude</span><span class="o">/</span><span class="w">                     </span><span class="c1"># Claude Code config</span>
+<span class="err">│</span><span class="w">   </span><span class="err">└──</span><span class="w"> </span><span class="n">skills</span><span class="o">/</span><span class="n">deploy</span><span class="o">/</span><span class="w">           </span><span class="c1">#   deploy skill definition</span>
+<span class="err">│</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">index</span><span class="o">.</span><span class="n">html</span><span class="w">                   </span><span class="c1"># GitHub Pages entry point</span>
+<span class="err">├──</span><span class="w"> </span><span class="n">assets</span><span class="o">/</span><span class="w">                      </span><span class="c1"># build output (Vite)</span>
+<span class="err">└──</span><span class="w"> </span><span class="n">CNAME</span><span class="w">                        </span><span class="c1"># custom domain</span>
+</code></pre></div>
+
+<hr>
+<h2>Wrapping Up</h2>
+<h3>Reflections on the Stack</h3>
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Choice</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Frontend framework</td>
+<td>Vue 3</td>
+<td>progressive, active community, gentle learning curve</td>
+</tr>
+<tr>
+<td>Build tool</td>
+<td>Vite</td>
+<td>cold start in a second, very fast HMR</td>
+</tr>
+<tr>
+<td>Backend framework</td>
+<td>Django</td>
+<td>batteries included, a strong ORM, works out of the box</td>
+</tr>
+<tr>
+<td>API style</td>
+<td>REST</td>
+<td>mature and stable, plays well with the frontend ecosystem</td>
+</tr>
+<tr>
+<td>Hosting</td>
+<td>GitHub Pages + PA</td>
+<td>free, no ops work, dependable</td>
+</tr>
+</tbody>
+</table>
+<h3>What's Next</h3>
+<ul>
+<li><strong>Better comments</strong>: move to GitHub Discussions or Giscus so GitHub OAuth replaces anonymous comments</li>
+<li><strong>Stronger full-text search</strong>: Elasticsearch or MeiliSearch are on the table</li>
+<li><strong>CI/CD automation</strong>: build and deploy on push with GitHub Actions</li>
+<li><strong>PWA support</strong>: offline caching through a Service Worker for a better mobile experience</li>
+<li><strong>Performance monitoring</strong>: Google Analytics, or a self-hosted Umami instance</li>
+</ul>
+<h3>Open Source, and Say Hello</h3>
+
+All the code behind this blog is open source and lives on GitHub; the layout above covers the structure and the details.
+
+If you are building a blog of your own, or you just like poking at web development, do come and say hello. 🚀
+
+Related posts on the same path: <a href="/article/test-manage-system-vue-django/">Building a Test Management System from Scratch: A Vue 3 + Django Full-Stack Walkthrough</a>, <a href="/article/django-pythonanywhere-deploy/">How to Deploy a Django Backend to PythonAnywhere</a>.
+`,
+  },
+  {
+    slug: 'how-to-use-skills-to-improve-efficiency',
+    zhSlug: 'how-to-use-skills-to-improve-efficiency',
+    topicSlug: 'aiagent',
+    title: 'How to Use Skills to Boost Your Efficiency',
+    excerpt: 'Skills are Claude Code\'s reusable workflow modules that encode proven engineering practice. They eliminate decision fatigue, enforce planning before coding, and turn a 4.5-hour feature into a 1.5-hour one.',
+    date: '2026-07-07',
+    readingTime: 5,
+    html: `
+<h2>What Are Skills?</h2>
+
+Skills are a set of reusable, specialized workflow modules that ship with Claude Code. Each Skill packages a proven set of best practices—from requirements analysis and architecture design through implementation and test verification—so developers can get into a productive groove quickly, whatever the scenario.
+
+Put simply, Skills are like an "expert playbook" stored inside Claude Code. When you say "help me build a new feature," Skills drive the whole sequence: first trigger a brainstorming pass to analyze the requirements, then draw up an implementation plan, and finally execute step by step and verify the result.
+<h2>How Do Skills Improve Efficiency?</h2>
+<h3>1. Eliminating Decision Fatigue</h3>
+
+The most time-consuming part of day-to-day development isn't always writing code—it's repeatedly thinking about how to do it. Skills standardize the flow for common tasks, so you no longer have to decide from scratch how to approach the work each time.
+
+For example, when you say "fix this bug," the <code>systematic-debugging</code> skill kicks in automatically:
+<ul>
+<li>Gather context and error information</li>
+<li>Locate the root cause systematically (instead of blindly guessing)</li>
+<li>Verify that the fix is complete</li>
+<li>Make sure no new problems are introduced</li>
+</ul>
+<h3>2. Enforcing "Think First, Then Act"</h3>
+
+Many development problems stem from <strong>rushing to code</strong>. Skills enforce a "plan first, execute second" discipline:
+<ul>
+<li>The <code>brainstorming</code> skill makes sure you fully explore the solution space before writing code</li>
+<li>The <code>writing-plans</code> skill turns vague requirements into an actionable checklist of steps</li>
+<li>The <code>executing-plans</code> skill works through the plan without omissions or drift</li>
+</ul>
+
+That discipline pays off most on complex features—ten extra minutes on paper can save hours of rework.
+<h3>3. Multi-Dimensional Quality Assurance</h3>
+
+Skills cover the full software development lifecycle:
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Related Skills</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Requirements analysis</td>
+<td><code>brainstorming</code></td>
+<td>Clarify requirements, explore multiple approaches</td>
+</tr>
+<tr>
+<td>Architecture design</td>
+<td><code>system-design</code></td>
+<td>Design system architecture and technology choices</td>
+</tr>
+<tr>
+<td>Implementation</td>
+<td><code>subagent-driven-development</code></td>
+<td>Execute multiple subtasks in parallel</td>
+</tr>
+<tr>
+<td>Code review</td>
+<td><code>code-review</code>, <code>requesting-code-review</code></td>
+<td>Surface potential defects and room for improvement</td>
+</tr>
+<tr>
+<td>Testing</td>
+<td><code>test-driven-development</code>, <code>test-writer</code></td>
+<td>Ensure code quality</td>
+</tr>
+<tr>
+<td>Verification</td>
+<td><code>verification-before-completion</code></td>
+<td>Final check before committing</td>
+</tr>
+<tr>
+<td>Release</td>
+<td><code>release-notes</code></td>
+<td>Generate release notes automatically</td>
+</tr>
+</tbody>
+</table>
+<h3>4. Parallel Processing</h3>
+
+<code>dispatching-parallel-agents</code> and <code>subagent-driven-development</code> let Claude Code <strong>handle multiple independent tasks in parallel</strong>—something that's hard to pull off in traditional development.
+
+For instance, you can run several dimensions of code review at once (correctness, security, performance), or search multiple codebase paths simultaneously to pin down a problem, dramatically cutting the time you spend waiting.
+<h2>How to Maximize Efficiency in Practice</h2>
+<h3>Tip 1: Trust the Process—Don't Skip It</h3>
+
+The biggest efficiency trap is "this is too simple, it doesn't need a Skill." Experience shows that simple tasks are often the entry point to complex problems. Skills are designed to prevent exactly this kind of misjudgment—better one extra step in the process than one missing safeguard.
+<h3>Tip 2: Make Good Use of Git Worktree Isolation</h3>
+
+The <code>using-git-worktrees</code> skill gives every task its own working directory so they don't interfere with each other. That's especially useful when you're juggling multiple features or fixes at the same time.
+<h3>Tip 3: Let Skills Work Together</h3>
+
+Skills aren't isolated—they chain together:
+<blockquote>
+
+Brainstorm → Write the plan → Parallel subagent development → Code review → Verification → Finish with the Git workflow
+</blockquote>
+
+That kind of end-to-end automation is the heart of the efficiency gain.
+<h3>Tip 4: Customize Your Workflow</h3>
+
+With the <code>writing-skills</code> skill, you can package your team's own development conventions and processes into custom Skills, so Claude Code fits the way you work exactly.
+<h2>A Real-World Example</h2>
+
+Say you want to add full-text search to a blog system. The traditional flow might be:
+<ol>
+<li>Think about how to implement it (30 minutes)</li>
+<li>Start writing code (2 hours)</li>
+<li>Discover missed edge cases (30 minutes)</li>
+<li>Debug and fix (1 hour)</li>
+<li>Test manually (30 minutes)</li>
+</ol>
+
+That's roughly <strong>4.5 hours</strong> in total.
+
+With Skills, the flow looks like this:
+<ol>
+<li><code>brainstorming</code> — explore the search options (Elasticsearch vs. a database full-text index vs. client-side search) (10 minutes)</li>
+<li><code>writing-plans</code> — break the chosen approach into concrete tasks (5 minutes)</li>
+<li><code>subagent-driven-development</code> — implement the modules in parallel (1 hour)</li>
+<li><code>test-writer</code> — generate test cases automatically (15 minutes)</li>
+<li><code>code-review</code> — catch potential problems (10 minutes)</li>
+<li><code>verification-before-completion</code> — final verification (5 minutes)</li>
+</ol>
+
+That's about <strong>1.5 hours</strong>, with higher quality and broader edge-case coverage.
+<h2>Conclusion</h2>
+
+The core value of Skills isn't "automating code writing"—it's <strong>building software engineering best practices into the workflow itself</strong>. They let you stay highly flexible without giving up discipline or quality assurance.
+
+Efficient programmers aren't the ones who type fast; they're the ones who <strong>do the right thing, and get it right the first time</strong>. Skills are the tool that helps you do exactly that.
+
+If you want to keep reading along the same thread: <a href="/article/how-to-choose-ai-coding-tools/">How to Choose AI Coding Tools: A Full Comparison and Selection Guide</a>, <a href="/article/agent-tool-design-output-budgets/">Agent Tool Design: Why Every Output Needs a Budget</a>.
+`,
+  },
+  {
+    slug: '2026-chinese-ai-models-comparison',
+    zhSlug: '2026-chinese-ai-models-comparison',
+    topicSlug: 'aiagent',
+    title: '2026 Chinese LLM Showdown: GLM, DeepSeek, and Six Rivals Head to Head',
+    excerpt: 'A hands-on comparison of the eight Chinese LLMs that matter in 2026 — GLM-5.2, DeepSeek V4 Pro, Kimi K2.6, MiniMax M2.5, Seedance 2.0 and more — plus which one to pick for coding, agent work, writing, or video.',
+    date: '2026-07-05',
+    readingTime: 15,
+    html: `
+<h2>Introduction: The “Warring States” Era of Chinese LLMs</h2>
+
+In 2026, China’s large models entered an unprecedented boom. If 2025 was the year of playing catch-up, then 2026 is the year of <strong>leapfrogging on specific fronts</strong> — from GLM-5.2 topping the global coding leaderboard, to DeepSeek V4 Pro closing in on GPT-5.5 at one-fifth the price, to Seedance 2.0 being crowned king of video generation worldwide.
+
+But behind all that lurks a critical question: <strong>too many models, too hard to choose</strong>.
+
+Every model claims to be “the strongest”, yet in real use — some are great at code but average at reasoning, some write Chinese like a poet but limp at agentic work, some offer unbeatable value for money but sit on a thin ecosystem.
+
+This article uses real data and hands-on experience to map out the 2026 landscape of Chinese LLMs and help you find the best pick for every scenario.
+<hr>
+<h2>What Chinese LLMs Are Out There in 2026?</h2>
+<h3>The Three-Tier Landscape</h3>
+<div class="codehilite"><pre><span></span><code>Tier 1 (world-class across the board):
+  GLM-5.2 · DeepSeek V4 Pro · Qwen3.7-Max · Kimi K2.6
+
+Tier 2 (standouts in vertical domains):
+  MiniMax M2.5 · Doubao Seed 2.0 Pro · Hunyuan HY 2.0
+
+Tier 3 (video / multimodal specialists):
+  Seedance 2.0 · Kling 2.5 · Jimeng 3.0
+</code></pre></div>
+
+<h3>The Quick Selection Guide</h3>
+<table>
+<thead>
+<tr>
+<th>If you need to...</th>
+<th>First choice</th>
+<th>Alternative</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>💻 Write code</td>
+<td><strong>GLM-5.2</strong> / MiniMax M2.5</td>
+<td>Qwen-Coder</td>
+</tr>
+<tr>
+<td>🧠 Complex reasoning</td>
+<td><strong>DeepSeek V4 Pro</strong></td>
+<td>Qwen3.7-Max</td>
+</tr>
+<tr>
+<td>🤖 Agents / automation</td>
+<td><strong>Kimi K2.6</strong></td>
+<td>Qwen3.7-Max</td>
+</tr>
+<tr>
+<td>✍️ Chinese writing</td>
+<td><strong>Doubao Seed 2.0 Pro</strong></td>
+<td>Tongyi Qianwen</td>
+</tr>
+<tr>
+<td>🎬 Video generation</td>
+<td><strong>Seedance 2.0</strong></td>
+<td>Kling 2.5</td>
+</tr>
+<tr>
+<td>💰 Maximum value for money</td>
+<td><strong>MiniMax M2.5</strong></td>
+<td>DeepSeek V4 Flash</td>
+</tr>
+<tr>
+<td>🏢 Enterprise office work</td>
+<td><strong>Tongyi Qianwen Qwen3.7</strong></td>
+<td>Doubao</td>
+</tr>
+<tr>
+<td>📱 WeChat ecosystem</td>
+<td><strong>Hunyuan HY 2.0</strong></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>A Deep Dive: How Good Are the Eight Models, Really?</h2>
+<h3>1. GLM-5.2 (Zhipu AI) — King of Coding, Flagbearer of Open Source</h3>
+
+<strong>Released:</strong> June 2026 | <strong>License:</strong> MIT open source | <strong>Context:</strong> 1M tokens
+
+GLM-5.2 is the most significant Chinese model of the first half of 2026. Not only is it <strong>#1 in the global blind coding benchmark</strong> (Code Arena, 1595), it is also fully open-sourced under MIT — and with Anthropic having suspended global service over export controls, that banner of open source carries unusual weight.
+<div class="codehilite"><pre><span></span><code>Core strengths radar (out of 10):
+
+Coding        ██████████  10  ← Code Arena #1 among globally available models
+Long context  ██████████  10  ← 1M tokens lossless, proven on 880K in practice
+Reasoning     ████████░░   8  ← FrontierSWE only ~1% behind Opus 4.8
+Ecosystem     ██████████  10  ← MIT license, day-0 support on domestic compute
+Agent         ███████░░░   7  ← Autonomous, but behind Kimi K2.6
+Chinese       ████████░░   8  ← Excellent, though not top-tier
+Value         ████████░░   8  ← Free as open source, mid-range API pricing
+</code></pre></div>
+
+
+<strong>Best for:</strong>
+- Software development (full stack, long-running projects)
+- Long-document analysis (hundreds of pages of PDF, large codebases)
+- Companies that need open source plus deployment on domestic compute
+
+<strong>Not ideal for:</strong>
+- Multi-agent cluster collaboration (use Kimi K2.6 instead)
+- Pure Chinese creative writing (use Doubao instead)
+<blockquote>
+
+<strong>In one line:</strong> for writing code, reach for GLM-5.2 — it is the ceiling for Chinese coding models in 2026.
+</blockquote>
+<hr>
+<h3>2. DeepSeek V4 Pro (DeepSeek) — Math and Reasoning Champion, Unbeatable Value</h3>
+
+<strong>Released:</strong> April 2026 | <strong>License:</strong> MIT open source | <strong>Context:</strong> 1M tokens
+
+DeepSeek V4 Pro is one of the largest Chinese MoE models (1.6T total parameters / 49B activated), and the <strong>highest-scoring Chinese model in US NIST/CAISI evaluations</strong>. Its killer move: GPT-5-class capability at one-fifth the price.
+<div class="codehilite"><pre><span></span><code>Core strengths radar (out of 10):
+
+Math          ██████████  10  ← 97% on AIME 2025, world-class
+Coding        █████████░░   9  ← Codeforces rating 3206, LiveCodeBench 93.5
+Value         ██████████  10  ← $1.74/MTok input, $3.48/MTok output
+Long context  ██████████  10  ← 1M tokens, with only 10% of the usual KV cache
+Ecosystem     ██████████  10  ← MIT license, downloadable on HuggingFace
+Agent         ███████░░░   7  ← Tool calling works, but behind Kimi
+Multimodal    ██░░░░░░░░   2  ← Text-only, no image input
+</code></pre></div>
+
+
+<strong>Best for:</strong>
+- Math / scientific reasoning
+- Extreme value-for-money needs (API pricing is 1/5 to 1/3 of GPT-5.4)
+- Scenarios that need local deployment
+
+<strong>Not ideal for:</strong>
+- Image / multimodal understanding (it is a text-only model)
+- Creative writing (the style is very much an engineer)
+<blockquote>
+
+<strong>In one line:</strong> DeepSeek V4 Pro is the “math professor and price slasher” of Chinese models.
+</blockquote>
+<hr>
+<h3>3. Kimi K2.6 (Moonshot AI) — The Soul of Agents, Swarms That Work Together</h3>
+
+<strong>Released:</strong> April 2026 | <strong>License:</strong> open source | <strong>Context:</strong> 262K tokens
+
+If the other models are super-brains, Kimi K2.6 is the <strong>super-commander</strong>. Its biggest innovation is Agent Swarm — <strong>300 sub-agents running 4,000-step tasks in parallel</strong>, with a single run that can code nonstop for <strong>13 hours</strong>. That capability is enormously valuable for engineering optimization, automated testing, and full-stack projects.
+<div class="codehilite"><pre><span></span><code>Core strengths radar (out of 10):
+
+Agent swarm   ██████████  10  ← 300 agents, 4,000 steps in parallel — one of a kind
+Long-horizon  ██████████  10  ← 13 hours of continuous coding, 12.9× throughput case
+Front-end     █████████░░   9  ← Kimi Design Bench beats Google AI Studio
+Search        ██████████  10  ← DeepSearchQA F1=92.5, #1 worldwide
+Tool calling  █████████░░   9  ← Document-to-Skill turns docs into skills instantly
+Pure reasoning ██████░░░░░░  6  ← HLE-Full only 34.7 — the weak spot
+</code></pre></div>
+
+
+<strong>Best for:</strong>
+- Large-scale agent automation
+- Long-horizon coding (hours of sustained development)
+- End-to-end delivery of multiple artifacts (report + Excel + PPT + web page)
+- Performance-optimization work (a measured 12.9× throughput gain)
+
+<strong>Not ideal for:</strong>
+- Pure math / logical reasoning (reasoning is not its strength)
+- Quick, simple question answering
+<blockquote>
+
+<strong>In one line:</strong> Kimi K2.6 is “the operating system for agents”, upgrading your AI from a lone soldier to a coordinated legion.
+</blockquote>
+<hr>
+<h3>4. MiniMax M2.5 — The Value Pick, a Revolution in Agent Economics</h3>
+
+<strong>Released:</strong> February 2026 | <strong>License:</strong> open source | <strong>Context:</strong> 197K
+
+The launch of MiniMax M2.5 shook the industry — not because it was the most capable model, but because of its economics: <strong>“$10,000 keeps four agents working for a full year.”</strong> With a MoE architecture of only 10B activated parameters, it hits 80.2% on SWE-Bench and ranks #1 worldwide on Multi-SWE-Bench.
+<div class="codehilite"><pre><span></span><code>Core strengths radar (out of 10):
+
+Value         ██████████  10  ← 1/10 to 1/20 the price of mainstream models
+Speed         ██████████  10  ← 100+ TPS on the Lightning version
+Coding        █████████░░   9  ← SWE-Bench 80.2%, Multi-SWE-Bench #1 globally
+Generalization ██████████  10  ← Still beats Opus 4.6 after swapping scaffolds
+Tool calling  ████████░░   8  ← BrowseComp 76.3%
+Context       ███████░░░░   7  ← 197K, enough but not remarkable
+Reasoning     ████████░░   8  ← Excellent on routine reasoning, trails DeepSeek on the hardest
+</code></pre></div>
+
+
+<strong>Best for:</strong>
+- Budget-sensitive projects / startups
+- High-concurrency agent scenarios
+- Full-stack code generation (10+ languages covered)
+- Local deployment (10B activated parameters, extremely cheap to run)
+
+<strong>Not ideal for:</strong>
+- Ultra-long context needs (only 197K)
+- Scenarios that demand top-tier pure reasoning
+<blockquote>
+
+<strong>In one line:</strong> MiniMax M2.5 is “95% of Claude’s capability at 1/10 the price”, and it redefines agent economics.
+</blockquote>
+<hr>
+<h3>5. Seedance 2.0 (ByteDance) — King of Video Generation, Multimodal Ascendant</h3>
+
+<strong>Released:</strong> February 2026 | <strong>Type:</strong> closed source (video-generation specialist)
+
+Seedance 2.0 is the most dominant video generation model in the world in 2026. In UC Berkeley’s Arena.AI blind tests it <strong>topped both the text-to-video and image-to-video leaderboards</strong>, beating 1080p competitors while rendering at 720p — proof that quality matters far more than resolution.
+<div class="codehilite"><pre><span></span><code>Core strengths radar (out of 10):
+
+Video quality ██████████  10  ← #1 on both Arena.AI boards, Elo ≈ 1450
+A/V sync      ██████████  10  ← Native stereo, precise lip matching
+Camera control ██████████  10  ← Director-grade control, reproducible camera moves
+Multimodal in ████████░░   9  ← Text + image + video + audio, four channels
+Price         ████████░░   8  ← ¥0.6/sec standard, only ¥0.16/sec for Mini
+Length        ██████░░░░░░   6  ← 15 seconds max; extension quality trails Veo 3.1
+Extreme motion ████████░░   7  ← Subtle warping artifacts still need work
+</code></pre></div>
+
+
+<strong>Best for:</strong>
+- Short-form video (Douyin, TikTok, Kuaishou)
+- Advertising and marketing assets
+- Short drama / educational and explainer video
+- Batch generation of e-commerce product videos
+
+<strong>Not ideal for:</strong>
+- Long-form video (15 seconds only)
+- Text tasks (this is a video model, not a language model)
+<blockquote>
+
+<strong>In one line:</strong> for video, Seedance 2.0 is the definitive answer of 2026 — it moved AI video from “watchable” to “usable”.
+</blockquote>
+<hr>
+<h3>6. Doubao Seed 2.0 Pro (ByteDance) — King of Chinese Writing, King of Consumers</h3>
+
+<strong>Latest version:</strong> Seed 2.0 Pro | <strong>Type:</strong> closed source | <strong>MAU:</strong> 120M+
+
+Doubao is the Chinese AI app with the largest consumer user base in 2026, and its core edge comes down to one word: <strong>“human feel”</strong>. Across multiple evaluations, its Chinese writing fluency scores 9.2/10, and it gets called “the AI that reads most like a person”.
+<div class="codehilite"><pre><span></span><code>Core strengths radar (out of 10):
+
+Chinese writing ██████████  10  ← 92.3/100 overall, 9.2/10 fluency
+Multimodal      ████████░░   9  ← Image understanding accuracy up 40%
+Creativity      ██████████  10  ← Copy, stories and scripts are all top-tier
+Consumer UX     ██████████  10  ← 120M MAU, 65% of short-video creators use it
+Free tier       ██████████  10  ← Seed-1.6-Flash is extremely cheap
+Complex reasoning ████████░░   8  ← Third worldwide, but behind DeepSeek
+Open source     ░░░░░░░░░░   0  ← Fully closed, no local deployment
+</code></pre></div>
+
+
+<strong>Best for:</strong>
+- Independent media / short-video creators
+- Copywriting and marketing planning
+- Everyday office work and personal assistance
+- Multimodal needs (image understanding + text output)
+
+<strong>Not ideal for:</strong>
+- Local deployment (fully closed source)
+- Deep code development
+- Agent automation tasks
+<blockquote>
+
+<strong>In one line:</strong> if you need writing that reads like a human, Doubao is the only choice in the 2026 Chinese-language world.
+</blockquote>
+<hr>
+<h3>7. Tongyi Qianwen Qwen3.7-Max (Alibaba) — King of the Open-Source Ecosystem, Enterprise Agent Specialist</h3>
+
+<strong>Released:</strong> May 2026 | <strong>License:</strong> Apache 2.0 | <strong>Context:</strong> 1M tokens
+
+Qwen3.7-Max is Alibaba’s magnum opus of 2026. It ranks <strong>#1 among Chinese models on the Arena leaderboard</strong> (fifth globally) and set a record of <strong>35 hours of unsupervised autonomous execution</strong> — optimizing an inference kernel on T-Head chips on its own, with 1,158 tool calls and zero human intervention.
+<div class="codehilite"><pre><span></span><code>Core strengths radar (out of 10):
+
+Ecosystem     ██████████  10  ← 200K+ derivative models, 1B+ downloads
+Agent         ██████████  10  ← 35 hours autonomous, 1,158 tool calls
+Coding        █████████░░   9  ← SWE-Pro 60.6, #1 in China; Terminal Bench 69.7
+Instruction   ██████████  10  ← IFBench 79.1, a new high
+Value         ██████████  10  ← 1/6 the price of Claude Opus 4.6
+Reasoning     █████████░░   9  ← HLE 58.3, the highest worldwide
+Multimodal    ███████░░░░   7  ← Present, but not a standout
+</code></pre></div>
+
+
+<strong>Best for:</strong>
+- Enterprise-grade agent applications
+- Needs open source that is commercially usable (Apache 2.0)
+- Alibaba Cloud ecosystem users
+- Long-document processing (1M context)
+- Office automation (SpreadSheetBench 87, top-tier)
+
+<strong>Not ideal for:</strong>
+- Creative writing (less “human” than Doubao)
+- Video / image generation (not its strength)
+<blockquote>
+
+<strong>In one line:</strong> Qwen3.7-Max is “the best foundation for enterprise AI” — open, powerful, cheap, with a very deep ecosystem moat.
+</blockquote>
+<hr>
+<h3>8. Tencent Hunyuan HY 2.0 — One of a Kind in the WeChat Ecosystem, a Sharp Tool for Education</h3>
+
+<strong>Latest version:</strong> HY 2.0 Think | <strong>Type:</strong> closed source / partially open source | <strong>Context:</strong> 128K
+
+Hunyuan’s unique value is not the model capability itself but the <strong>WeChat ecosystem</strong> — native AI inside WeCom, Tencent Meeting, and WeChat Mini Programs. Add its distinctive 3D generation and it has opened a track nobody else can copy.
+<div class="codehilite"><pre><span></span><code>Core strengths radar (out of 10):
+
+WeChat        ██████████  10  ← One of a kind; native AI in WeCom / Mini Programs
+3D generation ██████████  10  ← Industry-exclusive, 2D images into 3D models
+Education     █████████░░   9  ← Exam grading, mistake notebooks, online study rooms
+Seniors       ██████████  10  ← Large type, voice-first
+Free tier     ████████░░   8  ← The Lite version is completely free
+Reasoning     ██████░░░░░░   6  ← Weak on math and science
+API price     ██████░░░░░░   6  ← Big 2026 price hike (up to 463%)
+</code></pre></div>
+
+
+<strong>Best for:</strong>
+- AI needs inside the WeChat ecosystem
+- K-12 education (students / teachers / parents)
+- 3D content generation
+- Seniors / accessibility scenarios
+
+<strong>Not ideal for:</strong>
+- Needing top-tier reasoning / coding
+- Budget-sensitive work (steep 2026 price increases)
+- Cross-platform requirements
+<blockquote>
+
+<strong>In one line:</strong> if you are building AI inside the WeChat ecosystem, Hunyuan is the only option — not because it is the strongest, but because it is the most connected.
+</blockquote>
+<hr>
+<h2>The Ultimate Showdown: Head-to-Head on Core Dimensions</h2>
+<h3>Coding Leaderboard</h3>
+<div class="codehilite"><pre><span></span><code>Rank  Model             SWE-Bench      Highlights
+ 1    GLM-5.2           —              Code Arena #1 among globally available models
+ 2    MiniMax M2.5      80.2%          Multi-SWE-Bench #1 worldwide
+ 3    DeepSeek V4 Pro   80.6%          LiveCodeBench 93.5
+ 4    Qwen3.7-Max       60.6 (SWE-Pro) Terminal Bench #1 in China
+ 5    Kimi K2.6         58.6 (SWE-Pro) In a class of its own for long-horizon coding
+</code></pre></div>
+
+<h3>Reasoning Leaderboard</h3>
+<div class="codehilite"><pre><span></span><code>Rank  Model             AIME 2025   GPQA Diamond   HLE
+ 1    DeepSeek V4 Pro   97%         90%            —
+ 2    Qwen3.7-Max       100%        New record     58.3 (highest worldwide)
+ 3    GLM-5.2            —          —             —
+ 4    Kimi K2.6          96.4%      —             34.7
+</code></pre></div>
+
+<h3>Agent Capability Leaderboard</h3>
+<div class="codehilite"><pre><span></span><code>Rank  Model             Parallel agents   Longest run   Tool-calling highlight
+ 1    Kimi K2.6         300               13 hours      Document to Skill
+ 2    Qwen3.7-Max       —                 35 hours      Full MCP protocol support
+ 3    MiniMax M2.5      —                 —             BFCL 76.8%
+ 4    GLM-5.2           —                 4 hours       Autonomous architecture choices
+</code></pre></div>
+
+<h3>Value Leaderboard</h3>
+<div class="codehilite"><pre><span></span><code>Rank  Model                 Input ($/MTok)   Output ($/MTok)
+ 1    Doubao Seed-1.6-Flash 0.01             —
+ 2    MiniMax M2.5          0.30             2.40 (standard)
+ 3    DeepSeek V4 Pro       1.74             3.48
+ 4    Qwen3.7-Max           0.35             1.05 (converted)
+ 5    Kimi K2.6             0.95             4.00
+</code></pre></div>
+
+<hr>
+<h2>Which Chinese LLM Should You Pick for Your Scenario?</h2>
+<div class="codehilite"><pre><span></span><code>What is your core need?
+│
+├─ “I want to write code”
+│   ├─ Strongest coding ability                 → GLM-5.2 ✅
+│   ├─ Best value + still very strong coding    → MiniMax M2.5 ✅
+│   └─ Also want top-tier math reasoning        → DeepSeek V4 Pro ✅
+│
+├─ “I want automation / agents”
+│   ├─ Large-scale agent clusters (100+)        → Kimi K2.6 ✅
+│   ├─ Enterprise agents + open-source deploy   → Qwen3.7-Max ✅
+│   └─ Tight budget but need agent capability   → MiniMax M2.5 ✅
+│
+├─ “I want copywriting / content creation”
+│   ├─ Writing with the most “human feel”        → Doubao Seed 2.0 Pro ✅
+│   ├─ Official documents / reports / specs     → Tongyi Qianwen ✅
+│   └─ Content plus images in one go            → Doubao ✅
+│
+├─ “I want to make video”
+│   ├─ Highest quality + audio-video sync       → Seedance 2.0 ✅
+│   └─ Faster and cheaper                       → Seedance 2.0 Mini ✅
+│
+├─ “I want to deploy on my own servers”
+│   ├─ Coding first                             → GLM-5.2 (MIT) ✅
+│   ├─ Balanced all-rounder                     → Qwen3.7-Max (Apache 2.0) ✅
+│   ├─ Reasoning + extreme value                → DeepSeek V4 Pro (MIT) ✅
+│   └─ Ultra-low-cost deploy (10B activated)    → MiniMax M2.5 ✅
+│
+└─ “I live inside the WeChat / WeCom ecosystem”
+    └─ The only answer                          → Hunyuan HY 2.0 ✅
+</code></pre></div>
+
+<hr>
+<h2>Outlook for the Second Half of 2026</h2>
+<h3>Trend 1: Capabilities Converge, Differentiation Moves to the Application Layer</h3>
+
+The gaps between models on core capability are narrowing. The competition ahead is no longer about who is stronger but about <strong>who fits into the workflow better</strong> — just as Kimi’s Agent Swarm and GLM’s open-source ecosystem each stake out their own ground.
+<h3>Trend 2: Going Agentic Is Irreversible</h3>
+
+From Kimi K2.6’s 300-agent swarm to Qwen3.7-Max’s 35-hour autonomous execution, agent capability is moving from “usable” to “genuinely good”. <strong>The decisive battleground for the second half of 2026 is agents.</strong>
+<h3>Trend 3: The Open-Source vs Closed-Source Split</h3>
+
+GLM-5.2, DeepSeek V4 Pro, and Qwen3.7 hold firmly to the open-source road, while Doubao and Hunyuan go closed source and dig deep into consumers. Each route has its advantages — open source lowers the barrier, closed source polishes the experience. For developers, this is the best of times.
+<h3>Trend 4: Video Generation Becomes the New Battleground</h3>
+
+Seedance 2.0’s runaway lead proves one thing: <strong>multimodal is not a bonus feature, it is the main front</strong>. In the second half of 2026, both the number and the quality of video models will climb another step.
+<hr>
+<h2>Conclusion: My Personal Recommended Stack</h2>
+
+As with AI coding tools, <strong>models should be used in combination</strong>:
+<div class="codehilite"><pre><span></span><code>My 2026 Chinese-model strategy:
+
+Write code        → GLM-5.2 (the open-source coding king)
+Complex reasoning → DeepSeek V4 Pro (math champion + cheap)
+Agent tasks       → Kimi K2.6 (swarm collaboration, in a class of its own)
+Chinese writing   → Doubao (the most human feel)
+Video             → Seedance 2.0 (the world’s best video model)
+Enterprise deploy → Qwen3.7-Max (open source + agents + cheap)
+Budget-sensitive  → MiniMax M2.5 (1/10 the price, 95% of the capability)
+</code></pre></div>
+
+
+<strong>There is no all-purpose model, but there is an optimal combination.</strong> In 2026, Chinese LLMs no longer need to look up to Silicon Valley — they are defining their own standards on their own tracks. 🚀
+
+Also on the same thread: <a href="/article/ai-token-coding-plan-comparison-2026/">“The Most Complete 2026 AI Token Plan / Coding Plan Comparison: 20+ Platforms In and Outside China, Head to Head”</a>, <a href="/article/chinese-llm-august-2026-releases-preview/">“The August Offensive: 2026 Chinese LLM Release Preview”</a>.
+`,
+  },
+  {
+    slug: 'how-to-choose-ai-coding-tools',
+    zhSlug: 'how-to-choose-ai-coding-tools',
+    topicSlug: 'aiagent',
+    title: 'Which AI Coding Tool Should You Choose? A Full Comparison and Selection Guide',
+    excerpt: 'AI coding tools now come in many shapes: Claude Code, Cursor, Copilot, Windsurf, Aider and more. A hands-on comparison of what each one does best, and how to pick the right fit for your workflow.',
+    date: '2026-07-05',
+    readingTime: 8,
+    html: `
+<h2>Introduction: The "Hundred Schools" of AI Coding Tools</h2>
+
+Since 2024, AI coding tools have hit an inflection point. It used to be that GitHub Copilot stood alone; today Claude Code, Cursor, Windsurf, Aider and others are all flourishing side by side. The question developers face is no longer "should I use AI?" but "<strong>which AI should I pick?</strong>"
+
+This article starts from real development experience and helps you find the AI coding partner that fits you best.
+
+<img alt="AI Coding Tools Landscape" src="https://miro.medium.com/v2/resize:fit:1400/1*AI-coding-tools-comparison-2024.png">
+<hr>
+<h2>What Are the Mainstream AI Coding Tools?</h2>
+<h3>Tier 1: The All-Rounders</h3>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Form</th>
+<th>Core strengths</th>
+<th>Best for</th>
+<th>Price</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Claude Code</strong></td>
+<td>CLI terminal</td>
+<td>Skills workflows, deep understanding of large codebases, parallel subagents</td>
+<td>Full-stack developers, complex projects</td>
+<td>Pro $18/month</td>
+</tr>
+<tr>
+<td><strong>Cursor</strong></td>
+<td>IDE editor</td>
+<td>Native AI integration, tab completion, Composer mode</td>
+<td>Developers who prefer a GUI</td>
+<td>Pro $20/month</td>
+</tr>
+<tr>
+<td><strong>GitHub Copilot</strong></td>
+<td>IDE extension</td>
+<td>Most mature ecosystem, broad extension coverage, Copilot Workspace</td>
+<td>VS Code / JetBrains users</td>
+<td>$10/month</td>
+</tr>
+</tbody>
+</table>
+<h3>Tier 2: The Specialists</h3>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Core strengths</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Windsurf</strong></td>
+<td>Cascade automatic context analysis, all-in-one AI IDE</td>
+<td>Teams that want a native AI IDE</td>
+</tr>
+<tr>
+<td><strong>Aider</strong></td>
+<td>Open source, local model support, Git-native integration</td>
+<td>Privacy-conscious users / open-source fans</td>
+</tr>
+<tr>
+<td><strong>Cline</strong></td>
+<td>MCP protocol, flexible switching between models</td>
+<td>Developers who need a highly customized toolchain</td>
+</tr>
+</tbody>
+</table>
+<h3>Tier 3: The Lightweights</h3>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Form</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ChatGPT Canvas</strong></td>
+<td>Web</td>
+<td>Quick prototypes, code-snippet Q&A</td>
+</tr>
+<tr>
+<td><strong>v0 / bolt.new</strong></td>
+<td>Web</td>
+<td>Fast front-end page scaffolding, UI generation</td>
+</tr>
+<tr>
+<td><strong>Replit Agent</strong></td>
+<td>Web</td>
+<td>Online full-stack development, teaching and learning</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>Five Dimensions for Choosing an AI Coding Tool</h2>
+<h3>1. Code Comprehension</h3>
+
+This is the single most important capability of an AI coding tool: can it genuinely understand your project, rather than merely autocomplete code?
+<div class="codehilite"><pre><span></span><code>Depth-of-understanding ranking (based on hands-on experience):
+
+Claude Code  ★★★★★
+  200K-token context; can swallow an entire small-to-medium project in one go
+  The Skills mechanism gives it deeper understanding in specific scenarios
+
+Cursor       ★★★★☆
+  .cursorrules provides project-level context, and comprehension is solid
+  But the context window is still a limit on complex projects
+
+Aider        ★★★★☆
+  Handles large codebases through a map-reduce architecture
+  Needs to be paired with a strong model to perform at its best
+
+Copilot      ★★★☆☆
+  Relies mainly on the current file and neighboring tabs
+  Cross-file understanding is a clear weak spot
+</code></pre></div>
+
+<h3>2. Workflow Integration</h3>
+
+An AI tool should be more than a "chat window" — it needs to blend deeply into your development process.
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Claude Code</th>
+<th>Cursor</th>
+<th>Copilot</th>
+<th>Windsurf</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Terminal-native support</strong></td>
+<td>✅ Native terminal</td>
+<td>⚠️ Built-in terminal</td>
+<td>❌ Requires an external one</td>
+<td>⚠️ Built-in terminal</td>
+</tr>
+<tr>
+<td><strong>Git operations</strong></td>
+<td>✅ Automatic commits</td>
+<td>⚠️ Manual</td>
+<td>⚠️ Manual</td>
+<td>⚠️ Manual</td>
+</tr>
+<tr>
+<td><strong>Subagents / parallel execution</strong></td>
+<td>✅ Skills mechanism</td>
+<td>❌ Not supported</td>
+<td>❌ Not supported</td>
+<td>❌ Not supported</td>
+</tr>
+<tr>
+<td><strong>Automatic test runs</strong></td>
+<td>✅ verify mechanism</td>
+<td>❌ Not supported</td>
+<td>⚠️ Inside chat</td>
+<td>❌ Not supported</td>
+</tr>
+<tr>
+<td><strong>Image / screenshot understanding</strong></td>
+<td>✅ Native</td>
+<td>✅ Supported</td>
+<td>❌ Not supported</td>
+<td>⚠️ Partial</td>
+</tr>
+<tr>
+<td><strong>MCP protocol extensions</strong></td>
+<td>✅ Full support</td>
+<td>⚠️ Limited</td>
+<td>❌ Not supported</td>
+<td>❌ Not supported</td>
+</tr>
+</tbody>
+</table>
+<h3>3. Model Flexibility</h3>
+<div class="codehilite"><pre><span></span><code>Tools locked to a single model       Tools with swappable models
+        │                                    │
+  Cursor       ────────────────  Claude Code (Claude model family)
+  Copilot      ────────────────  Cline (Anthropic / OpenAI / local)
+  Windsurf     ────────────────  Aider (20+ models supported)
+        │                                    │
+  Pros: great out-of-the-box UX      Pros: no vendor lock-in
+  Cons: model upgrades are passive   Cons: some model tuning required
+</code></pre></div>
+
+
+<strong>Key insight:</strong> Claude models currently lead in code comprehension and generation, but different models have their own strengths in different scenarios. Tools that let you switch models freely give you more options.
+<h3>4. Learning Curve</h3>
+<div class="codehilite"><pre><span></span><code>Beginner friendliness (shorter bar = easier to pick up):
+
+Copilot        ██░░░░░░░░  Almost zero config; install and go
+Cursor         ███░░░░░░░  About 10 minutes for anyone comfortable in an IDE
+Windsurf       ███░░░░░░░  A similar experience to Cursor
+Claude Code    █████░░░░░  Takes time to adapt to terminal work + command mode
+Aider          ████████░░  Requires understanding the architecture + CLI thinking
+Cline          ███████░░░  Requires configuring MCP + choosing the right model
+</code></pre></div>
+
+<h3>5. Code Quality and Security</h3>
+
+This is what enterprises care about most when choosing tools:
+<table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Claude Code</th>
+<th>Cursor</th>
+<th>Copilot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Code review integration</strong></td>
+<td>✅ Built-in Code Review</td>
+<td>⚠️ Relies on third-party extensions</td>
+<td>⚠️ Copilot Review</td>
+</tr>
+<tr>
+<td><strong>Privacy protection</strong></td>
+<td>⭐⭐⭐⭐⭐</td>
+<td>⭐⭐⭐⭐</td>
+<td>⭐⭐⭐⭐</td>
+</tr>
+<tr>
+<td><strong>Code traceability</strong></td>
+<td>✅ Traceable</td>
+<td>❌ Not supported</td>
+<td>❌ Not supported</td>
+</tr>
+<tr>
+<td><strong>License compliance</strong></td>
+<td>Clear and transparent</td>
+<td>Needs extra care</td>
+<td>Needs extra care</td>
+</tr>
+<tr>
+<td><strong>Self-hosting option</strong></td>
+<td>❌ Not yet available</td>
+<td>❌ Not yet available</td>
+<td>⚠️ Enterprise edition</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>Which AI Coding Tool Fits Which Scenario?</h2>
+<div class="codehilite"><pre><span></span><code>What does your working style look like?
+│
+├─ "I work in the terminal and live on the command line"
+│   ├─ I need deep code understanding and automation → Claude Code ✅
+│   └─ I need open source + local models             → Aider ✅
+│
+├─ "I'm at home in VS Code / JetBrains IDEs"
+│   ├─ I just want light completion without changing habits → Copilot ✅
+│   ├─ I want a smarter AI-native IDE experience            → Cursor ✅
+│   └─ I need a highly customizable AI workflow             → Cline ✅
+│
+├─ "I mostly do front-end and need UI fast"
+│   ├─ Building a project from scratch → v0 / bolt.new ✅
+│   └─ Inside an existing project      → Cursor + Claude Code ✅
+│
+└─ "I'm a Tech Lead picking tools for the team"
+    ├─ Code security comes first         → Claude Code ✅
+    ├─ Fastest team ramp-up matters most → Copilot / Cursor ✅
+    └─ We need custom team workflows     → Claude Code + Skills ✅
+</code></pre></div>
+
+<hr>
+<h2>In Practice: A Combination Is the Best Answer</h2>
+
+After a great deal of hands-on work, I've found that <strong>no single tool covers every scenario</strong>. The best strategy is to combine them:
+<h3>My Recommended Combo: Claude Code + Cursor</h3>
+<div class="codehilite"><pre><span></span><code>╔══════════════════════════════════════════════════════════════════════════════╗
+║                             Development Workflow                             ║
+╠══════════════════════╦═════════════════════╦═════════════════════════════════╣
+║        Cursor        ║     Claude Code     ║          Used together          ║
+║                      ║                     ║                                 ║
+║  • Daily coding      ║  • Architecture     ║  • Cursor writes the code       ║
+║  • Tab completion    ║  • Code review      ║  • Claude reviews the code      ║
+║  • Quick refactors   ║  • Hard debugging   ║  • They refine each other       ║
+║  • Small edits       ║  • Multi-file work  ║  • Key decisions cross-checked  ║
+╚══════════════════════╩═════════════════════╩═════════════════════════════════╝
+</code></pre></div>
+
+<h3>Quick Reference by Scenario</h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Recommended tool</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🐛 Debugging a nasty bug</td>
+<td><strong>Claude Code</strong></td>
+<td>Systematic debugging flow, subagents investigating in parallel</td>
+</tr>
+<tr>
+<td>🏗️ Building a new feature from scratch</td>
+<td><strong>Claude Code</strong></td>
+<td>Skills keep the plan → implement → verify chain intact</td>
+</tr>
+<tr>
+<td>✏️ Everyday small edits</td>
+<td><strong>Cursor</strong></td>
+<td>Fast, light, and doesn't break your train of thought</td>
+</tr>
+<tr>
+<td>🔍 Code review</td>
+<td><strong>Claude Code</strong></td>
+<td>Cross-checks from multiple angles: security plus correctness</td>
+</tr>
+<tr>
+<td>🎨 UI / front-end pages</td>
+<td><strong>Cursor</strong></td>
+<td>Visual preview with instant feedback</td>
+</tr>
+<tr>
+<td>📦 Project initialization</td>
+<td><strong>v0 / bolt</strong></td>
+<td>Fast scaffolding</td>
+</tr>
+<tr>
+<td>🔒 Sensitive projects</td>
+<td><strong>Aider + local model</strong></td>
+<td>Your code never leaves your machine</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>Pitfalls to Avoid</h2>
+<h3>1. Don't Over-Rely on Autocomplete</h3>
+
+Tab completion feels great, but after you accept a chunk of AI code, spend 30 seconds understanding what it actually does. <strong>You are ultimately responsible for every line you commit.</strong>
+<h3>2. Context Management Is an Art</h3>
+
+An AI's context window is finite. Good practice looks like this:
+- Keep each conversation focused on a single task
+- Use <code>.cursorrules</code> / <code>CLAUDE.md</code> to supply project-level context
+- Break complex tasks into small steps and knock them out one at a time
+<h3>3. Code Security Is Not Optional</h3>
+<ul>
+<li>Never paste keys, tokens, or passwords into an AI conversation</li>
+<li>Always review AI-generated configuration (CORS, permission settings, and the like) separately</li>
+<li>Use a verification-before-completion step for the final sign-off</li>
+</ul>
+<h3>4. Keep Your Critical Thinking</h3>
+
+AI sometimes talks nonsense with a perfectly straight face. Be on your guard when:
+- It generates feature code you never asked for
+- It uses outdated APIs or deprecated libraries
+- The code runs, but hides a security risk
+- The tests cover the happy path yet miss the edge cases
+<hr>
+<h2>Conclusion</h2>
+
+Choosing an AI coding tool comes down to answering three questions:
+<blockquote>
+<ol>
+<li><strong>How do I work?</strong> (terminal vs. IDE, solo vs. team)</li>
+<li><strong>What does my project need?</strong> (complexity, scale, security requirements)</li>
+<li><strong>How much am I willing to invest in learning?</strong> (out-of-the-box vs. willing to customize)</li>
+</ol>
+</blockquote>
+
+There is no perfect tool, but there is a <strong>combination</strong> that fits you best.
+
+For me personally, <strong>Claude Code as the main driver and Cursor as the second in command</strong> is the optimal setup at this stage. The former handles deep thinking and quality assurance; the latter keeps day-to-day coding smooth.
+
+The AI coding race is still evolving fast. Staying open-minded and continuously trying new tools is the best strategy. 🚀
+
+There's more on this thread: <a href="/article/ai-token-coding-plan-comparison-2026/">"2026's Most Complete AI Token Plan / Coding Plan Comparison: 20+ Platforms, Domestic and Abroad"</a>, <a href="/article/how-to-use-skills-to-improve-efficiency/">"How to Use Skills to Boost Your Efficiency"</a>.
+`,
+  },
+  {
+    slug: 'test-manage-system-vue-django',
+    zhSlug: 'test-manage-system-vue-django',
+    topicSlug: 'projects',
+    title: 'Building a Test Management System from Scratch: A Vue 3 + Django Full-Stack Walkthrough',
+    excerpt: 'A full-stack test management platform for QA teams, built with Vue 3, Element Plus, Django REST Framework, and PostgreSQL — covering test cases, plans, runs, defects, and role-based permissions end to end.',
+    date: '2026-07-03',
+    readingTime: 14,
+    html: `
+<h1>Building a Test Management System from Scratch: A Vue 3 + Django Full-Stack Walkthrough</h1>
+<h2>Introduction</h2>
+
+In software development, testing is where quality is won or lost. Yet plenty of teams still manage test cases in Excel spreadsheets and sync defect status through a WeChat group — slow, and prone to gaps and mistakes.
+
+The <strong>Test Management System</strong> I want to walk through today is a full-stack platform built specifically for QA teams. It uses <strong>Vue 3</strong> for the front end and <strong>Django</strong> for the back end, and it covers the entire lifecycle: test case management, test plans, execution tracking, defect management, and team collaboration.
+<blockquote>
+
+Repository: <a href="https://github.com/zhoujungis/test_manage_system" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/test_manage_system</a>
+</blockquote>
+<hr>
+<h2>1. What does this system actually do?</h2>
+
+A diagram makes it easier to picture:
+<div class="codehilite"><pre><span></span><code>                          Test Management System
+ ┌─────────────────────────────────────────────────────────────┐
+ │                                                             │
+ │  📋 Case Management     📅 Test Planning    🔧 Execution     │
+ │  ┌──────────────┐      ┌──────────────┐    ┌──────────────┐ │
+ │  │ Write cases  │ ──▶  │ Build a plan │ ──▶│ Run the tests│ │
+ │  │ Import Excel │      │ Order the    │    │ Log results  │ │
+ │  └──────────────┘      └──────────────┘    └──────────────┘ │
+ │                                                    │        │
+ │                          ┌─────────────────────────┘        │
+ │                          ▼                                  │
+ │  🐛 Defect Management   📊 Dashboards       👥 Teamwork     │
+ │  ┌──────────────┐      ┌──────────────┐    ┌──────────────┐ │
+ │  │ File bugs    │      │ Metrics board│    │ Multiple     │ │
+ │  │ Track status │      │ Chart insight│    │ roles & ACLs │ │
+ │  └──────────────┘      └──────────────┘    └──────────────┘ │
+ │                                                             │
+ └─────────────────────────────────────────────────────────────┘
+</code></pre></div>
+
+
+Put simply: <strong>everything your test work currently keeps in spreadsheets and chat threads moves into one purpose-built web system</strong> — write cases, hand out tasks, test features, file bugs, read reports. One place for all of it.
+<hr>
+<h2>What is this system built with?</h2>
+
+The project uses the most mainstream full-stack stack available today:
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Technology</th>
+<th>Why this choice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Front-end framework</strong></td>
+<td>Vue 3</td>
+<td>Reactive data binding and component-based development</td>
+</tr>
+<tr>
+<td><strong>Build tool</strong></td>
+<td>Vite 8+</td>
+<td>Instant cold start and HMR during development</td>
+</tr>
+<tr>
+<td><strong>UI component library</strong></td>
+<td>Element Plus</td>
+<td>Mature desktop components with solid Chinese localization</td>
+</tr>
+<tr>
+<td><strong>State management</strong></td>
+<td>Pinia 3</td>
+<td>The officially recommended store for Vue 3, with a lean API</td>
+</tr>
+<tr>
+<td><strong>Routing</strong></td>
+<td>Vue Router 4</td>
+<td>SPA page navigation</td>
+</tr>
+<tr>
+<td><strong>Back-end framework</strong></td>
+<td>Django 4.2</td>
+<td>Batteries-included ORM, admin, and auth</td>
+</tr>
+<tr>
+<td><strong>API</strong></td>
+<td>Django REST Framework</td>
+<td>Fast to build RESTful APIs</td>
+</tr>
+<tr>
+<td><strong>Authentication</strong></td>
+<td>SimpleJWT</td>
+<td>Stateless JWT tokens</td>
+</tr>
+<tr>
+<td><strong>Database</strong></td>
+<td>PostgreSQL</td>
+<td>Production-grade relational database</td>
+</tr>
+</tbody>
+</table>
+
+You can sum it up as: <strong>Vue 3 + Element Plus</strong> for the skin, <strong>Django + DRF</strong> for the skeleton, <strong>JWT + PostgreSQL</strong> for the bloodstream.
+<hr>
+<h2>3. Four roles, each with its own job</h2>
+
+The system defines four roles, and each one sees a different slice of the product:
+<div class="codehilite"><pre><span></span><code>┌───────────────────────────────────────────────────────────┐
+│  Role permission pyramid                                  │
+│                                                           │
+│       ┌──────────┐                                        │
+│       │  Admin   │  system + users + permission setup     │
+│       │ (Admin)  │  &quot;I hold every key&quot;                    │
+│       └────┬─────┘                                        │
+│            │                                              │
+│       ┌────▼─────┐                                        │
+│       │Developer │  case library CRUD + projects + runs   │
+│       │(Developer│  &quot;I maintain the case library&quot;         │
+│       └────┬─────┘                                        │
+│            │                                              │
+│       ┌────▼─────┐                                        │
+│       │  Tester  │  join projects + read cases + run      │
+│       │ (Tester) │  &quot;I execute the tests&quot;                 │
+│       └────┬─────┘                                        │
+│            │                                              │
+│       ┌────▼─────┐                                        │
+│       │  Viewer  │  read only, no writes                  │
+│       │ (Viewer) │  &quot;I am just looking&quot;                   │
+│       └──────────┘                                        │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+</code></pre></div>
+
+
+Every permission is <strong>fine-grained</strong>. Same "view the case library" capability — can you read it but not change it? Then you are a Tester. Can you also create, update, and delete? Then you are a Developer. Each capability is an independent switch that can be combined freely.
+<h3>Security measures</h3>
+<ul>
+<li>📧 Sign-up is restricted to <code>@glazero.com</code> email addresses</li>
+<li>🔑 Passwords are stored hashed, and login requires a verification code</li>
+<li>⏱️ Access tokens are valid for 1 hour; refresh tokens renew automatically for 8 hours</li>
+<li>🚦 The login and code-sending endpoints are rate limited</li>
+</ul>
+<hr>
+<h2>4. A closer look at the ten functional modules</h2>
+<h3>4.1 Authentication — badge in before you go anywhere</h3>
+
+The registration flow is deliberately strict:
+<div class="codehilite"><pre><span></span><code><span class="n">User enters email</span><span class="w"> </span><span class="p">(</span><span class="nv">@glazero</span><span class="p">.</span><span class="n">com</span><span class="p">)</span>
+<span class="w">        </span><span class="err">│</span>
+<span class="w">        </span><span class="err">▼</span>
+<span class="w">  </span><span class="n">Validate email format</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">check domain allowlist</span>
+<span class="w">        </span><span class="err">│</span>
+<span class="w">        </span><span class="err">▼</span>
+<span class="w">  </span><span class="n">Send verification code to email</span>
+<span class="w">        </span><span class="err">│</span>
+<span class="w">        </span><span class="err">▼</span>
+<span class="w">  </span><span class="n">Enter the code</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">set a password</span>
+<span class="w">        </span><span class="err">│</span>
+<span class="w">        </span><span class="err">▼</span>
+<span class="w">  </span><span class="n">Registered</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">assign default role</span>
+<span class="w">        </span><span class="err">│</span>
+<span class="w">        </span><span class="err">▼</span>
+<span class="w">  </span><span class="n">Log in</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">fetch</span><span class="w"> </span><span class="n">JWT</span><span class="w"> </span><span class="n">token</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">enter the system</span>
+</code></pre></div>
+
+
+The user model pairs Django's built-in <code>auth.User</code> with a <code>UserProfile</code> extension:
+<div class="codehilite"><pre><span></span><code><span class="c1"># accounts/models.py — the actual shape of the code</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.contrib.auth.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">User</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">UserProfile</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">user</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">OneToOneField</span><span class="p">(</span><span class="n">User</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span>
+                                <span class="n">related_name</span><span class="o">=</span><span class="s1">&#39;profile&#39;</span><span class="p">)</span>
+    <span class="n">role</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;tester&#39;</span><span class="p">,</span>
+        <span class="n">choices</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;admin&#39;</span><span class="p">,</span><span class="s1">&#39;Admin&#39;</span><span class="p">),(</span><span class="s1">&#39;tester&#39;</span><span class="p">,</span><span class="s1">&#39;Tester&#39;</span><span class="p">),</span>
+                 <span class="p">(</span><span class="s1">&#39;developer&#39;</span><span class="p">,</span><span class="s1">&#39;Developer&#39;</span><span class="p">),(</span><span class="s1">&#39;viewer&#39;</span><span class="p">,</span><span class="s1">&#39;Viewer&#39;</span><span class="p">)])</span>
+    <span class="n">phone</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">can_access_projects</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">can_access_testcase_library</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">can_manage_testcase_library</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">can_access_my_projects</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+
+Default permissions are derived from the role at registration time — the <code>ROLE_DEFAULT_PERMISSIONS</code> dict defines which feature switches each of the four roles (admin, tester, developer, viewer) gets out of the box.
+<h3>4.2 Project management — creating the workspace</h3>
+
+Every test project carries its full context:
+<div class="codehilite"><pre><span></span><code>Project
+├── Basics: name, description, product line (camera / doorbell)
+├── Status: active / archived
+├── Members
+│   ├── Leader (owner)
+│   ├── Tester
+│   └── Developer
+├── Module tree
+│   ├── 📁 Video features
+│   │   ├── 📄 Live preview
+│   │   └── 📄 Video playback
+│   └── 📁 Audio features
+│       └── 📄 Two-way talk
+└── Task management
+    ├── Test rounds
+    ├── Priority
+    └── Due date
+</code></pre></div>
+
+
+The neat part here is the <strong>module tree</strong> — a self-referencing <code>parent</code> foreign key in Django gives you unlimited nesting:
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Module</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+    <span class="n">project</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">Project</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+    <span class="n">parent</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="s1">&#39;self&#39;</span><span class="p">,</span> <span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                               <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">)</span>
+    <span class="c1"># parent is None → root module</span>
+    <span class="c1"># parent points at another Module → child module</span>
+</code></pre></div>
+
+<h3>4.3 Test case management — the heart of it all</h3>
+
+The case library is the core of the system, organized by product line (camera / doorbell):
+<div class="codehilite"><pre><span></span><code>Test case structure
+┌────────────────────────────────────────────────┐
+│  Title: verify the camera switches to night     │
+│         vision automatically                    │
+│  Priority: P1 (high)                            │
+│  Type: functional test                          │
+│  Status: enabled                                │
+│  Precondition: ambient light sensor works       │
+│  ┌──────────────────────────────────────────┐   │
+│  │  Step 1                                  │   │
+│  │  Action: put the camera in a dark room   │   │
+│  │  Expected: switches to night vision      │   │
+│  ├──────────────────────────────────────────┤   │
+│  │  Step 2                                  │   │
+│  │  Action: shine a flashlight at the lens  │   │
+│  │  Expected: switches back to day mode     │   │
+│  └──────────────────────────────────────────┘   │
+└────────────────────────────────────────────────┘
+</code></pre></div>
+
+
+Bulk import is where it really earns its keep — a single Django command pulls every case out of an Excel file:
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>manage.py<span class="w"> </span>import_camera_cases<span class="w"> </span>camera_cases.xlsx
+</code></pre></div>
+
+
+It detects the column headers, groups worksheets into modules by sheet name, and numbers the steps for you.
+<h3>4.4 Assigning and executing cases — getting tests running</h3>
+
+How does a case turn into a test task? Follow the flow:
+<div class="codehilite"><pre><span></span><code>Case Library
+    │
+    │  Assign
+    ▼
+Project → Task → Member
+    │
+    │  Execute
+    ▼
+┌──────────────────────────────────┐
+│  Status:                         │
+│  ⬜ Pending (pending)             │
+│  ✅ Passed (passed)               │
+│  ❌ Failed (failed)               │
+│  ⬛ Not applicable (not_applicable)│
+│  ⬜ Not tested (not_tested)       │
+└──────────────────────────────────┘
+    │
+    │  Approve
+    ▼
+  Leader review → approve / reject in bulk
+</code></pre></div>
+
+
+Every execution result supports <strong>attachments</strong> (up to 15MB) — screenshots, logs, and so on. Leaders can <strong>approve in bulk</strong> instead of clicking through one by one.
+<h3>4.5 Test plans — plan first, run later</h3>
+
+A test plan is essentially a shopping cart: pick cases out of the library and put them in order.
+<div class="codehilite"><pre><span></span><code>Test Plan
+├── Name: Camera V2.0 regression plan
+├── Project: smart camera project
+├── Window: 2024-01-15 ~ 2024-01-30
+├── Status: draft → active → completed
+└── Case list (drag to reorder)
+    ├── ① Verify device boot time
+    ├── ② Verify video stream stability
+    ├── ③ Verify night-vision switching
+    └── ④ Verify motion detection alerts
+</code></pre></div>
+
+<h3>4.6 Test runs — time to test</h3>
+
+Create a test run from a plan and the system <strong>generates every pending item for you</strong>:
+<div class="codehilite"><pre><span></span><code>Test Run #42 (from the plan &quot;Camera V2.0 regression&quot;)
+Status: running
+┌──────┬───────────────────────────────┬────────┬───────────────┐
+│  #   │ Case                          │ Result │ Notes         │
+├──────┼───────────────────────────────┼────────┼───────────────┤
+│  1   │ Verify device boot time       │  ✅    │               │
+│  2   │ Verify video stream stability │  ❌    │ flaky tearing │
+│  3   │ Verify night-vision switching │  ⏸️    │ env limited   │
+│  4   │ Verify motion detection alerts│  ⬜    │               │
+└──────┴───────────────────────────────┴────────┴───────────────┘
+Progress: 1/4 passed │ 1/4 failed │ 1/4 blocked
+</code></pre></div>
+
+<h3>4.7 Defect tracking — the life of a bug</h3>
+
+Found a problem while executing tests? File a defect right there:
+<div class="codehilite"><pre><span></span><code>Defect lifecycle
+┌──────────┐    ┌─────────────┐    ┌──────────┐    ┌──────────┐
+│   Open   │───▶│In Progress  │───▶│ Resolved │───▶│  Closed  │
+│    New   │    │  Being fixed│    │   Fixed  │    │  Closed  │
+└──────────┘    └─────────────┘    └──────────┘    └──────────┘
+       ▲                              │               │
+       └──────────────────────────────┘               │
+                  reopened                            │
+</code></pre></div>
+
+
+Each defect record contains:
+- <strong>Title &amp; description</strong> — what is broken
+- <strong>Severity</strong> — from S0 (worst / blocking) to S4 (minor / suggestion)
+- <strong>Related project</strong> — which project the problem belongs to
+- <strong>Related test result</strong> — which test run surfaced it
+- <strong>Assignee</strong> — who is fixing it
+<h3>4.8 Home page — the feature launcher</h3>
+
+The landing page after login is a <strong>feature launcher</strong> that renders a different set of cards depending on the current user's permissions:
+<div class="codehilite"><pre><span></span><code>┌──────────────────────────────────────────────┐
+│              Test Management System          │
+│              Pick a module to get started    │
+│                                              │
+│  ┌────────────────────────────────────────┐  │
+│  │  📋 Test case library                  │  │
+│  │  Camera, doorbell, and other shared    │  │
+│  │  cases, organized by product line      │  │
+│  └────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────┐  │
+│  │  📁 Project management                 │  │
+│  │  Create projects, manage modules,      │  │
+│  │  plans, runs, and defects              │  │
+│  └────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────┐  │
+│  │  👤 My projects                        │  │
+│  │  Browse the projects you are on and    │  │
+│  │  execute the tasks assigned to you     │  │
+│  └────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────┐  │
+│  │  ⚙️ Permission management (admins only)│  │
+│  │  Configure feature access for          │  │
+│  │  non-admin users                       │  │
+│  └────────────────────────────────────────┘  │
+└──────────────────────────────────────────────┘
+</code></pre></div>
+
+
+Four cards, four core modules. Each card has its own gradient icon and lifts slightly on hover. How many cards you see depends on your role — a plain tester never sees "Permission management", and anyone without case-library access does not see the first card at all.
+<h3>4.9 Statistics — data aggregation at the API layer</h3>
+
+Beyond the launcher page, the <code>dashboard</code> app exposes a <strong>stats API</strong> (<code>GET /api/dashboard/stats/</code>) that other pages and external tools can call:
+<ul>
+<li><code>total_projects</code>, <code>total_testcases</code>, <code>total_testplans</code>, <code>total_testruns</code> — the four top-level counters</li>
+<li><code>results</code> — result distribution (passed/failed/blocked/skipped/pending) plus the pass rate</li>
+<li><code>defects</code> — defect counts (total/open/resolved)</li>
+<li><code>priority_distribution</code> — case priority distribution (how many sit at each of P0-P4)</li>
+<li><code>type_distribution</code> — case type distribution (functional/API/UI/performance)</li>
+<li><code>recent_runs</code> — the five most recent runs</li>
+</ul>
+
+A <code>project_id</code> parameter scopes everything to a single project. The endpoint uses Django ORM's <code>aggregate</code> together with conditional <code>Count</code> to compute every statistic in a <strong>single query</strong>, which keeps it fast.
+<h3>4.10 Admin console — keeping hold of the whole picture</h3>
+
+Features reserved for the Admin role:
+<ul>
+<li><strong>User management</strong> — create, delete, and list users</li>
+<li><strong>Permission configuration</strong> — fine-tune each person's role and permission switches</li>
+<li>Non-admin users <strong>cannot change their own permissions</strong> (a deliberate security decision)</li>
+</ul>
+<h3>4.10 Excel batch import — the migration workhorse</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># one command turns Excel into test cases</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>import_camera_cases<span class="w"> </span>camera_cases.xlsx
+</code></pre></div>
+
+
+What it works out on its own:
+- Detects column headers (both the standard layout and its variants)
+- Worksheet name → module grouping
+- Numbers the test steps automatically
+- Skips the header row
+<hr>
+<h2>How do the database tables relate?</h2>
+<div class="codehilite"><pre><span></span><code>User ──1:1──▶ UserProfile (role, permissions)
+  │
+  │  (many-to-many, through ProjectMember)
+  ▼
+Project ──1:N──▶ Module (self-referencing tree)
+  │   │
+  │   └──1:N──▶ ProjectTask
+  │                │
+  │                └──1:N──▶ TestCaseAssignment
+  │                             │
+  │                             └──1:N──▶ AssignmentAttachment
+  │
+  └──1:N──▶ TestPlan ──1:N──▶ TestPlanCase
+                │                 │
+                │                 └──(references TestCase)
+                │
+                └──1:N──▶ TestRun ──1:N──▶ TestResult
+                                              │
+                                              └──1:N──▶ Defect
+
+TestCase ──1:N──▶ TestCaseStep
+</code></pre></div>
+
+
+The key design decisions:
+- <strong>One-to-many</strong> relations run through the whole schema, which keeps the structure easy to follow
+- A <strong>self-referencing Module</strong> delivers an arbitrarily deep tree
+- <strong>Defect ↔ TestResult</strong> is an optional link, so every bug traces back to the test that found it
+- <code>select_related</code> / <code>prefetch_related</code> keep query counts under control
+<hr>
+<h2>6. How the decoupled front end and back end are organized</h2>
+<h3>Back end: a standard Django layout</h3>
+<div class="codehilite"><pre><span></span><code>backend/
+├── config/              # project configuration
+│   ├── settings.py      # database, JWT, CORS, and so on
+│   └── urls.py          # root URLconf
+├── apps/                # business apps
+│   ├── accounts/        # users, roles, permissions
+│   ├── projects/        # project management
+│   ├── testcases/       # test case management
+│   ├── testplans/       # test plans
+│   ├── testruns/        # test execution
+│   └── defects/         # defect management
+├── manage.py
+└── requirements.txt
+</code></pre></div>
+
+<h3>Front end: modular Vue 3 components</h3>
+<div class="codehilite"><pre><span></span><code>frontend/src/
+├── api/           # Axios wrappers (one file per module)
+├── views/         # page-level components
+│   ├── LoginView.vue
+│   ├── HomeView.vue       # data dashboard
+│   ├── ProjectListView.vue
+│   ├── TestCaseManagementView.vue
+│   └── MyTestExecuteView.vue
+├── components/    # reusable components
+├── stores/        # Pinia state management
+├── router/        # route config (including navigation guards)
+├── composables/   # composable functions
+└── utils/         # helper functions
+</code></pre></div>
+
+<h3>API design: RESTful</h3>
+
+The two halves talk over a RESTful API and authenticate with JWT:
+<div class="codehilite"><pre><span></span><code><span class="err">Client request</span><span class="w">                          </span><span class="n">Django</span><span class="w"> </span><span class="err">backend</span>
+<span class="w">    </span><span class="err">│</span><span class="w">                                   </span><span class="err">│</span>
+<span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="n">POST</span><span class="w"> </span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">auth</span><span class="o">/</span><span class="n">login</span><span class="o">/</span><span class="w">            </span><span class="err">│</span>
+<span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="p">{</span><span class="s2">&quot;email&quot;</span><span class="err">:</span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="s2">&quot;password&quot;</span><span class="err">:</span><span class="s2">&quot;...&quot;</span><span class="p">}</span><span class="w">  </span><span class="err">│</span>
+<span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">─────────────────────────────────▶│</span>
+<span class="w">    </span><span class="err">│</span><span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="err">verify password</span>
+<span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="p">{</span><span class="s2">&quot;access&quot;</span><span class="err">:</span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="s2">&quot;refresh&quot;</span><span class="err">:</span><span class="s2">&quot;...&quot;</span><span class="p">}</span><span class="w">  </span><span class="err">│</span><span class="w"> </span><span class="err">return</span><span class="w"> </span><span class="n">tokens</span>
+<span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">◀─────────────────────────────────│</span>
+<span class="w">    </span><span class="err">│</span><span class="w">                                   </span><span class="err">│</span>
+<span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="n">GET</span><span class="w"> </span><span class="o">/</span><span class="n">api</span><span class="o">/</span><span class="n">testcases</span><span class="o">/</span><span class="err">?</span><span class="n">product_line</span><span class="o">=</span><span class="nb">camera</span><span class="o">&amp;</span><span class="n">page</span><span class="o">=</span><span class="mi">1</span>
+<span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="n">Authorization</span><span class="err">:</span><span class="w"> </span><span class="n">Bearer</span><span class="w"> </span><span class="p">&lt;</span><span class="n">token</span><span class="p">&gt;</span><span class="w">    </span><span class="err">│</span>
+<span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">─────────────────────────────────▶│</span>
+<span class="w">    </span><span class="err">│</span><span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="err">permission check</span>
+<span class="w">    </span><span class="err">│</span><span class="w">  </span><span class="p">{</span><span class="s2">&quot;count&quot;</span><span class="err">:</span><span class="mi">326</span><span class="p">,</span><span class="s2">&quot;results&quot;</span><span class="err">:</span><span class="p">[</span><span class="o">...</span><span class="p">]}</span><span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">query data</span>
+<span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">◀─────────────────────────────────│</span>
+</code></pre></div>
+
+
+A consistent response envelope:
+<div class="codehilite"><pre><span></span><code><span class="c1">// paginated response</span>
+<span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;count&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">326</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;next&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http://...api/testcases/?page=2&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;previous&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;results&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;id&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;title&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Verify the camera switches to night vision automatically&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;priority&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;P1&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;enabled&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;steps&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="err">...</span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<hr>
+<h2>7. Getting started</h2>
+<h3>Requirements</h3>
+<ul>
+<li>Python 3.13+</li>
+<li>Node.js 18+</li>
+<li>PostgreSQL (production) / SQLite (development)</li>
+</ul>
+<h3>Three steps to boot</h3>
+
+<strong>Step 1: start the back end</strong>
+<div class="codehilite"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/zhoujungis/test_manage_system.git
+<span class="nb">cd</span><span class="w"> </span>test_manage_system/backend
+
+<span class="c1"># configure environment variables</span>
+cp<span class="w"> </span>.env.example<span class="w"> </span>.env
+<span class="c1"># edit .env: database connection, SECRET_KEY, email settings</span>
+
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+python<span class="w"> </span>manage.py<span class="w"> </span>migrate
+python<span class="w"> </span>manage.py<span class="w"> </span>createsuperuser<span class="w">   </span><span class="c1"># create an admin user</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>runserver<span class="w"> </span><span class="m">0</span>.0.0.0:8000
+</code></pre></div>
+
+
+<strong>Step 2: start the front end</strong>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>test_manage_system/frontend
+npm<span class="w"> </span>install
+npm<span class="w"> </span>run<span class="w"> </span>dev
+<span class="c1"># open http://localhost:5173 in your browser</span>
+</code></pre></div>
+
+
+<strong>Step 3: start using it</strong>
+<ol>
+<li>Log in with the admin account</li>
+<li>Create a project → add members → build the module tree</li>
+<li>Write test cases, or import them from Excel</li>
+<li>Create a test plan → run the tests → file defects</li>
+</ol>
+<hr>
+<h2>8. Project highlights</h2>
+<table>
+<thead>
+<tr>
+<th>Highlight</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>🎯 <strong>Full test lifecycle</strong></td>
+<td>Cases → plans → runs → defects, a closed loop</td>
+</tr>
+<tr>
+<td>🔐 <strong>Fine-grained permissions</strong></td>
+<td>Four roles plus independent switches, combined freely</td>
+</tr>
+<tr>
+<td>📊 <strong>Visual dashboards</strong></td>
+<td>Project stats, defect trends, and progress at a glance</td>
+</tr>
+<tr>
+<td>📥 <strong>Bulk Excel import</strong></td>
+<td>One Django command migrates your historical cases</td>
+</tr>
+<tr>
+<td>🌲 <strong>Tree-shaped modules</strong></td>
+<td>Unlimited nesting that mirrors the product structure</td>
+</tr>
+<tr>
+<td>📎 <strong>Attachment support</strong></td>
+<td>Attach screenshots and logs to any execution result</td>
+</tr>
+<tr>
+<td>✅ <strong>Approval workflow</strong></td>
+<td>Leaders review test results and act in bulk</td>
+</tr>
+<tr>
+<td>🛡️ <strong>Security by design</strong></td>
+<td>Dual JWTs, email domain restriction, rate limiting</td>
+</tr>
+<tr>
+<td>🎨 <strong>Element Plus UI</strong></td>
+<td>A polished enterprise interface that works well with Chinese</td>
+</tr>
+<tr>
+<td>📱 <strong>Responsive layout</strong></td>
+<td>A smooth desktop experience</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>9. Wrap-up</h2>
+
+This test management system is a textbook example of <strong>how a full-stack web application should be put together</strong>:
+<ol>
+<li><strong>Front end</strong> — Vue 3 + Element Plus for the interface, Pinia for state, Vue Router for navigation</li>
+<li><strong>Back end</strong> — Django + DRF for the RESTful API and JWTs for stateless authentication</li>
+<li><strong>Data layer</strong> — PostgreSQL for production reliability, with the Django ORM keeping database work simple</li>
+<li><strong>Permission system</strong> — designed at fine granularity, from role all the way down to individual feature switches, balancing safety against flexibility</li>
+</ol>
+
+The code is clearly organized and thoroughly commented, which makes it a great reference project for learning full-stack Vue 3 + Django development. Whether you are a front-end developer curious about the back end or a back-end developer who wants to learn the front end, there is something practical in here for you.
+<blockquote>
+
+📂 Repository: <a href="https://github.com/zhoujungis/test_manage_system" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/test_manage_system</a>
+
+⭐ If you find it useful, a star is always welcome!
+</blockquote>
+<hr>
+
+<em>This article is based on the full requirements specification and code structure of the test_manage_system project, covering the system architecture, functional modules, database design, and front-end/back-end interaction.</em>
+
+Further reading along the same thread: <a href="/article/blog-tech-stack/">Building This Blog: A Deep Dive into the Vue 3 + Django Decoupled Stack</a>, <a href="/article/halo-music-square-architecture/">Inside Halo Music Square: A Multi-Source Online Music App</a>.
+`,
+  },
+  {
+    slug: 'google-matter-smart-home-dev-guide',
+    zhSlug: 'google-matter-smart-home-dev-guide',
+    topicSlug: 'projects',
+    title: 'The Complete Guide to Google Matter Smart Home Development: From First Steps to Certification',
+    excerpt: 'A hands-on, end-to-end guide to Matter on Google\'s platform: protocol fundamentals, the ESP-Matter toolchain, data model design, Home Console integration, and certification.',
+    date: '2026-07-03',
+    readingTime: 17,
+    html: `
+<h1>The Complete Guide to Google Matter Smart Home Development: From First Steps to Certification</h1>
+<h2>Introduction</h2>
+
+In 2022 the Connectivity Standards Alliance (CSA) formally released the Matter 1.0 specification, and Google, Apple and Amazon announced their support for it at the same time. As the long-awaited "unified" standard for the smart home, Matter set out to fix the ecosystem fragmentation that had dogged the industry for years — letting devices from different vendors interoperate across platforms and ecosystems.
+
+This article pulls together Google's official Matter developer documentation, hands-on experience with the ESP-Matter framework, and the field notes of several developers into a single, complete guide to Matter device development.
+<hr>
+<h2>What Is the Matter Protocol?</h2>
+<h3>1.1 What Is Matter?</h3>
+
+Matter is an <strong>application-layer protocol</strong> built on top of the IPv6 network stack. It runs over the network technologies you already have:
+<ul>
+<li><strong>Wi-Fi</strong> — for high-bandwidth devices (cameras, gateways)</li>
+<li><strong>Thread</strong> — for low-power devices (sensors, switches), based on IEEE 802.15.4</li>
+<li><strong>Ethernet</strong> — for fixed devices (smart speakers, routers)</li>
+<li><strong>Bluetooth Low Energy (BLE)</strong> — <strong>used for device commissioning only</strong>, never for day-to-day communication</li>
+</ul>
+
+This design lets Matter devices be addressed and controlled uniformly over an IP network, with no extra hub or protocol bridge in the middle.
+<h3>1.2 Core Characteristics</h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Multi-Admin</strong></td>
+<td>A single Matter device can belong to several ecosystems (fabrics) at once — controlled by both Google Home and Apple HomeKit, for example</td>
+</tr>
+<tr>
+<td><strong>Local control</strong></td>
+<td>Device-to-device traffic prefers the local network: low latency, no dependency on the cloud</td>
+</tr>
+<tr>
+<td><strong>Security</strong></td>
+<td>End-to-end encryption, device certificate attestation, and a dual mechanism of passcode-authenticated sessions (PASE, via SPAKE2+) and certificate-authenticated sessions (CASE)</td>
+</tr>
+<tr>
+<td><strong>Unified data model</strong></td>
+<td>Every device uses the standardized Cluster/Attribute/Command model, which is what guarantees interoperability</td>
+</tr>
+<tr>
+<td><strong>Zero-touch commissioning</strong></td>
+<td>A QR code scan or an NFC tap is all it takes to pair the device</td>
+</tr>
+</tbody>
+</table>
+<h3>1.3 Supported Device Types</h3>
+
+The device categories Matter 1.0 covers include:
+<ul>
+<li>Lighting and electrical (bulbs, switches, dimmers)</li>
+<li>HVAC (thermostats, air conditioners)</li>
+<li>Security sensing (contact sensors, occupancy sensors, smoke alarms)</li>
+<li>Door locks and window coverings</li>
+<li>TVs and media devices</li>
+<li>Bridges (bringing non-Matter devices onto a Matter network)</li>
+</ul>
+<hr>
+<h2>2. The Google Matter Development Ecosystem</h2>
+
+Google gives Matter developers a complete toolchain and first-class platform support.
+<h3>2.1 The Developer Tool Landscape</h3>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Purpose</th>
+<th>Stage</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Google Home Developer Console</strong></td>
+<td>Create projects, configure the Matter integration, manage VID/PID</td>
+<td>Entire lifecycle</td>
+</tr>
+<tr>
+<td><strong>Google Home Extension for VS Code</strong></td>
+<td>Assistant simulator, cloud log viewer, device debugging</td>
+<td>Development and debugging</td>
+</tr>
+<tr>
+<td><strong>Matter Virtual Device (MVD)</strong></td>
+<td>A Dockerized virtual Matter device, so you can develop without real hardware</td>
+<td>Early development</td>
+</tr>
+<tr>
+<td><strong>Google Home Test Suite</strong></td>
+<td>Automated tests that check whether your integration meets certification requirements</td>
+<td>Testing and certification</td>
+</tr>
+<tr>
+<td><strong>Google Home Sample App for Matter</strong></td>
+<td>An Android sample app demonstrating Matter commissioning and control</td>
+<td>App development</td>
+</tr>
+<tr>
+<td><strong>Android Studio Plugin</strong></td>
+<td>Test Assistant commands and read cloud logs straight from the IDE</td>
+<td>App development</td>
+</tr>
+<tr>
+<td><strong>Home UI Automator</strong></td>
+<td>Monitor Matter device state offline</td>
+<td>Debugging and testing</td>
+</tr>
+</tbody>
+</table>
+<h3>2.2 Google Play Services Matter API</h3>
+
+For Android app developers, Google exposes a Matter API through Play Services. Its core capabilities are:
+<ul>
+<li><strong>Commissioning</strong> — bring a Matter device onto the home network</li>
+<li><strong>Device Sharing</strong> — grant access to a device across apps and ecosystems</li>
+<li><strong>Operational Discovery</strong> — discover Matter devices already commissioned on the network</li>
+<li><strong>Thread Network API</strong> — share Thread network credentials through Play Services</li>
+</ul>
+<h3>2.3 About VID/PID</h3>
+
+Development and production use different vendor identifiers:
+<ul>
+<li><strong>Test VIDs</strong>: <code>0xFFF1</code>, <code>0xFFF2</code>, <code>0xFFF3</code>, <code>0xFFF4</code> — for development and debugging only</li>
+<li><strong>Production VID</strong>: you must apply formally to the CSA, and Google has to verify it before it can be used on consumer products</li>
+</ul>
+<hr>
+<h2>How Do You Set Up a Matter Development Environment?</h2>
+<h3>3.1 Base Environment Requirements</h3>
+
+Developing Matter devices requires the following:
+<ul>
+<li><strong>OS</strong>: Ubuntu 20.04 LTS (64-bit) or newer (recommended)</li>
+<li><strong>Python</strong>: 3.8+</li>
+<li><strong>Git</strong>: for cloning the Matter SDK</li>
+<li><strong>Development board</strong> (optional): ESP32-C3/C6/S3, nRF52840, Silicon Labs EFR32MG24, and so on</li>
+</ul>
+<blockquote>
+
+<strong>Note</strong>: macOS can build Matter projects too, but the official guidance strongly favors Ubuntu Linux. Windows users can set things up in a VirtualBox VM or under WSL2.
+</blockquote>
+<h3>3.2 Cloning the Matter SDK</h3>
+<div class="codehilite"><pre><span></span><code>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/project-chip/connectedhomeip.git
+<span class="nb">cd</span><span class="w"> </span>connectedhomeip
+git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
+</code></pre></div>
+
+<h3>3.3 Installing Dependencies</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Ubuntu environment</span>
+sudo<span class="w"> </span>apt-get<span class="w"> </span>update
+sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>git<span class="w"> </span>gcc<span class="w"> </span>g++<span class="w"> </span>pkg-config<span class="w"> </span>libssl-dev<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>libdbus-1-dev<span class="w"> </span>libglib2.0-dev<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>libavahi-client-dev<span class="w"> </span>ninja-build<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>python3-venv<span class="w"> </span>python3-dev<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>unzip<span class="w"> </span>libgirepository1.0-dev<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>libcairo2-dev<span class="w"> </span>libreadline-dev
+
+<span class="c1"># Initialize the Matter build environment</span>
+<span class="nb">source</span><span class="w"> </span>scripts/activate.sh
+</code></pre></div>
+
+<h3>3.4 Setting Up the ESP32 Platform (with ESP-IDF)</h3>
+
+For developers working with Espressif ESP32 chips:
+<div class="codehilite"><pre><span></span><code><span class="c1"># Install ESP-IDF</span>
+mkdir<span class="w"> </span>-p<span class="w"> </span>~/esp
+<span class="nb">cd</span><span class="w"> </span>~/esp
+git<span class="w"> </span>clone<span class="w"> </span>--branch<span class="w"> </span>v5.1<span class="w"> </span>--recursive<span class="w"> </span>https://github.com/espressif/esp-idf.git
+<span class="nb">cd</span><span class="w"> </span>esp-idf
+./install.sh<span class="w"> </span>esp32<span class="w"> </span>esp32c3<span class="w"> </span>esp32c6<span class="w"> </span>esp32s3
+<span class="nb">source</span><span class="w"> </span>export.sh
+
+<span class="c1"># Clone the ESP-Matter SDK</span>
+<span class="nb">cd</span><span class="w"> </span>~/esp
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/espressif/esp-matter.git
+<span class="nb">cd</span><span class="w"> </span>esp-matter
+git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
+</code></pre></div>
+
+<hr>
+<h2>What Does the Matter Data Model Consist Of?</h2>
+
+Understanding the Matter data model is the heart of device development. Matter uses a four-layer hierarchy, and it helps to picture it as a house:
+<h3>4.1 Node (the "house")</h3>
+
+A Node represents a single physical device and is the smallest addressable unit on the network. Every Node has a unique node ID, which corresponds to an IP address at the network layer. <strong>One physical device is one Node</strong> (a single smart bulb, for example).
+<div class="codehilite"><pre><span></span><code><span class="c1">// Create a Matter node</span>
+<span class="n">node</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">node_config</span><span class="p">;</span>
+<span class="n">node_t</span><span class="w"> </span><span class="o">*</span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">node_config</span><span class="p">,</span><span class="w"> </span><span class="n">app_attribute_update_cb</span><span class="p">,</span><span class="w"> </span><span class="n">app_identification_cb</span><span class="p">);</span>
+</code></pre></div>
+
+
+<code>app_attribute_update_cb</code> is the attribute update callback, invoked whenever a control command comes in. <code>app_identification_cb</code> is the identification callback, used to handle Identify commands (blinking the device so you can tell which one it is, for instance).
+<h3>4.2 Endpoint (the "room")</h3>
+
+An Endpoint is a functional unit inside a Node and corresponds to one device type. A Node can have several Endpoints. A smart plug, for example, might contain:
+<ul>
+<li><strong>Endpoint 0</strong>: the reserved endpoint, holding base clusters such as Basic Information, ACL and Network Commissioning</li>
+<li><strong>Endpoint 1</strong>: an On/Off lighting endpoint</li>
+</ul>
+<div class="codehilite"><pre><span></span><code><span class="c1">// Create the extended color light endpoint</span>
+<span class="n">endpoint_t</span><span class="w"> </span><span class="o">*</span><span class="n">endpoint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">extended_color_light</span><span class="o">::</span><span class="n">create</span><span class="p">(</span>
+<span class="w">    </span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">light_config</span><span class="p">,</span><span class="w"> </span><span class="n">ENDPOINT_FLAG_NONE</span><span class="p">,</span><span class="w"> </span><span class="n">light_handle</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3>4.3 Cluster (the "furniture")</h3>
+
+A Cluster is a functional module: the Attributes, Commands and Events that belong to a single capability are grouped together. Common clusters include:
+<table>
+<thead>
+<tr>
+<th>Cluster</th>
+<th>Function</th>
+<th>Sample attribute</th>
+<th>Sample command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>On/Off</strong></td>
+<td>On/off control</td>
+<td><code>OnOff</code> (bool)</td>
+<td><code>Toggle</code></td>
+</tr>
+<tr>
+<td><strong>Level Control</strong></td>
+<td>Brightness and level control</td>
+<td><code>CurrentLevel</code> (uint8)</td>
+<td><code>MoveToLevel</code></td>
+</tr>
+<tr>
+<td><strong>Color Control</strong></td>
+<td>Color control</td>
+<td><code>ColorTemperatureMireds</code></td>
+<td><code>MoveToHue</code></td>
+</tr>
+<tr>
+<td><strong>Temperature Measurement</strong></td>
+<td>Temperature measurement</td>
+<td><code>MeasuredValue</code> (int16)</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Occupancy Sensing</strong></td>
+<td>Occupancy detection</td>
+<td><code>Occupancy</code> (bitmap)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3>4.4 Attribute, Command, Event (the device's "properties")</h3>
+<ul>
+<li><strong>Attribute</strong>: a data field holding device state. It may be readable, writable, or read-only.</li>
+<li><strong>Command</strong>: an operation that makes the device perform an action. Issued by the Controller, handled by the Device.</li>
+<li><strong>Event</strong>: a state change or alarm that the device reports on its own initiative.</li>
+</ul>
+<h3>4.5 Configuring the Data Model: An Example</h3>
+
+Taking the extended color light as an example, here is how each cluster's default attributes are configured:
+<div class="codehilite"><pre><span></span><code><span class="c1">// On/Off cluster configuration</span>
+<span class="n">on_off</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">on_off_config</span><span class="p">;</span>
+<span class="n">on_off_config</span><span class="p">.</span><span class="n">on_off</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w">  </span><span class="c1">// off by default</span>
+<span class="n">on_off_config</span><span class="p">.</span><span class="n">lighting</span><span class="p">.</span><span class="n">start_up_on_off</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">nullptr</span><span class="p">;</span><span class="w">  </span><span class="c1">// restore last state after reboot</span>
+
+<span class="c1">// Level Control cluster configuration</span>
+<span class="n">level_control</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">level_config</span><span class="p">;</span>
+<span class="n">level_config</span><span class="p">.</span><span class="n">current_level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">64</span><span class="p">;</span><span class="w">  </span><span class="c1">// default brightness 25%</span>
+<span class="n">level_config</span><span class="p">.</span><span class="n">min_level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="n">level_config</span><span class="p">.</span><span class="n">max_level</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">254</span><span class="p">;</span>
+
+<span class="c1">// Color Control cluster configuration</span>
+<span class="n">color_control</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">color_config</span><span class="p">;</span>
+<span class="n">color_config</span><span class="p">.</span><span class="n">color_mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">EMBER_ZCL_COLOR_MODE_COLOR_TEMPERATURE</span><span class="p">;</span>
+<span class="n">color_config</span><span class="p">.</span><span class="n">color_temperature</span><span class="p">.</span><span class="n">startup_color_temperature_mireds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">nullptr</span><span class="p">;</span>
+</code></pre></div>
+
+<hr>
+<h2>5. Hands-On Device Development</h2>
+
+Using an ESP32 with the ESP-Matter framework, let's walk through the complete development flow for a Matter lighting device.
+<h3>5.1 Project Structure</h3>
+
+A typical ESP-Matter example project is laid out like this:
+<div class="codehilite"><pre><span></span><code>examples/light/
+├── main/
+│   ├── app_main.cpp      # main entry point
+│   ├── app_driver.cpp    # hardware driver layer
+│   └── app_priv.h        # private declarations header
+├── partitions.csv        # partition table
+├── sdkconfig.defaults    # default SDK config
+└── CMakeLists.txt
+</code></pre></div>
+
+<h3>5.2 Initializing the Hardware Drivers</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// Initialize the LED driver</span>
+<span class="n">app_driver_handle_t</span><span class="w"> </span><span class="n">light_handle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">app_driver_light_init</span><span class="p">();</span>
+
+<span class="c1">// Initialize the button driver</span>
+<span class="n">app_driver_handle_t</span><span class="w"> </span><span class="n">button_handle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">app_driver_button_init</span><span class="p">();</span>
+
+<span class="c1">// Register the reset button</span>
+<span class="n">app_reset_button_register</span><span class="p">(</span><span class="n">button_handle</span><span class="p">);</span>
+</code></pre></div>
+
+
+<code>app_driver_light_init()</code> initializes every LED pin. The example sets up several LEDs but only uses the first one by default — which is exactly why the sample appears to "control just one bulb".
+<h3>5.3 Creating the Node and Endpoint</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// 1. Create the node</span>
+<span class="n">node</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">node_config</span><span class="p">;</span>
+<span class="n">node_t</span><span class="w"> </span><span class="o">*</span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">node_config</span><span class="p">,</span><span class="w"> </span><span class="n">app_attribute_update_cb</span><span class="p">,</span><span class="w"> </span><span class="n">app_identification_cb</span><span class="p">);</span>
+
+<span class="c1">// 2. Configure the endpoint attributes (see section 4.5)</span>
+
+<span class="c1">// 3. Create the endpoint (clusters are matched automatically)</span>
+<span class="n">extended_color_light</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">light_config</span><span class="p">;</span>
+<span class="c1">// ... set the individual cluster configs on light_config</span>
+<span class="n">endpoint_t</span><span class="w"> </span><span class="o">*</span><span class="n">endpoint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">extended_color_light</span><span class="o">::</span><span class="n">create</span><span class="p">(</span>
+<span class="w">    </span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">light_config</span><span class="p">,</span><span class="w"> </span><span class="n">ENDPOINT_FLAG_NONE</span><span class="p">,</span><span class="w"> </span><span class="n">light_handle</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3>5.4 Starting the Matter Stack</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// Get the endpoint ID</span>
+<span class="kt">uint16_t</span><span class="w"> </span><span class="n">light_endpoint_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">endpoint</span><span class="o">::</span><span class="n">get_id</span><span class="p">(</span><span class="n">endpoint</span><span class="p">);</span>
+
+<span class="c1">// Start the Matter stack</span>
+<span class="n">esp_matter</span><span class="o">::</span><span class="n">start</span><span class="p">(</span><span class="n">app_event_cb</span><span class="p">);</span>
+
+<span class="c1">// Apply the defaults to the hardware</span>
+<span class="n">app_driver_light_set_defaults</span><span class="p">(</span><span class="n">light_endpoint_id</span><span class="p">);</span>
+</code></pre></div>
+
+<h3>5.5 Implementing the Attribute Update Callback</h3>
+
+When the user controls the device from the Google Home app or by voice, the attribute update callback fires:
+<div class="codehilite"><pre><span></span><code><span class="n">esp_err_t</span><span class="w"> </span><span class="nf">app_driver_attribute_update</span><span class="p">(</span>
+<span class="w">    </span><span class="n">app_driver_handle_t</span><span class="w"> </span><span class="n">driver_handle</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">uint16_t</span><span class="w"> </span><span class="n">endpoint_id</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">cluster_id</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">attribute_id</span><span class="p">,</span>
+<span class="w">    </span><span class="n">esp_matter_attr_val_t</span><span class="w"> </span><span class="o">*</span><span class="n">val</span>
+<span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="c1">// Match down the endpoint → cluster → attribute hierarchy</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cluster_id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">OnOff</span><span class="o">::</span><span class="n">Id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">attribute_id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">OnOff</span><span class="o">::</span><span class="n">Attributes</span><span class="o">::</span><span class="n">OnOff</span><span class="o">::</span><span class="n">Id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">bool</span><span class="w"> </span><span class="n">power</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">val</span><span class="o">-&gt;</span><span class="n">val</span><span class="p">.</span><span class="n">b</span><span class="p">;</span>
+<span class="w">            </span><span class="n">app_driver_light_set_power</span><span class="p">(</span><span class="n">driver_handle</span><span class="p">,</span><span class="w"> </span><span class="n">power</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cluster_id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">LevelControl</span><span class="o">::</span><span class="n">Id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">attribute_id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">LevelControl</span><span class="o">::</span><span class="n">Attributes</span><span class="o">::</span><span class="n">CurrentLevel</span><span class="o">::</span><span class="n">Id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="kt">uint8_t</span><span class="w"> </span><span class="n">brightness</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">val</span><span class="o">-&gt;</span><span class="n">val</span><span class="p">.</span><span class="n">u8</span><span class="p">;</span>
+<span class="w">            </span><span class="n">app_driver_light_set_brightness</span><span class="p">(</span><span class="n">driver_handle</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">brightness</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cluster_id</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">ColorControl</span><span class="o">::</span><span class="n">Id</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="c1">// handle color / color temperature changes...</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ESP_OK</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<h3>5.6 Reading Cluster and Attribute Values</h3>
+
+Reading device state at runtime:
+<div class="codehilite"><pre><span></span><code><span class="c1">// Walk down the hierarchy</span>
+<span class="n">node_t</span><span class="w"> </span><span class="o">*</span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="o">::</span><span class="n">get</span><span class="p">();</span>
+<span class="n">endpoint_t</span><span class="w"> </span><span class="o">*</span><span class="n">endpoint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">endpoint</span><span class="o">::</span><span class="n">get</span><span class="p">(</span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="n">endpoint_id</span><span class="p">);</span>
+<span class="n">cluster_t</span><span class="w"> </span><span class="o">*</span><span class="n">cluster</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cluster</span><span class="o">::</span><span class="n">get</span><span class="p">(</span><span class="n">endpoint</span><span class="p">,</span><span class="w"> </span><span class="n">LevelControl</span><span class="o">::</span><span class="n">Id</span><span class="p">);</span>
+<span class="n">attribute_t</span><span class="w"> </span><span class="o">*</span><span class="n">attribute</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">attribute</span><span class="o">::</span><span class="n">get</span><span class="p">(</span><span class="n">cluster</span><span class="p">,</span><span class="w"> </span><span class="n">LevelControl</span><span class="o">::</span><span class="n">Attributes</span><span class="o">::</span><span class="n">CurrentLevel</span><span class="o">::</span><span class="n">Id</span><span class="p">);</span>
+
+<span class="c1">// Read the value</span>
+<span class="n">esp_matter_attr_val_t</span><span class="w"> </span><span class="n">val</span><span class="p">;</span>
+<span class="n">attribute</span><span class="o">::</span><span class="n">get_val</span><span class="p">(</span><span class="n">attribute</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">val</span><span class="p">);</span>
+
+<span class="c1">// Apply it to the hardware</span>
+<span class="n">app_driver_light_set_brightness</span><span class="p">(</span><span class="n">handle</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">val</span><span class="p">);</span>
+</code></pre></div>
+
+<h3>5.7 Deferred Persistence</h3>
+
+For attributes that change frequently (brightness, color temperature), use deferred persistence to cut NVM (non-volatile memory) writes and extend the device's lifespan:
+<div class="codehilite"><pre><span></span><code><span class="n">attribute</span><span class="o">::</span><span class="n">set_deferred_persistence</span><span class="p">(</span><span class="n">current_level_attribute</span><span class="p">);</span>
+<span class="n">attribute</span><span class="o">::</span><span class="n">set_deferred_persistence</span><span class="p">(</span><span class="n">current_x_attribute</span><span class="p">);</span>
+<span class="n">attribute</span><span class="o">::</span><span class="n">set_deferred_persistence</span><span class="p">(</span><span class="n">current_y_attribute</span><span class="p">);</span>
+</code></pre></div>
+
+<h3>5.8 Building and Flashing</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Set the target chip</span>
+idf.py<span class="w"> </span>set-target<span class="w"> </span>esp32c3
+
+<span class="c1"># Build the project</span>
+idf.py<span class="w"> </span>build
+
+<span class="c1"># Flash to the device</span>
+idf.py<span class="w"> </span>-p<span class="w"> </span>/dev/ttyUSB0<span class="w"> </span>flash<span class="w"> </span>monitor
+</code></pre></div>
+
+<hr>
+<h2>6. Custom Data Models</h2>
+
+When the standard device types don't cover what you need, Matter supports vendor-specific data models.
+<h3>6.1 A Custom Endpoint</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// Create a custom endpoint (not tied to a standard device type)</span>
+<span class="n">endpoint_t</span><span class="w"> </span><span class="o">*</span><span class="n">endpoint</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">endpoint</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="n">ENDPOINT_FLAG_NONE</span><span class="p">);</span>
+</code></pre></div>
+
+<h3>6.2 A Custom Cluster</h3>
+
+Use a vendor-specific cluster ID (such as <code>0x131BFC00</code>):
+<div class="codehilite"><pre><span></span><code><span class="c1">// Create the custom cluster</span>
+<span class="kt">uint32_t</span><span class="w"> </span><span class="n">custom_cluster_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x131BFC00</span><span class="p">;</span>
+<span class="n">cluster_t</span><span class="w"> </span><span class="o">*</span><span class="n">cluster</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cluster</span><span class="o">::</span><span class="n">create</span><span class="p">(</span>
+<span class="w">    </span><span class="n">endpoint</span><span class="p">,</span><span class="w"> </span><span class="n">custom_cluster_id</span><span class="p">,</span><span class="w"> </span><span class="n">CLUSTER_FLAG_SERVER</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3>6.3 A Custom Attribute</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// Add a custom attribute</span>
+<span class="kt">uint32_t</span><span class="w"> </span><span class="n">custom_attribute_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x00000000</span><span class="p">;</span><span class="w">  </span><span class="c1">// custom attribute ID</span>
+<span class="n">attribute_t</span><span class="w"> </span><span class="o">*</span><span class="n">attribute</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">attribute</span><span class="o">::</span><span class="n">create</span><span class="p">(</span>
+<span class="w">    </span><span class="n">cluster</span><span class="p">,</span>
+<span class="w">    </span><span class="n">custom_attribute_id</span><span class="p">,</span>
+<span class="w">    </span><span class="n">ATTRIBUTE_FLAG_NONE</span><span class="p">,</span>
+<span class="w">    </span><span class="n">esp_matter_uint16</span><span class="p">(</span><span class="n">default_value</span><span class="p">)</span><span class="w">  </span><span class="c1">// 16-bit unsigned integer</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3>6.4 A Custom Command</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1">// Command callback</span>
+<span class="k">static</span><span class="w"> </span><span class="n">esp_err_t</span><span class="w"> </span><span class="nf">custom_command_callback</span><span class="p">(</span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">ConcreteCommandPath</span><span class="w"> </span><span class="o">&amp;</span><span class="n">command_path</span><span class="p">,</span>
+<span class="w">    </span><span class="n">TLVReader</span><span class="w"> </span><span class="o">&amp;</span><span class="n">tlv_data</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="o">*</span><span class="n">opaque_ptr</span>
+<span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">ESP_LOGI</span><span class="p">(</span><span class="n">TAG</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Custom command received!&quot;</span><span class="p">);</span>
+<span class="w">    </span><span class="c1">// handle the logic...</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">ESP_OK</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="c1">// Register the custom command</span>
+<span class="kt">uint32_t</span><span class="w"> </span><span class="n">custom_command_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mh">0x00000001</span><span class="p">;</span>
+<span class="n">command</span><span class="o">::</span><span class="n">create</span><span class="p">(</span>
+<span class="w">    </span><span class="n">cluster</span><span class="p">,</span>
+<span class="w">    </span><span class="n">custom_command_id</span><span class="p">,</span>
+<span class="w">    </span><span class="n">COMMAND_FLAG_ACCEPTED</span><span class="p">,</span>
+<span class="w">    </span><span class="n">custom_command_callback</span><span class="w">  </span><span class="c1">// callback</span>
+<span class="p">);</span>
+</code></pre></div>
+
+<h3>6.5 Adding Extra Standard Clusters to an Endpoint</h3>
+
+You can also attach standard clusters to an existing endpoint dynamically:
+<div class="codehilite"><pre><span></span><code><span class="c1">// Add the On/Off cluster to the endpoint</span>
+<span class="n">on_off</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">config</span><span class="p">;</span>
+<span class="n">on_off</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="n">endpoint</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">config</span><span class="p">,</span><span class="w"> </span><span class="n">CLUSTER_FLAG_SERVER</span><span class="p">,</span>
+<span class="w">               </span><span class="n">on_off</span><span class="o">::</span><span class="n">feature</span><span class="o">::</span><span class="n">lighting</span><span class="o">::</span><span class="n">get_id</span><span class="p">());</span>
+
+<span class="c1">// Add the Temperature Measurement cluster</span>
+<span class="n">temperature_measurement</span><span class="o">::</span><span class="n">config_t</span><span class="w"> </span><span class="n">temp_config</span><span class="p">;</span>
+<span class="n">temperature_measurement</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="n">endpoint</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">temp_config</span><span class="p">,</span><span class="w"> </span><span class="n">CLUSTER_FLAG_SERVER</span><span class="p">);</span>
+</code></pre></div>
+
+<hr>
+<h2>7. Google Home Integration and Testing</h2>
+<h3>7.1 Configuring the Google Home Developer Console</h3>
+<ol>
+<li><strong>Create a project</strong>: go to the <a href="https://console.actions.google.com/" rel="noopener noreferrer" target="_blank">Google Home Developer Console</a> and create a smart home project</li>
+<li><strong>Add a Matter integration</strong>: pick the Matter integration type and configure the product's VID and PID</li>
+<li><strong>Fill in the device information</strong>: name, description, category and so on</li>
+<li><strong>Get test credentials</strong>: generate the test keys used for debugging during development</li>
+</ol>
+<h3>7.2 Using the Matter Virtual Device</h3>
+
+If you don't have real hardware yet, you can develop against the Dockerized virtual device:
+<div class="codehilite"><pre><span></span><code><span class="c1"># Pull and run the Matter Virtual Device</span>
+docker<span class="w"> </span>run<span class="w"> </span>-it<span class="w"> </span>--rm<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--network<span class="w"> </span>host<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>us-central1-docker.pkg.dev/gdhome-google-com/matter-virtual-device/matter-virtual-device:latest
+</code></pre></div>
+
+
+The virtual device can be commissioned into a real Google Home fabric and controlled by Assistant voice commands just like a physical device.
+<h3>7.3 Debugging with the VS Code Extension</h3>
+
+Once the Google Home Extension for VS Code is installed, you can do the following inside the IDE:
+<ul>
+<li><strong>Watch live cloud logs</strong>: detailed logs of the two-way conversation, filtered by severity and time</li>
+<li><strong>Send Assistant commands</strong>: exercise voice-command interactions in a scripted way</li>
+<li><strong>Inspect JSON payloads</strong>: see exactly what the device and Google Home exchange</li>
+</ul>
+<h3>7.4 The Commissioning Flow</h3>
+
+The device pairs over BLE first, then switches to Wi-Fi or Thread once commissioning completes:
+<div class="codehilite"><pre><span></span><code>User scans the QR code / taps with NFC
+    ↓
+BLE commissioning channel established (PASE secure session)
+    ↓
+Device receives Wi-Fi/Thread network credentials
+    ↓
+Device joins the IP network
+    ↓
+Certificate-authenticated session established (CASE)
+    ↓
+Device is added to the Google Home fabric
+    ↓
+User can control the device from the app or by voice
+</code></pre></div>
+
+<h3>7.5 Debugging with chip-tool</h3>
+
+chip-tool ships with the Matter SDK as a command-line debugging tool:
+<div class="codehilite"><pre><span></span><code><span class="c1"># Turn it on/off</span>
+./chip-tool<span class="w"> </span>onoff<span class="w"> </span>on<span class="w"> </span>&lt;node-id&gt;<span class="w"> </span>&lt;endpoint-id&gt;
+
+<span class="c1"># Set brightness</span>
+./chip-tool<span class="w"> </span>levelcontrol<span class="w"> </span>move-to-level<span class="w"> </span><span class="m">128</span><span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>&lt;node-id&gt;<span class="w"> </span>&lt;endpoint-id&gt;
+
+<span class="c1"># Read the temperature value</span>
+./chip-tool<span class="w"> </span>temperaturemeasurement<span class="w"> </span><span class="nb">read</span><span class="w"> </span>measured-value<span class="w"> </span>&lt;node-id&gt;<span class="w"> </span>&lt;endpoint-id&gt;
+
+<span class="c1"># Subscribe to attribute changes</span>
+./chip-tool<span class="w"> </span>onoff<span class="w"> </span>subscribe<span class="w"> </span>on-off<span class="w"> </span>&lt;node-id&gt;<span class="w"> </span>&lt;endpoint-id&gt;<span class="w"> </span>--min-interval<span class="w"> </span><span class="m">1</span><span class="w"> </span>--max-interval<span class="w"> </span><span class="m">10</span>
+</code></pre></div>
+
+<hr>
+<h2>8. Test Suite and Certification</h2>
+<h3>8.1 Google Home Test Suite</h3>
+
+Google provides an automated test suite for validating your Matter integration:
+<ul>
+<li>Start a test run from the Developer Console</li>
+<li>Automatically checks whether the device conforms to Google Home ecosystem requirements</li>
+<li>Produces a detailed report showing which checks passed and which failed</li>
+<li>You must pass before you can move on to a Field Trial or a public launch</li>
+</ul>
+<h3>8.2 The Certification Path at a Glance</h3>
+<div class="codehilite"><pre><span></span><code>Requirements analysis → Development → Developer Console setup
+    ↓
+Google Home Test Suite run
+    ↓
+Field Trial (optional but recommended — validates behavior in the real world)
+    ↓
+CSA Matter certification (device level, through an authorized test lab)
+    ↓
+Product launch
+</code></pre></div>
+
+<blockquote>
+
+<strong>2026 update</strong>: starting in 2026, every Matter integration and test is required to use the Alliance Interop Test. Keep an eye on the <a href="https://csa-iot.org/" rel="noopener noreferrer" target="_blank">CSA website</a> for the latest.
+</blockquote>
+<h3>8.3 A Checklist of Common Certification Items</h3>
+<ul>
+<li>[ ] The device responds correctly to basic commands such as On/Off and Level Control</li>
+<li>[ ] The BLE commissioning flow is smooth and the QR code scans reliably</li>
+<li>[ ] Multi-Admin works correctly</li>
+<li>[ ] The device reconnects properly after a network interruption</li>
+<li>[ ] Firmware OTA update (where applicable)</li>
+<li>[ ] State is restored correctly after a reboot</li>
+<li>[ ] Security credentials (DAC, PAI, CD) are flashed correctly</li>
+</ul>
+<hr>
+<h2>9. Matter Development on Other Platforms</h2>
+<h3>9.1 Nordic nRF Connect SDK</h3>
+
+Nordic Semiconductor is one of the major contributors to Matter, and its nRF52840 and nRF5340 chips have excellent Matter over Thread support:
+<div class="codehilite"><pre><span></span><code><span class="c1"># Install the nRF Connect SDK</span>
+west<span class="w"> </span>init<span class="w"> </span>-m<span class="w"> </span>https://github.com/nrfconnect/sdk-nrf<span class="w"> </span>--mr<span class="w"> </span>v2.5.0
+west<span class="w"> </span>update
+
+<span class="c1"># Build the Matter light sample</span>
+<span class="nb">cd</span><span class="w"> </span>nrf/samples/matter/light_bulb
+west<span class="w"> </span>build<span class="w"> </span>-b<span class="w"> </span>nrf52840dk/nrf52840
+</code></pre></div>
+
+<h3>9.2 Silicon Labs Simplicity Studio</h3>
+
+Silicon Labs offers a graphical development environment, and its EFR32MG24 family is optimized for Matter. Highlights:
+<ul>
+<li>Visual project configuration through Simplicity Studio 5</li>
+<li>Built-in ZAP tooling for graphical cluster configuration</li>
+<li>Complete Matter samples (lighting, contact sensors, thermostats, and more)</li>
+</ul>
+<h3>9.3 Choosing a Platform</h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Connectivity</th>
+<th>Good for</th>
+<th>Toolchain</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ESP32 (Espressif)</strong></td>
+<td>Wi-Fi / Thread</td>
+<td>Lighting, plugs, sensors</td>
+<td>ESP-IDF + ESP-Matter</td>
+</tr>
+<tr>
+<td><strong>nRF52/nRF53 (Nordic)</strong></td>
+<td>Thread / BLE</td>
+<td>Low-power sensors, door locks</td>
+<td>nRF Connect SDK + Zephyr</td>
+</tr>
+<tr>
+<td><strong>EFR32 (Silicon Labs)</strong></td>
+<td>Thread / Wi-Fi</td>
+<td>Smart home devices of every kind</td>
+<td>Simplicity Studio 5</td>
+</tr>
+<tr>
+<td><strong>Matter Virtual Device</strong></td>
+<td>Virtual</td>
+<td>Early prototype validation</td>
+<td>Docker + Google Home</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>10. Takeaways and Outlook</h2>
+<h3>Key Takeaways</h3>
+<ol>
+<li><strong>Matter is an application-layer protocol</strong> over IP (Wi-Fi/Thread/Ethernet); BLE is used only for commissioning</li>
+<li><strong>The data model is the core</strong>: the four-level Node → Endpoint → Cluster → Attribute/Command/Event hierarchy</li>
+<li><strong>Google provides an end-to-end toolchain</strong>: from the virtual device (MVD) to the VS Code extension to the automated test suite</li>
+<li><strong>You have plenty of framework choices</strong>: ESP-Matter for fast prototyping, nRF Connect SDK for commercial products, Simplicity Studio for graphical development</li>
+<li><strong>Certification is not optional</strong>: shipping requires both CSA Matter certification and the Google Home Test Suite</li>
+</ol>
+<h3>A Suggested Learning Path</h3>
+<div class="codehilite"><pre><span></span><code>Step 1: Read up on the Matter 101 basics (1 day)
+Step 2: Set up the development environment and run your first sample (1 day)
+Step 3: Get a solid grasp of the data model and cluster configuration (2-3 days)
+Step 4: Try the Google Home integration with the Matter Virtual Device (1 day)
+Step 5: Build and test the device on real hardware (3-5 days)
+Step 6: Validate with the Google Home Test Suite (1-2 days)
+Step 7: Prepare for CSA Matter certification
+</code></pre></div>
+
+<h3>References</h3>
+<ul>
+<li><a href="https://developers.home.google.com/matter/develop" rel="noopener noreferrer" target="_blank">Google Home Developers — Matter development</a></li>
+<li><a href="https://developers.home.google.com/matter/codelabs" rel="noopener noreferrer" target="_blank">Google Home Matter Codelab</a></li>
+<li><a href="https://github.com/project-chip/connectedhomeip" rel="noopener noreferrer" target="_blank">Matter SDK (GitHub)</a></li>
+<li><a href="https://github.com/espressif/esp-matter" rel="noopener noreferrer" target="_blank">ESP-Matter SDK</a></li>
+<li><a href="https://academy.nordicsemi.com/courses/matter-fundamentals/" rel="noopener noreferrer" target="_blank">Nordic Developer Academy — Matter Fundamentals</a></li>
+<li><a href="https://csa-iot.org/" rel="noopener noreferrer" target="_blank">CSA Connectivity Standards Alliance</a></li>
+<li><a href="https://matter.cn/" rel="noopener noreferrer" target="_blank">Matter China Community</a></li>
+<li><a href="https://developer.espressif.com/blog/matter-clusters-attributes-commands/" rel="noopener noreferrer" target="_blank">Espressif Matter blog series</a></li>
+</ul>
+<hr>
+
+<em>This article draws on the official Google Home Developers documentation, the ESP-Matter development framework guide, the Nordic Developer Academy Matter course, and hands-on experience from several Matter developers. The Matter ecosystem is still evolving quickly, so it pays to keep following the latest updates from the CSA and Google Home Developers.</em>
+`,
+  },
+  {
+    slug: 'django-pythonanywhere-deploy',
+    zhSlug: 'django-pythonanywhere-deploy',
+    topicSlug: 'backend',
+    title: 'How to Deploy a Django Backend to PythonAnywhere',
+    excerpt: 'A complete walkthrough of putting a Django REST Framework backend on PythonAnywhere — production settings, virtualenvs, WSGI wiring, migrations, static file mapping, and the reload gotchas.',
+    date: '2026-07-03',
+    readingTime: 7,
+    html: `
+<h2>🎯 Introduction</h2>
+
+This tutorial walks through deploying a Django REST Framework backend to PythonAnywhere, step by step.
+<blockquote>
+
+PythonAnywhere's free plan supports Python web app hosting, has native Django support, and requires no server administration — a great fit for personal projects.
+</blockquote>
+<hr>
+<h2>What Do You Need Before You Start?</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Requirement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GitHub account</td>
+<td>To hold the code</td>
+</tr>
+<tr>
+<td>PythonAnywhere account</td>
+<td>The free plan is enough — <a href="https://www.pythonanywhere.com" rel="noopener noreferrer" target="_blank">sign up here</a></td>
+</tr>
+<tr>
+<td>Django project</td>
+<td>A complete project that runs locally</td>
+</tr>
+<tr>
+<td>Git</td>
+<td>Code already pushed to GitHub</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>🏗️ The Overall Flow</h2>
+<div class="codehilite"><pre><span></span><code> ╔══════════════╗     ╔══════════════╗     ╔══════════════╗
+ ║  Local dev   ║────▶║  GitHub      ║────▶║  Python      ║
+ ║  Django app  ║     ║  Hosted code ║     ║  Anywhere    ║
+ ╚══════════════╝     ╚══════════════╝     ╚══════════════╝
+</code></pre></div>
+
+<hr>
+<h2>📂 Step 1: Prepare the Project</h2>
+<h3>1.1 Confirm the project structure</h3>
+
+A standard Django project should look something like this:
+<div class="codehilite"><pre><span></span><code>backend/
+├── blog_api/              # Django project config
+│   ├── settings.py        # Core settings file
+│   ├── urls.py            # Root URLconf
+│   └── wsgi.py            # WSGI entry point
+├── articles/              # Your app
+│   ├── models.py
+│   ├── views.py
+│   └── serializers.py
+├── manage.py
+├── requirements.txt       # Python dependency list
+└── venv/                  # Local virtualenv
+</code></pre></div>
+
+<h3>1.2 Generate requirements.txt</h3>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>backend
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate<span class="w">    </span><span class="c1"># Linux/Mac</span>
+<span class="c1"># venv\Scripts\activate     # Windows</span>
+
+<span class="c1"># Freeze every current dependency</span>
+pip<span class="w"> </span>freeze<span class="w"> </span>&gt;<span class="w"> </span>requirements.txt
+
+<span class="c1"># Confirm the file contains these key packages</span>
+cat<span class="w"> </span>requirements.txt<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s2">&quot;django|rest_framework|simplejwt|corsheaders&quot;</span>
+</code></pre></div>
+
+<h3>1.3 Production settings</h3>
+
+Edit <code>backend/blog_api/settings.py</code> so configuration is read from environment variables:
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="n">BASE_DIR</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span>
+
+<span class="c1"># ✅ Read from the environment, with a fallback default</span>
+<span class="n">SECRET_KEY</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+    <span class="s1">&#39;DJANGO_SECRET_KEY&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;django-insecure-dev-key-change-me&#39;</span>
+<span class="p">)</span>
+
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;DEBUG&#39;</span><span class="p">,</span> <span class="s1">&#39;True&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;True&#39;</span>
+
+<span class="n">ALLOWED_HOSTS</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;ALLOWED_HOSTS&#39;</span><span class="p">,</span> <span class="s1">&#39;*&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+
+<span class="c1"># ✅ CORS: pin explicit origins in production</span>
+<span class="n">_cors</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;CORS_ALLOWED_ORIGINS&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">_cors</span><span class="p">:</span>
+    <span class="n">CORS_ALLOWED_ORIGINS</span> <span class="o">=</span> <span class="p">[</span><span class="n">o</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="n">_cors</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span> <span class="k">if</span> <span class="n">o</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
+    <span class="n">CORS_ALLOW_ALL_ORIGINS</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">CORS_ALLOW_ALL_ORIGINS</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># Allow every origin in development</span>
+
+<span class="c1"># ✅ Static files</span>
+<span class="n">STATIC_URL</span> <span class="o">=</span> <span class="s1">&#39;static/&#39;</span>
+<span class="n">STATIC_ROOT</span> <span class="o">=</span> <span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">&#39;staticfiles&#39;</span>
+
+<span class="c1"># ✅ Media files</span>
+<span class="n">MEDIA_URL</span> <span class="o">=</span> <span class="s1">&#39;/media/&#39;</span>
+<span class="n">MEDIA_ROOT</span> <span class="o">=</span> <span class="n">BASE_DIR</span> <span class="o">/</span> <span class="s1">&#39;media&#39;</span>
+</code></pre></div>
+
+<h3>1.4 Push the code to GitHub</h3>
+<div class="codehilite"><pre><span></span><code>git<span class="w"> </span>add<span class="w"> </span>backend/
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;chore: production-ready Django config&quot;</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>master
+</code></pre></div>
+
+<hr>
+<h2>🖥️ Step 2: Log In to PythonAnywhere</h2>
+<h3>2.1 Open the Bash console</h3>
+
+Log in to <a href="https://www.pythonanywhere.com" rel="noopener noreferrer" target="_blank">pythonanywhere.com</a> → <strong>Dashboard</strong> → click <strong>Bash</strong>:
+<div class="codehilite"><pre><span></span><code>┌─────────────────────────────────────────────────────────┐
+│                   PythonAnywhere Dashboard               │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│   [ Files ]  [ Web ]  [ Databases ]  [ Bash ]  [...]    │
+│                                                         │
+│           Click Bash to open a terminal                  │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+</code></pre></div>
+
+<h3>2.2 Clone the code</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Clone your repository</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/YOUR_USERNAME/YOUR_REPO.git
+<span class="nb">cd</span><span class="w"> </span>YOUR_REPO/backend
+
+<span class="c1"># Make sure the files are all there</span>
+ls<span class="w"> </span>-la
+</code></pre></div>
+
+<hr>
+<h2>🐍 Step 3: Create a Virtualenv</h2>
+<h3>3.1 Create the venv</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># PythonAnywhere supports Python 3.10 / 3.11 / 3.12</span>
+python3.12<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>venv
+
+<span class="c1"># Activate the virtualenv</span>
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate
+
+<span class="c1"># You&#39;ll see a (venv) prefix appear in front of your prompt</span>
+</code></pre></div>
+
+<h3>3.2 Install dependencies</h3>
+<div class="codehilite"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+</code></pre></div>
+
+<blockquote>
+
+⚠️ If the install fails, check whether <code>requirements.txt</code> pulls in an incompatible package. You can start by installing the core packages by hand:
+<code>bash
+pip install django djangorestframework djangorestframework-simplejwt django-cors-headers</code>
+</blockquote>
+<h3>3.3 Generate a production secret key</h3>
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())&quot;</span>
+</code></pre></div>
+
+<blockquote>
+
+📋 <strong>Copy the generated key and keep it somewhere safe</strong> — you&#39;ll need it in the next step!
+</blockquote>
+<hr>
+<h2>⚙️ Step 4: Create the Web App</h2>
+<h3>4.1 Add the web app</h3>
+
+Back on the <strong>Dashboard</strong> → <strong>Web</strong> tab → click <strong>Add a new web app</strong>:
+<div class="codehilite"><pre><span></span><code><span class="err">┌────────────────────────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">                   </span><span class="k">Create</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">web</span><span class="w"> </span><span class="n">app</span><span class="w">                    </span><span class="err">│</span>
+<span class="err">├────────────────────────────────────────────────────────┤</span>
+<span class="err">│</span><span class="w">                                                        </span><span class="err">│</span>
+<span class="err">│</span><span class="w">   </span><span class="err">●</span><span class="w"> </span><span class="nf">Choose</span><span class="w"> </span><span class="n">Manual</span><span class="w"> </span><span class="n">configuration</span><span class="w"> </span><span class="p">(</span><span class="ow">not</span><span class="w"> </span><span class="n">Django</span><span class="o">/</span><span class="n">Flask</span><span class="p">)</span><span class="w">     </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                                </span><span class="o">[</span><span class="n">Next</span><span class="o">]</span><span class="w">  </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                                        </span><span class="err">│</span>
+<span class="err">│</span><span class="w">   </span><span class="err">●</span><span class="w"> </span><span class="k">Select</span><span class="w"> </span><span class="n">Python</span><span class="w"> </span><span class="mf">3.12</span><span class="w">                        </span><span class="o">[</span><span class="n">Next</span><span class="o">]</span><span class="w">   </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                                        </span><span class="err">│</span>
+<span class="err">└────────────────────────────────────────────────────────┘</span>
+</code></pre></div>
+
+<blockquote>
+
+⚠️ <strong>Note</strong>: pick <strong>Manual configuration</strong>, not the automatic Django setup!
+</blockquote>
+<h3>4.2 Configure the web app</h3>
+
+Once it&#39;s created you&#39;ll land on the configuration page. Fill it in in this order:
+<div class="codehilite"><pre><span></span><code>┌────────────────────────────────────────────────────────┐
+│  Source code:                                          │
+│  /home/yourusername/YOUR_REPO/backend                  │
+│                                                        │
+│  Working directory:                                    │
+│  /home/yourusername/YOUR_REPO/backend                  │
+│                                                        │
+│  Virtualenv:                                           │
+│  /home/yourusername/YOUR_REPO/backend/venv             │
+│                                                        │
+└────────────────────────────────────────────────────────┘
+</code></pre></div>
+
+<h3>4.3 Configure the WSGI file</h3>
+
+Click the blue <strong>WSGI configuration file</strong> link and <strong>replace the entire contents</strong> with:
+<div class="codehilite"><pre><span></span><code><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+
+<span class="c1"># Set the project path</span>
+<span class="n">path</span> <span class="o">=</span> <span class="s1">&#39;/home/YOUR_USERNAME/YOUR_REPO/backend&#39;</span>
+<span class="k">if</span> <span class="n">path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">:</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+
+<span class="c1"># Set environment variables (swap in the key you generated in step 4!)</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;DJANGO_SETTINGS_MODULE&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;blog_api.settings&#39;</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;DJANGO_SECRET_KEY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;your-production-secret-key&#39;</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;DEBUG&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;False&#39;</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;ALLOWED_HOSTS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;yourusername.pythonanywhere.com&#39;</span>
+<span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;CORS_ALLOWED_ORIGINS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;https://yourusername.github.io&#39;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">django.core.wsgi</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_wsgi_application</span>
+<span class="n">application</span> <span class="o">=</span> <span class="n">get_wsgi_application</span><span class="p">()</span>
+</code></pre></div>
+
+<blockquote>
+
+⚠️ <strong>Replace <code>YOUR_USERNAME</code> and <code>YOUR_REPO</code> with your own values!</strong>
+</blockquote>
+
+Save the file and close the editor.
+<hr>
+<h2>🗄️ Step 5: Initialize the Database</h2>
+<h3>5.1 Run migrations</h3>
+
+Back in the Bash terminal:
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>~/YOUR_REPO/backend
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate
+
+<span class="c1"># Run every database migration</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>migrate
+
+<span class="c1"># You should see output like this:</span>
+<span class="c1"># Operations to perform:</span>
+<span class="c1">#   Apply all migrations: articles, comments, ...</span>
+<span class="c1"># Running migrations:</span>
+<span class="c1">#   Applying articles.0001_initial... OK</span>
+<span class="c1">#   ...</span>
+</code></pre></div>
+
+<h3>5.2 Create an admin account</h3>
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>manage.py<span class="w"> </span>createsuperuser
+</code></pre></div>
+
+
+Answer the prompts:
+<div class="codehilite"><pre><span></span><code><span class="nx">Username</span><span class="p">:</span><span class="w"> </span><span class="nx">admin</span>
+<span class="nx">Email</span><span class="w"> </span><span class="nx">address</span><span class="p">:</span><span class="w"> </span><span class="nx">your</span><span class="err">@</span><span class="nx">email</span><span class="p">.</span><span class="nx">com</span>
+<span class="nx">Password</span><span class="p">:</span><span class="w"> </span><span class="o">********</span>
+<span class="nx">Password</span><span class="w"> </span><span class="p">(</span><span class="nx">again</span><span class="p">):</span><span class="w"> </span><span class="o">********</span>
+<span class="nx">Superuser</span><span class="w"> </span><span class="nx">created</span><span class="w"> </span><span class="nx">successfully</span><span class="p">.</span>
+</code></pre></div>
+
+<h3>5.3 Collect static files</h3>
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>manage.py<span class="w"> </span>collectstatic<span class="w"> </span>--noinput
+
+<span class="c1"># Output: 157 static files copied to &#39;staticfiles&#39;</span>
+</code></pre></div>
+
+<hr>
+<h2>📁 Step 6: Map the Static File Directories</h2>
+
+Back on the <strong>Web</strong> page, find the <strong>Static Files</strong> section and add two rows:
+<table>
+<thead>
+<tr>
+<th>URL</th>
+<th>Directory</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/static/</code></td>
+<td><code>/home/yourusername/YOUR_REPO/backend/staticfiles</code></td>
+</tr>
+<tr>
+<td><code>/media/</code></td>
+<td><code>/home/yourusername/YOUR_REPO/backend/media</code></td>
+</tr>
+</tbody>
+</table>
+<div class="codehilite"><pre><span></span><code>┌────────────────────────────────────────────────────────┐
+│                   Static Files                          │
+├──────────────────┬─────────────────────────────────────┤
+│  URL             │  Directory                          │
+├──────────────────┼─────────────────────────────────────┤
+│  /static/        │  /home/xxx/YOUR_REPO/backend/       │
+│                  │  staticfiles                        │
+├──────────────────┼─────────────────────────────────────┤
+│  /media/         │  /home/xxx/YOUR_REPO/backend/       │
+│                  │  media                              │
+└──────────────────┴─────────────────────────────────────┘
+</code></pre></div>
+
+<hr>
+<h2>🚀 Step 7: Ship It!</h2>
+<h3>7.1 Reload the web app</h3>
+
+At the top of the <strong>Web</strong> page, click the green <strong>Reload</strong> button:
+<div class="codehilite"><pre><span></span><code><span class="err">┌────────────────────────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">                   </span><span class="n">Web</span><span class="w"> </span><span class="n">App</span><span class="w"> </span><span class="n">Status</span><span class="w">                        </span><span class="err">│</span>
+<span class="err">├────────────────────────────────────────────────────────┤</span>
+<span class="err">│</span><span class="w">   </span><span class="err">✅</span><span class="w"> </span><span class="n">Running</span><span class="w">        </span><span class="p">[</span><span class="w"> </span><span class="n">Reload</span><span class="w"> </span><span class="p">]</span><span class="w">                         </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                                        </span><span class="err">│</span>
+<span class="err">│</span><span class="w">   </span><span class="n">Your</span><span class="w"> </span><span class="n">site</span><span class="p">:</span><span class="w"> </span><span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">YOUR_USERNAME</span><span class="o">.</span><span class="n">pythonanywhere</span><span class="o">.</span><span class="n">com</span><span class="w">  </span><span class="err">│</span>
+<span class="err">└────────────────────────────────────────────────────────┘</span>
+</code></pre></div>
+
+<h3>7.2 Verify the API</h3>
+
+Open your browser and visit:
+<div class="codehilite"><pre><span></span><code>https://yourusername.pythonanywhere.com/api/articles/
+</code></pre></div>
+
+
+If you see JSON data, congratulations — the deployment worked! 🎉
+<hr>
+<h2>What Are the Common Pitfalls?</h2>
+<h3>Q1: The site shows &quot;Something went wrong&quot;</h3>
+<blockquote>
+
+Check the error log: <strong>Web</strong> → <strong>Error log</strong>, then work backwards from the specific error.
+</blockquote>
+
+Common causes:
+- Wrong path in the WSGI file
+- Dependencies not installed in the virtualenv
+- Secret key not set
+<h3>Q2: Migration errors</h3>
+<blockquote>
+
+Make sure the virtualenv is active: <code>source venv/bin/activate</code>
+</blockquote>
+<h3>Q3: Static files return 404</h3>
+<blockquote>
+
+Check the Static Files mapping — the URL and Directory have to match exactly.
+</blockquote>
+<h3>Q4: CORS errors (browser console)</h3>
+<blockquote>
+
+Check that <code>CORS_ALLOWED_ORIGINS</code> in the WSGI file includes your frontend&#39;s domain.
+</blockquote>
+<h3>Q5: Code changes don&#39;t take effect</h3>
+<blockquote>
+
+You must click <strong>Reload</strong> after every code change!
+</blockquote>
+<div class="codehilite"><pre><span></span><code><span class="c1"># The standard workflow for updating the code:</span>
+<span class="nb">cd</span><span class="w"> </span>~/YOUR_REPO/backend
+git<span class="w"> </span>pull<span class="w">                      </span><span class="c1"># Pull the latest code</span>
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt<span class="w">  </span><span class="c1"># Install new dependencies (if any)</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>migrate<span class="w">  </span><span class="c1"># Run new migrations (if any)</span>
+python<span class="w"> </span>manage.py<span class="w"> </span>collectstatic<span class="w"> </span>--noinput
+<span class="c1"># Then go to the Web page and hit Reload</span>
+</code></pre></div>
+
+<hr>
+<h2>📊 Deployment Flowchart</h2>
+<div class="codehilite"><pre><span></span><code><span class="w"> </span><span class="err">Local dev</span><span class="w">           </span><span class="n">GitHub</span><span class="w">          </span><span class="n">PythonAnywhere</span><span class="w">      </span><span class="n">Browser</span>
+<span class="w"> </span><span class="err">┌──────┐</span><span class="w">         </span><span class="err">┌──────┐</span><span class="w">         </span><span class="err">┌──────────┐</span><span class="w">       </span><span class="err">┌──────┐</span>
+<span class="w"> </span><span class="err">│</span><span class="w"> </span><span class="err">Code</span><span class="w"> </span><span class="err">│──</span><span class="n">push</span><span class="err">──▶│</span><span class="w"> </span><span class="err">Repo</span><span class="w">  </span><span class="err">│──</span><span class="n">clone</span><span class="err">──▶│</span><span class="w"> </span><span class="n">Bash</span><span class="w"> </span><span class="err">term</span><span class="w"> </span><span class="err">│</span><span class="w">       </span><span class="err">│</span><span class="w"> </span><span class="err">Visit</span><span class="w">  </span><span class="err">│</span>
+<span class="w"> </span><span class="err">└──────┘</span><span class="w">         </span><span class="err">└──────┘</span><span class="w">         </span><span class="err">└────┬─────┘</span><span class="w">       </span><span class="err">└──┬───┘</span>
+<span class="w">                                        </span><span class="err">│</span><span class="w">                </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">┌────▼─────┐</span><span class="w">          </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">venv</span><span class="w">     </span><span class="err">│</span><span class="w">          </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">pip</span><span class="w">      </span><span class="err">│</span><span class="w">          </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">migrate</span><span class="w">  </span><span class="err">│</span><span class="w">          </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">collect</span><span class="w">  </span><span class="err">│</span><span class="w">          </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">└────┬─────┘</span><span class="w">          </span><span class="err">│</span>
+<span class="w">                                        </span><span class="err">│</span><span class="w">                </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">┌────▼─────┐</span><span class="w">    </span><span class="err">┌────▼────┐</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">Web</span><span class="w"> </span><span class="n">App</span><span class="w">   </span><span class="err">│───▶│</span><span class="w"> </span><span class="n">HTTPS</span><span class="w">   </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">WSGI</span><span class="w">      </span><span class="err">│</span><span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="mi">200</span><span class="w"> </span><span class="n">OK</span><span class="w">  </span><span class="err">│</span>
+<span class="w">                                   </span><span class="err">│</span><span class="w"> </span><span class="n">Reload</span><span class="w">    </span><span class="err">│</span><span class="w">    </span><span class="err">└─────────┘</span>
+<span class="w">                                   </span><span class="err">└──────────┘</span>
+</code></pre></div>
+
+<hr>
+<h2>What Should You Check Before Going Live?</h2>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Check</th>
+<th>Done</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Code pushed to GitHub</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>2</td>
+<td>requirements.txt covers every dependency</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>3</td>
+<td>settings.py reads config from environment variables</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Code cloned onto PythonAnywhere</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Virtualenv created and dependencies installed</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Web app created (Manual + 3.12)</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>7</td>
+<td>WSGI file configured correctly</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>8</td>
+<td>migrate has been run</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>9</td>
+<td>createsuperuser has been completed</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>10</td>
+<td>collectstatic has been run</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Static Files mapping configured</td>
+<td>☐</td>
+</tr>
+<tr>
+<td>12</td>
+<td>API responds correctly after Reload</td>
+<td>☐</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>🔗 Reference Links</h2>
+<ul>
+<li><a href="https://help.pythonanywhere.com/pages/" rel="noopener noreferrer" target="_blank">PythonAnywhere official documentation</a></li>
+<li><a href="https://docs.djangoproject.com/en/stable/howto/deployment/checklist/" rel="noopener noreferrer" target="_blank">Django deployment checklist</a></li>
+<li><a href="https://www.django-rest-framework.org/" rel="noopener noreferrer" target="_blank">DRF official documentation</a></li>
+</ul>
+
+Further reading along the same path: <a href="/article/cloud-deployment-guide-cn-vs-global/">Cloud Deployment, Domestic vs. Overseas: Choosing Between Chinese Clouds and Foreign VPS</a>, <a href="/article/vue-github-pages-deploy/">How to Deploy a Vue Frontend to GitHub Pages</a>.
+`,
+  },
+  {
+    slug: 'vue-github-pages-deploy',
+    zhSlug: 'vue-github-pages-deploy',
+    topicSlug: 'backend',
+    title: 'How to Deploy a Vue Frontend to GitHub Pages',
+    excerpt: 'A hands-on walkthrough of deploying a Vue 3 + Vite frontend to GitHub Pages for free: base paths, router history mode, SPA 404 fixes, and a one-command deploy script.',
+    date: '2026-06-26',
+    readingTime: 6,
+    html: `
+<h2>🎯 Introduction</h2>
+
+This tutorial takes a detailed look at how to deploy a Vue 3 + Vite frontend project to GitHub Pages.
+<blockquote>
+
+It costs nothing from start to finish! GitHub Pages gives you free HTTPS hosting and a global CDN, which makes it a great fit for personal blogs and project showcases.
+</blockquote>
+<hr>
+<h2>What do you need before you start?</h2>
+
+Before you begin, make sure you have the following:
+<ul>
+<li>✅ A <strong>GitHub account</strong> (if you don't have one, sign up at <a href="https://github.com" rel="noopener noreferrer" target="_blank">github.com</a>)</li>
+<li>✅ <strong>Git</strong> installed (check with <code>git --version</code>)</li>
+<li>✅ <strong>Node.js &gt;= 18</strong> installed (check with <code>node --version</code>)</li>
+<li>✅ A <strong>Vue 3 + Vite project</strong> (or create one from scratch by following along)</li>
+</ul>
+<hr>
+<h2>🏗️ Step 1: Create a GitHub repository</h2>
+<h3>1.1 Create a new repository</h3>
+
+Log in to GitHub and click <code>+</code> in the top-right corner → <code>New repository</code>:
+<div class="codehilite"><pre><span></span><code><span class="err">┌─────────────────────────────────────────────────┐</span>
+<span class="err">│</span><span class="w">               </span><span class="n">Create</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">new</span><span class="w"> </span><span class="n">repository</span><span class="w">           </span><span class="err">│</span>
+<span class="err">├─────────────────────────────────────────────────┤</span>
+<span class="err">│</span><span class="w">  </span><span class="n">Repository</span><span class="w"> </span><span class="n">name</span><span class="o">:</span><span class="w">  </span><span class="err">➤</span><span class="w"> </span><span class="n">YOUR_USERNAME</span><span class="p">.</span><span class="n">github</span><span class="p">.</span><span class="n">io</span><span class="w">    </span><span class="err">│</span>
+<span class="err">│</span><span class="w">  </span><span class="n">Description</span><span class="o">:</span><span class="w">      </span><span class="err">➤</span><span class="w"> </span><span class="n">My personal blog</span><span class="w">           </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                                  </span>
+<span class="err">│</span><span class="w">  </span><span class="err">●</span><span class="w"> </span><span class="n">Public</span><span class="w">    </span><span class="err">○</span><span class="w"> </span><span class="n">Private</span><span class="w">                          </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                                  </span>
+<span class="err">│</span><span class="w">  </span><span class="err">☑</span><span class="w"> </span><span class="n">Add</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="n">README</span><span class="w"> </span><span class="n">file</span><span class="w">                            </span><span class="err">│</span>
+<span class="err">│</span><span class="w">                                                  </span>
+<span class="err">│</span><span class="w">            </span><span class="p">[</span><span class="w"> </span><span class="n">Create</span><span class="w"> </span><span class="n">repository</span><span class="w"> </span><span class="p">]</span><span class="w">                </span><span class="err">│</span>
+<span class="err">└─────────────────────────────────────────────────┘</span>
+</code></pre></div>
+
+<blockquote>
+
+⚠️ <strong>Important!</strong> The repository name must follow the <code>your-username.github.io</code> pattern, for example <code>zhangsan.github.io</code>. That is GitHub Pages' naming rule.
+</blockquote>
+<h3>1.2 Clone it locally</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Replace this with the URL of your actual repository</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/YOUR_USERNAME/YOUR_USERNAME.github.io.git
+<span class="nb">cd</span><span class="w"> </span>YOUR_USERNAME.github.io
+</code></pre></div>
+
+<hr>
+<h2>⚙️ Step 2: Create the Vue 3 project</h2>
+<h3>2.1 Scaffold it with Vite</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Create the Vue project in the repository root</span>
+npm<span class="w"> </span>create<span class="w"> </span>vite@latest<span class="w"> </span>frontend<span class="w"> </span>--<span class="w"> </span>--template<span class="w"> </span>vue
+
+<span class="nb">cd</span><span class="w"> </span>frontend
+npm<span class="w"> </span>install
+</code></pre></div>
+
+<h3>2.2 Install the dependencies you need</h3>
+<div class="codehilite"><pre><span></span><code><span class="c1"># Routing and state management</span>
+npm<span class="w"> </span>install<span class="w"> </span>vue-router@4<span class="w"> </span>pinia<span class="w"> </span>axios
+
+<span class="c1"># Markdown support and SCSS</span>
+npm<span class="w"> </span>install<span class="w"> </span>marked<span class="w"> </span>highlight.js<span class="w"> </span>vditor
+npm<span class="w"> </span>install<span class="w"> </span>-D<span class="w"> </span>sass
+</code></pre></div>
+
+<h3>2.3 Configure vite.config.js</h3>
+
+Open <code>frontend/vite.config.js</code> and make sure the base path is correct:
+<div class="codehilite"><pre><span></span><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">defineConfig</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;vite&#39;</span>
+<span class="k">import</span><span class="w"> </span><span class="nx">vue</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@vitejs/plugin-vue&#39;</span>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="nx">defineConfig</span><span class="p">({</span>
+<span class="w">  </span><span class="nx">base</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/&#39;</span><span class="p">,</span><span class="w">  </span><span class="c1">// ← user/organization sites use &#39;/&#39;</span>
+<span class="w">  </span><span class="c1">// base: &#39;/your-repo-name/&#39;,  // ← project sites use this</span>
+<span class="w">  </span><span class="nx">plugins</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="nx">vue</span><span class="p">()],</span>
+<span class="p">})</span>
+</code></pre></div>
+
+<blockquote>
+
+💡 <strong>Tip</strong>: if your repository is named <code>YOUR_USERNAME.github.io</code>, use <code>base: '/'</code>. If the repository has any other name, use <code>base: '/repo-name/'</code>.
+</blockquote>
+<hr>
+<h2>🏠 Step 3: Create the home page component</h2>
+<h3>3.1 A minimal working example</h3>
+
+Create <code>frontend/src/pages/Home.vue</code>:
+<div class="codehilite"><pre><span></span><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">&quot;home&quot;</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>🎉 My blog is live!<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>Welcome to my GitHub Pages<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+
+<span class="p">&lt;</span><span class="nt">script</span> <span class="na">setup</span><span class="p">&gt;</span>
+<span class="c1">// Your logic goes here</span>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+
+<span class="p">&lt;</span><span class="nt">style</span> <span class="na">scoped</span><span class="p">&gt;</span>
+<span class="p">.</span><span class="nc">home</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">text-align</span><span class="p">:</span><span class="w"> </span><span class="kc">center</span><span class="p">;</span>
+<span class="w">  </span><span class="k">padding</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="kt">px</span><span class="w"> </span><span class="mi">20</span><span class="kt">px</span><span class="p">;</span>
+<span class="p">}</span>
+<span class="nt">h1</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">color</span><span class="p">:</span><span class="w"> </span><span class="mh">#ff85a2</span><span class="p">;</span><span class="w"> </span><span class="k">font-size</span><span class="p">:</span><span class="w"> </span><span class="mf">2.5</span><span class="kt">rem</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="p">&lt;/</span><span class="nt">style</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<h3>3.2 Configure the router</h3>
+
+Edit <code>frontend/src/router/index.js</code>:
+<div class="codehilite"><pre><span></span><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">createRouter</span><span class="p">,</span><span class="w"> </span><span class="nx">createWebHistory</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;vue-router&#39;</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">routes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;Home&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/Home.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/:pathMatch(.*)*&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;NotFound&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/NotFound.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="p">]</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">router</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createRouter</span><span class="p">({</span>
+<span class="w">  </span><span class="nx">history</span><span class="o">:</span><span class="w"> </span><span class="nx">createWebHistory</span><span class="p">(),</span>
+<span class="w">  </span><span class="nx">routes</span><span class="p">,</span>
+<span class="p">})</span>
+
+<span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="nx">router</span>
+</code></pre></div>
+
+<h3>3.3 Create the 404 page</h3>
+
+Create <code>frontend/src/pages/NotFound.vue</code>:
+<div class="codehilite"><pre><span></span><code><span class="p">&lt;</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">&quot;not-found&quot;</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">h1</span><span class="p">&gt;</span>404<span class="p">&lt;/</span><span class="nt">h1</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">p</span><span class="p">&gt;</span>Page not found<span class="p">&lt;/</span><span class="nt">p</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">router-link</span> <span class="na">to</span><span class="o">=</span><span class="s">&quot;/&quot;</span><span class="p">&gt;</span>Back to home<span class="p">&lt;/</span><span class="nt">router-link</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<hr>
+<h2>🔨 Step 4: Test it locally</h2>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>frontend
+npm<span class="w"> </span>run<span class="w"> </span>dev
+</code></pre></div>
+
+
+Open <code>http://localhost:5173</code> in your browser. Once everything looks right, press <code>Ctrl+C</code> to stop it.
+<hr>
+<h2>📦 Step 5: Build the project</h2>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>frontend
+npm<span class="w"> </span>run<span class="w"> </span>build
+</code></pre></div>
+
+
+After a successful build, a <code>frontend/dist/</code> folder appears at the project root:
+<div class="codehilite"><pre><span></span><code>frontend/dist/
+├── index.html
+├── favicon.svg
+├── assets/
+│   ├── index-abc123.js
+│   ├── index-abc123.css
+│   ├── Home-xyz789.js
+│   └── ...
+</code></pre></div>
+
+<hr>
+<h2>🚀 Step 6: Set up the deploy script</h2>
+<h3>6.1 Create deploy.sh</h3>
+
+Create <code>deploy.sh</code> inside <code>frontend/</code>:
+<div class="codehilite"><pre><span></span><code><span class="ch">#!/bin/bash</span>
+<span class="nb">set</span><span class="w"> </span>-e
+
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;🔨 Building...&quot;</span>
+npm<span class="w"> </span>run<span class="w"> </span>build
+
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;📦 Copying files to the repository root...&quot;</span>
+rm<span class="w"> </span>-rf<span class="w"> </span>../assets/<span class="w"> </span>../index.html<span class="w"> </span>../favicon.svg
+cp<span class="w"> </span>-r<span class="w"> </span>dist/*<span class="w"> </span>../
+
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;📤 Committing to GitHub...&quot;</span>
+<span class="nb">cd</span><span class="w"> </span>..
+git<span class="w"> </span>add<span class="w"> </span>assets/<span class="w"> </span>index.html<span class="w"> </span>favicon.svg
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;deploy: </span><span class="k">$(</span>date<span class="w"> </span><span class="s1">&#39;+%Y-%m-%d %H:%M&#39;</span><span class="k">)</span><span class="s2">&quot;</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>master
+
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;✅ Deployed! Give it a few minutes, then visit https://your-username.github.io&quot;</span>
+</code></pre></div>
+
+<h3>6.2 Add the .nojekyll file</h3>
+
+By default GitHub Pages processes your files with Jekyll, which ignores anything whose name starts with <code>_</code>. Create <code>.nojekyll</code> at the repository root to turn that off:
+<div class="codehilite"><pre><span></span><code><span class="c1"># At the repository root (not inside frontend/)</span>
+touch<span class="w"> </span>.nojekyll
+git<span class="w"> </span>add<span class="w"> </span>.nojekyll
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;add .nojekyll to bypass Jekyll&quot;</span>
+</code></pre></div>
+
+<hr>
+<h2>🌐 Step 7: Deploy to GitHub Pages</h2>
+<h3>7.1 Run the deployment</h3>
+<div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>frontend
+bash<span class="w"> </span>deploy.sh
+</code></pre></div>
+
+<h3>7.2 Check the deployment status</h3>
+<ol>
+<li>Open the GitHub repository page</li>
+<li>Click <strong>Settings</strong> → <strong>Pages</strong></li>
+<li>Look for the green <code>✅ Your site is live at https://xxx.github.io</code></li>
+</ol>
+<h3>7.3 Verify it</h3>
+
+Open <code>https://your-username.github.io</code> in your browser and you should see your Vue page!
+<hr>
+<h2>What are the usual problems?</h2>
+<h3>Q1: 404 after refreshing the page?</h3>
+<blockquote>
+
+<strong>Cause</strong>: GitHub Pages doesn't support the HTML5 History mode that SPAs rely on.
+</blockquote>
+
+<strong>Fix</strong>: switch to <code>createWebHashHistory()</code>:
+<div class="codehilite"><pre><span></span><code><span class="c1">// router/index.js</span>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">createRouter</span><span class="p">,</span><span class="w"> </span><span class="nx">createWebHashHistory</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;vue-router&#39;</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">router</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createRouter</span><span class="p">({</span>
+<span class="w">  </span><span class="nx">history</span><span class="o">:</span><span class="w"> </span><span class="nx">createWebHashHistory</span><span class="p">(),</span><span class="w">  </span><span class="c1">// ← change it to this</span>
+<span class="w">  </span><span class="nx">routes</span><span class="p">,</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+The URL becomes <code>https://xxx.github.io/#/article/xxx</code>, but refreshing no longer 404s.
+<blockquote>
+
+Alternatively, use the 404.html redirect trick — copy <code>index.html</code> to <code>404.html</code> and GitHub Pages will redirect every 404 request to it.
+</blockquote>
+<h3>Q2: Styles won't load?</h3>
+<blockquote>
+
+Check whether the <code>base</code> path in <code>vite.config.js</code> is correct.
+</blockquote>
+<h3>Q3: Some files 404?</h3>
+<blockquote>
+
+Files whose names start with an underscore <code>_</code> are ignored by Jekyll. Just add a <code>.nojekyll</code> file.
+</blockquote>
+<h3>Q4: The site doesn't change after an update?</h3>
+<blockquote>
+
+GitHub Pages takes a minute or two to deploy. Or it's the browser cache — try a hard refresh with Ctrl+Shift+R.
+</blockquote>
+<hr>
+<h2>📊 Deployment flow</h2>
+<div class="codehilite"><pre><span></span><code>┌─────────────┐    ┌──────────────┐    ┌──────────────┐
+│  npm run    │    │  cp dist/*   │    │  git push    │
+│  build      │───▶│  to repo     │───▶│  to GitHub   │
+│  (build)    │    │  root (copy) │    │  (push)      │
+└─────────────┘    └──────────────┘    └──────┬───────┘
+                                              │
+                                              ▼
+┌─────────────┐    ┌──────────────┐    ┌──────────────┐
+│  Browser    │◀───│  GitHub      │◀───│  GitHub      │
+│  request    │    │  Pages host  │    │  CI build    │
+└─────────────┘    └──────────────┘    └──────────────┘
+</code></pre></div>
+
+<hr>
+<h2>🎉 Wrapping up</h2>
+
+Your Vue 3 frontend is now successfully deployed to GitHub Pages!
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Key action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Create the <code>username.github.io</code> repository</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Create the Vue project with Vite</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Set <code>base: '/'</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Build with <code>npm run build</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Copy <code>dist/</code> to the repository root</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Git commit + push</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Wait a minute or two, then visit the site</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+
+🌸 Done! Anyone can now reach your site at <code>https://your-username.github.io</code>.
+</blockquote>
+<hr>
+<h2>🔗 References</h2>
+<ul>
+<li><a href="https://docs.github.com/en/pages" rel="noopener noreferrer" target="_blank">GitHub Pages documentation</a></li>
+<li><a href="https://vitejs.dev/guide/static-deploy.html" rel="noopener noreferrer" target="_blank">Vite deployment guide</a></li>
+<li><a href="https://router.vuejs.org/guide/essentials/history-mode.html" rel="noopener noreferrer" target="_blank">Vue Router history mode</a></li>
+</ul>
+
+If you would like to keep reading along the same track: <a href="/article/cloud-deployment-guide-cn-vs-global/">"Deploying in China vs. Abroad: Choosing Between a Domestic Cloud and an Overseas VPS"</a>, <a href="/article/django-pythonanywhere-deploy/">"How to Deploy a Django Backend to PythonAnywhere"</a>.
+`,
+  },
+  {
+    slug: 'welcome',
+    zhSlug: 'welcome',
+    topicSlug: 'notes',
+    title: 'Code Is Black and White; Life\'s Canvas Is Mottled with Color',
+    excerpt: 'Standing on the border between student life and a career, a young engineer learns that code is black and white while life is a mottled canvas of grey — and that some things can only be left to time.',
+    date: '2026-06-10',
+    readingTime: 9,
+    html: `
+<p>In our twenties we stand at the boundary between student life and a career, a little green still in one hand and the weight of responsibilities not yet shouldered in the other. Late at night, tapping away at code, I often find myself thinking back. The world was so simple then: exams had standard answers, effort paid off, and right and wrong were as clearly divided as the black and white keys of a piano.</p>
+<p>Back then life ran in a straight line: class, revision, exam, results. However many practice papers you worked through was the score you got back — almost without exception. It left me with a habit: a belief that every problem has a solution, and that with the right method you can always work it out.</p>
+<p>Then I learned to write code, and found it felt like an extension of that earlier world: the rules are clear, the feedback is immediate, you fix what's wrong and it comes out right.</p>
+<h2>Why Is the World of Code So Black and White?</h2>
+<p>Inside the IDE, the world is black and white. Syntax errors get an unmerciful red squiggle underneath them, logic bugs throw an exception at runtime, and unit tests tell you, coldly, Pass or Failed. There is something magnetic about that certainty — follow the rules, be rigorous enough, and you will always get the result you expected.</p>
+<p>I still remember the pure joy of the first program I got to actually run. It was a simple scraper, a few dozen lines, and when it ran the characters jumped up the terminal line by line like a piano piece played with precision. Every if had a matching else, every loop had a definite exit condition, every function had clean inputs and outputs.</p>
+<p>Debugging was the most addictive part. Set a breakpoint, sprinkle in logs, comment out half the code and bisect, walk back up the call stack layer by layer — the bug might be hiding in an edge case, in async timing, in a field name you misspelled, but it is definitely there and it can definitely be found. For a while I honestly believed there was no unfixable problem in the world, only causes nobody had located yet.</p>
+<p>In the world of code, effort can be quantified in commits and progress can be proven by the number of issues closed. That immediate, unambiguous feedback loop is a kind of mental massage: you put in ten, it gives back ten — no more, no less.</p>
+<p>For a while I assumed life probably ran the same way.</p>
+<h2>What Is It Actually Like Starting Work?</h2>
+<p>Then I did an internship, and learned that real projects are never the algorithm problems on LeetCode.</p>
+<p>Nobody hands you a neatly bounded problem, and nobody tells you "use dynamic programming, O(n) time complexity." The requirements doc says "users would like the interface to be a bit friendlier," and you have to guess whether "friendlier" means changing the button color or rebuilding the interaction flow. In code review a senior colleague says "let's optimize this logic a bit," and you stare at the three-hundred-line function you wrote and suddenly have no idea where to start.</p>
+<p>What disorients you more is that at work, "right and wrong" is no longer decided by the compiler. Your code has no syntax errors and every unit test passes, but the product manager says it isn't what he asked for. You stay until ten o'clock shaving an endpoint from 200ms down to 50ms, users can't feel a thing, and your manager thinks you spent your time in the wrong place.</p>
+<p>I also found something subtler: at school, the bar for "done" is that it runs; at a company, the bar for "done" is that someone else can pick it up. The same feature, written so that you enjoy it and written so that the team can maintain it, are often two different things. Which raises a new problem — nobody will tell you when it actually counts as finished.</p>
+<p>The hardest part is the moments with no standard answer: should I take this request? How far should this feature go? Should I take the blame a colleague has conveniently slid my way? The answers to those questions appear in no document, and nobody will tell you plainly whether you got them right. They are a grey fog — you can only move forward on instinct, and if you go the wrong way there is no error message.</p>
+<p>For a stretch of time I was anxious. I was used to the rhythm of "fix it and it runs," and now a lot of things stayed unresolved even after the fix, and I couldn't even tell whether the direction was right.</p>
+<p>The most concrete case was my first production incident. At one in the morning the alert channel blew up; I dragged myself up and opened my laptop, the sweat on my palms waking faster than my brain. Scrolling the logs line by line, my heartbeat accelerating along with the scrollbar — and right then I missed the school compiler so badly, missed it telling me straight which line was wrong. The reality: nobody knew the cause, everyone was waiting on you, and you could only feel your way forward on a scrap or two of evidence. In the end we restored service by rolling back, and the real root cause was only pinned down three days later in the post-mortem. In those three days I didn't "fix" anything — I just learned something else: sometimes getting the system running again matters more than finding the right answer.</p>
+<h2>Life's Mottled Canvas</h2>
+<p>But life is not a compiler.</p>
+<p>It won't throw a red exception the moment you get something wrong, and it won't pop up a level-complete prompt when you take the right path. It is more like an Impressionist painting: up close, scattered patches of color; from a distance, a blurred outline — and everyone reads it differently.</p>
+<p>I began to understand why some people change careers at thirty, why some leave a big tech company to start something of their own, why some who could easily take a promotion choose to lie flat instead. In a spreadsheet those choices all look like bad ROI, but in an actual life they may point to a rhythm that suits the person better.</p>
+<p>On the weekend I video-called some college friends, and there were four completely different lives on four screens: one is preparing for the civil service exam, grinding practice questions until the small hours, and says this is the stability he wants; one has just gotten a child to sleep and, dark circles and all, is telling us about baby food and vaccinations; one quit for a small company, took a one-third pay cut, and is finally free of requirements he doesn't believe in; and one is still on the original track, steadily getting promoted, saving, looking at apartments. None of us can judge for the others, because everyone defines "good" differently. After hanging up I sat at my desk for a long time — so once you are an adult, even "is this a good life" has no single answer.</p>
+<p>I have also started to accept that not every effort blossoms on schedule. The refactor you did with such care may never ship; the documentation you wrote seriously may never be read; the three all-nighters you pulled may be voided by a change of requirements. But the process itself — those late nights wrestling a problem to the ground, the sudden clarity when a design finally clicks — has already been quietly shaping you into someone else: someone who can carry more than yesterday.</p>
+<p>There is one more thing life has that no compiler will ever teach: some things can only be left to time. Trust takes time, instinct takes time, judgment about a situation takes time. You can't cash it in early with overtime, and you can't spin up threads to process it in parallel — you just live it day by day, and then on some perfectly ordinary afternoon you realize you have actually come quite a long way.</p>
+<p>These days I still write code late at night, but I no longer expect every line to be perfect. If it errors, fix it; if it won't be fixed, go to sleep and look again tomorrow — plenty of things that made no sense at the time made sense after a night's sleep. I still stumble my way through life, but I no longer demand that every step be correct.</p>
+<p>I am learning to leave myself some "compiling" time: to let a relationship warm up slowly, to let a skill grow slowly, to let myself look like I am making no progress at certain stages. A progress bar that doesn't move doesn't mean the process is hung — maybe it is just running a very long task in the background.</p>
+<p>Maybe growth is nothing more than learning to make out, between the black and the white, that vast and gentle grey zone. There are no standard answers there — but there are infinite possibilities.</p>
+<p>May you and I both find our own rhythm in the duet of code and life. ✨</p>
+<p>Also on this thread: <a href="/article/blog-tech-stack/">Building This Blog End to End: Vue 3 + Django with a Decoupled Front End</a>, and <a href="/article/how-to-choose-ai-coding-tools/">How to Choose an AI Coding Tool: A Full Comparison and Selection Guide</a>.</p>
+`,
+  },
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
