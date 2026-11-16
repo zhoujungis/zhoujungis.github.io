@@ -7,9 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A tour of the stack behind this blog: a Vue 3 SPA on GitHub Pages talking to a Django REST Framework API on PythonAnywhere, plus the Markdown pipeline, cookie-based likes, search, RSS and the deploy scripts that hold it together." />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-        <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/en/article/blog-tech-stack/" />
     <meta property="og:title" content="How This Blog Is Built: Vue 3 + Django With a Decoupled Frontend | Stack Frame" />
@@ -83,7 +81,6 @@
     <!-- Cross-origin hints: API is called on first paint, covers come from
          Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
 
-
     <!-- Service Worker — register only; updates propagate via sw.js byte
          differences (skipWaiting + clients.claim in sw.js). Unregistering on
          every load forced a full SW reinstall + shell refetch each visit. -->
@@ -92,7 +89,6 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-
 
     <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
   
@@ -340,7 +336,6 @@ Routes are lazy-loaded through Vue Router, so every page is fetched on demand an
 <span class="p">]</span>
 </code></pre></div>
 
-
 A route guard protects the admin pages and sends anyone who is not signed in straight to the login screen:
 <div class="codehilite"><pre><span></span><code><span class="nx">router</span><span class="p">.</span><span class="nx">beforeEach</span><span class="p">((</span><span class="nx">to</span><span class="p">,</span><span class="w"> </span><span class="kr">from</span><span class="p">,</span><span class="w"> </span><span class="nx">next</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">to</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">requiresAuth</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -500,7 +495,6 @@ At the center sits the <strong>Article</strong> model, with four states — draf
     <span class="n">updated_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
 
-
 Saving an article triggers all of the following automatically:
 <ol>
 <li><strong>Markdown → HTML</strong>: handled by Python-Markdown with the code highlighting, table and TOC extensions switched on</li>
@@ -522,7 +516,6 @@ POST   /api/admin/articles/         create an article (auth required)
 PUT    /api/admin/articles/{id}/    update an article (auth required)
 DELETE /api/admin/articles/{id}/    delete an article (auth required)
 </code></pre></div>
-
 
 API hardening:
 - <strong>Rate limiting</strong>: 30 requests per minute for anonymous users, 100 for authenticated ones, 3 for comments and 5 per hour for subscriptions
@@ -586,7 +579,6 @@ git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </sp
 git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>master
 </code></pre></div>
 
-
 A few deliberate choices:
 - GitHub Pages serves from the repository root, so the build output has to be copied there
 - Source lives under <code>frontend/</code>, build output lives at the root, and <code>.gitignore</code> keeps the two apart
@@ -648,7 +640,6 @@ Likes are gated by a cookie rather than an account, so nobody has to sign in to 
     <span class="k">return</span> <span class="n">resp</span>
 </code></pre></div>
 
-
 What makes it hold up:
 - The cookie lives for 365 days, which works out to one like per person per article
 - <code>httponly=True</code> keeps scripts from tampering with it
@@ -664,7 +655,6 @@ Search rides on DRF's <code>SearchFilter</code> and matches across article title
     <span class="p">}</span>
     <span class="n">search_fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">]</span>
 </code></pre></div>
-
 
 The frontend search page sends the keyword through a query parameter:
 <div class="codehilite"><pre><span></span><code><span class="nx">getArticles</span><span class="p">({</span><span class="w"> </span><span class="nx">search</span><span class="o">:</span><span class="w"> </span><span class="nx">keyword</span><span class="w"> </span><span class="p">})</span><span class="w">  </span><span class="c1">// → GET /api/articles/?search=vue</span>
@@ -872,6 +862,7 @@ All the code behind this blog is open source and lives on GitHub; the layout abo
 If you are building a blog of your own, or you just like poking at web development, do come and say hello. 🚀
 
 Related posts on the same path: <a href="/article/test-manage-system-vue-django/">Building a Test Management System from Scratch: A Vue 3 + Django Full-Stack Walkthrough</a>, <a href="/article/django-pythonanywhere-deploy/">How to Deploy a Django Backend to PythonAnywhere</a>.
-</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/blog-tech-stack/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/blog-tech-stack/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/blog-tech-stack/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/blog-tech-stack/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+
   </body>
 </html>

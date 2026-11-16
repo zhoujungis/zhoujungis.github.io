@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="适用读者：想把 AI 助理放到自己电脑上、又不想把聊天记录和文件路径交给云端的人；正在用 Electron 做桌面 Agent、被权限、路径和打包问题缠住的人；" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/" />
     <meta property="og:title" content="Z Bot：本地优先的私人 AI 助理怎么搭" />
@@ -250,7 +244,6 @@ preload 是唯一的桥。它用 <code>contextBridge.exposeInMainWorld('zbot', a
 <span class="p">});</span>
 </code></pre></div>
 
-
 这段代码的价值在于「默认安全」。新增一个频道时，开发者必须显式决定要不要 schema；不挂 schema 的调用会留在代码里，review 时看得见。它也有一个明显的缺口：<code>handle</code> 的第三个参数是可选的，于是 <code>app:open-path</code> 和 <code>web-search:set-key</code> 就真的没挂 schema。前者只做了「必须在数据目录内」的字符串包含判断，后者直接把 <code>value</code> 当字符串用。它们不是最危险的频道，但说明「统一包装」不等于「统一校验」。
 <h3>问题二：IPC 暴露面与校验不一致</h3>
 
@@ -280,7 +273,6 @@ preload 是唯一的桥。它用 <code>contextBridge.exposeInMainWorld('zbot', a
        -&gt; 未命中：chat.permission -&gt; 等待 UI
        -&gt; AbortSignal 取消 -&gt; cancelForChat
 </code></pre></div>
-
 
 用户有四种选择：拒绝、仅本次允许、按作用域允许、取消任务。<code>allow_once</code> 故意不落库，下一次同样操作还要再问；<code>allow_scope</code> 以「工具名 + 作用域」为键持久化，作用域通常是授权目录或操作类型；<code>deny</code> 不会执行工具，只把 <code>Permission denied by user. The operation was not executed: ...</code> 作为工具结果回灌给模型，让模型知道这条路被堵住，而不是让整个对话崩掉。取消则通过 <code>AbortSignal</code> 和 <code>cancelForChat</code> 把挂起的 Promise 全部 reject，避免权限弹窗永远悬着。
 
@@ -322,7 +314,6 @@ preload 是唯一的桥。它用 <code>contextBridge.exposeInMainWorld('zbot', a
 <span class="w">  </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 代价与遗留：检查和使用之间仍有 TOCTOU 窗口，攻击者可以在 <code>realpath</code> 之后、真正写入之前把父目录换成链接；64 层上限会拒绝极深路径；系统目录黑名单依赖环境变量，环境变量缺失时保护会变弱。路径守卫能挡住常见误操作和朴素攻击，但不是内核级沙箱。
 <h2>Agent 循环：什么时候直答，什么时候动手</h2>
@@ -521,6 +512,7 @@ Z Bot 的实现思路可以压缩成四句话。第一，把危险能力收在�
 <li><a href="/article/agent-concurrency-without-async/">不靠 async 的 Agent 并发控制</a></li>
 <li><a href="/article/metrics-and-distributed-tracing/">指标与分布式追踪：从埋点到排障</a></li>
 <li><a href="/article/nanohermes-rust-coding-agent/">用 Rust 写一个 Coding Agent</a></li>
-</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/english-site-without-js/">从 3 秒到毫秒首屏：英文站去 JS 化</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li><a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li><a href="https://blog.zhoujun.dev/article/english-site-without-js/">从 3 秒到毫秒首屏：英文站去 JS 化</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/english-site-without-js/">从 3 秒到毫秒首屏：英文站去 JS 化</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li><a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li><a href="https://blog.zhoujun.dev/article/english-site-without-js/">从 3 秒到毫秒首屏：英文站去 JS 化</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>

@@ -7,9 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A full-stack test management platform for QA teams, built with Vue 3, Element Plus, Django REST Framework, and PostgreSQL — covering test cases, plans, runs, defects, and role-based permissions end to end." />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-        <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/en/article/test-manage-system-vue-django/" />
     <meta property="og:title" content="Building a Test Management System from Scratch: A Vue 3 + Django Full-Stack Walkthrough | Stack Frame" />
@@ -83,7 +81,6 @@
     <!-- Cross-origin hints: API is called on first paint, covers come from
          Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
 
-
     <!-- Service Worker — register only; updates propagate via sw.js byte
          differences (skipWaiting + clients.claim in sw.js). Unregistering on
          every load forced a full SW reinstall + shell refetch each visit. -->
@@ -92,7 +89,6 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-
 
     <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
   
@@ -271,7 +267,6 @@ A diagram makes it easier to picture:
  └─────────────────────────────────────────────────────────────┘
 </code></pre></div>
 
-
 Put simply: <strong>everything your test work currently keeps in spreadsheets and chat threads moves into one purpose-built web system</strong> — write cases, hand out tasks, test features, file bugs, read reports. One place for all of it.
 <hr>
 <h2>What is this system built with?</h2>
@@ -365,7 +360,6 @@ The system defines four roles, and each one sees a different slice of the produc
 └───────────────────────────────────────────────────────────┘
 </code></pre></div>
 
-
 Every permission is <strong>fine-grained</strong>. Same "view the case library" capability — can you read it but not change it? Then you are a Tester. Can you also create, update, and delete? Then you are a Developer. Each capability is an independent switch that can be combined freely.
 <h3>Security measures</h3>
 <ul>
@@ -397,7 +391,6 @@ The registration flow is deliberately strict:
 <span class="w">  </span><span class="n">Log in</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">fetch</span><span class="w"> </span><span class="n">JWT</span><span class="w"> </span><span class="n">token</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">enter the system</span>
 </code></pre></div>
 
-
 The user model pairs Django's built-in <code>auth.User</code> with a <code>UserProfile</code> extension:
 <div class="codehilite"><pre><span></span><code><span class="c1"># accounts/models.py — the actual shape of the code</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">django.contrib.auth.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">User</span>
@@ -414,7 +407,6 @@ The user model pairs Django's built-in <code>auth.User</code> with a <code>UserP
     <span class="n">can_manage_testcase_library</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">can_access_my_projects</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
-
 
 Default permissions are derived from the role at registration time — the <code>ROLE_DEFAULT_PERMISSIONS</code> dict defines which feature switches each of the four roles (admin, tester, developer, viewer) gets out of the box.
 <h3>4.2 Project management — creating the workspace</h3>
@@ -438,7 +430,6 @@ Every test project carries its full context:
     ├── Priority
     └── Due date
 </code></pre></div>
-
 
 The neat part here is the <strong>module tree</strong> — a self-referencing <code>parent</code> foreign key in Django gives you unlimited nesting:
 <div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Module</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
@@ -473,11 +464,9 @@ The case library is the core of the system, organized by product line (camera / 
 └────────────────────────────────────────────────┘
 </code></pre></div>
 
-
 Bulk import is where it really earns its keep — a single Django command pulls every case out of an Excel file:
 <div class="codehilite"><pre><span></span><code>python<span class="w"> </span>manage.py<span class="w"> </span>import_camera_cases<span class="w"> </span>camera_cases.xlsx
 </code></pre></div>
-
 
 It detects the column headers, groups worksheets into modules by sheet name, and numbers the steps for you.
 <h3>4.4 Assigning and executing cases — getting tests running</h3>
@@ -504,7 +493,6 @@ Project → Task → Member
     ▼
   Leader review → approve / reject in bulk
 </code></pre></div>
-
 
 Every execution result supports <strong>attachments</strong> (up to 15MB) — screenshots, logs, and so on. Leaders can <strong>approve in bulk</strong> instead of clicking through one by one.
 <h3>4.5 Test plans — plan first, run later</h3>
@@ -551,7 +539,6 @@ Found a problem while executing tests? File a defect right there:
                   reopened                            │
 </code></pre></div>
 
-
 Each defect record contains:
 - <strong>Title &amp; description</strong> — what is broken
 - <strong>Severity</strong> — from S0 (worst / blocking) to S4 (minor / suggestion)
@@ -588,7 +575,6 @@ The landing page after login is a <strong>feature launcher</strong> that renders
 └──────────────────────────────────────────────┘
 </code></pre></div>
 
-
 Four cards, four core modules. Each card has its own gradient icon and lifts slightly on hover. How many cards you see depends on your role — a plain tester never sees "Permission management", and anyone without case-library access does not see the first card at all.
 <h3>4.9 Statistics — data aggregation at the API layer</h3>
 
@@ -615,7 +601,6 @@ Features reserved for the Admin role:
 <div class="codehilite"><pre><span></span><code><span class="c1"># one command turns Excel into test cases</span>
 python<span class="w"> </span>manage.py<span class="w"> </span>import_camera_cases<span class="w"> </span>camera_cases.xlsx
 </code></pre></div>
-
 
 What it works out on its own:
 - Detects column headers (both the standard layout and its variants)
@@ -646,7 +631,6 @@ Project ──1:N──▶ Module (self-referencing tree)
 
 TestCase ──1:N──▶ TestCaseStep
 </code></pre></div>
-
 
 The key design decisions:
 - <strong>One-to-many</strong> relations run through the whole schema, which keeps the structure easy to follow
@@ -707,7 +691,6 @@ The two halves talk over a RESTful API and authenticate with JWT:
 <span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">◀─────────────────────────────────│</span>
 </code></pre></div>
 
-
 A consistent response envelope:
 <div class="codehilite"><pre><span></span><code><span class="c1">// paginated response</span>
 <span class="p">{</span>
@@ -750,14 +733,12 @@ python<span class="w"> </span>manage.py<span class="w"> </span>createsuperuser<s
 python<span class="w"> </span>manage.py<span class="w"> </span>runserver<span class="w"> </span><span class="m">0</span>.0.0.0:8000
 </code></pre></div>
 
-
 <strong>Step 2: start the front end</strong>
 <div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>test_manage_system/frontend
 npm<span class="w"> </span>install
 npm<span class="w"> </span>run<span class="w"> </span>dev
 <span class="c1"># open http://localhost:5173 in your browser</span>
 </code></pre></div>
-
 
 <strong>Step 3: start using it</strong>
 <ol>
@@ -841,6 +822,7 @@ The code is clearly organized and thoroughly commented, which makes it a great r
 <em>This article is based on the full requirements specification and code structure of the test_manage_system project, covering the system architecture, functional modules, database design, and front-end/back-end interaction.</em>
 
 Further reading along the same thread: <a href="/article/blog-tech-stack/">Building This Blog: A Deep Dive into the Vue 3 + Django Decoupled Stack</a>, <a href="/article/halo-music-square-architecture/">Inside Halo Music Square: A Multi-Source Online Music App</a>.
-</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/test-manage-system-vue-django/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/test-manage-system-vue-django/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/test-manage-system-vue-django/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/test-manage-system-vue-django/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+
   </body>
 </html>

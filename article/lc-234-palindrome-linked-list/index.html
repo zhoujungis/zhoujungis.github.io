@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 234】回文链表：把后半段翻过来，它应该跟前半段长得一模一样 适用读者 ：会写反转链表，但看到「O(1) 空间」四个字就忍不住想去开个数组的人 技术栈 ：Python 为…" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/lc-234-palindrome-linked-list/" />
     <meta property="og:title" content="【LC 234】回文链表：翻后半段，比是否相同" />
@@ -188,7 +182,6 @@
 输出：false
 </code></pre></div>
 
-
 <strong>进阶</strong>：你能否用 <code>O(n)</code> 时间复杂度和 <code>O(1)</code> 空间复杂度解决此题？
 <blockquote>
 
@@ -217,7 +210,6 @@
     <span class="k">return</span> <span class="kc">True</span>
 </code></pre></div>
 
-
 它成立的前提是 <code>arr[j]</code> 能在 <code>O(1)</code> 时间里拿到。链表没有下标，<code>j</code> 想从尾巴往回走，只能从头再走一遍 —— 那就 <code>O(n²)</code> 了。
 
 所以链表上要玩回文，得先把"从后往前"这个动作，换成链表擅长的事。
@@ -228,7 +220,6 @@
 后半段：       2 → 1
 </code></pre></div>
 
-
 后半段<strong>倒过来</strong>读是 <code>1 → 2</code>。跟前半段一模一样 —— 这就是回文。
 <div class="codehilite"><pre><span></span><code>前半段：      1 → 2
 后半段反转后：1 → 2       ← 逐位相同
@@ -236,12 +227,10 @@
              1=1 2=2
 </code></pre></div>
 
-
 再找个反例 <code>1 → 2 → 3</code>：
 <div class="codehilite"><pre><span></span><code>前半段：      1
 后半段反转后：3 → 2       ← 第一位就对不上
 </code></pre></div>
-
 
 <strong>所以判断回文 = 判断「前半段」和「后半段反转后」是否逐位相等。</strong> 一句话说完了，剩下的全是搬砖。
 <h3>1.3 为什么这套能顺手把空间压到 O(1)</h3>
@@ -292,7 +281,6 @@
     <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span>
 </code></pre></div>
 
-
 注意这里 <strong>两个指针都从 <code>head</code> 出发</strong>，跟重排链表那篇不一样。这个细节决定了 <code>slow</code> 停在哪：
 <ul>
 <li>长度 4：<code>slow</code> 停在<strong>位置 2</strong>（第 3 个节点），前半段 <code>位置0 → 位置1</code>，后半段 <code>位置2 → 位置3</code>；</li>
@@ -340,7 +328,6 @@
     <span class="n">curr</span> <span class="o">=</span> <span class="n">nxt</span>
 </code></pre></div>
 
-
 和 LC 206 逐字一样，只是起点从 <code>head</code> 换成了 <code>slow</code>。反转完，<code>prev</code> 站在新段头（原来的尾节点）上。
 
 <strong>这里是这题最有意思的一处：不用写 <code>slow.next = None</code>。</strong>
@@ -367,7 +354,6 @@
 <span class="k">return</span> <span class="kc">True</span>
 </code></pre></div>
 
-
 <strong>循环条件必须是 <code>while p2</code>，不能是 <code>while p1</code>。</strong> 因为偶数长度时，前半段那条链比反转后的后半段<strong>多一个节点</strong>（前半段要走到中点才停，后半段到中点就停了）。
 <ul>
 <li>长度 4：前半段链有 3 个节点，后半段链只有 2 个。用 <code>while p1</code> 的话，<code>p2</code> 先走到 <code>None</code>，下一轮访问 <code>p2.val</code> 直接 <code>NoneType</code> 报错。</li>
@@ -384,7 +370,6 @@
 <li><strong>比较</strong>：上下两列一一配对齐，<code>p1</code> 在上行往右走，<code>p2</code> 在下行往右走，每对之间竖着连一条线，相等打 ✓。</li>
 </ul>
 <div class="algo-viz algo-viz--lc234"></div>
-
 
 看完动画再回头看那句核心洞察 —— <strong>后半段反转过来，跟前半段逐位相同</strong>，画面上就是上下两行长得一模一样。
 <hr>
@@ -418,7 +403,6 @@
             <span class="n">p1</span><span class="p">,</span> <span class="n">p2</span> <span class="o">=</span> <span class="n">p1</span><span class="o">.</span><span class="n">next</span><span class="p">,</span> <span class="n">p2</span><span class="o">.</span><span class="n">next</span>
         <span class="k">return</span> <span class="kc">True</span>
 </code></pre></div>
-
 
 开头的 <code>head.next is None</code> 那句是防御性的：单节点直接返回其实算法也能算对（中点跟自己比），但显式写出来更稳，也省掉一轮反转。
 <h3>4.2 完整推演表</h3>
@@ -698,7 +682,6 @@
     <span class="k">return</span> <span class="n">ok</span>
 </code></pre></div>
 
-
 很优雅，但递归栈是 <code>O(n)</code>，不满足进阶要求。写之前想清楚面试官问的是哪个。
 
 <strong>5. 忘了空链表和单节点。</strong>
@@ -710,7 +693,6 @@
 LC 234 不要求保持原结构，但面试官爱追一句"能恢复吗"。答案是<strong>能，而且只要一行</strong>：因为全程没断开过，前半段的尾巴一直指着中点，把后半段再反转一次就自动接回去了。
 <div class="codehilite"><pre><span></span><code><span class="n">reverse</span><span class="p">(</span><span class="n">prev</span><span class="p">)</span>   <span class="c1"># 再反转一次，链表恢复原状</span>
 </code></pre></div>
-
 
 这个性质是 2.2 节"不用断开"顺手换来的，答出来很加分。
 <hr>
@@ -781,6 +763,7 @@ LC 234 不要求保持原结构，但面试官爱追一句"能恢复吗"。答�
 
 下次再遇到"从后往前"的链表题，先问自己一句：<strong>后半段反转过来，是不是就变成了从前往后？</strong> 如果是，这题就做完一半了。
 
-同族题延伸：<a href="/article/lc-206-reverse-linked-list/">《【LC 206】反转链表：指针一改就断链，问题到底出在哪》</a>、<a href="/article/lc-143-reorder-list/">《【LC 143】重排链表：一题拆三题，中间那道刷过》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-143-reorder-list/">【LC 143】重排链表：一题拆三题，中间那道刷过</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-160-intersection-of-two-linked-lists/">【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">【LC 146】LRU 缓存：手写哈希表与双向链表</a></li><li><a href="https://blog.zhoujun.dev/article/lc-82-remove-duplicates-from-sorted-list-ii/">【LC 82】删除重复元素 II：为什么必须有 dummy</a></li><li><a href="https://blog.zhoujun.dev/article/lc-160-intersection-of-two-linked-lists/">【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了</a></li><li><a href="https://blog.zhoujun.dev/article/lc-143-reorder-list/">【LC 143】重排链表：一题拆三题，中间那道刷过</a></li><li><a href="https://blog.zhoujun.dev/article/lc-19-remove-nth-from-end/">【LC 19】删除链表倒数第 N 个：快指针先出发</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+同族题延伸：<a href="/article/lc-206-reverse-linked-list/">《【LC 206】反转链表：指针一改就断链，问题到底出在哪》</a>、<a href="/article/lc-143-reorder-list/">《【LC 143】重排链表：一题拆三题，中间那道刷过》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-143-reorder-list/">【LC 143】重排链表：一题拆三题，中间那道刷过</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-160-intersection-of-two-linked-lists/">【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">【LC 146】LRU 缓存：手写哈希表与双向链表</a></li><li><a href="https://blog.zhoujun.dev/article/lc-82-remove-duplicates-from-sorted-list-ii/">【LC 82】删除重复元素 II：为什么必须有 dummy</a></li><li><a href="https://blog.zhoujun.dev/article/lc-160-intersection-of-two-linked-lists/">【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了</a></li><li><a href="https://blog.zhoujun.dev/article/lc-143-reorder-list/">【LC 143】重排链表：一题拆三题，中间那道刷过</a></li><li><a href="https://blog.zhoujun.dev/article/lc-19-remove-nth-from-end/">【LC 19】删除链表倒数第 N 个：快指针先出发</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>

@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目要求是什么？ LC 121 买卖股票的最佳时机 ：给定数组 prices ， prices[i] 是第 i 天的股价。" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/lc-121-122-best-time-to-buy-and-sell-stock/" />
     <meta property="og:title" content="【LC 121/122】买卖股票 I &amp; II：等低点与吃上坡" />
@@ -180,7 +174,6 @@
 输出: 0   （全程下跌，不买）
 </code></pre></div>
 
-
 <strong>LC 122 买卖股票的最佳时机 II</strong>：同一组价格，可以<strong>无限次</strong>交易（多次买卖），但仍须先买后卖、<strong>手里最多持一股</strong>（买了才能再买下一次）。求最大利润。
 <div class="codehilite"><pre><span></span><code>输入: prices = [7,1,5,3,6,4]
 输出: 7   （1→5 赚 4，3→6 赚 3，共 7）
@@ -188,7 +181,6 @@
 输入: prices = [1,2,3,4,5]
 输出: 4   （连续持有 1→5 即可，频繁买卖不加分）
 </code></pre></div>
-
 
 两道题共享同一张<strong>状态机</strong>：121 是"只许一笔"的极简单变量扫描，122 是"无限笔"的双状态 DP —— 而 122 的 DP 恰好塌缩成"所有正差之和"的贪心。把这两台机器看清，追问链上的 309（冷冻期）、714（手续费）、123（限两笔）、188（限 k 笔）全是<strong>改转移方程</strong>，不是换思路。
 <ul>
@@ -224,7 +216,6 @@
     <span class="k">return</span> <span class="n">best</span>
 </code></pre></div>
 
-
 两个变量都<strong>单调</strong>：<code>minPrice</code> 只下台阶、<code>best</code> 只上坡 —— 大多数日子两件事都不发生（动画里的"路过帧"），动的那几帧才是答案的来路。全程下跌时 <code>candidate</code> 恒为负数，<code>best</code> 停在 <code>0</code>，语义就是<strong>干脆不买</strong> —— 这是 121 的合法答案，也是"最大利润"与"最大差值"的分界。
 
 一句话立意：<strong>121 不是找最低点，是等最低点被后来的高价兑现。</strong>
@@ -236,7 +227,6 @@
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">maxProfit</span><span class="p">(</span><span class="n">prices</span><span class="p">):</span>
     <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">b</span> <span class="o">-</span> <span class="n">a</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">prices</span><span class="p">,</span> <span class="n">prices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]))</span>
 </code></pre></div>
-
 
 <code>[7,1,5,3,6,4]</code>：差值序列 <code>-6, +4, -2, +3, -2</code>，正差和 = <code>4 + 3 = 7</code>。为什么"天天吃正差"不违反"手里最多一股"？因为相邻正差可以<strong>无缝拼接</strong>：<code>+4</code> 等价于 1→5 一笔，中途没有下坡可躲；把连续上坡拆成逐日小额交易，总和不变。
 
@@ -251,7 +241,6 @@
 hold = max(持股不动 prevHold, 昨天空仓今天买 prevCash - price)
 </code></pre></div>
 
-
 开局第 0 天：<code>cash = 0</code>、<code>hold = -prices[0]</code>（建仓了，钱变成票、利润为负）。终态答案是 <code>cash</code> —— <strong>持股未变现不算利润</strong>。
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">maxProfit</span><span class="p">(</span><span class="n">prices</span><span class="p">):</span>
     <span class="n">cash</span><span class="p">,</span> <span class="n">hold</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">prices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
@@ -261,13 +250,11 @@ hold = max(持股不动 prevHold, 昨天空仓今天买 prevCash - price)
     <span class="k">return</span> <span class="n">cash</span>
 </code></pre></div>
 
-
 两条路谁对？动画每帧并排给出 <code>greedy</code> 与 <code>cash</code> —— <strong>逐帧相等</strong>。这不是巧合：把 DP 展开，<code>cash</code> 每次超过前值的增量恰是当天的正差。贪心是这台状态机"每天必做决定"的特例，DP 是贪心的机器证明。面试写哪个都对，但<strong>能说出两者等价</strong>才是这题的满分答案。
 <h2>三、动画怎么看</h2>
 <div class="algo-viz algo-viz--lc121"></div>
 
 <div class="algo-viz algo-viz--lc122"></div>
-
 
 <strong>121 动画</strong>（<code>algo-viz--lc121</code>）：顶部是价格格子行 —— 当前日金框（<code>today</code> 指针在上）、历史最低价所在格绿框（<code>min</code> 指针在下）；中部横幅给出"卖一把"的现场打分：<code>price - minPrice = candidate</code> 与 <code>best</code> 比大小，决定刷新还是路过；底部面板是双变量 <code>minPrice / candidate / best</code> —— 盯住 <code>minPrice</code> 只下台阶、<code>best</code> 只上坡。默认 <code>[7,1,5,3,6,4]</code>：第 1 天破底、第 2 与第 4 天两刷 best，答案 5。
 
@@ -496,7 +483,6 @@ hold = max(持股不动 prevHold, 昨天空仓今天买 prevCash - price)
 <span class="p">}</span>
 </code></pre></div>
 
-
 714 只需在 122 的卖支上减 <code>fee</code>：<code>cash = Math.max(cash, hold + prices[i] - fee);</code>。
 <h2>七、边界情况</h2>
 <ul>
@@ -580,6 +566,7 @@ hold = max(持股不动 prevHold, 昨天空仓今天买 prevCash - price)
 
 同族题延伸：<a href="/article/lc-53-maximum-subarray/">《【LC 53】最大子数组和：带上前面，是赚还是亏》</a>、<a href="/article/lc-1262-greatest-sum-divisible-by-three/">《【LC 1262】可被三整除的最大和：贪心与滚动 dp》</a>。
 
-下一篇见。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-70-climbing-stairs/">【LC 70】爬楼梯：递推人人会写，美团考的是 n=80</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-322-coin-change/">【LC 322】零钱兑换：正序完全背包，逆序变 -1</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/">【数组】重复元素找第 10 大：答案能差一倍，差别全在口径</a></li><li><a href="https://blog.zhoujun.dev/article/spiral-matrix-fill/">【矩阵】螺旋填数：先对齐口径，再谈 O(M×N)</a></li><li><a href="https://blog.zhoujun.dev/article/partition-variance-dp/">【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和</a></li><li><a href="https://blog.zhoujun.dev/article/nim-stone-games/">【博弈论】石子游戏：一行异或判定先手必胜</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+下一篇见。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-70-climbing-stairs/">【LC 70】爬楼梯：递推人人会写，美团考的是 n=80</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-322-coin-change/">【LC 322】零钱兑换：正序完全背包，逆序变 -1</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/">【数组】重复元素找第 10 大：答案能差一倍，差别全在口径</a></li><li><a href="https://blog.zhoujun.dev/article/spiral-matrix-fill/">【矩阵】螺旋填数：先对齐口径，再谈 O(M×N)</a></li><li><a href="https://blog.zhoujun.dev/article/partition-variance-dp/">【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和</a></li><li><a href="https://blog.zhoujun.dev/article/nim-stone-games/">【博弈论】石子游戏：一行异或判定先手必胜</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>

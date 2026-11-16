@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 15】三数之和：难点从来不是双指针，而是「只有两处」的去重 适用读者 ：已经会写&quot;两数之和&quot;、也觉得&quot;两数之和 II&quot;很简单，但每次写三数之和都会在去重上翻车的人 技术栈…" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/lc-15-3sum/" />
     <meta property="og:title" content="【LC 15】三数之和：难点是两处去重，不是双指针" />
@@ -199,7 +193,6 @@
 输出：[[0, 0, 0]]
 </code></pre></div>
 
-
 从"两数之和"到"三数之和"，只多了一个数，但复杂度跳了一级、去重难度跳了两级。很多人第一次写这题是这样的：
 <ol>
 <li>想起两数之和用哈希表，于是套过来；</li>
@@ -226,7 +219,6 @@
     <span class="k">return</span> <span class="n">res</span>
 </code></pre></div>
 
-
 时间 <code>O(n³)</code>。数据量一上去就废。
 
 但比"慢"更致命的是：<strong>这个写法连去重都不会做</strong>。上面这段代码跑官方样例会输出 3 组（其中两组是同一个三元组的排列），而题目要求 2 组。
@@ -243,7 +235,6 @@
 <code>nums[i] + nums[j] + nums[k] == 0</code> 可以改写成：
 <div class="codehilite"><pre><span></span><code><span class="n">nums</span><span class="o">[</span><span class="n">j</span><span class="o">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">nums</span><span class="o">[</span><span class="n">k</span><span class="o">]</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="o">-</span><span class="n">nums</span><span class="o">[</span><span class="n">i</span><span class="o">]</span>
 </code></pre></div>
-
 
 也就是说：<strong>枚举一个 <code>i</code>，问题就退化成"在剩下的元素里找两个数，使它们的和等于 <code>-nums[i]</code>"</strong> —— 这正是"两数之和"。
 
@@ -263,7 +254,6 @@
     <span class="k">return</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">seen_triples</span><span class="p">]</span>
 </code></pre></div>
 
-
 问题出在两处：
 <ul>
 <li><strong>哈希表回答不了"这组是不是已经出现过了"。</strong> 它只知道"某个值有没有见过、在哪"，不知道"某一个三元组有没有被记录过"。所以你被迫在最后加一个 <code>set of tuple</code> —— 而那一步的代价是 <code>O(n²)</code> 个元组的哈希与拼接。</li>
@@ -274,7 +264,6 @@
 ② 外层枚举 i（固定三元组里最小的那个数）
 ③ 内层用双指针 l = i + 1、r = n - 1，夹逼出剩下两个数
 </code></pre></div>
-
 
 内层的判据只有三行：
 <ul>
@@ -363,7 +352,6 @@
 
     <span class="k">return</span> <span class="n">res</span>
 </code></pre></div>
-
 
 短短二十行，但有三行是"去重 / 剪枝"性质的（②③④），也就是说：<strong>这题的代码量有三分之一在解决"重复"问题</strong>。
 <div class="algo-viz algo-viz--lc15"></div>
@@ -558,7 +546,6 @@
     <span class="k">continue</span>
 </code></pre></div>
 
-
 <strong>含义</strong>：这一轮的起点，和上一轮的起点是同一个值。
 
 <strong>为什么整轮都可以跳过</strong>：三元组里 <code>nums[i]</code> 是<strong>最小的那个数</strong>（因为数组升序，<code>l</code> 和 <code>r</code> 都在 <code>i</code> 右边）。既然最小值相同、可选的剩余区间也只是"右边那些"，那这一轮能找出来的三元组，上一轮必然已经全找过了 —— <strong>整轮跳过，不用进内层</strong>。
@@ -575,7 +562,6 @@
 <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
 <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
 </code></pre></div>
-
 
 <strong>含义</strong>：刚刚记下的这一组是 <code>[nums[i], nums[l], nums[r]]</code>。如果 <code>l</code> 右边还贴着和 <code>nums[l]</code> 相同的值，那么<strong>换一个位置当下标、值还是一样</strong>，产出的三元组长得一模一样。
 
@@ -640,13 +626,11 @@
   i = 1：l=2, r=2，l == r 直接结束
 </code></pre></div>
 
-
 呃，这个例子里 <code>i = 1</code> 时 <code>l = 2</code>、<code>r = 2</code> 马上就退出了，所以没暴露。换一个：
 <div class="codehilite"><pre><span></span><code>nums = [3, 0, -2, -1, 1, 2]      排序后 [-2, -1, 0, 1, 2, 3]
   i = 0（值 -2）：找到 [-2, 0, 2]、[-2, -1, 3]
   i = 1（值 -1）：找到 [-1, 0, 1]
 </code></pre></div>
-
 
 还是没暴露 —— 因为 <code>-2</code> 和 <code>-1</code> 不相等。<strong>要暴露第一处的漏判，必须有"真正重复的最小值"并且它右边还有足够多的元素</strong>：
 <div class="codehilite"><pre><span></span><code><span class="nv">nums</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>[<span class="o">-</span><span class="mi">1</span>,<span class="w"> </span><span class="o">-</span><span class="mi">1</span>,<span class="w"> </span><span class="mi">0</span>,<span class="w"> </span><span class="mi">1</span>]<span class="w">      </span>排序后<span class="w"> </span>[<span class="o">-</span><span class="mi">1</span>,<span class="w"> </span><span class="o">-</span><span class="mi">1</span>,<span class="w"> </span><span class="mi">0</span>,<span class="w"> </span><span class="mi">1</span>]
@@ -654,7 +638,6 @@
 <span class="w">  </span>❌<span class="w"> </span>漏<span class="w"> </span><span class="nv">i</span><span class="w"> </span>去重：<span class="nv">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span>时<span class="w"> </span><span class="nv">l</span><span class="o">=</span><span class="mi">2</span>,<span class="w"> </span><span class="nv">r</span><span class="o">=</span><span class="mi">3</span>，<span class="ss">(</span><span class="o">-</span><span class="mi">1</span><span class="ss">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span>→<span class="w"> </span>又记录一次<span class="w"> </span>[<span class="o">-</span><span class="mi">1</span>,<span class="w"> </span><span class="mi">0</span>,<span class="w"> </span><span class="mi">1</span>]
 <span class="w">                </span>答案变成<span class="w"> </span>[[<span class="o">-</span><span class="mi">1</span>,<span class="mi">0</span>,<span class="mi">1</span>],<span class="w"> </span>[<span class="o">-</span><span class="mi">1</span>,<span class="mi">0</span>,<span class="mi">1</span>]]<span class="w"> </span>——<span class="w"> </span>重复
 </code></pre></div>
-
 
 <strong>漏掉第二处</strong>（双指针去重）：需要一个"配对数发生值碰撞"的输入。
 <div class="codehilite"><pre><span></span><code>nums = [-2, 0, 0, 2, 2]      排序后 [-2, 0, 0, 2, 2]
@@ -667,7 +650,6 @@
        命中后只做 l += 1、r -= 1 → l = 2, r = 3
        再算：(-2) + 0 + 2 = 0 → 又记录一次 [-2, 0, 2]！答案重复
 </code></pre></div>
-
 
 <strong>注意这两组输入长什么样</strong>：<code>[-1, -1, 0, 1]</code> 和 <code>[-2, 0, 0, 2, 2]</code>。它们的共同点是"重复值恰好落在指针会经过的位置上"。而官方样例 <code>[-1, 0, 1, 2, -1, -4]</code> 排序后是 <code>[-4, -1, -1, 0, 1, 2]</code> —— 两个 <code>-1</code> 是相邻的，但<strong>它们恰好一个当 <code>i</code>、一个当 <code>l</code></strong>，两个去重条件都不会被真正触发。
 
@@ -741,7 +723,6 @@
     <span class="k">break</span>
 </code></pre></div>
 
-
 数组已经升序。如果作为<strong>最小值</strong>的 <code>nums[i]</code> 都已经是正数，那后面两个只会更大，三个正数之和不可能等于 <code>0</code>。
 
 注意这里是 <code>break</code> 而不是 <code>continue</code> —— 因为 <code>nums</code> 递增，后面所有的 <code>nums[i]</code> 也都会是正数，整个外层循环都可以结束了。
@@ -758,7 +739,6 @@
 <span class="k">if</span> <span class="n">maximum</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
     <span class="k">continue</span>                                       <span class="c1"># 最大和都 &lt; 0，这个 i 太小了，换下一个</span>
 </code></pre></div>
-
 
 这两句在"数组很长、正负数分布极端"的时候能省掉大量无效的双指针扫描。<strong>回到第四节的推演表</strong>：第 12 帧（<code>i = 3</code>，值 <code>0</code>）那一轮就是被第二句剪掉的典型 —— <code>0 + 1 + 2 = 3 &gt; 0</code>，最大和都是正的、最小值也不可能是负的，这一轮注定找不到 <code>0</code>。
 
@@ -790,7 +770,6 @@ LC 16 要求"找出三个数，使它们的和最接近 <code>target</code>"。�
 
     <span class="k">return</span> <span class="n">best</span>
 </code></pre></div>
-
 
 三点差异值得注意：
 <ul>
@@ -828,7 +807,6 @@ LC 16 要求"找出三个数，使它们的和最接近 <code>target</code>"。�
 
     <span class="k">return</span> <span class="n">res</span>
 </code></pre></div>
-
 
 复杂度 <code>O(n³)</code>。<strong>去重的模式完全一致</strong>：外层每多套一层，就多一句"和外层前一个比一比"；最内层仍然是"命中后跳重复"。
 
@@ -907,7 +885,6 @@ LC 16 要求"找出三个数，使它们的和最接近 <code>target</code>"。�
     <span class="k">return</span> <span class="n">count</span>
 </code></pre></div>
 
-
 当 <code>nums[i] + nums[l] + nums[r] &lt; target</code> 成立时，因为数组升序，<code>nums[l]</code> 配上 <code>l+1</code> 到 <code>r</code> 之间的<strong>任何一个</strong>下标，和都只会更小 —— 也就是说 <strong><code>r - l</code> 组解一次性成立</strong>，不用逐个枚举。
 
 <strong>这才是"有序"真正的威力</strong>：不只是"能移动指针"，而是"能一句话数出一整段"。LC 3 滑动窗口里的"一步跳"、LC 259 这里的"一次数一段"，本质上是同一件事：<strong>利用单调性把 O(n) 的枚举压缩成 O(1) 的结论。</strong>
@@ -942,7 +919,6 @@ LC 16 要求"找出三个数，使它们的和最接近 <code>target</code>"。�
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 Java 版有个额外注意点：<code>Arrays.asList(nums[i], nums[l], nums[r])</code> 里的三个 <code>int</code> 会被自动装箱成 <code>Integer</code>，<strong>这是合法的</strong>（<code>Arrays.asList(T...)</code> 会按 <code>Integer</code> 处理）。但如果写成 <code>Arrays.asList(nums)</code>（传整个 <code>int[]</code>），因为 <code>int[]</code> 是一个 <code>Object</code> 而不是 <code>T[]</code>，会得到一个<strong>只有一个元素的 <code>List&lt;int[]&gt;</code></strong> —— 这是 Java 里非常经典的一个坑。
 
@@ -997,14 +973,12 @@ Java 版有个额外注意点：<code>Arrays.asList(nums[i], nums[l], nums[r])</
 <div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span>     <span class="c1"># ❌ i = 0 时，Python 会取到 nums[-1]（最后一个元素）</span>
 </code></pre></div>
 
-
 Python 里 <code>nums[-1]</code> 不会报错，它会绕回数组末尾。所以这个 bug 表现为"随机的第一轮被跳过或不被跳过"，比直接崩溃更难查。
 
 <strong>坑 2：第二处去重的 <code>while</code> 漏掉 <code>l &lt; r</code></strong>
 <div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">l</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]:</span>   <span class="c1"># ❌ l 是最后一个下标时越界</span>
     <span class="n">l</span> <span class="o">+=</span> <span class="mi">1</span>
 </code></pre></div>
-
 
 而且即使没越界，<code>l</code> 也可能被推到 <code>r</code> 之外，把本该保留的组合跳掉。
 
@@ -1013,7 +987,6 @@ Python 里 <code>nums[-1]</code> 不会报错，它会绕回数组末尾。所�
 <span class="k">while</span> <span class="n">l</span> <span class="o">&lt;</span> <span class="n">r</span> <span class="ow">and</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">==</span> <span class="n">nums</span><span class="p">[</span><span class="n">r</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]:</span> <span class="n">r</span> <span class="o">-=</span> <span class="mi">1</span>
 <span class="c1"># ❌ 少了 l += 1 和 r -= 1</span>
 </code></pre></div>
-
 
 两个 <code>while</code> 结束时，<code>l</code> 停在<strong>最后一个</strong>相同值上 —— 那还是刚刚用过的值。不各走一步的话，下一轮算出来还是同一组，<strong>死循环</strong>。
 
@@ -1024,7 +997,6 @@ Python 里 <code>nums[-1]</code> 不会报错，它会绕回数组末尾。所�
 <span class="p">[</span><span class="mf">10</span><span class="p">,</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="w"> </span><span class="mf">1</span><span class="p">].</span><span class="nx">sort</span><span class="p">()</span><span class="w">                     </span><span class="c1">// → [1, 10, 2]             ❌ &quot;-1&quot; &lt; &quot;-4&quot;</span>
 <span class="p">[</span><span class="o">-</span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mf">4</span><span class="p">].</span><span class="nx">sort</span><span class="p">((</span><span class="nx">a</span><span class="p">,</span><span class="w"> </span><span class="nx">b</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">a</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">b</span><span class="p">)</span><span class="w">   </span><span class="c1">// → [-4, -1, -1, 0, 1, 2]  ✅</span>
 </code></pre></div>
-
 
 默认比较器会把元素转成字符串再比。于是 <code>-4</code> 会排在 <code>-1</code> 后面（因为字符 <code>'4' &gt; '1'</code>），整个双指针的单调性假设直接失效 —— <strong>代码不报错，只是答案悄悄错了</strong>。
 
@@ -1100,9 +1072,9 @@ Python 里 <code>nums[-1]</code> 不会报错，它会绕回数组末尾。所�
 <span class="k">assert</span> <span class="n">threeSum</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">])</span> <span class="o">==</span> <span class="p">[]</span>                      <span class="c1"># 剪枝</span>
 </code></pre></div>
 
-
 这五行比跑十遍官方样例有用。
 
-同族题延伸：<a href="/article/lc-1-two-sum/">《【LC 1】两数之和：先查再存，反了就匹配自己》</a>、<a href="/article/lc-42-trapping-rain-water/">《【LC 42】接雨水：四种解法，同一个问题》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-1-two-sum/">【LC 1】两数之和：先查再存，反了就匹配自己</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-42-trapping-rain-water/">【LC 42】接雨水：四种解法，同一个问题</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-5-longest-palindromic-substring/">【LC 5】最长回文子串：枚举中心 —— 2n-1 个中心，别漏了间隙</a></li><li><a href="https://blog.zhoujun.dev/article/lc-165-compare-version-numbers/">【LC 165】比较版本号：归一化后逐列比</a></li><li><a href="https://blog.zhoujun.dev/article/lc-415-add-strings/">【LC 415】字符串相加：把竖式翻译成代码</a></li><li><a href="https://blog.zhoujun.dev/article/lc-189-rotate-array/">【LC 189】轮转数组：三次翻转 —— 反转是自己的逆运算</a></li><li><a href="https://blog.zhoujun.dev/article/lc-42-trapping-rain-water/">【LC 42】接雨水：四种解法，同一个问题</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+同族题延伸：<a href="/article/lc-1-two-sum/">《【LC 1】两数之和：先查再存，反了就匹配自己》</a>、<a href="/article/lc-42-trapping-rain-water/">《【LC 42】接雨水：四种解法，同一个问题》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-1-two-sum/">【LC 1】两数之和：先查再存，反了就匹配自己</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-42-trapping-rain-water/">【LC 42】接雨水：四种解法，同一个问题</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-5-longest-palindromic-substring/">【LC 5】最长回文子串：枚举中心 —— 2n-1 个中心，别漏了间隙</a></li><li><a href="https://blog.zhoujun.dev/article/lc-165-compare-version-numbers/">【LC 165】比较版本号：归一化后逐列比</a></li><li><a href="https://blog.zhoujun.dev/article/lc-415-add-strings/">【LC 415】字符串相加：把竖式翻译成代码</a></li><li><a href="https://blog.zhoujun.dev/article/lc-189-rotate-array/">【LC 189】轮转数组：三次翻转 —— 反转是自己的逆运算</a></li><li><a href="https://blog.zhoujun.dev/article/lc-42-trapping-rain-water/">【LC 42】接雨水：四种解法，同一个问题</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>

@@ -5964,7 +5964,6 @@ back  (tail side) = least recently used (LRU)   evictions always come from here
         self.prev = None
         self.next = None
 
-
 class LRUCache:
     def __init__(self, capacity: int):
         self.cap = capacity
@@ -18506,7 +18505,6 @@ constexpr uint32_t LOCK_INSERT_INTENTION = 2048;
     redis.set(key, json.dumps(serialize(article)), ex=300)
     return serialize(article)
 
-
 def update_article(article_id, data):
     Article.objects.filter(id=article_id).update(**data)   # 1. write the database
     redis.delete(f"article:{article_id}")                  # 2. delete the cache
@@ -19026,7 +19024,6 @@ django.setup()
 
 from django.db import connection
 
-
 def explain(qs, verbose=True):
     """Return the plan for a queryset, using EXPLAIN QUERY PLAN on SQLite."""
     sql, params = qs.query.sql_with_params()
@@ -19037,7 +19034,6 @@ def explain(qs, verbose=True):
         # PostgreSQL: "EXPLAIN (ANALYZE, BUFFERS)"
         cur.execute("EXPLAIN QUERY PLAN " + sql, params)
         return [row[-1] for row in cur.fetchall()]
-
 
 if __name__ == "__main__":
     from articles.models import Article
@@ -19360,7 +19356,6 @@ ORDER BY pg_relation_size(indexrelid) DESC;
 from django.db import connection
 from django.test import TestCase
 from articles.models import Article
-
 
 class QueryPlanTests(TestCase):
     """The list query must not scan the table or sort."""
@@ -22303,7 +22298,6 @@ CREATE INDEX outbox_aggregate_idx
     locked_at = models.DateTimeField(null=True, blank=True)
     locked_by = models.CharField(max_length=64, blank=True)
 
-
 def create_order(user_id, sku_id, amount):
     with transaction.atomic():
         order = Order.objects.create(
@@ -22426,7 +22420,6 @@ RETURNING o.id, o.event_id, o.event_type, o.payload;
     event_id = models.UUIDField(unique=True)
     consumer = models.CharField(max_length=64)
     processed_at = models.DateTimeField(auto_now_add=True)
-
 
 def handle_order_created(event):
     with transaction.atomic():
@@ -27506,7 +27499,6 @@ k = (m / n) · ln 2
         self.event = threading.Event()
         self.value = None
         self.error = None
-
 
 class FlightGroup:
     """Coalesce concurrent loads for the same key."""
@@ -43203,7 +43195,6 @@ If the first two paths still cost money, Cloudflare has taken "freeloading" to i
     Tunnel → your own VPS (fallback for heavy jobs)
 </code></pre></div>
 
-
 Take a real scenario: frontend on Pages, API on Workers, images in R2, data in D1, and heavy jobs routed back through Tunnel to your own $5 VPS — <strong>the whole stack's monthly cost can come down to the price of a single VPS</strong>. Next to the $88-320/month bill of a traditional "cloud server + database + CDN + object storage" setup, that advantage is an order of magnitude.
 
 Two traps to avoid: on the free Workers plan, CPU time is capped at 10 ms per request (time spent awaiting I/O doesn't count, so don't do CPU-heavy work there); and free-tier limits do get adjusted, so check the official pricing page before you launch. Paid plans start at Workers Paid $5/month, still a floor price.
@@ -43664,7 +43655,6 @@ Continuous batching:
   [A,B,C      ] ─► [A,B,C,D] ─► [  B,D,E,F] ─► [     D,E,F]
        A finishes early → D takes the slot at once → E,F flow in → GPU utilization nears the ceiling
 </code></pre></div>
-
 
 The next level of this race is <strong>disaggregated prefill/decode</strong> — splitting prefill and decode onto different GPUs or clusters:
 <ul>
@@ -46256,7 +46246,6 @@ Break the large task into pieces, have different Bots process them in parallel, 
 Send the same brief to several Bots, let each complete it independently, then choose the stronger result. Good for creative tasks — headlines, visual concepts, campaign planning, product naming.
 <div>
 
-
   
     .title { font-size: 18px; font-weight: 700; fill: #0b0b0b; }
     .subtitle { font-size: 12px; fill: #52514e; }
@@ -46375,9 +46364,7 @@ Send the same brief to several Bots, let each complete it independently, then ch
     creative work like headlines, visuals, and naming
   
 
-
 </div>
-
 
 The example below — <strong>four Agents in a single group chat, going from finding a bug to shipping a product</strong> — gives you a feel for how Agents collaborate with no human intervention at all:
 <blockquote>
@@ -46503,7 +46490,6 @@ Large AI models, edge computing, digital twins, 5G/6G — these technologies are
 The chart below aggregates 2025–2030 IoT market forecasts from several authoritative research firms. Whether you look at market size or device connections, both trace a <strong>steep growth curve</strong> — a compound annual growth rate (CAGR) between 9% and 15%.
 <div>
 
-
   
     .title { font-size: 18px; font-weight: 600; fill: #0b0b0b; }
     .subtitle { font-size: 12px; fill: #52514e; }
@@ -46605,9 +46591,7 @@ The chart below aggregates 2025–2030 IoT market forecasts from several authori
 
   By 2030 the global IoT market will double, and connected devices will grow 2.5×
 
-
 </div>
-
 
 Three key trends stand out:
 <ol>
@@ -46620,7 +46604,6 @@ Three key trends stand out:
 
 The next phase of IoT will not come from a single breakthrough but from <strong>the combined explosion of several technologies</strong>. The chart below shows the four-layer architecture of the IoT stack:
 <div>
-
 
   
     .title { font-size: 18px; font-weight: 600; fill: #0b0b0b; }
@@ -46668,9 +46651,7 @@ The next phase of IoT will not come from a single breakthrough but from <strong>
 
   Every layer is being rebuilt by AI: the sensing layer grows a "cerebellum," the platform layer grows a "brain"
 
-
 </div>
-
 
 Let's break down the four key engines:
 <h3>1️⃣ AIoT: From "Perception" to "Cognition"</h3>
@@ -46690,7 +46671,6 @@ From the factory floor to city traffic, from a single wind turbine to an entire 
 
 The chart below shows how IoT value will be distributed across the major application scenarios in 2030:
 <div>
-
 
   
     .title { font-size: 18px; font-weight: 600; fill: #0b0b0b; }
@@ -46743,7 +46723,6 @@ The chart below shows how IoT value will be distributed across the major applica
 
   Illustrative estimates combining multi-source forecasts from IDC, Gartner, and McKinsey
 
-
 </div>
 
 <h3>🏠 Consumer IoT: From Single Devices to Scene-Level Intelligence</h3>
@@ -46760,7 +46739,6 @@ From adaptive traffic signals to manhole-cover displacement alarms, from real-ti
 
 Behind the impressive numbers, the IoT industry also faces five structural challenges:
 <div>
-
 
   
     .title { font-size: 18px; font-weight: 600; fill: #0b0b0b; }
@@ -46823,7 +46801,6 @@ Behind the impressive numbers, the IoT industry also faces five structural chall
     Score 0–10
   
 
-
 </div>
 
 <h3>🔒 Security: The Biggest and Most Complex Challenge</h3>
@@ -46846,7 +46823,6 @@ IoT is a textbook <strong>interdisciplinary field</strong> — it needs people w
 
 Finally, a timeline threads together the key milestones of the next five years:
 <div>
-
 
   
     .title { font-size: 18px; font-weight: 600; fill: #0b0b0b; }
@@ -46905,7 +46881,6 @@ Finally, a timeline threads together the key milestones of the next five years:
   
 
   Hardware + connectivity + intelligence + standards + sustainability form a complete evolutionary loop
-
 
 </div>
 
@@ -47063,7 +47038,6 @@ Routes are lazy-loaded through Vue Router, so every page is fetched on demand an
 <span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/about&#39;</span><span class="p">,</span><span class="w">         </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;../pages/About.vue&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
 <span class="p">]</span>
 </code></pre></div>
-
 
 A route guard protects the admin pages and sends anyone who is not signed in straight to the login screen:
 <div class="codehilite"><pre><span></span><code><span class="nx">router</span><span class="p">.</span><span class="nx">beforeEach</span><span class="p">((</span><span class="nx">to</span><span class="p">,</span><span class="w"> </span><span class="kr">from</span><span class="p">,</span><span class="w"> </span><span class="nx">next</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
@@ -47224,7 +47198,6 @@ At the center sits the <strong>Article</strong> model, with four states — draf
     <span class="n">updated_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
 
-
 Saving an article triggers all of the following automatically:
 <ol>
 <li><strong>Markdown → HTML</strong>: handled by Python-Markdown with the code highlighting, table and TOC extensions switched on</li>
@@ -47246,7 +47219,6 @@ POST   /api/admin/articles/         create an article (auth required)
 PUT    /api/admin/articles/{id}/    update an article (auth required)
 DELETE /api/admin/articles/{id}/    delete an article (auth required)
 </code></pre></div>
-
 
 API hardening:
 - <strong>Rate limiting</strong>: 30 requests per minute for anonymous users, 100 for authenticated ones, 3 for comments and 5 per hour for subscriptions
@@ -47310,7 +47282,6 @@ git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </sp
 git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>master
 </code></pre></div>
 
-
 A few deliberate choices:
 - GitHub Pages serves from the repository root, so the build output has to be copied there
 - Source lives under <code>frontend/</code>, build output lives at the root, and <code>.gitignore</code> keeps the two apart
@@ -47372,7 +47343,6 @@ Likes are gated by a cookie rather than an account, so nobody has to sign in to 
     <span class="k">return</span> <span class="n">resp</span>
 </code></pre></div>
 
-
 What makes it hold up:
 - The cookie lives for 365 days, which works out to one like per person per article
 - <code>httponly=True</code> keeps scripts from tampering with it
@@ -47388,7 +47358,6 @@ Search rides on DRF's <code>SearchFilter</code> and matches across article title
     <span class="p">}</span>
     <span class="n">search_fields</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;content&quot;</span><span class="p">]</span>
 </code></pre></div>
-
 
 The frontend search page sends the keyword through a query parameter:
 <div class="codehilite"><pre><span></span><code><span class="nx">getArticles</span><span class="p">({</span><span class="w"> </span><span class="nx">search</span><span class="o">:</span><span class="w"> </span><span class="nx">keyword</span><span class="w"> </span><span class="p">})</span><span class="w">  </span><span class="c1">// → GET /api/articles/?search=vue</span>
@@ -47841,7 +47810,6 @@ Chinese       ████████░░   8  ← Excellent, though not top-
 Value         ████████░░   8  ← Free as open source, mid-range API pricing
 </code></pre></div>
 
-
 <strong>Best for:</strong>
 - Software development (full stack, long-running projects)
 - Long-document analysis (hundreds of pages of PDF, large codebases)
@@ -47871,7 +47839,6 @@ Agent         ███████░░░   7  ← Tool calling works, but be
 Multimodal    ██░░░░░░░░   2  ← Text-only, no image input
 </code></pre></div>
 
-
 <strong>Best for:</strong>
 - Math / scientific reasoning
 - Extreme value-for-money needs (API pricing is 1/5 to 1/3 of GPT-5.4)
@@ -47899,7 +47866,6 @@ Search        ██████████  10  ← DeepSearchQA F1=92.5, #1 w
 Tool calling  █████████░░   9  ← Document-to-Skill turns docs into skills instantly
 Pure reasoning ██████░░░░░░  6  ← HLE-Full only 34.7 — the weak spot
 </code></pre></div>
-
 
 <strong>Best for:</strong>
 - Large-scale agent automation
@@ -47931,7 +47897,6 @@ Context       ███████░░░░   7  ← 197K, enough but not re
 Reasoning     ████████░░   8  ← Excellent on routine reasoning, trails DeepSeek on the hardest
 </code></pre></div>
 
-
 <strong>Best for:</strong>
 - Budget-sensitive projects / startups
 - High-concurrency agent scenarios
@@ -47962,7 +47927,6 @@ Length        ██████░░░░░░   6  ← 15 seconds max; exte
 Extreme motion ████████░░   7  ← Subtle warping artifacts still need work
 </code></pre></div>
 
-
 <strong>Best for:</strong>
 - Short-form video (Douyin, TikTok, Kuaishou)
 - Advertising and marketing assets
@@ -47992,7 +47956,6 @@ Free tier       ██████████  10  ← Seed-1.6-Flash is extrem
 Complex reasoning ████████░░   8  ← Third worldwide, but behind DeepSeek
 Open source     ░░░░░░░░░░   0  ← Fully closed, no local deployment
 </code></pre></div>
-
 
 <strong>Best for:</strong>
 - Independent media / short-video creators
@@ -48025,7 +47988,6 @@ Reasoning     █████████░░   9  ← HLE 58.3, the highest w
 Multimodal    ███████░░░░   7  ← Present, but not a standout
 </code></pre></div>
 
-
 <strong>Best for:</strong>
 - Enterprise-grade agent applications
 - Needs open source that is commercially usable (Apache 2.0)
@@ -48056,7 +48018,6 @@ Free tier     ████████░░   8  ← The Lite version is comple
 Reasoning     ██████░░░░░░   6  ← Weak on math and science
 API price     ██████░░░░░░   6  ← Big 2026 price hike (up to 463%)
 </code></pre></div>
-
 
 <strong>Best for:</strong>
 - AI needs inside the WeChat ecosystem
@@ -48169,7 +48130,6 @@ Video             → Seedance 2.0 (the world’s best video model)
 Enterprise deploy → Qwen3.7-Max (open source + agents + cheap)
 Budget-sensitive  → MiniMax M2.5 (1/10 the price, 95% of the capability)
 </code></pre></div>
-
 
 <strong>There is no all-purpose model, but there is an optimal combination.</strong> In 2026, Chinese LLMs no longer need to look up to Silicon Valley — they are defining their own standards on their own tracks. 🚀
 
@@ -48375,7 +48335,6 @@ An AI tool should be more than a "chat window" — it needs to blend deeply into
   Pros: great out-of-the-box UX      Pros: no vendor lock-in
   Cons: model upgrades are passive   Cons: some model tuning required
 </code></pre></div>
-
 
 <strong>Key insight:</strong> Claude models currently lead in code comprehension and generation, but different models have their own strengths in different scenarios. Tools that let you switch models freely give you more options.
 <h3>4. Learning Curve</h3>
@@ -48609,7 +48568,6 @@ A diagram makes it easier to picture:
  └─────────────────────────────────────────────────────────────┘
 </code></pre></div>
 
-
 Put simply: <strong>everything your test work currently keeps in spreadsheets and chat threads moves into one purpose-built web system</strong> — write cases, hand out tasks, test features, file bugs, read reports. One place for all of it.
 <hr>
 <h2>What is this system built with?</h2>
@@ -48703,7 +48661,6 @@ The system defines four roles, and each one sees a different slice of the produc
 └───────────────────────────────────────────────────────────┘
 </code></pre></div>
 
-
 Every permission is <strong>fine-grained</strong>. Same "view the case library" capability — can you read it but not change it? Then you are a Tester. Can you also create, update, and delete? Then you are a Developer. Each capability is an independent switch that can be combined freely.
 <h3>Security measures</h3>
 <ul>
@@ -48735,7 +48692,6 @@ The registration flow is deliberately strict:
 <span class="w">  </span><span class="n">Log in</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">fetch</span><span class="w"> </span><span class="n">JWT</span><span class="w"> </span><span class="n">token</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">enter the system</span>
 </code></pre></div>
 
-
 The user model pairs Django's built-in <code>auth.User</code> with a <code>UserProfile</code> extension:
 <div class="codehilite"><pre><span></span><code><span class="c1"># accounts/models.py — the actual shape of the code</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">django.contrib.auth.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">User</span>
@@ -48752,7 +48708,6 @@ The user model pairs Django's built-in <code>auth.User</code> with a <code>UserP
     <span class="n">can_manage_testcase_library</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">can_access_my_projects</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">BooleanField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
-
 
 Default permissions are derived from the role at registration time — the <code>ROLE_DEFAULT_PERMISSIONS</code> dict defines which feature switches each of the four roles (admin, tester, developer, viewer) gets out of the box.
 <h3>4.2 Project management — creating the workspace</h3>
@@ -48776,7 +48731,6 @@ Every test project carries its full context:
     ├── Priority
     └── Due date
 </code></pre></div>
-
 
 The neat part here is the <strong>module tree</strong> — a self-referencing <code>parent</code> foreign key in Django gives you unlimited nesting:
 <div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Module</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
@@ -48811,11 +48765,9 @@ The case library is the core of the system, organized by product line (camera / 
 └────────────────────────────────────────────────┘
 </code></pre></div>
 
-
 Bulk import is where it really earns its keep — a single Django command pulls every case out of an Excel file:
 <div class="codehilite"><pre><span></span><code>python<span class="w"> </span>manage.py<span class="w"> </span>import_camera_cases<span class="w"> </span>camera_cases.xlsx
 </code></pre></div>
-
 
 It detects the column headers, groups worksheets into modules by sheet name, and numbers the steps for you.
 <h3>4.4 Assigning and executing cases — getting tests running</h3>
@@ -48842,7 +48794,6 @@ Project → Task → Member
     ▼
   Leader review → approve / reject in bulk
 </code></pre></div>
-
 
 Every execution result supports <strong>attachments</strong> (up to 15MB) — screenshots, logs, and so on. Leaders can <strong>approve in bulk</strong> instead of clicking through one by one.
 <h3>4.5 Test plans — plan first, run later</h3>
@@ -48889,7 +48840,6 @@ Found a problem while executing tests? File a defect right there:
                   reopened                            │
 </code></pre></div>
 
-
 Each defect record contains:
 - <strong>Title &amp; description</strong> — what is broken
 - <strong>Severity</strong> — from S0 (worst / blocking) to S4 (minor / suggestion)
@@ -48926,7 +48876,6 @@ The landing page after login is a <strong>feature launcher</strong> that renders
 └──────────────────────────────────────────────┘
 </code></pre></div>
 
-
 Four cards, four core modules. Each card has its own gradient icon and lifts slightly on hover. How many cards you see depends on your role — a plain tester never sees "Permission management", and anyone without case-library access does not see the first card at all.
 <h3>4.9 Statistics — data aggregation at the API layer</h3>
 
@@ -48953,7 +48902,6 @@ Features reserved for the Admin role:
 <div class="codehilite"><pre><span></span><code><span class="c1"># one command turns Excel into test cases</span>
 python<span class="w"> </span>manage.py<span class="w"> </span>import_camera_cases<span class="w"> </span>camera_cases.xlsx
 </code></pre></div>
-
 
 What it works out on its own:
 - Detects column headers (both the standard layout and its variants)
@@ -48984,7 +48932,6 @@ Project ──1:N──▶ Module (self-referencing tree)
 
 TestCase ──1:N──▶ TestCaseStep
 </code></pre></div>
-
 
 The key design decisions:
 - <strong>One-to-many</strong> relations run through the whole schema, which keeps the structure easy to follow
@@ -49045,7 +48992,6 @@ The two halves talk over a RESTful API and authenticate with JWT:
 <span class="w">    </span><span class="err">│</span><span class="w"> </span><span class="err">◀─────────────────────────────────│</span>
 </code></pre></div>
 
-
 A consistent response envelope:
 <div class="codehilite"><pre><span></span><code><span class="c1">// paginated response</span>
 <span class="p">{</span>
@@ -49088,14 +49034,12 @@ python<span class="w"> </span>manage.py<span class="w"> </span>createsuperuser<s
 python<span class="w"> </span>manage.py<span class="w"> </span>runserver<span class="w"> </span><span class="m">0</span>.0.0.0:8000
 </code></pre></div>
 
-
 <strong>Step 2: start the front end</strong>
 <div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>test_manage_system/frontend
 npm<span class="w"> </span>install
 npm<span class="w"> </span>run<span class="w"> </span>dev
 <span class="c1"># open http://localhost:5173 in your browser</span>
 </code></pre></div>
-
 
 <strong>Step 3: start using it</strong>
 <ol>
@@ -49384,7 +49328,6 @@ A Node represents a single physical device and is the smallest addressable unit 
 <span class="n">node_t</span><span class="w"> </span><span class="o">*</span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node</span><span class="o">::</span><span class="n">create</span><span class="p">(</span><span class="o">&amp;</span><span class="n">node_config</span><span class="p">,</span><span class="w"> </span><span class="n">app_attribute_update_cb</span><span class="p">,</span><span class="w"> </span><span class="n">app_identification_cb</span><span class="p">);</span>
 </code></pre></div>
 
-
 <code>app_attribute_update_cb</code> is the attribute update callback, invoked whenever a control command comes in. <code>app_identification_cb</code> is the identification callback, used to handle Identify commands (blinking the device so you can tell which one it is, for instance).
 <h3>4.2 Endpoint (the "room")</h3>
 
@@ -49497,7 +49440,6 @@ A typical ESP-Matter example project is laid out like this:
 <span class="c1">// Register the reset button</span>
 <span class="n">app_reset_button_register</span><span class="p">(</span><span class="n">button_handle</span><span class="p">);</span>
 </code></pre></div>
-
 
 <code>app_driver_light_init()</code> initializes every LED pin. The example sets up several LEDs but only uses the first one by default — which is exactly why the sample appears to "control just one bulb".
 <h3>5.3 Creating the Node and Endpoint</h3>
@@ -49674,7 +49616,6 @@ docker<span class="w"> </span>run<span class="w"> </span>-it<span class="w"> </s
 <span class="w">    </span>--network<span class="w"> </span>host<span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>us-central1-docker.pkg.dev/gdhome-google-com/matter-virtual-device/matter-virtual-device:latest
 </code></pre></div>
-
 
 The virtual device can be commissioned into a real Google Home fabric and controlled by Assistant voice commands just like a physical device.
 <h3>7.3 Debugging with the VS Code Extension</h3>
@@ -50118,7 +50059,6 @@ python<span class="w"> </span>manage.py<span class="w"> </span>migrate
 <div class="codehilite"><pre><span></span><code>python<span class="w"> </span>manage.py<span class="w"> </span>createsuperuser
 </code></pre></div>
 
-
 Answer the prompts:
 <div class="codehilite"><pre><span></span><code><span class="nx">Username</span><span class="p">:</span><span class="w"> </span><span class="nx">admin</span>
 <span class="nx">Email</span><span class="w"> </span><span class="nx">address</span><span class="p">:</span><span class="w"> </span><span class="nx">your</span><span class="err">@</span><span class="nx">email</span><span class="p">.</span><span class="nx">com</span>
@@ -50187,7 +50127,6 @@ At the top of the <strong>Web</strong> page, click the green <strong>Reload</str
 Open your browser and visit:
 <div class="codehilite"><pre><span></span><code>https://yourusername.pythonanywhere.com/api/articles/
 </code></pre></div>
-
 
 If you see JSON data, congratulations — the deployment worked! 🎉
 <hr>
@@ -50489,14 +50428,12 @@ Create <code>frontend/src/pages/NotFound.vue</code>:
 npm<span class="w"> </span>run<span class="w"> </span>dev
 </code></pre></div>
 
-
 Open <code>http://localhost:5173</code> in your browser. Once everything looks right, press <code>Ctrl+C</code> to stop it.
 <hr>
 <h2>📦 Step 5: Build the project</h2>
 <div class="codehilite"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>frontend
 npm<span class="w"> </span>run<span class="w"> </span>build
 </code></pre></div>
-
 
 After a successful build, a <code>frontend/dist/</code> folder appears at the project root:
 <div class="codehilite"><pre><span></span><code>frontend/dist/
@@ -50575,7 +50512,6 @@ Open <code>https://your-username.github.io</code> in your browser and you should
 <span class="w">  </span><span class="nx">routes</span><span class="p">,</span>
 <span class="p">})</span>
 </code></pre></div>
-
 
 The URL becomes <code>https://xxx.github.io/#/article/xxx</code>, but refreshing no longer 404s.
 <blockquote>

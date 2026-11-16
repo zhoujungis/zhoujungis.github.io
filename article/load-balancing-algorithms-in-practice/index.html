@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="适用读者：做过扩容、被「机器加了但吞吐没涨」坑过，或者正在为网关、服务网格挑选后端选择策略的工程师 结论先行：负载均衡算法的差别不在于「谁更公平」，而在于 它假设的「负载」是什么…" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/" />
     <meta property="og:title" content="负载均衡：轮询、最少连接与一致性哈希的代价" />
@@ -515,7 +509,6 @@ HTTP/2 和 gRPC 更极端：一条连接上可以并发几十上百个流，长�
 <span class="p">}</span>
 </code></pre></div>
 
-
 几个参数的含义需要说清楚。<code>zone</code> 让多个 worker 共享 upstream 的状态，没有它，<code>max_fails</code> 的计数是每个 worker 各算各的，八个 worker 就意味着实际阈值被放大了八倍。<code>least_conn</code> 在比较时会考虑 <code>weight</code>。<code>keepalive</code> 缓存的是空闲连接，配合 <code>proxy_http_version 1.1</code> 和清空 <code>Connection</code> 头才能生效，否则每条请求都会新建 TCP 连接。
 
 <code>backup</code> 机器平时不接流量，只在其他机器全部不可用时启用。它适合放一台降配的兜底实例，不适合当成正常容量。
@@ -530,7 +523,6 @@ HTTP/2 和 gRPC 更极端：一条连接上可以并发几十上百个流，长�
 <span class="p">}</span>
 </code></pre></div>
 
-
 <code>hash $arg_tenant_id consistent</code> 表示按查询参数里的租户 ID 做一致性哈希；<code>hash_method</code> 默认是 CRC32，可以换成更均匀的算法，但换了之后所有 key 都会重排，等于一次全量搬迁，必须当成一次发布来对待。
 
 如果确实需要 IP 粘性，用 <code>ip_hash</code>，并且要理解它的扩容代价：
@@ -541,7 +533,6 @@ HTTP/2 和 gRPC 更极端：一条连接上可以并发几十上百个流，长�
 <span class="w">    </span><span class="kn">server</span><span class="w"> </span><span class="n">10.0.2.33</span><span class="p">:</span><span class="mi">8080</span><span class="w"> </span><span class="s">down</span><span class="p">;</span><span class="w">   </span><span class="c1"># 摘机器用 down，不要直接删</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 Nginx 文档明确建议：使用 <code>ip_hash</code> 时，临时下线的机器要标 <code>down</code> 而不是从配置里删除，否则剩下机器的映射关系会整体改变。这也侧面说明它的重映射代价很高。
 
@@ -563,7 +554,6 @@ Nginx 文档明确建议：使用 <code>ip_hash</code> 时，临时下线的机�
 <span class="p">}</span>
 </code></pre></div>
 
-
 这里每个值都有理由。连接超时设得比读超时短，因为「连不上」通常是机器挂了或网络断了，没必要等十秒；读超时要覆盖正常的慢请求，但必须小于客户端的超时，否则客户端先放弃，代理还在等。<code>proxy_next_upstream_tries 2</code> 表示最多试两台（含第一台），<code>proxy_next_upstream_timeout 3s</code> 是整个过程的总预算。非幂等请求默认不重试，<code>non_idempotent</code> 参数不要随便加。
 
 另外两处配置同样重要：给每台 <code>server</code> 加 <code>max_conns</code>，防止单机被连接打爆；在入口限制请求体和 Header 大小。它们不属于负载均衡策略，却直接影响「分配是否有效」。
@@ -581,7 +571,6 @@ Nginx 文档明确建议：使用 <code>ip_hash</code> 时，临时下线的机�
 
 <span class="k">access_log</span><span class="w"> </span><span class="s">/var/log/nginx/upstream.log</span><span class="w"> </span><span class="s">upstream_log</span><span class="p">;</span>
 </code></pre></div>
-
 
 <code>$upstream_addr</code> 记录实际选中的后端，<code>$upstream_response_time</code> 记录该后端的耗时，<code>$upstream_status</code> 记录后端返回的状态码。按后端聚合这三个值，就能得到每台的请求占比、延迟分布和错误率。如果某台的请求占比和它的权重明显不符，优先怀疑三件事：健康检查把它摘了、<code>max_fails</code> 计数没有共享、连接被粘住了。
 
@@ -603,7 +592,6 @@ Nginx 文档明确建议：使用 <code>ip_hash</code> 时，临时下线的机�
 从排队论的角度看，一个由 N 台同构机器组成的服务，单台处理能力是 μ，总到达率是 λ，则系统利用率是：
 <div class="codehilite"><pre><span></span><code><span class="nv">ρ</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>λ<span class="w"> </span>/<span class="w"> </span><span class="o">(</span>N<span class="w"> </span>·<span class="w"> </span>μ<span class="o">)</span>
 </code></pre></div>
-
 
 在 M/M/1 这类模型里，排队时间随利用率非线性上升：ρ 从 0.7 升到 0.9，等待时间大约从服务时间的 2.3 倍涨到 9 倍。加机器本应降低 ρ，但前提是 μ 能随机器数量线性扩展。
 
@@ -681,6 +669,7 @@ Nginx 文档明确建议：使用 <code>ip_hash</code> 时，临时下线的机�
 <li><a href="/article/rate-limit-algorithms-deep-dive/">限流算法实测：固定窗口 2 倍溢出、令牌桶突刺</a></li>
 <li><a href="/article/queueing-theory-capacity-planning/">加到 8 台反而更慢：排队论与容量规划</a></li>
 <li><a href="/article/resilience-timeout-retry-circuit-breaker/">超时、重试与熔断：把失败控制在边界内</a></li>
-</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/graceful-shutdown-in-practice/">优雅停机：别在 SIGTERM 那一刻丢掉请求</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/api-gateway-deep-dive/">API 网关实战：认证、限流与路由的统一入口</a></li><li><a href="https://blog.zhoujun.dev/article/resilience-timeout-retry-circuit-breaker-deep-dive/">下游只抖 3 秒，我的服务被拖死——超时与熔断实战</a></li><li><a href="https://blog.zhoujun.dev/article/mq-reliable-delivery-deep-dive/">消息凭空消失排查记：MQ 可靠投递实测</a></li><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/graceful-shutdown-in-practice/">优雅停机：别在 SIGTERM 那一刻丢掉请求</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/api-gateway-deep-dive/">API 网关实战：认证、限流与路由的统一入口</a></li><li><a href="https://blog.zhoujun.dev/article/resilience-timeout-retry-circuit-breaker-deep-dive/">下游只抖 3 秒，我的服务被拖死——超时与熔断实战</a></li><li><a href="https://blog.zhoujun.dev/article/mq-reliable-delivery-deep-dive/">消息凭空消失排查记：MQ 可靠投递实测</a></li><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>

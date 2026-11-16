@@ -7,9 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="No scheme gets all four ACID properties. Outbox trades atomicity for a durable event, Saga trades isolation for availability, TCC trades business intrusion for reserved resources. Choose the intermediate state you can live with." />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-        <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/en/article/distributed-transaction-outbox-saga-tcc/" />
     <meta property="og:title" content="Distributed transactions: outbox, Saga and TCC, and where each one stops | Stack Frame" />
@@ -83,7 +81,6 @@
     <!-- Cross-origin hints: API is called on first paint, covers come from
          Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
 
-
     <!-- Service Worker — register only; updates propagate via sw.js byte
          differences (skipWaiting + clients.claim in sw.js). Unregistering on
          every load forced a full SW reinstall + shell refetch each visit. -->
@@ -92,7 +89,6 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-
 
     <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
   
@@ -344,7 +340,6 @@ CREATE INDEX outbox_aggregate_idx
     locked_at = models.DateTimeField(null=True, blank=True)
     locked_by = models.CharField(max_length=64, blank=True)
 
-
 def create_order(user_id, sku_id, amount):
     with transaction.atomic():
         order = Order.objects.create(
@@ -467,7 +462,6 @@ RETURNING o.id, o.event_id, o.event_type, o.payload;
     event_id = models.UUIDField(unique=True)
     consumer = models.CharField(max_length=64)
     processed_at = models.DateTimeField(auto_now_add=True)
-
 
 def handle_order_created(event):
     with transaction.atomic():
@@ -705,6 +699,7 @@ WHERE state = 'running'
 <p>What you are designing is not a framework choice but a decision about which failure shapes the business can accept: delay means outbox, intermediate states mean Saga, no overselling means TCC, and only same-database short transactions justify two-phase commit. Having chosen, add idempotency, compensation, dead letters and observability, or the scheme is only a diagram.</p>
 
 <p>Read the Chinese edition: <a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a>.</p>
-</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+
   </body>
 </html>

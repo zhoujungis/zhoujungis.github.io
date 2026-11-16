@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇 适用读者 ：背过「快慢指针」模板，但被追问「为什么一定相遇」时只能答「就是会遇上」的人 技术栈 ：Python…" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/lc-141-142-linked-list-cycle/" />
     <meta property="og:title" content="【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇" />
@@ -193,7 +187,6 @@
 解释：链表中没有环。
 </code></pre></div>
 
-
 约束：
 <ul>
 <li>链表中节点的数目范围是 <code>[0, 10^4]</code></li>
@@ -208,7 +201,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">x</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
 </code></pre></div>
-
 
 留意两个细节。第一，<strong>节点数可以到 10⁴</strong>——这个量级直接决定了哈希表法的空间开销值不值得。第二，<strong>不允许修改链表</strong>——所以「把走过的节点标记一下」这类做法（改 <code>val</code>、改 <code>next</code> 指向哨兵）全部出局。这两句话把可行解的范围压得很窄，也把 Floyd 判圈推到了台前。
 <hr>
@@ -235,7 +227,6 @@ b = 9    （环是 5→6→7→8→9→10→11→12→13→5，9 个节点）
 n = 13
 </code></pre></div>
 
-
 后面动画和表格里的数字，全部来自这条链表。
 <h3>1.2 最直接的做法：哈希表</h3>
 
@@ -250,7 +241,6 @@ n = 13
     <span class="k">return</span> <span class="kc">False</span>
 </code></pre></div>
 
-
 找入口更简单——<strong>第一次重复出现的那个节点就是入口</strong>：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">detectCycle</span><span class="p">(</span><span class="n">head</span><span class="p">):</span>
     <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
@@ -261,7 +251,6 @@ n = 13
         <span class="n">head</span> <span class="o">=</span> <span class="n">head</span><span class="o">.</span><span class="n">next</span>
     <span class="k">return</span> <span class="kc">None</span>
 </code></pre></div>
-
 
 时间复杂度 O(n)，非常干净。但空间是 <strong>O(n)</strong>：最坏情况下（整条链表就是一个环，或者环很大）<code>seen</code> 里要装下几乎全部 n 个节点。
 
@@ -281,7 +270,6 @@ n 最大 10⁴，看着不多。但「O(1) 内存」这道进阶题问的不是�
     <span class="k">return</span> <span class="kc">False</span>
 </code></pre></div>
 
-
 Java 版：
 <div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="nf">hasCycle</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="n">ListNode</span><span class="w"> </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">,</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
@@ -293,7 +281,6 @@ Java 版：
 <span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span><span class="p">;</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 代码五行。但「为什么这样一定能相遇」——这才是这题真正的考点。
 <h3>2.2 把「相遇」翻译成一个同余式</h3>
@@ -323,11 +310,9 @@ Java 版：
 <div class="codehilite"><pre><span></span><code>gap_k = (gap₀ - closing · k) mod b
 </code></pre></div>
 
-
 相遇就是 <code>gap_k = 0</code>。这是一个同余方程：
 <div class="codehilite"><pre><span></span><code>closing · k ≡ gap₀  (mod b)
 </code></pre></div>
-
 
 它有解，当且仅当 <strong><code>gcd(closing, b)</code> 整除 <code>gap₀</code></strong>（数论里的线性同余定理）。
 
@@ -340,11 +325,9 @@ Java 版：
 <div class="codehilite"><pre><span></span><code>a · fastStep - a = a · (fastStep - 1) = a · closing
 </code></pre></div>
 
-
 格。所以快指针在环上的位置是第 <code>(a · closing) mod b</code> 格，而慢指针在第 0 格。于是
 <div class="codehilite"><pre><span></span><code>gap₀ = (-a · closing) mod b
 </code></pre></div>
-
 
 看这个式子。<code>a · closing</code> 是 <code>closing</code> 的倍数；模 <code>b</code> 之后仍然是「<code>closing</code> 的倍数再减去若干个 <code>b</code>」。而 <code>gcd(closing, b)</code> 同时整除 <code>closing</code> 和 <code>b</code>，所以它必然整除 <code>a · closing</code> 也整除 <code>b</code>，于是<strong>它必然整除 <code>gap₀</code></strong>。
 
@@ -353,7 +336,6 @@ Java 版：
 这不是「运气好」或者「试出来的」，而是代数上被锁死的。我把这件事直接枚举验证了一遍：
 <div class="codehilite"><pre><span></span><code><span class="n">backend</span><span class="o">/</span><span class="n">venv</span><span class="o">/</span><span class="n">Scripts</span><span class="o">/</span><span class="n">python</span><span class="o">.</span><span class="n">exe</span><span class="w"> </span><span class="n">tools</span><span class="o">/</span><span class="n">count_lc141_work</span><span class="o">.</span><span class="n">py</span>
 </code></pre></div>
-
 
 固定两指针同起点，对 <code>fastStep ∈ {2,3,4,5}</code>、<code>a ∈ [0,14]</code>、<code>b ∈ [1,14]</code> 全组合枚举，共 <strong>210</strong> 组每组：
 <div class="table-scroll"><table>
@@ -482,7 +464,6 @@ Java 版：
 
 <div class="algo-viz algo-viz--lc141"></div>
 
-
 这条弧线就是「一定相遇」的全部直观内容：<code>gap</code> 是模 <code>b</code> 递减的，而模 <code>b</code> 递减<strong>不可能跳过 0</strong>。它必然依次经过 <code>b-1</code>、…、<code>1</code>、<code>0</code>。
 
 第 9 步两指针在节点 10 相遇。核对一下账：慢指针走了 9 步，快指针走了 18 格，多走的 <code>18 - 9 = 9</code> 格正好是<strong>一个环长</strong>。
@@ -491,7 +472,6 @@ Java 版：
 既然 <code>gap</code> 每步减 <code>closing</code>、模 <code>b</code>，那「慢指针进环后再走几步」就是解 <code>closing · k ≡ -a · closing (mod b)</code>。两边约掉 <code>g = gcd(closing, b)</code> 之后可得：
 <div class="codehilite"><pre><span></span><code>总相遇步数 t = 不小于 a 的最小 (b / gcd(closing, b)) 的倍数
 </code></pre></div>
-
 
 拿演示链表验证：<code>a = 4</code>、<code>b = 9</code>、<code>closing = 1</code>，<code>b / gcd(1, 9) = 9</code>，不小于 4 的最小 9 的倍数是 9。<strong><code>t = 9</code></strong>，和动画一致。
 
@@ -570,11 +550,9 @@ Java 版：
 <div class="codehilite"><pre><span></span><code><span class="mf">2</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="err">·</span><span class="w"> </span><span class="n">b</span><span class="w">        </span><span class="err">（</span><span class="n">m</span><span class="w"> </span><span class="n">是某个正整数</span><span class="err">）</span>
 </code></pre></div>
 
-
 把 <code>a + x = m·b</code> 改写成模 <code>b</code> 的形式：
 <div class="codehilite"><pre><span></span><code>a ≡ -x ≡ b - x   (mod b)
 </code></pre></div>
-
 
 <strong>这一步就是整道题的钥匙。</strong> 它的意思是：
 <blockquote>
@@ -606,7 +584,6 @@ Java 版：
     <span class="k">return</span> <span class="kc">None</span>
 </code></pre></div>
 
-
 Java 版：
 <div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">detectCycle</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">head</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="n">ListNode</span><span class="w"> </span><span class="n">slow</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">,</span><span class="w"> </span><span class="n">fast</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">head</span><span class="p">;</span>
@@ -626,7 +603,6 @@ Java 版：
 <span class="p">}</span>
 </code></pre></div>
 
-
 整个算法<strong>没有用任何额外存储</strong>，只有四个指针变量，与 n 无关。
 <h3>3.3 看一眼动画</h3>
 
@@ -638,7 +614,6 @@ ptr2：4 → 3 → 2 → 1 → 0
 </code></pre></div>
 
 <div class="algo-viz algo-viz--lc142"></div>
-
 
 演示链表特意选成 <code>a = b - x = 4</code>（<code>a = 4</code>、<code>b = 9</code>、<code>x = 5</code>），所以两条路<strong>一样长</strong>，两个读数严格同步。走满 4 步，两个指针同时落在节点 5——那就是入口。
 
@@ -672,7 +647,6 @@ ptr2：4 → 3 → 2 → 1 → 0
 回头看 3.1 节的推导。我们得到 <code>a + x = m·b</code> 这一步，用到了「快指针走的步数恰好是慢指针的两倍」。<strong>如果快指针走 3 格，这个倍数就变成 3</strong>，于是：
 <div class="codehilite"><pre><span></span><code><span class="mf">3</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2</span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="err">·</span><span class="w"> </span><span class="n">b</span>
 </code></pre></div>
-
 
 只能推出 <code>closing · (a + x) ≡ 0 (mod b)</code>，也就是 <code>2(a + x)</code> 是 <code>b</code> 的整数倍——<strong>这推不出 <code>a + x</code> 是 <code>b</code> 的整数倍</strong>。当 <code>b</code> 是偶数时，<code>a + x</code> 完全可以是 <code>b/2</code> 的奇数倍，此时 <code>a ≡ b - x</code> 就不成立了。
 
@@ -819,7 +793,6 @@ Floyd 并不比哈希表慢，仍然是 O(n)：
 <div class="codehilite"><pre><span></span><code>backend/venv/Scripts/python.exe<span class="w"> </span>tools/count_lc141_work.py
 </code></pre></div>
 
-
 <strong>为什么是计数不是计时</strong>：步数、距离、下标都是<strong>确定性算术</strong>，同一份输入跑一百遍都是同一个数，不受机器负载影响。计时在这台机器上的噪声底是 12%，跨会话能涨到 57%，那种数字没有可复现性。
 
 脚本里做了四件事：
@@ -835,6 +808,7 @@ Floyd 并不比哈希表慢，仍然是 O(n)：
 
 <strong>三篇前作的对应关系</strong>：LC 206 讲的是「指针怎么反向」，LC 21 / LC 23 讲的是「哑结点 + 尾指针怎么接」，这一篇讲的是「两个指针的<strong>速度差</strong>能推出什么」。链表题的三大套路——<strong>反向、拼接、追及</strong>——到这里就齐了。
 
-同族题延伸：<a href="/article/lc-160-intersection-of-two-linked-lists/">《【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了》</a>、<a href="/article/lc-234-palindrome-linked-list/">《【LC 234】回文链表：翻后半段，比是否相同》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-23-merge-k-sorted-lists/">【LC 23】合并 K 个升序链表：堆里到底该放几个节点</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-19-remove-nth-from-end/">【LC 19】删除链表倒数第 N 个：快指针先出发</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">【LC 146】LRU 缓存：手写哈希表与双向链表</a></li><li><a href="https://blog.zhoujun.dev/article/lc-82-remove-duplicates-from-sorted-list-ii/">【LC 82】删除重复元素 II：为什么必须有 dummy</a></li><li><a href="https://blog.zhoujun.dev/article/lc-160-intersection-of-two-linked-lists/">【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了</a></li><li><a href="https://blog.zhoujun.dev/article/lc-234-palindrome-linked-list/">【LC 234】回文链表：翻后半段，比是否相同</a></li><li><a href="https://blog.zhoujun.dev/article/lc-143-reorder-list/">【LC 143】重排链表：一题拆三题，中间那道刷过</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+同族题延伸：<a href="/article/lc-160-intersection-of-two-linked-lists/">《【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了》</a>、<a href="/article/lc-234-palindrome-linked-list/">《【LC 234】回文链表：翻后半段，比是否相同》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-23-merge-k-sorted-lists/">【LC 23】合并 K 个升序链表：堆里到底该放几个节点</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-19-remove-nth-from-end/">【LC 19】删除链表倒数第 N 个：快指针先出发</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">【LC 146】LRU 缓存：手写哈希表与双向链表</a></li><li><a href="https://blog.zhoujun.dev/article/lc-82-remove-duplicates-from-sorted-list-ii/">【LC 82】删除重复元素 II：为什么必须有 dummy</a></li><li><a href="https://blog.zhoujun.dev/article/lc-160-intersection-of-two-linked-lists/">【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了</a></li><li><a href="https://blog.zhoujun.dev/article/lc-234-palindrome-linked-list/">【LC 234】回文链表：翻后半段，比是否相同</a></li><li><a href="https://blog.zhoujun.dev/article/lc-143-reorder-list/">【LC 143】重排链表：一题拆三题，中间那道刷过</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>

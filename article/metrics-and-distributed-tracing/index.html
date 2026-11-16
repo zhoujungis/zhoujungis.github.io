@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="适用读者：已经有一堆日志、但每次排障仍然靠猜的后端工程师；准备给服务接 Prometheus 与 OpenTelemetry，却不确定先做哪一步的负责人 结论先行：日志记录事件，…" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/" />
     <meta property="og:title" content="指标与链路追踪：从 RED 到 OpenTelemetry" />
@@ -327,14 +321,12 @@ Python 客户端里长这样：
     <span class="n">render_feed</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
 </code></pre></div>
 
-
 <code>Histogram.time()</code> 是一个上下文管理器，进出各打一次时间戳，把差值塞进对应的桶。
 <h2>平均值、分位数与 P99 的真实含义</h2>
 
 先把平均值的欺骗性算清楚。假设 100 个请求：99 个用 10 毫秒，1 个用 10 秒。
 <div class="codehilite"><pre><span></span><code>算术平均 = (99 × 10ms + 1 × 10000ms) / 100 = (990 + 10000) / 100 = 109.9ms
 </code></pre></div>
-
 
 平均值 109.9 毫秒——看起来"还好"，比 120 毫秒的 SLO 还低一点。但那个用户等了 10 秒。更糟的是，如果这个接口一天被调用一百万次，就有 1 万个用户等了 10 秒。
 
@@ -356,7 +348,6 @@ Python 客户端里长这样：
   sum by (le) (rate(http_request_duration_seconds_bucket{route=&quot;/api/articles/feed&quot;}[5m])
 ))
 </code></pre></div>
-
 
 注意两个细节。第一，必须先 <code>sum by (le)</code> 把各实例的桶加起来，再算分位——顺序反了就退化成"平均各实例的 P99"。第二，<code>histogram_quantile</code> 在桶内做<strong>线性插值</strong>：它假设落在 <code>(0.25, 0.5]</code> 这个桶里的样本在 0.25 到 0.5 之间均匀分布，然后按比例估一个值出来。这意味着：
 <ul>
@@ -383,7 +374,6 @@ Prometheus 采用<strong>拉模型</strong>（pull）：它按 <code>scrape_inte
 <span class="w">        </span><span class="nt">action</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">drop</span>
 </code></pre></div>
 
-
 拉模型与推模型（StatsD、Graphite 那种客户端上报）的差别不只是方向，它带来三个结构性好处：
 <ol>
 <li><strong>目标的存活本身就是信号。</strong>抓取失败会生成 <code>up == 0</code>，你不需要额外的心跳指标就知道这个实例挂了。</li>
@@ -399,16 +389,13 @@ Prometheus 采用<strong>拉模型</strong>（pull）：它按 <code>scrape_inte
 <div class="codehilite"><pre><span></span><code>序列数 ≤ 指标数 × Π(每个标签的取值个数)
 </code></pre></div>
 
-
 举个具体的例子。一个信息流接口，标签是 <code>method</code>（5 个取值）、<code>route</code>（200 个路由）、<code>status_class</code>（8 个）、<code>instance</code>（20 个实例）：
 <div class="codehilite"><pre><span></span><code><span class="mf">5</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">200</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">8</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">20</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">160</span><span class="p">,</span><span class="mf">000</span><span class="w"> </span><span class="n">条序列</span>
 </code></pre></div>
 
-
 如果这个 Histogram 有 12 个桶，每个桶都是一条序列，那还要乘以桶数：
 <div class="codehilite"><pre><span></span><code><span class="mf">160</span><span class="p">,</span><span class="mf">000</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">12</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="mf">920</span><span class="p">,</span><span class="mf">000</span><span class="w"> </span><span class="n">条序列</span>
 </code></pre></div>
-
 
 接近两百万条。每条序列在内存里要占 head chunk、series 索引、label 集合，量级是几 KB。两百万条就是几个 GB 的内存，而且每次抓取要序列化这么多行文本。这就是为什么"加一个标签"看起来很便宜，实际上是乘以一个系数。
 
@@ -437,7 +424,6 @@ exemplar 就是这根针。它是 OpenMetrics 文本格式里的一个扩展：�
 # {trace_id=&quot;4bf92f3577b34da6a3ce929d0e0e4736&quot;} 0.481 1756000000.123
 http_request_duration_seconds_bucket{le=&quot;1.0&quot;,route=&quot;/api/articles/feed&quot;} 8426
 </code></pre></div>
-
 
 注意 <code>#</code> 开头那行是注释语法——这是 OpenMetrics 的兼容设计，老版本的解析器会把它当注释跳过，新版本会把它读成 exemplar。Prometheus 需要显式开启 exemplar 存储（启动参数 <code>--enable-feature=exemplar-storage</code>），存储量有上限，不是全量保留。
 
@@ -486,7 +472,6 @@ USE 的关键在于 Saturation——它是唯一能在"还没变慢"时提前报
 <span class="mf">99.95</span><span class="err">%</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="mf">296</span><span class="w"> </span><span class="n">秒</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">21</span><span class="w"> </span><span class="n">分</span><span class="w"> </span><span class="mf">36</span><span class="w"> </span><span class="n">秒</span>
 <span class="mf">99.99</span><span class="err">%</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="mf">259.2</span><span class="w"> </span><span class="n">秒</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="n">分</span><span class="w"> </span><span class="mf">19</span><span class="w"> </span><span class="n">秒</span>
 </code></pre></div>
-
 
 这个数字的用处是错误预算：没用完可以继续发版，用完了就该停下来修稳定性。比"P99 超过 300 毫秒就报警"更成熟的做法是燃尽率告警：一小时的错误率是允许值的十几倍时，这个月的预算会在几天内烧光，那才值得叫醒人。单点越线的告警只会淹没在噪声里。
 
@@ -552,7 +537,6 @@ version          trace-id                  parent-id     trace-flags
     <span class="k">return</span> <span class="n">trace_id</span><span class="p">,</span> <span class="n">parent_id</span><span class="p">,</span> <span class="n">flag_bits</span> <span class="o">&amp;</span> <span class="mh">0x01</span>
 </code></pre></div>
 
-
 关键的一条：<strong>header 非法时，生成一个新的 trace，但不要拒绝这个请求。</strong>追踪是观测设施，不是业务校验；因为一个格式错误的 header 返回 400，是把可观测性问题升级成了可用性问题。规范明确要求"invalid traceparent 应当被忽略"。
 
 还有 <code>tracestate</code>，用于厂商扩展（比如某个 APM 厂商的采样标记），格式是逗号分隔的 <code>key=value</code>，长度有上限。它和 baggage 的区别是：tracestate 是给追踪系统自己用的，baggage 是给业务代码用的。
@@ -564,7 +548,6 @@ version          trace-id                  parent-id     trace-flags
 <div class="codehilite"><pre><span></span><code><span class="mf">20</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">10</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">86</span><span class="p">,</span><span class="mf">400</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">17</span><span class="p">,</span><span class="mf">280</span><span class="p">,</span><span class="mf">000</span><span class="w"> </span><span class="n">个</span><span class="w"> </span><span class="n">span</span><span class="o">/</span><span class="n">天</span>
 </code></pre></div>
 
-
 每个 span 含 name、时间戳、若干 attributes，序列化后量级是几百字节到几 KB。按 1 KB 算，一天就是 17 GB，一个月 500 GB。所以采样不是"优化"，是"能不能上线"的前提。
 
 <strong>head sampling（头部采样）</strong> 在链路入口做一次决定，把结果写进 <code>trace-flags</code> 的最低位，全链路复用。优点是成本几乎为零——决定一次，后续所有服务读 header 就知道采不采，不需要缓冲。缺点是<strong>决定得太早</strong>：请求刚进来时，你还不知道它会不会失败、会不会慢。
@@ -575,11 +558,9 @@ version          trace-id                  parent-id     trace-flags
 <div class="codehilite"><pre><span></span><code>E[错误样本] = N × p × r
 </code></pre></div>
 
-
 要让这个期望值达到 1，需要的请求数是：
 <div class="codehilite"><pre><span></span><code>N = 1 / (p × r)
 </code></pre></div>
-
 
 代进去看：
 <ul>
@@ -649,7 +630,6 @@ Python 落地的四个位置，逐个说。
         <span class="k">return</span> <span class="n">response</span>
 </code></pre></div>
 
-
 注意 <code>trace.get_current_span()</code> 拿到的是自动埋点创建的那个 span，<code>start_as_current_span</code> 创建的是它的子 span。<strong>不要在这里重新创建根 span</strong>——那会把链路切断成两棵树。
 
 第二，给 <code>httpx</code> / <code>requests</code> 注入上下文。如果用了 <code>opentelemetry-instrumentation-httpx</code>，注入是自动的。手动注入的做法是：
@@ -660,7 +640,6 @@ Python 落地的四个位置，逐个说。
 <span class="n">inject</span><span class="p">(</span><span class="n">headers</span><span class="p">)</span>          <span class="c1"># 把当前 span 的 traceparent 写进 dict</span>
 <span class="n">resp</span> <span class="o">=</span> <span class="n">httpx</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;http://author-svc/internal/authors&quot;</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">)</span>
 </code></pre></div>
-
 
 <code>inject</code> 读的是当前的 context（<code>contextvars</code>），写的是 W3C 格式的 header。接收端用 <code>extract</code> 还原。<strong>这两个函数是跨服务不丢链路的唯一正确做法</strong>——手写 <code>headers["traceparent"] = ...</code> 很容易漏掉 tracestate，或者在异步上下文里拿错 span。
 
@@ -683,7 +662,6 @@ Python 落地的四个位置，逐个说。
             <span class="k">return</span> <span class="n">cur</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
 </code></pre></div>
 
-
 <code>db.query.ids_count</code> 这个属性是排查的关键——它让你在瀑布图上直接看到"这次批量查了 20 个 ID"，而不是"一次查询"。
 
 第四，异步上下文。这是最容易出问题的地方。OTel 的 Python SDK 用 <code>contextvars</code> 存当前 span，所以在 <code>async def</code> 里是对的；但如果你用 <code>run_in_executor</code> 把工作丢进线程池，<code>contextvars</code> 不会自动传过去，必须显式复制：
@@ -696,7 +674,6 @@ Python 落地的四个位置，逐个说。
     <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">loop</span><span class="o">.</span><span class="n">run_in_executor</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">run</span><span class="p">,</span> <span class="n">blocking_work</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">result</span>
 </code></pre></div>
-
 
 不这么做，线程里的 span 会是"没有父节点"的新根——链路在那里断掉，而且断得很安静，你只会觉得"这个下游服务的 trace 怎么总是单独的"。
 
@@ -724,7 +701,6 @@ Python 落地的四个位置，逐个说。
 <span class="n">trace</span><span class="o">.</span><span class="n">set_tracer_provider</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
 </code></pre></div>
 
-
 <code>BatchSpanProcessor</code> 会攒一批再发，队列满了丢 span 并计数，但不阻塞业务线程。这个取舍是对的：观测不能拖垮业务。前提是你知道它在丢，否则会把"丢 span"误读成"这段时间没流量"。
 <h2>一次真实排查：从 P99 到那条 SQL</h2>
 
@@ -734,7 +710,6 @@ Python 落地的四个位置，逐个说。
 <div class="codehilite"><pre><span></span><code>histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{route=&quot;/api/articles/feed&quot;}[5m]))
 histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{route=&quot;/api/articles/feed&quot;}[5m]))
 </code></pre></div>
-
 
 结果是 P50 从 60 涨到 68，P99 从 120 涨到 410。<strong>这两个数字一起看，结论立刻不同</strong>：如果是"整体变慢"，P50 会跟着涨；P50 基本不动而 P99 涨了三倍，说明是<strong>一部分请求</strong>变慢了，而且这部分占比不大（小于 5%，否则 P95 也会动）。这一步就把"服务整体退化"和"长尾问题"分开了。
 
@@ -752,7 +727,6 @@ histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{
 └── render.template                     14ms  internal
 </code></pre></div>
 
-
 一眼就能看出 355 毫秒里有 20 次串行的 <code>SELECT author</code>，每次 16 到 18 毫秒。<strong>"单次不慢，串行很多次"</strong>——这正是开头说的那个形状。
 
 <strong>第四步，属性定位。</strong>点开任意一个 <code>SELECT author</code> span，属性里有 <code>db.system=postgresql</code>、<code>db.operation=SELECT</code>、<code>db.collection.name=author</code>、<code>db.query.ids_count=1</code>。注意最后这个属性：<strong>如果它显示 1，说明代码是逐条查询；如果显示 20，说明已经是批量查询但批量本身慢</strong>。这一个属性就把"要不要改成批量"这个决策变成了事实判断。
@@ -760,7 +734,6 @@ histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{
 <strong>第五步，日志确认参数。</strong>用 trace_id 去日志系统里捞：
 <div class="codehilite"><pre><span></span><code>trace_id=4bf92f3577b34da6a3ce929d0e0e4736
 </code></pre></div>
-
 
 捞到的几行里，<code>feed.build</code> 那行有 <code>author_ids=[1,2,...,20]</code> 和 <code>page_size=20</code>。到这里，"这一页有 20 个不同作者，代码给每个作者单独查了一次"这个事实链就完整了。修复方案是 <code>WHERE id = ANY(%s)</code> 一次查完，20 次往返变成 1 次。
 
@@ -791,7 +764,6 @@ histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{
 <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span><span class="o">.</span><span class="n">addFilter</span><span class="p">(</span><span class="n">TraceContextFilter</span><span class="p">())</span>
 </code></pre></div>
 
-
 然后 formatter 里加 <code>%(trace_id)s</code>。日志系统（Loki、ELK、CloudWatch）都能按这个字段建索引或过滤。<strong>这里的顺序很重要：先有 trace_id，日志才有聚合维度；如果只有 request_id，你在追踪系统里搜不到它。</strong>
 
 一个容易被忽略的点：<strong>日志里写的 trace_id 必须是"当前 span"的，不是"根 span"的。</strong>如果你在 hydrate 的子 span 里打日志，写根 trace_id 是对的（聚合用），但写根 span_id 就丢了"这行日志属于哪个阶段"。两个都写：<code>trace_id</code> 用于聚合，<code>span_id</code> 用于在瀑布图上对齐。
@@ -803,7 +775,6 @@ histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{
 <div class="codehilite"><pre><span></span><code>总成本 ≈ 序列数 × 单序列开销 + 样本数 × 单样本开销
 </code></pre></div>
 
-
 序列数由上一节那个乘积公式决定。所以降基数是唯一有效的手段：删掉一个高基数标签可能省掉九成成本，而把抓取间隔翻倍只省一半样本存储。
 
 保留期的配置是 <code>--storage.tsdb.retention.time</code>（比如 15 天）和 <code>--storage.tsdb.retention.size</code>（比如 100 GB），两个都设，谁先到谁生效。本地 TSDB 不适合长期保留——它不是为多年归档设计的。长期方案是 <code>remote_write</code> 到 Thanos、Mimir、VictoriaMetrics 这类系统，本地只留几天做快速查询。
@@ -811,7 +782,6 @@ histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{
 <strong>追踪的存储成本由三个因子相乘决定：</strong>
 <div class="codehilite"><pre><span></span><code>span 数/天 × 采样率 × 平均 span 体积 × 保留天数
 </code></pre></div>
-
 
 三个因子分别对应三种治理手段：
 <ol>
@@ -882,6 +852,7 @@ histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{
 <li><a href="/article/resilience-timeout-retry-circuit-breaker-deep-dive/">超时、重试与熔断：三个参数之间的相互陷害</a></li>
 <li><a href="/article/queueing-theory-capacity-planning/">排队论与容量规划：QPS 涨一倍，延迟涨几倍</a></li>
 <li><a href="/article/rate-limit-algorithms-deep-dive/">限流算法：令牌桶、漏桶与滑动窗口的边界</a></li>
-</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/graceful-shutdown-in-practice/">优雅停机：别在 SIGTERM 那一刻丢掉请求</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/graceful-shutdown-in-practice/">优雅停机：别在 SIGTERM 那一刻丢掉请求</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>

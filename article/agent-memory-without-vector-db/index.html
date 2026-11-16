@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="适用读者：已经让 Agent 跨会话工作、却发现它「每次都像第一次见你」的人；正在纠结要不要上向量库的人；想给记忆加淘汰、去重、预算，但不想引入新服务的人 结论先行：长期记忆的难…" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/agent-memory-without-vector-db/" />
     <meta property="og:title" content="Agent 记忆：不接向量库也能长期记忆" />
@@ -382,7 +376,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
             ──► render_block(≤2400) ──► set_block(system)
 </code></pre></div>
 
-
 四个动作对应四个函数入口：<code>distill_memories</code>（自动写）、<code>save_tool</code>（主动写）、<code>retrieve_block</code>（读）、<code>set_block</code>（注入）。它们共享同一个 <code>memory.json</code>，没有缓存，也没有守护进程。
 
 值得注意的顺序：读取发生在用户消息入队之前（<code>Agent::run</code> 开头），写入发生在轮次完整结束之后。也就是说，本轮新提炼出的记忆不会立刻影响本轮，只会影响下一轮或下一个会话。这个延迟是故意的：提炼本身要额外调用一次模型，如果放在轮次中间，会把延迟叠加到用户等待上。
@@ -397,7 +390,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="p">}</span>
 </code></pre></div>
 
-
 落盘格式就是一个对象包一个数组：
 <div class="codehilite"><pre><span></span><code><span class="p">{</span>
 <span class="w">  </span><span class="nt">&quot;entries&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
@@ -410,7 +402,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="w">  </span><span class="p">]</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 四个字段各有用途：
 <div class="table-scroll"><table>
@@ -456,7 +447,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="w">    </span><span class="c1">// ...</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 文件不存在、没有权限、JSON 损坏，一律返回空列表。好处是记忆永远不阻塞对话；坏处是「空列表」和「真的没有记忆」无法区分——这条我们放到失败语义一节展开。
 
@@ -564,7 +554,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="p">}</span>
 </code></pre></div>
 
-
 返回值里带了总数，是为了让模型知道记忆库的规模；重复写入时明确说「未新增」，避免模型以为写成功了而反复重试。<code>source</code> 固定为 <code>tool</code>，事后可以区分这条记忆是模型主动记的，还是轮次结束自动提炼的。
 
 什么时候该主动写？提示词里写的是：用户偏好、对你行为的纠正、付出代价换来的经验、稳定的项目事实。不该写的东西同样重要：一次性的文件状态、当前任务的临时决定、能从代码里直接读到的信息。这些写进去只会稀释检索。
@@ -576,7 +565,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="p">},</span>
 </code></pre></div>
 
-
 关闭记忆时工具仍然出现在工具列表里，只是调用会返回错误。这个不对称后面会单独说。
 <h2>写入路径二：轮次结束自动提炼</h2>
 
@@ -585,7 +573,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">distill_memories</span><span class="p">(</span><span class="o">&amp;</span><span class="n">user_text</span><span class="p">,</span><span class="w"> </span><span class="n">had_tools</span><span class="p">);</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 <code>completed</code> 这个条件很关键：被 Ctrl-C 中断、或者撞到最大迭代次数的半截对话，不提炼。理由是被中断的轮次往往停在工具调用中间，结论还没出来，提炼出来的多半是过程噪音。
 
@@ -616,7 +603,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="p">}</span>
 </code></pre></div>
 
-
 三个失败点全部静默：目录没配、门槛没过、模型调用失败。记忆是加分项，不能因为它挂掉就让一次已经成功的对话报错。成功时给一行提示，让用户知道「刚才那次对话被记住了」，而不是完全无感。
 <h2>提炼门槛：一句 <code>contains</code> 省下一次模型调用</h2>
 
@@ -633,7 +619,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="w">    </span><span class="n">text</span><span class="p">.</span><span class="n">chars</span><span class="p">().</span><span class="n">count</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">24</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 规则只有三条：
 <div class="table-scroll"><table>
@@ -686,7 +671,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="s">it must hold up in future unrelated sessions (no task-local details like dates or one-off file states);</span>
 <span class="s">dedupe near-identical items; if nothing is durable, return [].&quot;</span><span class="p">;</span>
 </code></pre></div>
-
 
 拆开看，硬约束有四条：
 <div class="table-scroll"><table>
@@ -756,7 +740,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="p">}</span>
 </code></pre></div>
 
-
 处理规则可以列成一张表：
 <div class="table-scroll"><table>
 <thead>
@@ -813,7 +796,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 在一个短轮次里这没问题：6000 字符足够覆盖全部消息。但在一个长轮次里——比如用户让它读十个文件、跑五次命令、最后给结论——摘录会在前五六条消息处就用完预算，真正的结论、最后的纠正、最终确认的方案，全部落在 6000 字符之外。提炼出来的记忆于是偏向「任务开始时说了什么」，而不是「任务结束时得出了什么」。
 
@@ -935,7 +917,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="p">}</span>
 </code></pre></div>
 
-
 判定矩阵：
 <div class="table-scroll"><table>
 <thead>
@@ -987,7 +968,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="n">save</span><span class="p">(</span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">entries</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
 </code></pre></div>
 
-
 <code>trim</code> 的写法值得单独看：
 <div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">trim</span><span class="p">(</span><span class="n">entries</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">mut</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">Entry</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="k">while</span><span class="w"> </span><span class="n">entries</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">MAX_ENTRIES</span><span class="w"> </span><span class="p">{</span>
@@ -1001,7 +981,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 逐条解释：
 <ol>
@@ -1028,7 +1007,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="w">    </span><span class="p">.</span><span class="n">unwrap_or</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
 </code></pre></div>
 
-
 <code>Reverse</code> 让「最大」在时间维度上变成「最小」，于是先按类别顺位、再按最旧排序。或者拆成两步：先筛出最高顺位的候选集，再在里面找 <code>min_by_key(|e| e.ts)</code>。
 
 为什么这个偏差一直没被发现？因为对应的测试只断言了「偏好条目活下来」，没有断言「同类别里丢的是最旧的」：
@@ -1043,7 +1021,6 @@ NanoHermes 走的是另一条路：不接向量库，用本地 BM25 加中日文
 <span class="w">    </span><span class="fm">assert!</span><span class="p">(</span><span class="n">entries</span><span class="p">.</span><span class="n">iter</span><span class="p">().</span><span class="n">any</span><span class="p">(</span><span class="o">|</span><span class="n">e</span><span class="o">|</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">kind</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">Kind</span><span class="p">::</span><span class="n">Preference</span><span class="p">));</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 测试名里写着 <code>oldest</code>，断言里却只有「偏好还在」。这是一个很典型的测试盲区：测试名描述了意图，断言只验证了其中一半。如果补一句「最后一条 <code>Lesson</code> 仍然存在」，这个偏差当场就会暴露。
 
@@ -1220,7 +1197,6 @@ BM25 的前提是「词」。英文有空格，中文没有，所以 <code>token
 <span class="w">    </span><span class="p">.</span><span class="n">collect</span><span class="p">();</span>
 </code></pre></div>
 
-
 于是三种查询都能工作：
 <div class="table-scroll"><table>
 <thead>
@@ -1320,7 +1296,6 @@ BM25 的前提是「词」。英文有空格，中文没有，所以 <code>token
 <span class="n">ranked</span><span class="p">.</span><span class="n">truncate</span><span class="p">(</span><span class="n">top_k</span><span class="p">);</span>
 </code></pre></div>
 
-
 复杂度是 O(条目数 × 查询词数)，500 条约等于几千次哈希查找，每轮一次，完全不需要倒排索引。这也是「不接向量库」在工程上成立的根本原因：规模小到可以暴力。
 <h2>Top-K 与字符预算：4 条、2400 字符</h2>
 
@@ -1333,7 +1308,6 @@ BM25 的前提是「词」。英文有空格，中文没有，所以 <code>token
 <span class="p">}</span>
 </code></pre></div>
 
-
 <code>render_block</code> 逐条累加，超过预算就停止：
 <div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">- [{}] {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">kind</span><span class="p">.</span><span class="n">label</span><span class="p">(),</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">text</span><span class="p">);</span>
 <span class="k">if</span><span class="w"> </span><span class="n">used</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">line</span><span class="p">.</span><span class="n">chars</span><span class="p">().</span><span class="n">count</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">INJECT_CHAR_BUDGET</span><span class="w"> </span><span class="p">{</span>
@@ -1342,7 +1316,6 @@ BM25 的前提是「词」。英文有空格，中文没有，所以 <code>token
 <span class="n">used</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">line</span><span class="p">.</span><span class="n">chars</span><span class="p">().</span><span class="n">count</span><span class="p">();</span>
 <span class="n">out</span><span class="p">.</span><span class="n">push_str</span><span class="p">(</span><span class="o">&amp;</span><span class="n">line</span><span class="p">);</span>
 </code></pre></div>
-
 
 算一笔账：
 <div class="table-scroll"><table>
@@ -1387,7 +1360,6 @@ BM25 的前提是「词」。英文有空格，中文没有，所以 <code>token
 <span class="k">pub</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">BLOCK_END</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&quot;=== End long-term memory ===&quot;</span><span class="p">;</span>
 </code></pre></div>
 
-
 渲染出来的样子是：
 <div class="codehilite"><pre><span></span><code><span class="o">===</span><span class="w"> </span><span class="nv">Long</span><span class="o">-</span><span class="nv">term</span><span class="w"> </span><span class="nv">memory</span><span class="w"> </span><span class="ss">(</span><span class="nv">retrieved</span><span class="w"> </span><span class="nv">from</span><span class="w"> </span><span class="nv">past</span><span class="w"> </span><span class="nv">sessions</span><span class="ss">)</span><span class="w"> </span><span class="o">===</span>
 以下是从过往会话中检索到的相关记忆（由对话自动提炼，仅供参考；用户当前指令优先）：
@@ -1399,7 +1371,6 @@ BM25 的前提是「词」。英文有空格，中文没有，所以 <code>token
 
 <span class="o">===</span><span class="w"> </span><span class="k">End</span><span class="w"> </span><span class="nv">long</span><span class="o">-</span><span class="nv">term</span><span class="w"> </span><span class="nv">memory</span><span class="w"> </span><span class="o">===</span>
 </code></pre></div>
-
 
 替换逻辑是「先删旧块，再追加新块」：
 <div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">set_block</span><span class="p">(</span><span class="n">system</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="n">block</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">String</span><span class="w"> </span><span class="p">{</span>
@@ -1422,7 +1393,6 @@ BM25 的前提是「词」。英文有空格，中文没有，所以 <code>token
 <span class="p">}</span>
 </code></pre></div>
 
-
 两个关键点：
 <ol>
 <li>整体替换，不是追加。每轮都先删旧块，所以块不会随着轮次线性增长。</li>
@@ -1443,7 +1413,6 @@ BM25 的前提是「词」。英文有空格，中文没有，所以 <code>token
 <span class="bp">self</span><span class="p">.</span><span class="n">messages</span>
 <span class="w">    </span><span class="p">.</span><span class="n">push</span><span class="p">(</span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;role&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;user&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;content&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">content</span><span class="w"> </span><span class="p">}));</span>
 </code></pre></div>
-
 
 注意执行顺序：检索发生在用户消息入队之前，所以查询里不包含本轮消息本身，也不包含之前的对话。查询就是这一句话。
 
@@ -1600,7 +1569,6 @@ NanoHermes 选择了最简单的版本：每轮独立检索，零命中就清空
 <span class="n">save</span><span class="p">(</span><span class="n">dir</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">entries</span><span class="p">)</span><span class="o">?</span><span class="p">;</span>
 </code></pre></div>
 
-
 单线程下没问题。但 <code>Agent::run</code> 会把同一轮里的多个工具调用放到独立线程里并发执行：
 <div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">this</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Agent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">;</span>
 <span class="n">std</span><span class="p">::</span><span class="n">thread</span><span class="p">::</span><span class="n">scope</span><span class="p">(</span><span class="o">|</span><span class="n">s</span><span class="o">|</span><span class="w"> </span><span class="p">{</span>
@@ -1612,7 +1580,6 @@ NanoHermes 选择了最简单的版本：每轮独立检索，零命中就清空
 <span class="w">    </span><span class="c1">// ...</span>
 <span class="p">});</span>
 </code></pre></div>
-
 
 如果模型在一轮里同时调用两次 <code>memory_save</code>，两个线程会各自 <code>load</code> 到同一份旧列表，各自追加一条，再先后 <code>save</code>。后写的那次覆盖先写的那次，结果是只留下一条记忆。
 
@@ -1659,7 +1626,6 @@ NanoHermes 选择了最简单的版本：每轮独立检索，零命中就清空
 <span class="p">];</span>
 </code></pre></div>
 
-
 所以子代理不会检索记忆，也不会在结束时提炼记忆。但它的工具调用走的是父代理的 <code>self.execute</code>，共享同一个 <code>Ctx</code>，因此 <code>memory_save</code> 和 <code>memory_search</code> 仍然可用，写入的也是同一个库。
 <div class="table-scroll"><table>
 <thead>
@@ -1705,7 +1671,6 @@ daemon 模式的隔离则是另一层：每个会话 id 对应一个独立的消
 <span class="w">    </span><span class="nb">None</span>
 <span class="p">},</span>
 </code></pre></div>
-
 
 于是三件事同时发生：
 <div class="table-scroll"><table>
@@ -1929,6 +1894,7 @@ NanoHermes 的记忆模块只有几百行，却把「跨会话记住偏好与教
 
 对个人项目和小团队来说，先用一个 JSON 文件加 BM25 把闭环跑起来，等记忆真的涨到几千条、同义词问题真的成为瓶颈，再考虑向量检索，通常是更划算的顺序。
 
-下一篇进入《Agent 工具设计：为什么输出都要有上限》。记忆解决的是「跨会话记住什么」，工具解决的是「单轮里拿回多少」——两者最终都落在同一个预算问题上。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/aiagent/"><strong>AI Agent</strong></a> — 多智能体、提示注入防御、上下文工程与可观测性</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/agent-context-keep-or-drop/">Agent 上下文：留什么，丢什么</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/agent-tool-design-output-budgets/">Agent 工具设计：为什么输出都要有上限</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a></li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+下一篇进入《Agent 工具设计：为什么输出都要有上限》。记忆解决的是「跨会话记住什么」，工具解决的是「单轮里拿回多少」——两者最终都落在同一个预算问题上。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/aiagent/"><strong>AI Agent</strong></a> — 多智能体、提示注入防御、上下文工程与可观测性</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/agent-context-keep-or-drop/">Agent 上下文：留什么，丢什么</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/agent-tool-design-output-budgets/">Agent 工具设计：为什么输出都要有上限</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a></li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>

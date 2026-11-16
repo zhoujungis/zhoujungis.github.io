@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="300 行日志里，只有 6 行是你的 适用读者：线上排过障、被 grep 和时间窗口折磨过的后端工程师；正在纠结&quot;日志要不要上 JSON&quot;&quot;要不要引 OTel&quot;的架构决策者 技术…" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/structured-logging-tracing-deep-dive/" />
     <meta property="og:title" content="300 行日志里，只有 6 行是你的" />
@@ -201,7 +195,6 @@
 <div class="codehilite"><pre><span></span><code>grep<span class="w"> </span><span class="s2">&quot;api/articles&quot;</span><span class="w"> </span>app.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">&quot;ERROR&quot;</span>
 </code></pre></div>
 
-
 出来一堆。你缩小时间窗口，加了 <code>sed -n</code> 取行号范围，翻到那一刻，看到几十条交错的记录——因为这台机器同时还在处理别的请求。你得靠"感觉"去判断哪几行属于同一个请求。
 
 我模拟了这个场景。一条 <code>gateway → article-svc → db-proxy</code> 的三跳链路，400 个请求，每个请求产生 6 行日志。然后我去捞其中<strong>某一个</strong>请求：
@@ -210,7 +203,6 @@
     其中属于这个请求的 : 6 行
     噪声比            : 50 : 1
 </code></pre></div>
-
 
 <strong>50 比 1。</strong> 你捞出来 300 行，真正要看的只有 6 行。这还是我为了演示刻意把并发压到 400 个请求的情况；线上 QPS 高一个数量级，这个比例就再差一个数量级。
 
@@ -290,7 +282,6 @@
 <span class="p">}</span>
 </code></pre></div>
 
-
 两种写法：
 <div class="codehilite"><pre><span></span><code><span class="c1"># 文本（logfmt 风格，带标签）</span>
 <span class="k">def</span><span class="w"> </span><span class="nf">as_text</span><span class="p">(</span><span class="n">r</span><span class="p">):</span>
@@ -321,7 +312,6 @@ logging JsonFormatter           0.402s      4023     1.54x      67%
 JSON 序列化比 f-string 文本贵 +40%，绝对值差 1053 ns/条
 </code></pre></div>
 
-
 <strong>JSON 贵 40%，绝对差 1.05 微秒。</strong>
 
 这个数字推翻了一个很常见的说法。网上经常看到"JSON 日志性能差一个数量级"，但这个说法要么是在拿 <code>json.dumps</code> 跟最省的字符串拼接比（连时间格式化都省掉），要么是测量本身被别的东西污染了。
@@ -339,7 +329,6 @@ JSON 序列化比 f-string 文本贵 +40%，绝对值差 1053 ns/条
 继续看 E1a 的最后一行：
 <div class="codehilite"><pre><span></span><code>其中 time.localtime + strftime 占 1514 ns/条（文本路径的 58%）
 </code></pre></div>
-
 
 <strong>文本路径 2617 纳秒里，1514 纳秒花在把浮点时间戳转成人类可读字符串上，占 58%。</strong>
 
@@ -364,7 +353,6 @@ JSON 序列化比 f-string 文本贵 +40%，绝对值差 1053 ns/条
     <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">_last_str</span><span class="si">}</span><span class="s2">,</span><span class="si">{</span><span class="nb">int</span><span class="p">((</span><span class="n">ts</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">sec</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">1000</span><span class="p">)</span><span class="si">:</span><span class="s2">03d</span><span class="si">}</span><span class="s2">&quot;</span>
 </code></pre></div>
 
-
 这不是什么高深技巧，只是"知道自己钱花在哪"的直接结果。而 90% 的性能优化讨论之所以空转，就是因为没人先去看那 58%。
 <h2>4. 真正的大头：写路径贵 24.5 倍</h2>
 
@@ -378,7 +366,6 @@ E1b 把内容固定成同一条 JSON 行，只变写路径。每轮 2,000 行，
 logging FileHandler           24.67ms     12.33    24.51x       5%
 logging 批量 flush              17.70ms      8.85    17.59x      10%
 </code></pre></div>
-
 
 拆开看：
 <ul>
@@ -400,7 +387,6 @@ logging 批量 flush              17.70ms      8.85    17.59x      10%
     <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">handleError</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
 </code></pre></div>
-
 
 <code>self.flush()</code> 在 <code>StreamHandler.emit</code> 里，不在 <code>FileHandler</code> 里。也就是说 <code>logging.StreamHandler</code> 的所有子类——<code>FileHandler</code>、<code>RotatingFileHandler</code>、<code>TimedRotatingFileHandler</code>——全都继承了"每条 flush"这个行为。
 
@@ -430,7 +416,6 @@ logging 批量 flush              17.70ms      8.85    17.59x      10%
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 </code></pre></div>
 
-
 注意这里还有个细节：<code>logging.Handler</code> 的 <code>emit</code> 不应该自己吞掉 flush 语义，而应该把它交给一个明确的策略。"丢最多 1,000 行日志"和"慢 17 倍"，大多数服务会选前者——但前提是你<strong>知道</strong>自己在做这个选择。
 <h3>4.1 为什么剩下的 17.6 倍降不下来</h3>
 
@@ -452,7 +437,6 @@ logging 净开销（减去基线）  : 6964 ns/条
   剩下的 Logger/handler    : 2814 ns/条
 直接 handler.handle() 只要 : 1688 ns/条  —— 比走 Logger 快 4.1x
 </code></pre></div>
-
 
 <strong><code>log.info("...")</code> 一条 6993 纳秒。其中 3825 纳秒——55%——花在 <code>findCaller()</code> 上。</strong>
 
@@ -477,7 +461,6 @@ logging 净开销（减去基线）  : 6964 ns/条
             <span class="k">continue</span>
         <span class="o">...</span>
 </code></pre></div>
-
 
 在 Windows 上 <code>os.path.normcase</code> 还要把 <code>/</code> 换成 <code>\</code> 并转小写。栈越深，走得越久。
 
@@ -505,7 +488,6 @@ E1d 扫批量大小，测每行 flush 成本：
 每行 flush 成本 12.9–14.0 us，跨 100x 批量基本不变
 </code></pre></div>
 
-
 <strong>每行 flush 成本在 500 到 50,000 行的范围内几乎恒定：12.9 到 14.0 微秒。</strong>这直接证明了成本来自"每行一次系统调用"，与字节数无关——所以你在小批量上测出来的数，可以放心外推到生产规模。
 
 那为什么比值从 13.8 倍涨到 37.6 倍？因为分母在变。裸写的 open/close 是一个固定开销，行数越多，摊到每行越少；而 <code>flush()</code> 是纯每行成本，不会跟着变便宜。<strong>比值上升是分母的现象，不是分子的。</strong>
@@ -521,7 +503,6 @@ E1d 扫批量大小，测每行 flush 成本：
   min=8858  median=9339  max=9922  spread=12.0%
 </code></pre></div>
 
-
 <strong>同一段代码，单进程内 12% 的抖动。</strong>
 
 再看跨会话的同一段代码：
@@ -530,7 +511,6 @@ min=9514
 min=9149
 min=8948
 </code></pre></div>
-
 
 连"取 12 次的最小值"这个估计量本身，跨进程都有 <strong>7%</strong> 的不确定度。
 
@@ -564,7 +544,6 @@ min=8948
     <span class="k">return</span> <span class="n">series</span>
 </code></pre></div>
 
-
 还有个更隐蔽的坑：<strong>E1a 里的 <code>only_time</code> 一开始是单独测的，没并进交错集合。</strong>干净机器上它给出 54% 的合理占比，机器一忙就给出 <strong>91%</strong> 这种荒谬数字——因为两个数字来自不同的轮次、不同的负载状态。并进同一个集合之后就稳定在 54–58%。
 
 <strong>如果你只能从这篇文章带走一件事，就带走这个：先测你的噪声底，再谈你的优化。</strong>一个不知道噪声底的性能数字，不是一个数字。
@@ -580,7 +559,6 @@ JSON + json.loads             0.28s      2.81   p99=101.17ms
 正则 比 json.loads 快 2.59x —— 扫 100,000 行的绝对值差距只有 0.17s
 </code></pre></div>
 
-
 两种都算对了（<code>p99=101.17ms</code>，和内存里的真值一致）。正则快 2.59 倍，但绝对值差 <strong>0.17 秒</strong>。
 
 0.17 秒。这是你扫 10 万行日志的差距。而日志分析通常跑在离线任务里，或者按需触发——0.17 秒不值得作为选型依据。<strong>"文本日志读起来更快"这个论点，在这组数字面前站不住。</strong>
@@ -590,7 +568,6 @@ JSON + json.loads             0.28s      2.81   p99=101.17ms
 <span class="w">  </span>纯文本<span class="w"> </span><span class="o">+</span><span class="w"> </span>正则<span class="w"> </span><span class="o">:</span><span class="w"> </span>命中<span class="w"> </span><span class="m">0</span><span class="w"> </span>条，抛错<span class="w"> </span><span class="m">0</span><span class="w"> </span>次<span class="w">   </span><span class="o">&lt;-</span><span class="w"> </span>静默。<span class="n">pipeline</span><span class="w"> </span>里看起来只是「这段时间没数据」
 <span class="w">  </span><span class="n">JSON</span><span class="w"> </span>取值<span class="w">     </span><span class="o">:</span><span class="w"> </span>命中<span class="w"> </span><span class="m">0</span><span class="w"> </span>条，抛错<span class="w"> </span><span class="m">20</span><span class="p">,</span><span class="m">000</span><span class="w"> </span>次<span class="w">   </span><span class="o">&lt;-</span><span class="w"> </span>响。炸得难看，但至少炸了
 </code></pre></div>
-
 
 <strong>这才是真正的区别，而且它不是性能问题，是正确性问题。</strong>
 
@@ -608,7 +585,6 @@ JSON + json.loads             0.28s      2.81   p99=101.17ms
 <div class="codehilite"><pre><span></span><code><span class="mf">2026</span><span class="o">-</span><span class="mf">09</span><span class="o">-</span><span class="mf">21</span><span class="w"> </span><span class="mf">02</span><span class="p">:</span><span class="mf">14</span><span class="p">:</span><span class="mf">03</span><span class="p">,</span><span class="mf">412</span><span class="w"> </span><span class="n">INFO</span><span class="w"> </span><span class="n">schema</span><span class="o">=</span><span class="n">v2</span><span class="w"> </span><span class="n">req</span><span class="o">=</span><span class="n">a3f9</span><span class="mf">...</span><span class="w"> </span><span class="n">path</span><span class="o">=/</span><span class="n">api</span><span class="o">/</span><span class="n">articles</span><span class="w"> </span><span class="n">duration_ms</span><span class="o">=</span><span class="mf">12.34</span>
 </code></pre></div>
 
-
 读的时候先检查 <code>schema=v2</code> 在不在，不在就报警。成本是一点格式时间，收益是"不会静默失效"。
 <h2>9. request-id：13 倍的生成成本，但绝对值不重要</h2>
 
@@ -624,7 +600,6 @@ os.urandom(8).hex()     (16 字符)        0.026s       132       4%
 uuid4 比 os.urandom(8).hex() 贵 13.3x
 </code></pre></div>
 
-
 <code>uuid.uuid4()</code> 1761 纳秒，<code>os.urandom(8).hex()</code> 132 纳秒，<strong>差 13.3 倍</strong>。
 
 但先别急着换。<strong>13.3 倍的绝对值差是 1.6 微秒。</strong>一个请求打一次 request-id，1.6 微秒在请求总耗时（通常是毫秒级）里的占比是千分之一。这个优化对绝大多数服务毫无意义。
@@ -636,7 +611,6 @@ uuid4 比 os.urandom(8).hex() 贵 13.3x
 <span class="w">  </span><span class="n">uuid4</span><span class="w">          </span><span class="err">每天</span><span class="w">   </span><span class="mi">100</span><span class="w"> </span><span class="err">万</span><span class="w"> </span><span class="err">个</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="err">撞一次的概率约</span><span class="w"> </span><span class="mf">1.47e-27</span>
 <span class="w">  </span><span class="n">uuid4</span><span class="w">          </span><span class="err">每天</span><span class="w">    </span><span class="mi">10</span><span class="w"> </span><span class="err">亿</span><span class="w"> </span><span class="err">个</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="err">撞一次的概率约</span><span class="w"> </span><span class="mf">1.47e-21</span>
 </code></pre></div>
-
 
 16 个 hex 字符 = 64 bit。按生日问题，每天 10 亿个 id 时碰撞概率约 <strong>2.7%</strong>。
 
@@ -668,7 +642,6 @@ uuid4 比 os.urandom(8).hex() 贵 13.3x
 <span class="w">    </span><span class="nv">gateway</span><span class="w">      </span><span class="k">exit</span><span class="w">   </span><span class="mi">2</span>.<span class="mi">223</span>
 </code></pre></div>
 
-
 <strong>带 request-id 的话，你拿到的是这 6 行，按链路顺序排好。</strong>而且每一跳的耗时是自明的：<code>db-proxy</code> 花了 0.002ms，<code>article-svc</code> 花了 0.853ms——<strong>问题在 article-svc，不在数据库。</strong>这个判断在 3 秒内完成。
 
 不带 request-id 的话：
@@ -677,7 +650,6 @@ uuid4 比 os.urandom(8).hex() 贵 13.3x
     其中属于这个请求的 : 6 行
     噪声比            : 50 : 1
 </code></pre></div>
-
 
 而且这 300 行<strong>没有顺序保证</strong>——你的 gateway、article-svc、db-proxy 是三个不同的进程，各自写各自的文件（或者同一个文件但交错）。你得先按进程分开，再按时间排序，再靠"这个 enter 和哪个 exit 配对"去猜。
 
@@ -700,7 +672,6 @@ uuid4 比 os.urandom(8).hex() 贵 13.3x
     <span class="o">...</span>
 </code></pre></div>
 
-
 <code>contextvars</code> 在 asyncio 和线程池下都是对的，比 <code>threading.local</code> 安全——这是很多人踩过的坑：用 <code>threading.local</code> 存 request-id，在 <code>async def</code> 里会因为协程切换而串号。
 <h3>10.1 别用端到端延迟去量一个 header 的成本</h3>
 
@@ -715,7 +686,6 @@ uuid4 比 os.urandom(8).hex() 贵 13.3x
 三次「不带 id」之间的抖动 : p50 16.70ms / p99 13.34ms
 「带 id」相对三者均值的偏移 : p50 -0.50ms / p99 -3.11ms
 </code></pre></div>
-
 
 看第 1 行和第 4 行：<strong>它们跑的是完全相同的代码，p50 差了 7 倍</strong>（2.80 vs 19.36）。而"带 id"相对均值的偏移是 <strong>-0.50ms</strong>，远小于这个抖动。
 
@@ -739,7 +709,6 @@ C 随机 1% + 错误全留               1,146     2.8%     0.2MB    100.0%
 D C + 慢请求全留                  1,190     3.0%     0.2MB    100.0%
 </code></pre></div>
 
-
 <strong>策略 B：随机采样 1%。日志量降到 1.0%——同时也把 98.1% 的错误扔掉了。</strong>
 
 这就是随机采样的陷阱。它看起来公平（每条日志被保留的概率一样），但你的目标是"出故障时要有数据"，而故障恰恰是稀有事件。均匀采样会按比例地丢掉它们。
@@ -750,7 +719,6 @@ D C + 慢请求全留                  1,190     3.0%     0.2MB    100.0%
         <span class="k">return</span> <span class="kc">True</span>          <span class="c1"># 错误永远保留</span>
     <span class="k">return</span> <span class="n">sampled_ok</span>        <span class="c1"># 其余按 1% 采</span>
 </code></pre></div>
-
 
 效果：日志量 2.8%，<strong>错误保留 100%</strong>。比全量省了 97% 的体积，一个错误都没丢。
 
@@ -810,7 +778,6 @@ A：工具链问题，不是格式问题。<code>jq</code> 一行就能美化：
 <div class="codehilite"><pre><span></span><code>tail<span class="w"> </span>-f<span class="w"> </span>app.log<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;select(.level==&quot;ERROR&quot;)&#39;</span>
 </code></pre></div>
 
-
 比 <code>grep "ERROR" | grep "api/articles" | sed -n '1200,1400p'</code> 好用得多。<strong>"文本日志更好读"这个直觉，通常来自还没配工具。</strong>
 
 <strong>Q：<code>contextvars</code> 和 <code>threading.local</code> 到底差在哪？</strong>
@@ -846,11 +813,11 @@ A：因为这台机器的噪声底是 12%，跨会话能涨到 57%。不标出�
 python<span class="w"> </span>tools/bench_observability.py<span class="w"> </span>--only<span class="w"> </span>e1b,e4<span class="w">    </span><span class="c1"># 单跑某个实验</span>
 </code></pre></div>
 
-
 环境：Windows 11 (10.0.26200)，Python 3.13.14 (CPython)，AMD64，12 逻辑核。
 
 <strong>注意：这台机器的噪声底是 12%（跨会话最高 57%）。</strong>脚本里每个计时实验都带离散度，并且每个实验都会跑一个固定的校准任务。<strong>请先看这两个数，再决定要不要相信任何一行的绝对值。</strong>比值比绝对值稳得多——同样的实验跑两遍，绝对值漂 15%，比值稳在 10% 以内。
 
-同一条链路上还可以接着读：<a href="/article/resilience-timeout-retry-circuit-breaker-deep-dive/">《下游只抖 3 秒，我的服务被拖死——超时与熔断实战》</a>、<a href="/article/django-slow-query-index-tuning/">《索引建了，为什么排序还是没用上？——慢查询实战》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/cache-trio-deep-dive/">300 个并发只该打 1 次库：穿透、击穿与雪崩</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/queueing-theory-capacity-planning/">加到 8 台反而更慢：排队论与容量规划</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/">指标与链路追踪：从 RED 到 OpenTelemetry</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去——Django 事务深水区</a></li><li><a href="https://blog.zhoujun.dev/article/build-time-image-cache/">构建 4 分钟，3 分半在压 94 张图</a></li><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+同一条链路上还可以接着读：<a href="/article/resilience-timeout-retry-circuit-breaker-deep-dive/">《下游只抖 3 秒，我的服务被拖死——超时与熔断实战》</a>、<a href="/article/django-slow-query-index-tuning/">《索引建了，为什么排序还是没用上？——慢查询实战》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/cache-trio-deep-dive/">300 个并发只该打 1 次库：穿透、击穿与雪崩</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/queueing-theory-capacity-planning/">加到 8 台反而更慢：排队论与容量规划</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/">指标与链路追踪：从 RED 到 OpenTelemetry</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去——Django 事务深水区</a></li><li><a href="https://blog.zhoujun.dev/article/build-time-image-cache/">构建 4 分钟，3 分半在压 94 张图</a></li><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>

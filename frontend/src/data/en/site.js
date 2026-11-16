@@ -37,7 +37,6 @@ export const EN_HOME = {
       : `All ${total} English posts.`,
 }
 
-
 export const EN_UI = {
   brand: 'Stack Frame',
   tagline: 'Code & Life · Journal',

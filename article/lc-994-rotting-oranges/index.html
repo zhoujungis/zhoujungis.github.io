@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="题目要求是什么？ LC 994 腐烂的橘子 ：给你一个 m × n 的网格，每个格子是 0 （空，不是橘子）、 1 （新鲜橘子）或 2 （腐烂橘子）。" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/lc-994-rotting-oranges/" />
     <meta property="og:title" content="【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表" />
@@ -188,7 +182,6 @@
 输出: -1     （左下角那个 1 被 0 隔开，永远烂不到）
 </code></pre></div>
 
-
 三个题面细节先钉死：<strong>空格（<code>0</code>）不传播</strong>，腐烂只能发生在新鲜橘子上；扩散是<strong>每分钟一轮、所有腐烂橘子同时发生</strong>（不是排队一个个来）；<code>[[0,2]]</code> 这种没有新鲜橘子的网格 → 输出 <code>0</code>（不需要任何时间）。
 
 这题的骨架一句话：
@@ -250,7 +243,6 @@
     <span class="k">return</span> <span class="n">minute</span> <span class="k">if</span> <span class="n">fresh</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
 </code></pre></div>
 
-
 三个细节决定成败：
 <ol>
 <li><strong>初始就把所有 <code>2</code> 入队</strong>。只入队一个源是本题第一大坑：别的源会晚好几拍才开始扩散，答案偏大甚至直接错。</li>
@@ -286,7 +278,6 @@
     <span class="k">return</span> <span class="n">answer</span> <span class="k">if</span> <span class="n">fresh</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
 </code></pre></div>
 
-
 它有个隐蔽的坑：<code>answer</code> 必须在<strong>入队时</strong>更新 —— 如果写在「弹出处」，<code>fresh</code> 清零提前退出后，<strong>最后一批入队的时间戳还没被弹出、没被计入</strong>，答案会差 1。
 
 <strong>写法 C：距离场</strong>（动画二的视角）—— 直接开一张 <code>stamp</code> 表，每个格子第一次被访问时把当前分钟写进去：
@@ -317,7 +308,6 @@
         <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
     <span class="k">return</span> <span class="nb">max</span><span class="p">((</span><span class="n">v</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">stamp</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">row</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
 </code></pre></div>
-
 
 收尾的 <code>max(..., default=0)</code> 兜住「一个橘子都没有」的网格（没有源时表里全是 <code>None</code>）。这张表的每个数字都等于<strong>到最近源的距离</strong> —— 它是「多源 BFS 不变量」的具象化：每个格子只盖一次章、先到的一定最近。
 
@@ -353,7 +343,6 @@
 
 <div class="algo-viz algo-viz--lc994dist"></div>
 
-
 <strong>动画一</strong>（<code>algo-viz--lc994</code>）：<strong>多源 BFS 分层扩散</strong>。左边是网格（绿 = 新鲜、金 = 腐烂、浅 = 空，小圆点 = 初始腐烂的「源」）；右上三块面板：当前<strong>分钟数</strong>、<strong>剩余新鲜 fresh</strong>、<strong>队列（待扩散）</strong>。帧分两种：<code>layer</code> 帧亮出本分钟要处理的整层（金框），<code>rot</code> 帧展示扩散结果 —— 新腐烂的格子（浅金 + 绿框）进入下一层队列，fresh 减少。盯住三件事：<strong>源不止一个</strong>（第 0 分钟队列里就有好几个格子）、<strong>分钟数只在整层处理完后才 +1</strong>、以及<strong>fresh 的变化</strong>。
 
 <strong>动画二</strong>（<code>algo-viz--lc994dist</code>）：<strong>腐烂时刻表（距离场）</strong>。同一张网格、同一台 BFS，但换一种记账：每个格子第一次被访问时被盖上「腐烂时刻」的章 —— 源 = 0，之后每分钟盖一批。跑完时整张表就是<strong>到最近源的距离场</strong>，右下角面板里的 <code>max(stamp)</code> 就是答案。把它和动画一对照看：<strong>动画一数的是「第几分钟」，动画二写的是「每格的值」</strong> —— 同一件事的两种记法。
@@ -364,7 +353,6 @@
 <span class="mf">1</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">0</span>
 <span class="mf">0</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">1</span>
 </code></pre></div>
-
 
 六块新鲜橘子，唯一源 <code>(0,0)</code>。逐帧如下：
 <div class="table-scroll"><table>
@@ -516,7 +504,6 @@
 <span class="err">·</span><span class="w"> </span><span class="mf">3</span><span class="w"> </span><span class="mf">4</span>
 </code></pre></div>
 
-
 每个数字都是「到最近源的距离」，<code>·</code> 是空格。一眼能看出 <strong><code>(1,1)</code> 的时刻是 2 而不是 min(1+1, 1+1) 之外的东西 —— BFS 说的算</strong>：这张表就是最终答案的可视化。
 <h2>五、-1 与提前退出：fresh 计数</h2>
 
@@ -564,7 +551,6 @@
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 两个 Java 专属注意点：<code>for (int size = queue.size(); size &gt; 0; size--)</code> 必须<strong>先把 size 记下来</strong> —— 直接在条件里写 <code>queue.size()</code> 会把新入队的下一层也算进来，层就切错了；以及原地改 <code>grid</code> 前想清楚——如果输入不能改（有些平台多组用例复用），就换成一张 <code>visited</code> 布尔表。
 <h2>七、同族题：542 / 1091 / 1162 / 934 / 1765 / 286</h2>
@@ -655,6 +641,7 @@
 
 同族题延伸：<a href="/article/lc-200-number-of-islands/">《【LC 200】岛屿数量：一次染色与防爆栈替代》</a>、<a href="/article/lc-102-binary-tree-level-order-traversal/">《【LC 102】二叉树的层序遍历：为什么先存队列长度》</a>。
 
-下一篇见。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-200-number-of-islands/">【LC 200】岛屿数量：一次染色与防爆栈替代</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-207-course-schedule/">【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-207-course-schedule/">【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）</a></li><li><a href="https://blog.zhoujun.dev/article/lc-200-number-of-islands/">【LC 200】岛屿数量：一次染色与防爆栈替代</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/lc-61-poker-straight/">【扑克】5 张牌判断顺子：王只补缺失，补不了重复</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+下一篇见。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-200-number-of-islands/">【LC 200】岛屿数量：一次染色与防爆栈替代</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-207-course-schedule/">【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-207-course-schedule/">【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）</a></li><li><a href="https://blog.zhoujun.dev/article/lc-200-number-of-islands/">【LC 200】岛屿数量：一次染色与防爆栈替代</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/lc-61-poker-straight/">【扑克】5 张牌判断顺子：王只补缺失，补不了重复</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>

@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="适用读者：读完慢查询调优文章、想知道「索引为什么会碎片、为什么顺序写不碎」的后端工程师；正在实现 B+ 树或遭遇页分裂相关抖动的人；" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/btree-page-split/" />
     <meta property="og:title" content="B+ 树索引回源：页分裂长什么样" />
@@ -235,7 +229,6 @@ SQLite 官方文件格式注释（<code>src/btreeInt.h</code>）画得很直白�
 **      |----------------|
 </code></pre></div>
 
-
 一页从上往下是「页头 → cell 指针数组（向低地址长）」，从下往上是「cell 内容区（向高地址长）」，两边<strong>相向而生，中间是未分配空隙</strong>。这个「相向生长」的结构是后面一切空间计算的几何基础：指针数组尾部到内容区起点的距离，就是这一页还能装多少东西的唯一真相。
 
 页头字段表同样在 <code>btreeInt.h</code>：
@@ -248,7 +241,6 @@ SQLite 官方文件格式注释（<code>src/btreeInt.h</code>）画得很直白�
 **      8       4      Right child (the Ptr(N) value).  Omitted on leaves.
 </code></pre></div>
 
-
 叶子页 8 字节头，内部页多一个 4 字节右孩子指针共 12 字节。读页时 <code>btreeInitPage()</code> 把这些字段翻进内存结构：
 <div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">cellOffset</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u16</span><span class="p">)(</span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">hdrOffset</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">8</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">childPtrSize</span><span class="p">);</span>
 <span class="w">  </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">aCellIdx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">data</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">childPtrSize</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">8</span><span class="p">;</span>
@@ -258,7 +250,6 @@ SQLite 官方文件格式注释（<code>src/btreeInt.h</code>）画得很直白�
 <span class="cm">  ** number of cells on the page. */</span>
 <span class="w">  </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">nCell</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">get2byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">data</span><span class="p">[</span><span class="mi">3</span><span class="p">]);</span>
 </code></pre></div>
-
 
 注意此时页内容<strong>一个字节都没读</strong>——只有页头进入内存。cell 何时真正解码，要等到查找或插入真的踩到它。
 <h2>InnoDB 的页：38 字节 FIL 头、哨兵记录与 slot 目录</h2>
@@ -280,12 +271,10 @@ InnoDB 的一页要厚重得多：默认 16 KB（<code>UNIV_PAGE_SIZE_SHIFT_DEF 
 <span class="k">constexpr</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">PAGE_GARBAGE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">8</span><span class="p">;</span>
 </code></pre></div>
 
-
 （<code>include/page0types.h</code>。）字段继续往下：<code>PAGE_N_RECS = 16</code> 用户记录数、<code>PAGE_LEVEL = 26</code> 节点层高（叶子是 0）、<code>PAGE_INDEX_ID = 28</code>。用户记录的起点是：
 <div class="codehilite"><pre><span></span><code><span class="cm">/** start of data on the page */</span>
 <span class="k">constexpr</span><span class="w"> </span><span class="kt">uint32_t</span><span class="w"> </span><span class="n">PAGE_DATA</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">PAGE_HEADER</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">36</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">FSEG_HEADER_SIZE</span><span class="p">;</span>
 </code></pre></div>
-
 
 38（FIL）+ 36（字段区）+ 20（两个 10 字节段头，只在根页用）= <strong>94</strong>。也就是说 InnoDB 一页的前 94 字节与用户数据无关，页尾还有 8 字节的目录收尾区（<code>FIL_PAGE_DATA_END</code>）。真正干活的记录堆从 94 开始，而堆的最前面固定钉着两条 13 字节的哨兵：
 <div class="codehilite"><pre><span></span><code><span class="k">static</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">byte</span><span class="w"> </span><span class="n">infimum_supremum_compact</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
@@ -296,7 +285,6 @@ InnoDB 的一页要厚重得多：默认 16 KB（<code>UNIV_PAGE_SIZE_SHIFT_DEF 
 <span class="w">    </span><span class="mh">0x01</span><span class="w"> </span><span class="cm">/*n_owned=1*/</span><span class="p">,</span><span class="w"> </span><span class="mh">0x00</span><span class="p">,</span><span class="w"> </span><span class="mh">0x0b</span><span class="w"> </span><span class="cm">/* heap_no=1, REC_STATUS_SUPREMUM */</span><span class="p">,</span><span class="w"> </span><span class="mh">0x00</span><span class="p">,</span>
 <span class="w">    </span><span class="mh">0x00</span><span class="w"> </span><span class="cm">/* end of record list */</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;s&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;u&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;p&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;r&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;e&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;m&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;u&#39;</span><span class="p">,</span><span class="w"> </span><span class="sc">&#39;m&#39;</span><span class="p">};</span>
 </code></pre></div>
-
 
 <code>page_create_low()</code> 初始化空页时把这 30 字节 <code>memcpy</code> 到 <code>PAGE_DATA</code>。infimum 是记录链的头、supremum 是尾，<strong>每一条记录的「下一条」都能顺藤摸瓜走到头</strong>——这个设计在分裂搬记录时会反复出现：搬一半记录，本质是把一条单链从中间剪断再接两条。
 
@@ -319,7 +307,6 @@ InnoDB 的一页要厚重得多：默认 16 KB（<code>UNIV_PAGE_SIZE_SHIFT_DEF 
 <span class="w">                        </span><span class="mi">5</span><span class="w">       </span><span class="mi">4</span><span class="w"> </span><span class="n">bits</span><span class="w"> </span><span class="n">n_owned</span>
 <span class="w">                                </span><span class="mi">4</span><span class="w"> </span><span class="n">bits</span><span class="w"> </span><span class="n">info</span><span class="w"> </span><span class="n">bits</span>
 </code></pre></div>
-
 
 每条记录原点之前 5 字节头，第 1~2 字节存的是<strong>相对偏移</strong>（无符号、mod 64Ki），所以记录在页内可以乱序存放而链不乱——<code>page_get_middle_rec</code> 按序号跳到中点、<code>page_move_rec_list_*</code> 剪断重接，靠的都是这 2 字节。<code>n_owned</code> 则配合页尾目录：每 4~8 条记录分摊一个 slot，二分查找时先在页尾 slot 上走、再顺链微调。
 
@@ -375,7 +362,6 @@ InnoDB 的一页要厚重得多：默认 16 KB（<code>UNIV_PAGE_SIZE_SHIFT_DEF 
 <span class="w">    </span><span class="n">pPage</span><span class="o">-&gt;</span><span class="n">aiOvfl</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">u16</span><span class="p">)</span><span class="n">i</span><span class="p">;</span>
 </code></pre></div>
 
-
 新 cell 需要 <code>sz+2</code> 字节（内容 + 2 字节指针），超过本页空闲 <code>nFree</code> 就<strong>不落页</strong>，挂进进程内的 overflow 槽（最多用 3 个、分配 4 个）。注意此时磁盘上的页毫发无损——溢出是内存里的账，等 <code>balance()</code> 来清算。这是个重要的设计：<strong>分裂的决策可以攒着，不必每插一条就重排一次</strong>。
 
 第二道在 <code>allocateSpace()</code>，处理「未分配空隙不够但页里其实有空洞」的情况：
@@ -393,7 +379,6 @@ InnoDB 的一页要厚重得多：默认 16 KB（<code>UNIV_PAGE_SIZE_SHIFT_DEF 
 <span class="w">  </span><span class="p">}</span>
 </code></pre></div>
 
-
 「指针数组尾部到内容区起点」的空隙装不下时，先调 <code>defragmentPage</code> 把散落的 cell 挤紧再试——<strong>能整理就不分裂</strong>。整理后还放不下，才回到第一道走 overflow。
 
 第三道是删除路径的边界检查 <code>dropCell()</code>，顺带展示了这个几何结构的腐败检测：
@@ -407,7 +392,6 @@ InnoDB 的一页要厚重得多：默认 16 KB（<code>UNIV_PAGE_SIZE_SHIFT_DEF 
 <span class="w">  </span><span class="p">}</span>
 <span class="w">  </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">freeSpace</span><span class="p">(</span><span class="n">pPage</span><span class="p">,</span><span class="w"> </span><span class="n">pc</span><span class="p">,</span><span class="w"> </span><span class="n">sz</span><span class="p">);</span>
 </code></pre></div>
-
 
 「偏移 + 长度」越出可用页尾即判库损坏——数组结构的每一条边界都是可计算的，算不出来就是坏的。
 
@@ -425,13 +409,11 @@ InnoDB 的对应路径分乐观与悲观两级。乐观插入 <code>btr_cur_opti
 <span class="w">  </span><span class="p">}</span>
 </code></pre></div>
 
-
 <code>fail:</code> 标签给 <code>err = DB_FAIL</code>。判据同样是两级：<strong>重组后能不能放下</strong>（<code>max_insert_size_after_reorganize</code>，先假设整理过）与<strong>原样能不能放下</strong>（<code>max_insert_size</code>）——与 SQLite 的「先 defragment 再说」如出一辙。配套宏说明重组的门槛：
 <div class="codehilite"><pre><span></span><code><span class="cm">/** In the optimistic insert, if the insert does not fit, but this much space</span>
 <span class="cm">can be released by page reorganize, then it is reorganized */</span>
 <span class="cp">#define BTR_CUR_PAGE_REORGANIZE_LIMIT (UNIV_PAGE_SIZE / 32)</span>
 </code></pre></div>
-
 
 16 KB 的 1/32 = 512 字节：空洞超过 512 字节就值得重组一次。
 
@@ -449,7 +431,6 @@ InnoDB 的对应路径分乐观与悲观两级。乐观插入 <code>btr_cur_opti
 <span class="w">  </span><span class="p">}</span>
 </code></pre></div>
 
-
 最底层的「放不下」则由 <code>page_mem_alloc_heap()</code> 的返回值宣判（<code>page/page0page.cc</code>）：堆顶加 <code>need</code> 超过可用空间就 <code>return (nullptr)</code>。三道检查、两级路径、一个失败出口——放不下是怎样被一层层发现的，链路完整了。
 <h2>什么时候该重组索引页？</h2>
 
@@ -462,7 +443,6 @@ SQLite 把「要不要动手术」浓缩成 <code>balance()</code> 入口的一�
 <span class="cm">      **       the total usable space on the page. */</span>
 <span class="w">      </span><span class="k">break</span><span class="p">;</span>
 </code></pre></div>
-
 
 两条同时满足就不重排：<strong>没有溢出 cell，且空闲空间不超过可用区的 2/3</strong>。注意这是重排的<strong>下</strong>界——页得空到 1/3 以下才值得动，而不是满了才动。攒一批 overflow 一起处理，均摊了每次分裂的固定开销。
 
@@ -478,7 +458,6 @@ SQLite 把「要不要动手术」浓缩成 <code>balance()</code> 入口的一�
 <span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">(</span><span class="n">page_rec_get_nth</span><span class="p">(</span><span class="n">page</span><span class="p">,</span><span class="w"> </span><span class="n">middle</span><span class="p">));</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 <code>(n_recs + 2) / 2</code>——按<strong>条数</strong>取中点，不是按字节数。一条 100 字节的记录和一条 800 字节的记录各算一票，所以分裂后的两半字节数经常明显不等；再加上左右倾斜的启发式（下文第五节），「一半满」只是条数意义的近似。教科书的 50% 是对<strong>条数</strong>说的，也是对<strong>均匀记录</strong>假设下对字节说的——这句话的严谨版本是：<strong>中点按条数切，字节分布看记录大小的运气</strong>。
 
@@ -503,7 +482,6 @@ SQLite 把「要不要动手术」浓缩成 <code>balance()</code> 入口的一�
 <span class="cm">  **</span>
 <span class="cm">  */</span>
 </code></pre></div>
-
 
 先取出本页与左右兄弟页的<strong>全部 cell 摊平</strong>，然后回答三个问题：装完需要几页（<code>k</code>）、每页占多少字节（<code>szNew[]</code>）、每一刀切在哪（<code>cntNew[]</code>）。接着是配平循环：
 <div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">nOld</span><span class="p">;</span>
@@ -530,12 +508,10 @@ SQLite 把「要不要动手术」浓缩成 <code>balance()</code> 入口的一�
 <span class="w">    </span><span class="p">}</span>
 </code></pre></div>
 
-
 逐行读：某页累计超过 <code>usableSpace</code>，就把最右边的 cell 挪给下一页（<code>szNew[i] -= sz; szNew[i+1] += sz</code>），挪到本页装下为止；如果后面根本没有下一页，<code>k = i+2</code> <strong>新开一页</strong>——2 页变 3 页就是在这里发生的。每搬一个 cell 都按真实字节数增减，这是精确的装箱，不是拍脑袋的对半。上限被常量卡死：
 <div class="codehilite"><pre><span></span><code><span class="cp">#define NN 1             </span><span class="cm">/* Number of neighbors on either side of pPage */</span>
 <span class="cp">#define NB 3             </span><span class="cm">/* (NN*2+1): Total pages involved in the balance */</span>
 </code></pre></div>
-
 
 参与平衡的是本页加左右各一个兄弟（NB=3），新页数上限 <code>NB+2 = 5</code>，超出直接 <code>SQLITE_CORRUPT_BKPT</code>。NB 上方的注释还有句实话：<code>NB has been 3 since the inception of SQLite and we have never tested any other value.</code>
 
@@ -557,7 +533,6 @@ SQLite 把「要不要动手术」浓缩成 <code>balance()</code> 入口的一�
 <span class="cm">    */</span>
 </code></pre></div>
 
-
 分隔键 =「被分裂页的最大 key + 该页页号」，从原页最右 cell 现场抠出来，然后：
 <div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="cm">/* Insert the new divider cell into pParent. */</span>
 <span class="w">    </span><span class="k">if</span><span class="p">(</span><span class="w"> </span><span class="n">rc</span><span class="o">==</span><span class="n">SQLITE_OK</span><span class="w"> </span><span class="p">){</span>
@@ -566,7 +541,6 @@ SQLite 把「要不要动手术」浓缩成 <code>balance()</code> 入口的一�
 <span class="w">    </span><span class="p">}</span>
 </code></pre></div>
 
-
 （上面第二行的 <code>(int)(pOut-pSpace)</code> 以源码为准，此处为示意——正文引用以下方 <code>balance_nonroot</code> 的通用路径为准。）通用路径的对应两行则毫无修饰：
 <div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Insert new divider cells into pParent. */</span>
 <span class="w">  </span><span class="k">for</span><span class="p">(</span><span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">&lt;</span><span class="n">nNew</span><span class="mi">-1</span><span class="p">;</span><span class="w"> </span><span class="n">i</span><span class="o">++</span><span class="p">){</span>
@@ -574,7 +548,6 @@ SQLite 把「要不要动手术」浓缩成 <code>balance()</code> 入口的一�
 
 <div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">insertCell</span><span class="p">(</span><span class="n">pParent</span><span class="p">,</span><span class="w"> </span><span class="n">nxDiv</span><span class="o">+</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">pCell</span><span class="p">,</span><span class="w"> </span><span class="n">sz</span><span class="p">,</span><span class="w"> </span><span class="n">pTemp</span><span class="p">,</span><span class="w"> </span><span class="n">pNew</span><span class="o">-&gt;</span><span class="n">pgno</span><span class="p">);</span>
 </code></pre></div>
-
 
 每个新页（除最右）都向父页补一个分隔 cell。而父页放不下这个新 cell 时——回想第一道检查——它会变成父页的 overflow，等父页的 <code>balance()</code> 清算。<strong>分裂就是这样自下而上传播的。</strong>
 <h2>InnoDB 的手术单：btr_page_split_and_insert 八步</h2>
@@ -588,7 +561,6 @@ InnoDB 的分裂函数在 <code>btr/btr0btr.cc</code>（不是 btr0cur.cc），�
 <span class="cm"> this function is called.</span>
 <span class="cm"> @return inserted record */</span>
 </code></pre></div>
-
 
 三句话三个承诺：树上已有 X 锁、锁会在函数内提前释放、<strong>只许成功不许回滚</strong>——所以调用前必须保证 2 页的空闲磁盘。WAL 篇讲过的「先记账再动数据」在这里换了个形态：redo 保证崩溃后能重放，但重放中途没有回滚，所以空间必须先备齐。
 
@@ -606,7 +578,6 @@ InnoDB 的分裂函数在 <code>btr/btr0btr.cc</code>（不是 btr0cur.cc），�
 <span class="w">    </span><span class="n">split_rec</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">btr_page_get_split_rec</span><span class="p">(</span><span class="n">cursor</span><span class="p">,</span><span class="w"> </span><span class="n">tuple</span><span class="p">);</span>
 </code></pre></div>
 
-
 <strong>第 2 步——中点兜底 + 分配新页：</strong>
 <div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">page_get_n_recs</span><span class="p">(</span><span class="n">page</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">      </span><span class="n">split_rec</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">page_get_middle_rec</span><span class="p">(</span><span class="n">page</span><span class="p">);</span>
@@ -622,7 +593,6 @@ InnoDB 的分裂函数在 <code>btr/btr0btr.cc</code>（不是 btr0cur.cc），�
 <span class="w">                             </span><span class="n">btr_page_get_level</span><span class="p">(</span><span class="n">page</span><span class="p">),</span><span class="w"> </span><span class="n">mtr</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">);</span>
 </code></pre></div>
 
-
 <strong>第 5 步——把一半记录搬到新页：</strong>
 <div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* 5. Move then the records to the new page */</span>
 <span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">direction</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">FSP_DOWN</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -635,7 +605,6 @@ InnoDB 的分裂函数在 <code>btr/btr0btr.cc</code>（不是 btr0cur.cc），�
 <span class="w">        </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="n">page_move_rec_list_start</span><span class="p">(</span><span class="n">new_block</span><span class="p">,</span><span class="w"> </span><span class="n">block</span><span class="p">,</span><span class="w"> </span><span class="n">move_limit</span><span class="p">,</span>
 <span class="w">                                     </span><span class="n">cursor</span><span class="o">-&gt;</span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
 </code></pre></div>
-
 
 （右搬分支在后面调 <code>page_move_rec_list_end</code>。）中间还有第 3 步算上半页首记录、第 4 步 <code>btr_attach_half_pages</code> 改树结构、第 6 步决定元组插进哪半、第 7 步重定位光标、第 8 步插入。完整的八步单：
 <ol>
@@ -662,7 +631,6 @@ InnoDB 的分裂函数在 <code>btr/btr0btr.cc</code>（不是 btr0cur.cc），�
 <span class="w">  </span><span class="n">btr_insert_on_non_leaf_level</span><span class="p">(</span><span class="n">flags</span><span class="p">,</span><span class="w"> </span><span class="n">index</span><span class="p">,</span><span class="w"> </span><span class="n">level</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">node_ptr_upper</span><span class="p">,</span>
 <span class="w">                               </span><span class="n">UT_LOCATION_HERE</span><span class="p">,</span><span class="w"> </span><span class="n">mtr</span><span class="p">);</span>
 </code></pre></div>
-
 
 <code>may generate recursion leading to a split on the higher level</code>——父层可能因此再分裂，一路涨到根。
 <h2>页分裂点怎么选？</h2>
@@ -697,7 +665,6 @@ SQLite 的 <code>balance_nonroot</code> 不选点，它<strong>摊平后重新�
 <span class="w">  </span><span class="n">put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pPage1</span><span class="o">-&gt;</span><span class="n">aData</span><span class="p">[</span><span class="mi">32</span><span class="p">],</span><span class="w"> </span><span class="n">iPage</span><span class="p">);</span>
 </code></pre></div>
 
-
 <code>freePage2()</code> 把被删的页挂为新 trunk（页头 4 字节指向下个 trunk、第 5 字节记 leaf 数），分配端 <code>allocateBtreePage()</code> 从同一位置取：<code>iTrunk = get4byte(&amp;pPage1-&gt;aData[32]);</code>。<strong>删表的页变成分裂的新页</strong>，文件因此不必一直长。
 
 InnoDB 这边是段/extent 分配，且把「只许成功」贯彻成了前置预留。悲观插入在进分裂函数之前先留够空间（<code>btr0cur.cc</code>）：
@@ -716,7 +683,6 @@ InnoDB 这边是段/extent 分配，且把「只许成功」贯彻成了前置�
 <span class="w">  </span><span class="p">}</span>
 </code></pre></div>
 
-
 预留量随树高走（<code>tree_height / 16 + 3</code> 个 extent），树越高、分裂波及层越多、预留越多——<strong>把「递归长高可能连续分配多页」的最坏情况一次算进去</strong>。分配本体 <code>btr_page_alloc</code> 的文档则坦承这个保证有多虚：
 <div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Parameter true below states that the caller has made the</span>
 <span class="cm">  reservation for free extents, and thus we know that a page can</span>
@@ -732,7 +698,6 @@ InnoDB 这边是段/extent 分配，且把「只许成功」贯彻成了前置�
 <span class="cm">  The function fseg_alloc_free_page_general should attempt to ensure</span>
 <span class="cm">  enough space is reserved before proceeding ahead. */</span>
 </code></pre></div>
-
 
 <code>point of no return</code>——过了这道门就没有回头路，所以函数文档要求「空间已就位」；预留本身又「并不真的保证留了一整个 extent」，最后的兜底是 <code>btr_page_alloc</code> 返回 NULL → 分裂返回 nullptr → 上层 <code>DB_OUT_OF_FILE_SPACE</code>。<strong>把失败挡在门外（预留）+ 门内尽力（point of no return）+ 兜底错误码</strong>，三层才撑起头注释那句 "must always succeed"。
 <h2>父页的分隔键：分裂如何递归向上</h2>
@@ -751,7 +716,6 @@ InnoDB 这边是段/extent 分配，且把「只许成功」贯彻成了前置�
 <span class="w">  </span><span class="p">}</span>
 </code></pre></div>
 
-
 先在 <code>level + 1</code> 层乐观插入，<code>DB_FAIL</code> 转悲观（悲观就可能又走到分裂），<code>ut_a(err == DB_SUCCESS)</code> 断言必须成功——而 <code>BTR_NO_LOCKING_FLAG | BTR_NO_UNDO_LOG_FLAG</code> 表明这层递归是在已经持有树锁、已在外层记过账的语境下做的，<strong>锁与日志的边界是外层定的，递归层只管结构</strong>。
 
 SQLite 的对应就是 <code>insertCell(pParent, ...)</code> 那行——父页放不下自然变 overflow，外层 do-loop 再对父页调 <code>balance()</code>。传播的驱动力不同（InnoDB 显式递归、SQLite 靠 overflow 攒账 + 循环），但方向一致：<strong>分裂永远从叶子往上冒泡，根是最后一个让步的</strong>。
@@ -766,7 +730,6 @@ SQLite 的对应就是 <code>insertCell(pParent, ...)</code> 那行——父页�
 <div class="codehilite"><pre><span></span><code><span class="w">    </span><span class="n">mtr</span><span class="o">-&gt;</span><span class="n">memo_release</span><span class="p">(</span><span class="n">dict_index_get_lock</span><span class="p">(</span><span class="n">cursor</span><span class="o">-&gt;</span><span class="n">index</span><span class="p">),</span>
 <span class="w">                      </span><span class="n">MTR_MEMO_X_LOCK</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">MTR_MEMO_SX_LOCK</span><span class="p">);</span>
 </code></pre></div>
-
 
 <strong>搬记录（慢活）排在放锁之后</strong>——树锁只覆盖结构修改，不覆盖数据搬移，把锁的持有窗口压到最短。这是教科书的「先锁结构再放锁」手法在分裂里的具体形态。
 <h2>树怎么长高：两条路线，同样不变的根</h2>
@@ -786,7 +749,6 @@ SQLite 走 <code>balance_deeper()</code>——<strong>原地长高</strong>。<c
 <span class="w">        </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">balance_deeper</span><span class="p">(</span><span class="n">pPage</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">pCur</span><span class="o">-&gt;</span><span class="n">apPage</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>
 </code></pre></div>
 
-
 <code>balance_deeper()</code> 分配新页、把根的内容整体搬下去：
 <div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Make pRoot, the root page of the b-tree, writable. Allocate a new</span>
 <span class="cm">  ** page that will become the new right-child of pPage. Copy the contents</span>
@@ -798,13 +760,11 @@ SQLite 走 <code>balance_deeper()</code>——<strong>原地长高</strong>。<c
 <span class="w">    </span><span class="n">copyNodeContent</span><span class="p">(</span><span class="n">pRoot</span><span class="p">,</span><span class="w"> </span><span class="n">pChild</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">rc</span><span class="p">);</span>
 </code></pre></div>
 
-
 然后根页清零、只留一个右孩子指针：
 <div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="cm">/* Zero the contents of pRoot. Then install pChild as the right-child. */</span>
 <span class="w">  </span><span class="n">zeroPage</span><span class="p">(</span><span class="n">pRoot</span><span class="p">,</span><span class="w"> </span><span class="n">pChild</span><span class="o">-&gt;</span><span class="n">aData</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="o">~</span><span class="n">PTF_LEAF</span><span class="p">);</span>
 <span class="w">  </span><span class="n">put4byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">pRoot</span><span class="o">-&gt;</span><span class="n">aData</span><span class="p">[</span><span class="n">pRoot</span><span class="o">-&gt;</span><span class="n">hdrOffset</span><span class="o">+</span><span class="mi">8</span><span class="p">],</span><span class="w"> </span><span class="n">pgnoChild</span><span class="p">);</span>
 </code></pre></div>
-
 
 注意 <code>&amp;pRoot-&gt;aData[pRoot-&gt;hdrOffset+8]</code>——内部页头偏移 8 的右孩子字段。根页从「装满数据的叶子」变成「只有一个孩子的内部页」，下一轮 do-loop 再平衡那个孩子。<strong>SQLite 文件里没有存储树高的字段</strong>（取证确认），高度是「根往下数到叶子」现场数出来的。
 
@@ -846,7 +806,6 @@ InnoDB 走 <code>btr_root_raise_and_insert()</code>——<strong>先搬家、再
 <span class="w">  </span><span class="p">}</span>
 </code></pre></div>
 
-
 三步：根的全部记录复制到新页 → <code>btr_page_empty</code> 把根清空并以 <code>level + 1</code> 重建（根成了只含一个 node pointer 的上层页）→ 对<strong>新页</strong>执行常规分裂。树高在搜索时记进游标（<code>btr0cur.cc</code>）：
 <div class="codehilite"><pre><span></span><code><span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">UNIV_UNLIKELY</span><span class="p">(</span><span class="n">height</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">ULINT_UNDEFINED</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="cm">/* We are in the root node */</span>
@@ -855,7 +814,6 @@ InnoDB 走 <code>btr_root_raise_and_insert()</code>——<strong>先搬家、再
 <span class="w">    </span><span class="n">root_height</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">height</span><span class="p">;</span>
 <span class="w">    </span><span class="n">cursor</span><span class="o">-&gt;</span><span class="n">tree_height</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">root_height</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
 </code></pre></div>
-
 
 <code>cursor-&gt;tree_height = root_height + 1</code>——这是 8.x 树高的唯一权威来源（旧版的 <code>dict_index_get_height</code> 已不存在，取证确认 grep 零命中）。
 
@@ -917,7 +875,6 @@ InnoDB 走 <code>btr_root_raise_and_insert()</code>——<strong>先搬家、再
 <span class="cm">*/</span>
 </code></pre></div>
 
-
 <strong>InnoDB：第 8 步失败就整场重来。</strong> 手术单的最后一步：<code>If insert did not fit, try page reorganization...</code>，重组也放不下就 <code>n_iterations++; goto func_start;</code> 回到第 1 步。第二轮的第 1 步代码正好接上——<code>if (n_iterations &gt; 0)</code> 走 <code>btr_page_get_split_rec</code> 的另一侧启发式。<strong>重来的成本是有的（新页已经分配），但换来分裂点的第二次机会</strong>；<code>n_iterations</code> 也是 <code>btr_page_get_split_rec</code> 向右倾向的开关，追加场景第二轮几乎必然成功。
 
 <strong>递归层的断言。</strong> <code>btr_insert_on_non_leaf_level</code> 里 <code>ut_a(err == DB_SUCCESS)</code>——递归路径不接受失败，因为外层已承诺"只许成功"。这份自信的来源正是上一节的 <code>n_extents = tree_height / 16 + 3</code> 预留：<strong>承诺不靠运气，靠进门之前把门后的路都买下来</strong>。
@@ -931,7 +888,6 @@ InnoDB 走 <code>btr_root_raise_and_insert()</code>——<strong>先搬家、再
 <span class="w">  </span><span class="n">pc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">get2byte</span><span class="p">(</span><span class="o">&amp;</span><span class="n">data</span><span class="p">[</span><span class="n">hdr</span><span class="o">+</span><span class="mi">1</span><span class="p">]);</span>
 <span class="w">  </span><span class="n">nFree</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">data</span><span class="p">[</span><span class="n">hdr</span><span class="o">+</span><span class="mi">7</span><span class="p">]</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">top</span><span class="p">;</span><span class="w">  </span><span class="cm">/* Init nFree to non-freeblock free space */</span>
 </code></pre></div>
-
 
 页空闲 = 未分配空隙（内容区起点 <code>top</code>）+ 碎片字节数（offset 7）+ 沿 offset 1 的 freeblock 链逐块累加。freeblock 的结构与合并规则在 <code>freeSpace()</code> 的注释与代码：
 <div class="codehilite"><pre><span></span><code><span class="cm">/*</span>
@@ -966,7 +922,6 @@ InnoDB 走 <code>btr_root_raise_and_insert()</code>——<strong>先搬家、再
 <span class="w">  </span><span class="p">}</span>
 </code></pre></div>
 
-
 三个细节：空洞贴着内容区前沿就直接把起点外扩、不占链表槽位；按偏移升序插入、相邻自动合并；≤3 字节的碎屑不入链，只累加进 offset 7 的 fragment 计数。<strong>「删掉一条记录」在页内留下的坑有三种归宿</strong>——并入空隙、进链、计碎片——而整理（<code>defragmentPage</code>）把三者全部折回空隙，cell 紧贴页尾重排。
 
 InnoDB 的对应物是 <code>PAGE_FREE</code>（空闲记录链头）与 <code>PAGE_GARBAGE</code>（删除记录字节数），加上重组门槛 <code>BTR_CUR_PAGE_REORGANIZE_LIMIT = UNIV_PAGE_SIZE / 32</code>。<strong>两套实现都把「空洞的字数」单独存进页头</strong>——这是判断何时重组的原料：<code>page_has_garbage</code> + <code>max_insert_size_after_reorganize</code> 的组合，等价于 SQLite 的 <code>nFree</code> + <code>defragmentPage</code>。
@@ -993,7 +948,6 @@ InnoDB 的对应物是 <code>PAGE_FREE</code>（空闲记录链头）与 <code>P
 <span class="w">  </span><span class="n">ut_ad</span><span class="p">(</span>
 <span class="w">      </span><span class="n">mtr_is_block_fix</span><span class="p">(</span><span class="n">mtr</span><span class="p">,</span><span class="w"> </span><span class="n">block</span><span class="p">,</span><span class="w"> </span><span class="n">MTR_MEMO_PAGE_X_FIX</span><span class="p">,</span><span class="w"> </span><span class="n">cursor</span><span class="o">-&gt;</span><span class="n">index</span><span class="o">-&gt;</span><span class="n">table</span><span class="p">));</span>
 </code></pre></div>
-
 
 锁模式枚举（<code>btr0btr.h</code>）里普通读者是 <code>BTR_SEARCH_LEAF = RW_S_LATCH</code>，普通写者 <code>BTR_MODIFY_LEAF = RW_X_LATCH</code>，而动结构的是 <code>BTR_MODIFY_TREE = 33</code> / <code>BTR_CONT_MODIFY_TREE = 34</code>——<strong>读叶子、改叶子、改树是三个独立档位</strong>，只有分裂/长高才升到改树档。配合前文的提前 <code>memo_release</code>：
 <ul>
@@ -1090,6 +1044,7 @@ SQLite 是单写者模型（库级写锁），没有这套并发戏法，换来�
 
 下次在慢查询文章里写下「换成顺序主键」时，你可以指到具体的地方：InnoDB 分裂第 1 步那行 <code>hint_page_no = page_no + 1</code>。它就是「索引不碎」这四个字在源码里的全部形态。
 
-同一条链路上还可以接着读：<a href="/article/nanodb/">《NanoDB：Go 嵌入式文档数据库》</a>、<a href="/article/distributed-id-deep-dive/">《分布式 ID 实测：页分裂、回拨 1 万次、号段扛 20 万》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/database/"><strong>数据库内核</strong></a> — B+ 树、WAL、MVCC 与存储引擎的实现细节</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/">InnoDB 锁的边界：Next-Key 与间隙锁</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+同一条链路上还可以接着读：<a href="/article/nanodb/">《NanoDB：Go 嵌入式文档数据库》</a>、<a href="/article/distributed-id-deep-dive/">《分布式 ID 实测：页分裂、回拨 1 万次、号段扛 20 万》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/database/"><strong>数据库内核</strong></a> — B+ 树、WAL、MVCC 与存储引擎的实现细节</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/innodb-next-key-gap-lock-deep-dive/">InnoDB 锁的边界：Next-Key 与间隙锁</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-composite-index-leftmost-prefix/">MySQL 联合索引最左前缀：为什么 (a,b) 查不了 b</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-clustered-index-vs-secondary-index/">MySQL 聚簇索引与二级索引：回表到底贵在哪</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>

@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="适用读者：想弄清「一个数据库从 WAL 到事务是怎么串起来」的后端工程师；准备自己写 toy DB 或嵌入式存储的人；在 SQLite / LevelDB 系 /…" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/nanodb/" />
     <meta property="og:title" content="NanoDB：Go 嵌入式文档数据库" />
@@ -279,7 +273,6 @@ NanoDB 是一个用 Go 编写的轻量级<strong>嵌入式文档数据库</stron
 ./bin/nanodb<span class="w"> </span>-db<span class="w"> </span>./data<span class="w"> </span>delete<span class="w"> </span>users<span class="w"> </span>u2
 </code></pre></div>
 
-
 所有命令成功时把结果以缩进 JSON 打到 stdout，失败时退出码为 1、错误以 <code>错误:</code> 前缀写 stderr——脚本里可以直接判断。
 <h3>交互式 shell</h3>
 
@@ -297,7 +290,6 @@ nano(tx)&gt; commit
 <div class="codehilite"><pre><span></span><code>./bin/nanodb<span class="w"> </span>-db<span class="w"> </span>./data<span class="w"> </span>serve<span class="w"> </span>-addr<span class="w"> </span>:8080<span class="w"> </span>-token<span class="w"> </span>secret
 curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;X-NanoDB-Token: secret&#39;</span><span class="w"> </span>localhost:8080/v1/users
 </code></pre></div>
-
 
 三个入口共享同一套引擎能力，不是三套实现——<code>cmd/nanodb/main.go</code>（722 行）只做参数分发，<code>server/server.go</code>（764 行）只做路由与鉴权，真正的逻辑全部在 <code>engine/</code> 包里。这是第一个值得记住的架构决策：<strong>入口很薄，引擎唯一</strong>。
 <h3>Go 嵌入（本体用法）</h3>
@@ -322,7 +314,6 @@ curl<span class="w"> </span>-H<span class="w"> </span><span class="s1">&#39;X-Na
 <span class="p">})</span>
 <span class="nx">fmt</span><span class="p">.</span><span class="nx">Println</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="nx">docs</span><span class="p">))</span>
 </code></pre></div>
-
 
 API 是平铺的方法表：<code>Insert / InsertMany / Get / Find / Count / Replace / Update / UpdateMany / Delete / DeleteMany / Batch / Aggregate / QuerySQL / CreateIndex / DropIndex / Compact / Stats / Close</code>，与 CLI 子命令一一对应。两个使用注意：
 <ul>
@@ -351,7 +342,6 @@ API 是平铺的方法表：<code>Insert / InsertMany / Get / Find / Count / Rep
 └── docs/
     └── transaction-isolation.md   # 事务隔离级别完整说明
 </code></pre></div>
-
 
 依赖方向只有一条：<code>cmd</code> 和 <code>server</code> 依赖 <code>engine</code>，<code>engine</code> 不依赖任何人。没有接口层的抽象森林——<code>collection</code>、<code>index</code>、<code>Tx</code> 都是具体类型，因为只有一个实现，为「未来可能的第二个实现」预留接口是过度设计。
 <div class="table-scroll"><table>
@@ -404,7 +394,6 @@ API 是平铺的方法表：<code>Insert / InsertMany / Get / Find / Count / Rep
 ├── LOCK            # 进程独占锁（空文件，操作系统加锁）
 └── users.json      # 可选：HTTP 账号
 </code></pre></div>
-
 
 层级是「集合 → 文档」，集合类似表但没有固定结构。规则不多，但每条都有讲究：
 <ul>
@@ -479,7 +468,6 @@ API 是平铺的方法表：<code>Insert / InsertMany / Get / Find / Count / Rep
 {&quot;op&quot;:&quot;drop&quot;,&quot;coll&quot;:&quot;users&quot;}
 </code></pre></div>
 
-
 操作类型一共七种：<code>put</code>（插入/覆盖，更新也写成覆盖式 <code>put</code>）、<code>delete</code>、<code>drop</code>、<code>batch</code>、<code>tx</code>、<code>index.create</code>、<code>index.drop</code>。批量和事务各是一条父记录、<code>ops</code> 里装子操作——这保证了「一整批要么全在要么全不在」在恢复时也是原子的。
 
 JSON Lines 的取舍非常直白：可读、可 grep、一行即一条完整记录，代价是比二进制格式占更多空间、解析更慢。对一个目标场景是中小数据量的库，这个交换是合理的——而且它让「崩溃恢复」的实现退化成了「逐行解析，坏行截断」。
@@ -504,7 +492,6 @@ JSON Lines 的取舍非常直白：可读、可 grep、一行即一条完整记�
 <span class="p">}</span>
 </code></pre></div>
 
-
 注意两种错误被区别对待：<strong>末尾没有换行</strong>是正常撕裂，截断即可，之前已提交的数据不受影响；<strong>中间某行解析失败</strong>是真正的损坏，直接报错拒绝打开——静默跳过中间的坏行会把「丢数据」伪装成「成功恢复」，这是恢复逻辑里最不能让步的边界。
 <h3>第二层：写失败自己也要回退</h3>
 
@@ -518,7 +505,6 @@ JSON Lines 的取舍非常直白：可读、可 grep、一行即一条完整记�
 <span class="p">}</span>
 </code></pre></div>
 
-
 <code>rollbackWALLocked</code> 就是 <code>Truncate(walBytes) + Seek</code>——<code>walBytes</code> 始终记录最后一个完整记录的末尾位置，它同时是内存计数和恢复锚点。同样的回退也挂在 <code>fsync</code> 失败上。
 
 还有一个藏在 <code>openWAL</code> 里的 Windows 坑，值得原样引用：
@@ -526,7 +512,6 @@ JSON Lines 的取舍非常直白：可读、可 grep、一行即一条完整记�
 <span class="c1">// 写入均由 db.mu 串行化，显式 Seek 到末尾即可保持追加语义。</span>
 <span class="nx">f</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">OpenFile</span><span class="p">(</span><span class="nx">path</span><span class="p">,</span><span class="w"> </span><span class="nx">os</span><span class="p">.</span><span class="nx">O_CREATE</span><span class="o">|</span><span class="nx">os</span><span class="p">.</span><span class="nx">O_RDWR</span><span class="p">,</span><span class="w"> </span><span class="nx">filePerm</span><span class="p">)</span>
 </code></pre></div>
-
 
 「文档里说跨平台，实际只在 Linux 测过」是很多项目的通病，而这里的选择（不用 <code>O_APPEND</code>、靠锁串行化 + 显式 Seek 换取 Truncate 能力）是只有真在 Windows 上跑过才会做出的修正。跨平台不是口号，是这类具体到一个 flag 的决定。
 <h3>第三层：gen 代数防压缩窗口期崩溃</h3>
@@ -540,7 +525,6 @@ NanoDB 用「代数」解决：快照里记 <code>gen</code>（WAL 代数），�
 <span class="w">    </span><span class="k">continue</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 于是那个危险窗口被彻底关掉了：无论崩溃发生在压缩的哪一步，旧代记录要么被跳过、要么快照还是旧代照常重放，两种状态都是自洽的。这是一个很小的机制（一个 <code>uint64</code> 字段加一个比较），但它是「设计出来的正确」和「碰巧没出事」的分界线。
 
@@ -576,7 +560,6 @@ NanoDB 用「代数」解决：快照里记 <code>gen</code>（WAL 代数），�
 <span class="p">}</span>
 </code></pre></div>
 
-
 没有代价模型、没有统计信息、没有 histogram——就是「每个能用的索引都问一遍，谁的候选集最小用谁」。对单机内存库，这是性价比最高的规划器：索引查找本身是 <code>O(log n + 命中数)</code>，问三四个索引的开销远小于选错索引扫全表的开销。
 
 <code>collectConditions</code> 的注释同样值得引用：<strong>「收集顶层与 <code>$and</code> 中的字段条件；<code>$or</code>/<code>$not</code> 无法安全地取候选集」</strong>。<code>$or</code> 的候选集是各分支的并集，取小了会漏文档——所以这里宁可不用索引也不冒险。查询规划器最重要的品质不是聪明，是<strong>知道自己什么时候不该聪明</strong>。选中索引后拿到的也只是候选集，最终仍要过一遍完整过滤，双保险。
@@ -587,7 +570,6 @@ NanoDB 用「代数」解决：快照里记 <code>gen</code>（WAL 代数），�
 <span class="c1">// 同时预编译正则条件，避免扫描时每篇文档都重新编译同一条正则。</span>
 <span class="kd">func</span><span class="w"> </span><span class="nx">compileFilter</span><span class="p">(</span><span class="nx">filter</span><span class="w"> </span><span class="kd">map</span><span class="p">[</span><span class="kt">string</span><span class="p">]</span><span class="kt">any</span><span class="p">)</span><span class="w"> </span><span class="p">[]</span><span class="nx">filterClause</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="o">...</span><span class="w"> </span><span class="p">}</span>
 </code></pre></div>
-
 
 非法正则被编译为 <code>re = nil</code> 直接视为不命中，而不是每条文档报一次错。10 万条文档的扫描里，这两条决定了分配次数是 2,012 还是几十万——性能表里「等值查询全表扫描 12 ms / 2,012 次分配」的 <code>allocs/op</code> 基本就是预编译的成果。
 <h3>第四步：带 limit 的排序走 Top-N 堆</h3>
@@ -604,7 +586,6 @@ NanoDB 用「代数」解决：快照里记 <code>gen</code>（WAL 代数），�
 <span class="p">}</span>
 </code></pre></div>
 
-
 只取前 50 条时，用大小为 <code>skip + limit</code> 的最大堆扫一遍，堆顶永远是「当前前 k 条里最靠后的那条」，最后对 k 条小数组排一次序。复杂度从 <code>O(n log n)</code> 降到 <code>O(n log k)</code>，实测在 10 万条随机序数据上是 <strong>6.5 ms 对 85.3 ms——十三倍差距</strong>。另一个配套优化是排序键预抽取：先把每条文档的排序字段取出来存成键，避免每次比较都回表取嵌套字段。
 
 <code>skip</code> 的处理也有个细节：<code>k = skip + limit</code> 意味着先取到「跳过之后还够用」为止，而不是排完整个结果集再切片。
@@ -615,7 +596,6 @@ NanoDB 用「代数」解决：快照里记 <code>gen</code>（WAL 代数），�
 <div class="codehilite"><pre><span></span><code><span class="c1">// spanFor 按首字段的范围条件二分定位条目区间。</span>
 <span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">ix</span><span class="w"> </span><span class="o">*</span><span class="nx">index</span><span class="p">)</span><span class="w"> </span><span class="nx">spanFor</span><span class="p">(</span><span class="nx">op</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">val</span><span class="w"> </span><span class="kt">any</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">entrySpan</span><span class="p">,</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span>
 </code></pre></div>
-
 
 于是范围查询复杂度是 <code>O(log n + 命中数)</code>，不再从头扫到尾——这是性能表里「范围查询 索引 3.1 ms vs 全表 27.3 ms」的来源。
 
@@ -638,7 +618,6 @@ NanoDB 用「代数」解决：快照里记 <code>gen</code>（WAL 代数），�
 <span class="p">}</span>
 </code></pre></div>
 
-
 汉字二元组（bigram）是一个经典的无词典方案：「数据库」切成「数据」「据库」，查询侧同样切片后做 AND 匹配，不需要任何分词词典就能支持中文。代价在「已知限制」里写得很清楚：没有停用词、词干、同义词，没有相关度评分，多词是纯 AND，结果不按相关度排序——它是<strong>能用的检索，不是搜索引擎</strong>。但对一个内嵌数据库来说，这个定位是准确的：多数场景只需要「把含这几个词的文档捞出来」。
 <h3>地理索引：经度有序 + haversine</h3>
 
@@ -646,7 +625,6 @@ NanoDB 用「代数」解决：快照里记 <code>gen</code>（WAL 代数），�
 <div class="codehilite"><pre><span></span><code><span class="c1">// haversineMeters 计算两点间的球面距离（米）。</span>
 <span class="kd">func</span><span class="w"> </span><span class="nx">haversineMeters</span><span class="p">(</span><span class="nx">lon1</span><span class="p">,</span><span class="w"> </span><span class="nx">lat1</span><span class="p">,</span><span class="w"> </span><span class="nx">lon2</span><span class="p">,</span><span class="w"> </span><span class="nx">lat2</span><span class="w"> </span><span class="kt">float64</span><span class="p">)</span><span class="w"> </span><span class="kt">float64</span>
 </code></pre></div>
-
 
 矩形先用有序结构收窄候选、圆再逐点算距离，把昂贵的三角函数调用限制在小候选集上。限制同样是诚实的：不支持多边形与 GeoJSON 的 <code>Polygon</code>/<code>LineString</code>，不处理跨 180° 经线，<code>$geoWithin</code> 结果不按距离排序。
 <h2>事务：集合粒度的乐观可串行化</h2>
@@ -664,7 +642,6 @@ NanoDB 的事务没有锁等待、没有死锁、没有 MVCC 的 undo 链——�
 <span class="w">    </span><span class="nx">done</span><span class="w">     </span><span class="kt">bool</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 工作流程是：
 <ol>
@@ -712,7 +689,6 @@ NanoDB 的事务没有锁等待、没有死锁、没有 MVCC 的 undo 链——�
 <span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="nx">err</span>
 <span class="p">}</span>
 </code></pre></div>
-
 
 完整的隔离级别对照、语义细节与重试建议在 <code>docs/transaction-isolation.md</code>——把「事务语义」单独成文档而不是散在代码注释里，是这个项目文档质量的一个缩影。
 <h2>原子批量：一条 WAL 记录装下一整批</h2>
@@ -820,7 +796,6 @@ go<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-c
 go<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-race<span class="w"> </span>./...<span class="w">        </span><span class="c1"># 需要 CGO 与 C 编译器，Windows 需装 gcc</span>
 go<span class="w"> </span><span class="nb">test</span><span class="w"> </span>./engine<span class="w"> </span>-run<span class="w"> </span><span class="s1">&#39;^$&#39;</span><span class="w"> </span>-bench<span class="w"> </span>Benchmark<span class="w"> </span>-benchmem
 </code></pre></div>
-
 
 实测 <code>go test ./...</code> 三个包全部通过（<code>cmd</code> 0.87s、<code>engine</code> 1.08s、<code>server</code> 1.58s）。覆盖率 engine 80%、server 80%、cmd 75%。
 
@@ -956,6 +931,7 @@ NanoDB 不会取代 SQLite，也不打算取代 MongoDB。它的价值在于把�
 
 如果你曾想「自己写个数据库试试」，这个项目给出的答案是：可以，而且不用太多行。下一步不是读更多论文，是 <code>git clone</code> 之后把 <code>replay</code>、<code>Commit</code> 和 <code>planCandidates</code> 这三个函数各改坏一次，看看测试是不是还亮着——那会是比任何文章都快的入门方式。
 
-同一条链路上还可以接着读：<a href="/article/wal-deep-dive/">《先写日志，再写数据：WAL 原理与源码细读》</a>、<a href="/article/btree-page-split/">《B+ 树索引回源：页分裂长什么样》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/database/"><strong>数据库内核</strong></a> — B+ 树、WAL、MVCC 与存储引擎的实现细节</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/crash-recovery-redo-undo/">断电之后：redo、undo 与半页写怎么把数据库救回来</a></li><li><a href="https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/">LSM-Tree 与 B+Tree：一次写入到底写了几遍盘</a></li><li><a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+同一条链路上还可以接着读：<a href="/article/wal-deep-dive/">《先写日志，再写数据：WAL 原理与源码细读》</a>、<a href="/article/btree-page-split/">《B+ 树索引回源：页分裂长什么样》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/database/"><strong>数据库内核</strong></a> — B+ 树、WAL、MVCC 与存储引擎的实现细节</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/wal-deep-dive/">先写日志，再写数据：WAL 原理与源码细读</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/crash-recovery-redo-undo/">断电之后：redo、undo 与半页写怎么把数据库救回来</a></li><li><a href="https://blog.zhoujun.dev/article/lsm-vs-btree-amplification/">LSM-Tree 与 B+Tree：一次写入到底写了几遍盘</a></li><li><a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-mvcc-version-chain-read-view/">MySQL MVCC：版本链与 Read View 是怎么判可见性的</a></li><li><a href="https://blog.zhoujun.dev/article/mysql-explain-type-all-ref-range/">MySQL EXPLAIN 执行计划：从 ALL 到 ref 怎么看</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>

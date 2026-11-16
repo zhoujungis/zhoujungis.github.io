@@ -7,13 +7,7 @@
          Rationale for the whole zoom story lives in global.scss. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="事务回滚了，邮件照样发出去——Django 事务深水区：atomic、on_commit 与 F() 表达式（含并发实测） 承接《Redis 分布式锁》与《索引建了，为什么排序还…" />
-    <!-- Google AdSense 站点验证 -->
-    <meta name="google-adsense-account" content="ca-pub-7173042291490259" />
-    <!-- Google AdSense 自动广告（非 AMP）。此模板会被预渲染复制到每个静态页面，
-         因此全站只需在这里放一次；广告位由 Google 自动挑选，页面里无需再插入容器。 -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7173042291490259"
-            crossorigin="anonymous"></script>
-    <!-- Google Search Console 站点验证 -->
+<!-- Google Search Console 站点验证 -->
     <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
     <link rel="canonical" href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/" />
     <meta property="og:title" content="事务回滚了，邮件照样发出去——Django 事务深水区" />
@@ -196,7 +190,6 @@
             <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">instance</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">notification_sent</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
 
-
 它做了一件正确的事——用 <code>notification_sent</code> 字段做幂等开关——但同时做了两件<strong>结构性有问题</strong>的事：
 <ol>
 <li><strong>在 <code>post_save</code> 信号里同步群发邮件。</strong> 一封邮件几百毫秒，一批 50 封，订阅者上千时这次 <code>save()</code> 要把 HTTP 请求拖住几十秒。信号是同步执行的，没人拦得住。</li>
@@ -230,7 +223,6 @@ CONN_MAX_AGE          : 0
 has_select_for_update : False
 </code></pre></div>
 
-
 四行里藏着四个事实，每一件都可能影响你接下来写的代码：
 <h3>1.1 <code>ATOMIC_REQUESTS = False</code>（默认）</h3>
 
@@ -241,7 +233,6 @@ Django 默认<strong>不会</strong>把每个 HTTP 请求自动包在一个事�
     <span class="n">User</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">user_id</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">points</span><span class="o">=</span><span class="n">F</span><span class="p">(</span><span class="s2">&quot;points&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">delta</span><span class="p">)</span>  <span class="c1"># 事务 #1</span>
     <span class="n">PointLog</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">user_id</span><span class="o">=</span><span class="n">user_id</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="n">delta</span><span class="p">)</span>              <span class="c1"># 事务 #2</span>
 </code></pre></div>
-
 
 这两行是<strong>两个独立事务</strong>。中间如果崩了，会留下"加了积分但没记账"的脏数据。要么你自己 <code>with transaction.atomic():</code> 包起来，要么在 <code>DATABASES</code> 里把 <code>ATOMIC_REQUESTS</code> 设为 <code>True</code>（Django 会把整个请求包成一个事务，回滚等价于整个请求没发生过）。
 <blockquote>
@@ -259,7 +250,6 @@ Django 默认<strong>不会</strong>把每个 HTTP 请求自动包在一个事�
 <span class="p">})</span>
 </code></pre></div>
 
-
 本站是 SQLite + PythonAnywhere，每次请求关连接也没人盯着，所以保持默认。要切到 MySQL/PG 时记得改这一行。
 <h3>1.3 <code>has_select_for_update = False</code></h3>
 
@@ -269,7 +259,6 @@ Django 默认<strong>不会</strong>把每个 HTTP 请求自动包在一个事�
     <span class="n">a</span><span class="o">.</span><span class="n">views_count</span> <span class="o">+=</span> <span class="mi">1</span>
     <span class="n">a</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
 </code></pre></div>
-
 
 你以为"加了行锁，别的并发拿不到"，事实上锁根本没存在。这一节稍后会用实验证明。
 <h3>1.4 autocommit 与隐式事务</h3>
@@ -286,7 +275,6 @@ Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要
 <span class="n">a</span><span class="o">.</span><span class="n">views_count</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">views_count</span> <span class="o">+</span> <span class="mi">1</span>    <span class="c1"># Python 自增</span>
 <span class="n">a</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;views_count&quot;</span><span class="p">])</span>  <span class="c1"># UPDATE</span>
 </code></pre></div>
-
 
 直觉上应该没问题——<code>views_count</code> 是整数，<code>+1</code> 谁不会？<strong>但它在并发下是错的</strong>，因为两步之间会插进别人的写。
 
@@ -338,7 +326,6 @@ Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要
 <span class="n">T2</span><span class="o">:</span><span class="w"> </span><span class="n">UPDATE</span><span class="w"> </span><span class="n">views_count</span><span class="w"> </span><span class="nf">SET</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">6</span><span class="w">   </span><span class="o">--</span><span class="w"> </span><span class="err">覆盖了</span><span class="w"> </span><span class="n">T1</span><span class="w"> </span><span class="err">的</span><span class="w"> </span><span class="o">+</span><span class="mi">1</span><span class="err">，丢了</span><span class="w"> </span><span class="mi">1</span>
 </code></pre></div>
 
-
 两个线程读到的旧值都是 5，各加 1 得到 6，写回 6。<strong>净增 1 而不是 2。</strong> 400 次自增下来，只有 ~50 次真的落库了（因为锁竞争让大多数并发根本没机会写，纯 Python 端的 "race window" 缩小了）。生产环境里——SQLite 不算、MySQL 上可能更糟——这种 bug 没有任何日志、监控、报错，就是数字不对。
 
 <strong>B 套上 <code>transaction.atomic()</code>，你以为能解决：</strong> <code>with transaction.atomic():</code> 在 PostgreSQL/MySQL 的默认隔离级别（READ COMMITTED）下，<strong>仍然救不了丢失更新</strong>。原因是隔离级别只管"读到的是不是已提交的数据"，不管"读完之后到写之前别人改了没有"。你读 5、别人读 5、你写 6、别人写 6——两次写都是 READ COMMITTED 之后做的，都是合法的；数据库根本不觉得哪里不对。
@@ -369,7 +356,6 @@ Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要
         <span class="n">TransferLog</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
 </code></pre></div>
 
-
 这三条 SQL 在 <code>atomic</code> 块内，要么一起成功、要么一起回滚——中间任何一条失败（比如余额不足的 CHECK 约束），前面已经做的扣款会自动撤销。<strong>这是事务的本职工作：把"多步操作"变成"一步"。</strong>
 
 而单步 <code>update(F()+1)</code>——它本身已经是原子的（一条 SQL），不需要 <code>atomic</code> 包。
@@ -385,7 +371,6 @@ Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要
     <span class="p">},</span>
 <span class="p">})</span>
 </code></pre></div>
-
 
 <strong>WAL + 合理 timeout</strong> 让 SQLite 在低并发下不至于一脚踢出 <code>database is locked</code>。但本质的并发上限还是<strong>单写串行化</strong>——要正经高并发，还得 MySQL/PG。
 <hr>
@@ -426,7 +411,6 @@ Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要
     <span class="c1"># ... 重新计算 excerpt ...</span>
     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </code></pre></div>
-
 
 <code>update_fields</code> 只影响 <code>super().save()</code> 写哪些列——<strong>改不了 <code>save()</code> 方法本身已经执行过的代码</strong>。每次 <code>save()</code> 都会重新跑一遍：
 <ol>
@@ -490,7 +474,6 @@ Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要
 <span class="w">                </span><span class="err">→</span><span class="w"> </span><span class="err">（事务边界外）</span><span class="nf">on_commit</span><span class="w"> </span><span class="err">队列：空</span>
 </code></pre></div>
 
-
 <code>post_save</code> 在 ROLLBACK 之前就跑了——而 SMTP 也跑了。<strong>回滚的只是数据库，不是邮件。</strong>
 
 回到前言那段 <code>notify_subscribers_on_publish</code>：它不仅阻塞请求（性能问题），还<strong>在事务回滚之后变成"该发的没发对、不该发的发了"</strong>（正确性问题）—— 因为 <code>notification_sent</code> 的 <code>update</code> 是 POST <code>post_save</code> 内触发的，跟着 <code>save</code> 一起在事务里；事务一回滚，<code>notification_sent</code> 变回 False，但邮件已经被发出去了。下次重新 <code>save</code> 同一个文章，又发一遍。
@@ -545,7 +528,6 @@ Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要
     <span class="n">transaction</span><span class="o">.</span><span class="n">on_commit</span><span class="p">(</span><span class="n">send_all_batches</span><span class="p">)</span>
 </code></pre></div>
 
-
 三个收益：
 <ol>
 <li><strong>不回滚就重复发：</strong> 事务回滚 → <code>on_commit</code> 不跑 → 没邮件，下次 <code>save</code> 重试还能再发。</li>
@@ -573,14 +555,12 @@ Django 默认 <code>autocommit=True</code>：每条 ORM 操作自己提交。要
     <span class="n">n</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>           <span class="c1"># 💥 TransactionManagementError</span>
 </code></pre></div>
 
-
 实测输出：
 <div class="codehilite"><pre><span></span><code><span class="err">场景</span><span class="mi">1</span><span class="w"> </span><span class="err">捕获</span><span class="w"> </span><span class="n">IntegrityError</span><span class="p">:</span><span class="w"> </span><span class="n">UNIQUE</span><span class="w"> </span><span class="n">constraint</span><span class="w"> </span><span class="n">failed</span><span class="p">:</span><span class="w"> </span><span class="n">articles_article</span><span class="o">.</span><span class="n">slug</span>
 <span class="err">场景</span><span class="mi">1</span><span class="w"> </span><span class="err">捕获后继续查询</span><span class="p">:</span><span class="w"> </span><span class="n">TransactionManagementError</span>
 <span class="w">    </span><span class="n">An</span><span class="w"> </span><span class="n">error</span><span class="w"> </span><span class="n">occurred</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="n">current</span><span class="w"> </span><span class="n">transaction</span><span class="o">.</span><span class="w"> </span><span class="n">You</span><span class="w"> </span><span class="n">can</span><span class="s1">&#39;t execute queries until the</span>
 <span class="w">    </span><span class="n">end</span><span class="w"> </span><span class="n">of</span><span class="w"> </span><span class="n">the</span><span class="w"> </span><span class="s1">&#39;atomic&#39;</span><span class="w"> </span><span class="n">block</span><span class="o">.</span>
 </code></pre></div>
-
 
 Django 的设计是<strong>保守的</strong>：事务里出了错（即使你 catch 了），连接状态已经被污染——再发查询很可能给你错误的结果。所以它直接禁止你继续查。
 <h3>5.2 正确写法：内层 atomic（savepoint）</h3>
@@ -592,7 +572,6 @@ Django 的设计是<strong>保守的</strong>：事务里出了错（即使你 c
         <span class="k">pass</span>
     <span class="n">n</span> <span class="o">=</span> <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>                           <span class="c1"># ✅ OK, 共 9 篇</span>
 </code></pre></div>
-
 
 内层 <code>atomic</code> 在支持 savepoint 的数据库（SQLite、PostgreSQL、MySQL）上会创建一个 savepoint；内层失败只回滚到 savepoint，不影响外层事务。
 
@@ -638,7 +617,6 @@ Django 的设计是<strong>保守的</strong>：事务里出了错（即使你 c
         <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">callbacks</span><span class="p">),</span> <span class="mi">1</span><span class="p">)</span>   <span class="c1"># 提交一次，回调注册一次</span>
 </code></pre></div>
 
-
 <strong>坑三：<code>on_commit</code> 的执行顺序 = 注册顺序。</strong> 如果一个事务里先后注册了 A、B、C，回调就是 A→B→C。<strong>别假设 Django 帮你并行/调度。</strong> 真正的"并发放邮件"请走 Celery。
 <h3>6.2 进阶用法：HTTP 响应里触发异步任务</h3>
 <div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">transaction</span>
@@ -651,7 +629,6 @@ Django 的设计是<strong>保守的</strong>：事务里出了错（即使你 c
         <span class="n">transaction</span><span class="o">.</span><span class="n">on_commit</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="n">send_confirmation_email</span><span class="o">.</span><span class="n">delay</span><span class="p">(</span><span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">))</span>
     <span class="k">return</span> <span class="n">JsonResponse</span><span class="p">({</span><span class="s2">&quot;id&quot;</span><span class="p">:</span> <span class="n">order</span><span class="o">.</span><span class="n">id</span><span class="p">})</span>
 </code></pre></div>
-
 
 <code>send_confirmation_email.delay(...)</code> 是 Celery 任务的注册——<code>delay()</code> 通常是同步入队（写 Redis），所以塞进 <code>on_commit</code> 里几乎是零开销。如果你用 <code>delay()</code> 直接发邮件（不依赖 broker），那就不需要 <code>on_commit</code>；但通常你应该走 Celery，而 Celery 入队可以放进事务——万一事务回滚，Celery 任务也不该发出去。
 <hr>
@@ -803,10 +780,10 @@ python<span class="w"> </span>../tools/bench_transaction.py<span class="w"> </sp
 <span class="c1"># 跑在你的真实模型上也会复制同名 Article 行；如果不想表，参数 --pk 改一下</span>
 </code></pre></div>
 
-
 环境口径：Django 6.0.6 / SQLite 3.50.4 / Python 3.13；8 线程 × 50 次自增取中位数。
 脚本会<strong>自动复制 <code>db.sqlite3</code> 到系统临时目录</strong>，跑完自动删除，不会触碰你的真实数据库；订阅者通知信号也会自动断开，所以<strong>不会有任何邮件被发出去</strong>。
 
-同一条链路上还可以接着读：<a href="/article/django-zero-downtime-migration/">《上线那一刻，数据库在重建整张表——零停机迁移》</a>、<a href="/article/api-idempotency-deep-dive/">《用户只是双击了一下，订单多了 7 条——接口幂等》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/django-slow-query-index-tuning/">索引建了，为什么排序还是没用上？——慢查询实战</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/django-zero-downtime-migration/">上线那一刻，数据库在重建整张表——零停机迁移</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li><a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li><a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li><li><a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+同一条链路上还可以接着读：<a href="/article/django-zero-downtime-migration/">《上线那一刻，数据库在重建整张表——零停机迁移》</a>、<a href="/article/api-idempotency-deep-dive/">《用户只是双击了一下，订单多了 7 条——接口幂等》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/django-slow-query-index-tuning/">索引建了，为什么排序还是没用上？——慢查询实战</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/django-zero-downtime-migration/">上线那一刻，数据库在重建整张表——零停机迁移</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li><a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li><a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li><li><a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+
   </body>
 </html>
