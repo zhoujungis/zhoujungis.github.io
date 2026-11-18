@@ -16,6 +16,521 @@
  */
 export const EN_ARTICLES = [
   {
+    slug: 'z-desktop-permission-gate',
+    zhSlug: 'z-desktop-permission-gate',
+    topicSlug: 'projects',
+    title: 'Z Desktop: putting 44 local tools behind a risk gate',
+    excerpt:
+      'A Windows desktop agent with 44 tools, one execution entry point, five risk levels, and an approval queue in Rust. This is how the gate works, and the seven ways it can still be bypassed.',
+    date: '2026-11-18',
+    readingTime: 20,
+    html: `
+<blockquote>
+<p>Who this is for: engineers building desktop agents, computer-use products, or anything that lets a model touch a real machine; anyone who cares about permission models, approval UX, and command classification; people who would rather put the security boundary in Rust than in a system prompt.</p>
+<p><strong>TL;DR:</strong> All 44 tools in Z Desktop go through a single entry point, <code>request_tool_execution()</code>. CRITICAL actions are blocked outright, HIGH actions always require a human, and "always allow" only applies to MEDIUM and below. Shell commands are split on <code>;</code>, <code>&amp;&amp;</code>, <code>||</code> and <code>|</code>, then classified segment by segment, so <code>echo ok &amp;&amp; rm -rf</code> cannot borrow the safe-list. The interesting part is what these rules still miss: seven gaps, documented below.</p>
+<p>Reading time around 20 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>The hard part isn't the model</h2>
+
+<p>Letting a model read files, list directories and inspect processes is easy. The hard part is the other category: deleting, overwriting, killing processes, shutting down, editing the registry. Those actions share one property, irreversibility, and models have no reliable intuition for what happens after the call returns.</p>
+
+<p>Z Desktop is a Windows desktop workspace built with Tauri 2, Vue 3 and Rust. Its 44 tools cover files, Shell, processes, windows, GUI automation, a browser, screenshots and the clipboard. The product thesis fits in one sentence: <strong>the model can plan, but every action that actually touches the machine must pass a decision made in Rust.</strong></p>
+
+<p>That principle turns into three constraints:</p>
+
+<ul>
+<li>The planning loop and state machine live in the frontend (<code>src/agent/loop.ts</code>), where streaming UI and state transitions are natural.</li>
+<li>Permission checks, path sandboxing, tool execution and process cleanup all live in <code>src-tauri</code>. The frontend cannot call a tool directly around <code>invoke</code>.</li>
+<li>There is exactly one tool schema, supplied by Rust's <code>tool_definitions()</code>. The frontend keeps display metadata only, so the two definitions cannot drift.</li>
+</ul>
+
+<h2>The split: loop in the frontend, gate in Rust</h2>
+
+<p>A single tool call travels this path:</p>
+
+<pre><code>Agent Loop (Vue)
+  -&gt; invoke("tool_execute", { taskId, tool, input, approvalRequestId? })
+  -&gt; security::permission::decide()
+      |- CRITICAL           -&gt; { status: "blocked" }
+      |- needs approval     -&gt; enqueue in pending_approvals
+      |                       emit("approval-requested")
+      |                       frontend waits for approval-resolved
+      |                       allow -&gt; resend with requestId
+      |                       deny  -&gt; returned as a failed observation
+      |- auto / approved    -&gt; tools::registry::execute()
+  -&gt; emit("activity", tool_started / completed / failed / blocked)
+  -&gt; return { status, result | error | reason, durationMs }</code></pre>
+
+<p>Rust exposes only 20 Tauri commands, most of them thin forwarders. The decisions that matter sit in three files: <code>security/risk.rs</code> answers "how dangerous is this command", <code>security/permission.rs</code> answers "does this level need a human", and <code>security/sandbox.rs</code> answers "can this path be written".</p>
+
+<h2>Five risk levels: turning "can it" into "who decides"</h2>
+
+<p>There are five levels: SAFE, LOW, MEDIUM, HIGH and CRITICAL. They do not answer whether a tool may be called. They answer who signs off on this particular call.</p>
+
+<table>
+<thead><tr><th>Level</th><th>Default</th><th>Typical tools</th></tr></thead>
+<tbody>
+<tr><td>SAFE</td><td>auto-allow</td><td>read file, list directory, inspect process, screenshot, read clipboard</td></tr>
+<tr><td>LOW</td><td>configurable</td><td>copy, rename, start app, write clipboard</td></tr>
+<tr><td>MEDIUM</td><td>needs approval (configurable)</td><td>write file, move file, close window, UI click, unknown Shell</td></tr>
+<tr><td>HIGH</td><td>confirm every time</td><td>delete, kill process, <code>git push</code>, install software</td></tr>
+<tr><td>CRITICAL</td><td>blocked</td><td>format, shutdown, edit HKLM, disable Defender</td></tr>
+</tbody>
+</table>
+
+<p>The defaults are permissive for SAFE and strict for everything else: <code>auto_approve_safe = true</code>, <code>auto_approve_low = false</code>, <code>auto_approve_medium = false</code>, <code>shell_safe_auto_exec = true</code> and <code>max_steps = 30</code> (clamped to 1–200). Reads do not interrupt the user, writes require confirmation by default, and dangerous actions have no confirmation path at all.</p>
+
+<p>Tool levels are registered in <code>state.rs::tool_risk()</code>. Only <code>filesystem.delete</code> and <code>process.kill</code> are HIGH, and unknown tools fall back to MEDIUM. That fallback is deliberate: <strong>unknown does not mean safe.</strong></p>
+
+<h2>Shell classification: one command is not one level</h2>
+
+<p><code>shell.exec</code> is the one tool whose level cannot be derived from its name. <code>git status</code> is read-only. <code>git clean -fdx</code> deletes untracked files. Both are Shell, so the level comes from the command text.</p>
+
+<p><code>classify_command()</code> first splits the command on <code>;</code>, newlines, <code>&amp;&amp;</code>, <code>||</code> and <code>|</code>, classifies every segment, and takes the maximum. The split exists to close a specific bypass:</p>
+
+<pre><code>echo ok &amp;&amp; rm -rf ./build</code></pre>
+
+<p>If you only ask whether the whole string contains a safe keyword, <code>echo</code> lets it through. After splitting, <code>rm -rf ./build</code> is HIGH, so the whole command needs approval. The tests pin this down:</p>
+
+<pre><code>assert_eq!(classify_command("echo ok &amp;&amp; rm -rf ./build"), RiskLevel::High);
+assert_eq!(classify_command("git status; git clean -fdx"), RiskLevel::High);
+assert_eq!(classify_command("dir | Remove-Item -Recurse"), RiskLevel::High);
+assert_eq!(classify_command("dir | findstr foo"), RiskLevel::Safe);</code></pre>
+
+<p>The order is: 31 CRITICAL patterns, then 35 HIGH patterns, then a destructive first token, then a read-only check, then MEDIUM. The CRITICAL list includes <code>format</code>, <code>shutdown</code>, <code>diskpart</code>, <code>vssadmin delete</code>, <code>rm -rf /</code> and fork bombs. The HIGH list includes deletion, process killing and package installs, plus git commands that rewrite history: <code>git reset --hard</code>, <code>git clean</code>, <code>git push</code>, <code>git checkout --</code>.</p>
+
+<p>Two details in the read-only check are worth copying:</p>
+
+<ul>
+<li>The first token must be a complete word. <code>cdx.exe</code> must not match <code>cd</code>, <code>catalog.exe</code> must not match <code>cat</code>, and <code>lsblk</code> must not match <code>ls</code>. After a prefix match the code checks that the next character is whitespace or a hyphen.</li>
+<li>Any <code>&gt;</code> redirection disqualifies a segment from being read-only. <code>echo hi &gt; out.txt</code> is MEDIUM; <code>echo hi</code> is SAFE.</li>
+</ul>
+
+<p>This also creates two known false-positive surfaces, covered later: the splitter does not understand quotes or escapes, so <code>echo "a &amp;&amp; b"</code> gets split, and lexical matching cannot see <code>powershell -enc &lt;base64&gt;</code>.</p>
+
+<h2>The approval queue: <code>approval_required</code> is a return value, not an exception</h2>
+
+<p>When approval is needed, the tool does not throw. It returns a structured result:</p>
+
+<pre><code>{ "status": "approval_required", "requestId": "...", "riskLevel": "high", "reason": "Needs user approval" }</code></pre>
+
+<p><code>request_tool_execution()</code> inserts the request into <code>pending_approvals</code> before emitting <code>approval-requested</code>. The order matters: broadcast first and the user can click Allow before <code>resolve_approval()</code> can find the requestId.</p>
+
+<p>There are three outcomes: deny, allow once, and always allow.</p>
+
+<ul>
+<li><strong>Deny</strong> removes the request immediately. The frontend hands <code>{ status: "failed", error: "User denied the operation" }</code> back to the model as a tool observation. The model can try another route, but it does not get an exception.</li>
+<li><strong>Allow once</strong> keeps the request for replay. The resend must match both the tool name and the full input JSON, and the request is consumed on match. This prevents "approve A, execute B": checking only the tool name is not enough, because the arguments can change between calls.</li>
+<li><strong>Always allow</strong> writes a row to <code>approval_rules</code>, but only takes effect when <code>effective_risk &lt;= MEDIUM</code>. HIGH keeps asking even when a rule matches.</li>
+</ul>
+
+<p>Denial and cancellation both clean the queue. <code>cancel_task()</code> removes only the pending requests that belong to this task and emits <code>approval-resolved: deny</code> for each one, so approval cards do not stay on screen. <code>finish_task()</code> does the same cleanup when a task reaches a terminal state. These look like details, but they are mandatory for a long-running app: an approval table that only grows will leak within a day.</p>
+
+<h2>The path sandbox: read and write asymmetry is deliberate</h2>
+
+<p><code>check_path()</code> does one thing: before a mutating operation (write, mkdir, copy, move, rename, delete), it rejects targets inside protected system directories:</p>
+
+<pre><code>C:\Windows
+C:\Program Files
+C:\Program Files (x86)
+C:\ProgramData\Microsoft
+/bin  /boot  /etc  /lib  /lib64  /sbin  /usr  /var  /sys  /proc</code></pre>
+
+<p>Three implementation details exist because Windows paths are slippery:</p>
+
+<ol>
+<li><strong>Resolve <code>..</code> first, then canonicalize.</strong> A string prefix check is bypassed by <code>C:\Windows\..\Users\...</code>. <code>normalize()</code> handles <code>ParentDir</code> component by component. <code>resolve_real()</code> walks up to the nearest existing ancestor and appends the missing tail, so a symlink in the parent directory is still detected even when the target file does not exist yet.</li>
+<li><strong>Strip the <code>\\?\</code> verbatim prefix.</strong> Otherwise <code>\\?\C:\Windows</code> and <code>C:\Windows</code> do not compare equal.</li>
+<li><strong>Normalize separators before comparison.</strong> On Windows, <code>/etc/passwd</code> becomes <code>\etc\passwd</code>. Without converting <code>\</code> to <code>/</code>, the Unix protected list is dead code on Windows.</li>
+</ol>
+
+<p>The asymmetry is intentional: <code>check_path()</code> allows <code>PathOp::Read</code> and only checks protected directories for <code>PathOp::Mutate</code>. Reading <code>C:\Windows\System32\drivers\etc\hosts</code> is allowed. Writing it is not. The boundary is "do not destroy the operating system", not "confine the agent to a project directory" — users should be able to write to their own <code>D:\Downloads</code>.</p>
+
+<h2>Four brakes in the agent loop</h2>
+
+<p>The loop is an explicit state machine: <code>IDLE -&gt; THINKING -&gt; PLANNING -&gt; EXECUTING -&gt; OBSERVING -&gt; VERIFYING</code>, returning to THINKING when the task needs another turn, CANCELLED on user stop, ERROR on an exception. Four brakes are hard-coded in <code>src/agent/loop.ts</code>:</p>
+
+<table>
+<thead><tr><th>Mechanism</th><th>Implementation</th></tr></thead>
+<tbody>
+<tr><td>Step cap</td><td>Default 30, clamped to 1–200. Running out marks the task failed and points the user at settings.</td></tr>
+<tr><td>LLM retry</td><td>Transient failures retry once. The failure reason is appended to the conversation with "continue from the current progress".</td></tr>
+<tr><td>Observation cap</td><td>Each tool result is serialized to JSON and cut at 4,000 characters.</td></tr>
+<tr><td>Verifier convergence</td><td>After two consecutive verification failures, the final output is kept with the verifier's note instead of looping.</td></tr>
+</tbody>
+</table>
+
+<p>The verifier itself is worth a look. It asks one question: "Has the task been completed, and is the result credible? Answer yes or no, then explain in one sentence." Parsing only looks at the first word, not a full-text search for yes/no; otherwise <code>no, but it could be yes</code> would pass. If the verifier call itself fails, the final output is accepted (fail-open). Cancellation caused by the user still propagates. This is a deliberate trade-off: it is better to accept one unverified completion than to wedge the task in a "verifier unavailable" loop.</p>
+
+<h2>The 44 tools and their limits</h2>
+
+<p>More tools is not better. Every category needs an explicit ceiling, or a single call can exhaust memory or the context window.</p>
+
+<table>
+<thead><tr><th>Category</th><th>Count</th><th>Key limits</th></tr></thead>
+<tbody>
+<tr><td>Filesystem</td><td>10</td><td>list 2,000 entries, depth 1–8; read 2 MB default, 50 MB hard cap; search 200 default, 2,000 max</td></tr>
+<tr><td>Shell</td><td>1</td><td>120-second default timeout, 1-hour cap; stdout/stderr each keep the last 100 KB</td></tr>
+<tr><td>Process</td><td>4</td><td>list 100 default, 1,000 max</td></tr>
+<tr><td>Window</td><td>6</td><td>enumerate, find, focus, minimize, maximize, close</td></tr>
+<tr><td>UI automation</td><td>7</td><td>tree depth 4 default, 10 max; 5,000 ms lookup timeout</td></tr>
+<tr><td>Browser</td><td>11</td><td>CDP against local Chrome/Edge; 10 MB download cap; 20,000-character extract cap</td></tr>
+<tr><td>Screenshot</td><td>3</td><td>full screen, window, region; multiple monitors and negative coordinates</td></tr>
+<tr><td>Clipboard</td><td>2</td><td>read text, write text</td></tr>
+</tbody>
+</table>
+
+<p>Several implementation details matter more than the counts:</p>
+
+<ul>
+<li><code>filesystem.write</code> requires <code>content</code> instead of defaulting to an empty string. A missing argument must not silently erase the target file. That is a real failure mode, not a hypothetical.</li>
+<li><code>filesystem.read</code> sniffs the first 8 KB for a null byte. Binary content goes out as base64, text goes through lossy UTF-8 decode, and both return a <code>truncated</code> flag so the model knows it is not seeing everything.</li>
+<li><code>shell.exec</code> drains output on separate threads and keeps only the last 100 KB. When the process exits, times out or is cancelled, it runs <code>taskkill /PID &lt;pid&gt; /T /F</code> to kill the whole tree, with <code>Child::kill()</code> as a fallback so <code>wait()</code> cannot block forever.</li>
+<li>The browser uses <code>chromiumoxide</code> to launch Chrome or Edge with a visible window, stores the session in <code>AppState</code> and reuses one page. A second <code>browser.open</code> navigates instead of starting another instance.</li>
+<li>UIA lookup priority is <code>AutomationId &gt; Name &gt; ControlType &gt; parent-child &gt; UI tree</code>. Clicking tries the Invoke pattern first and falls back to coordinates. Coordinates are the last resort because they break the moment the window moves.</li>
+</ul>
+
+<h2>Stop: a cancel flag, an aborted stream, and a process tree</h2>
+
+<p>"Stop" is not a button. It is a signal that has to cross three layers:</p>
+
+<ol>
+<li>The frontend's <code>requestStop()</code> sets <code>stopRequested</code> and calls <code>abort()</code> on the active streaming LLM request.</li>
+<li>The loop checks the cancel flag at the top of every step, before every tool call, and after an approval wait returns.</li>
+<li>Rust's <code>cancel_task()</code> sets the task flag, clears that task's pending approvals, and calls <code>kill_tree()</code> on every PID registered by the task.</li>
+</ol>
+
+<p>Shell timeout and cancellation share one <code>wait_loop</code>: poll <code>try_wait()</code> every 100 ms, kill the tree on timeout or cancel. Then read stdout/stderr from two channels with a 2-second cap. If the read times out, it substitutes placeholder text so cancellation never hangs on a pipe.</p>
+
+<p>Observability is built in rather than added later. Every tool call writes a <code>task_steps</code> row (input cut at 4,000 characters, output at 8,000). Every state change writes to <code>events</code> and emits an <code>activity</code> event. The task timeline is a projection of those two tables.</p>
+
+<h2>Browser and UIA: why AutomationId comes first</h2>
+
+<p>GUI automation usually degenerates into "take a screenshot and let the model guess coordinates". Z Desktop reverses the order: use control semantics when they exist, coordinates only as a fallback.</p>
+
+<ul>
+<li><code>ui.inspect</code> walks the UI tree and returns each element's Name, AutomationId, ControlType and rectangle.</li>
+<li><code>ui.find</code> narrows by <code>automation_id</code>, then <code>name</code>, then <code>control_type</code>.</li>
+<li><code>ui.click</code> prefers <code>UIInvokePattern</code> and only takes the element's center point when no Invoke pattern exists.</li>
+<li><code>ui.getValue</code> tries the Value pattern, then the Text pattern, then the Name property.</li>
+</ul>
+
+<p>The payoff is stability. AutomationId does not move with the window or change with DPI. Name changes with language. ControlType only identifies a class of control. Coordinates guarantee nothing. The cost is coverage: custom-drawn controls, games and some Electron apps expose no UIA tree at all, so screenshots and coordinates remain necessary.</p>
+
+<h2>Seven gaps that still exist</h2>
+
+<ol>
+<li><strong>The splitter ignores quotes and escapes.</strong> <code>split_segments()</code> only looks at characters, so <code>echo "a &amp;&amp; b"</code> becomes two segments. PowerShell backtick escapes and single-quoted strings are not handled either. This creates false positives, not false negatives.</li>
+<li><strong>Lexical matching cannot see encoded execution.</strong> <code>powershell -EncodedCommand &lt;base64&gt;</code>, alias calls and download-then-run all miss the keyword lists. This is not a matter of a longer list; it is the ceiling of a lexical approach.</li>
+<li><strong>Reads have no boundary, only writes do.</strong> The sandbox only guards mutating operations. Prompt injection can make the agent read <code>C:\Users\...\.ssh\id_rsa</code> and write it somewhere it is allowed to write. Approval is per tool call; there is no data-flow tracking.</li>
+<li><strong>"Always allow" never applies to HIGH.</strong> That is intentional, but it means users re-approve the same high-risk operations every day, which nudges them toward loosening global settings instead of confirming each time.</li>
+<li><strong>The verifier fails open.</strong> If the verifier call fails, the task is treated as complete. The cost is that a model can slip through when verification is unavailable.</li>
+<li><strong>Running out of steps ends as failed.</strong> Thirty steps is enough to tidy a downloads folder and not enough for a long refactor. Raising the cap only postpones the problem; there is no checkpoint resume.</li>
+<li><strong>Windows-only capabilities have no cross-platform equivalent.</strong> <code>window.*</code>, <code>ui.*</code> and <code>screenshot.window</code> are stubs that return an explanatory error on other platforms. They compile; they do not work.</li>
+</ol>
+
+<p>One more boundary is not a gap but worth stating: 42 Rust unit tests cover risk classification, permission decisions, the path sandbox, approval lifecycle, Shell output clipping and settings normalization. There is no adversarial command corpus and no end-to-end prompt-injection test. The tests prove the known rules are implemented correctly. They do not prove unknown bypasses do not exist.</p>
+
+<h2>Closing</h2>
+
+<p>The valuable part of Z Desktop is not the list of 44 tools. It is that "who gets to decide" is executable code:</p>
+
+<ul>
+<li>Risk levels are data, not if-statements scattered through the codebase.</li>
+<li>Shell commands are classified per segment, so a safe keyword cannot be lent to a dangerous command.</li>
+<li>Approval is a one-time token; replay must match the tool name and the full arguments.</li>
+<li>The path sandbox guards writes only. Its boundary is "do not break the OS", not "confine the agent to a project".</li>
+<li>Every layer has an output ceiling, and the cancel signal crosses the frontend, Rust and the process tree.</li>
+</ul>
+
+<p>None of these mechanisms is sufficient alone. Stacked together, they turn "the model might do something wrong" from an uncontrolled incident into an operation that can be approved, replayed and stopped. In a field where model capability is still climbing fast, <strong>being able to stop, refuse and trace matters more than what the agent can do.</strong></p>
+
+<h2>Further reading</h2>
+<ul>
+<li><a href="https://github.com/zhoujungis/z-desktop" rel="noopener noreferrer" target="_blank">zhoujungis/z-desktop</a> — source, design notes and screenshots.</li>
+<li><a href="/en/article/z-memory-explainable-provenance/">Z Memory: a memory layer that can explain itself</a> — the other half of a local-first agent: what it remembers, and why.</li>
+<li><a href="/en/article/agent-security-run-commands-safely/">Running commands safely</a> — a broader look at command-layer trust boundaries.</li>
+</ul>
+`,
+  },
+  {
+    slug: 'z-memory-explainable-provenance',
+    zhSlug: 'z-memory-explainable-provenance',
+    topicSlug: 'projects',
+    title: 'Z Memory: a memory layer that can explain itself',
+    excerpt:
+      'A local-first memory system with provenance, two-stage ingestion, deduplication at 0.82, conflicts that never overwrite, and a five-factor score you can inspect line by line.',
+    date: '2026-11-18',
+    readingTime: 20,
+    html: `
+<blockquote>
+<p>Who this is for: engineers adding long-term memory to an agent without handing data to a vector-database service; anyone tired of a model that remembers something yesterday, forgets it today and gets it wrong tomorrow; people who care about deduplication, conflict and explainable retrieval.</p>
+<p><strong>TL;DR:</strong> Z Memory does not use a vector database, and it does not treat a memory as a chunk of text to recall. A memory is a structured record with a source, a trust level, relations and events. Writes go through "candidate, review, store". Deduplication and conflict both keep the old record instead of overwriting it. Retrieval returns the FTS5 rank, a 384-dimensional local hash vector, and five scoring factors separately. The trade-offs are equally explicit: the hash vector only understands surface words, semantic search is O(n), and conflict detection is still rule-based.</p>
+<p>Reading time around 20 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>The problem isn't storage. It's explanation.</h2>
+
+<p>Most "give the AI memory" projects end up looking the same: chunk the conversation, embed it, put it in a vector store, take the top K by cosine similarity, paste it into the prompt. It runs, but when it goes wrong you cannot answer three questions:</p>
+
+<ul>
+<li>Which sentence did this memory come from?</li>
+<li>Why did it rank above that other memory?</li>
+<li>When new information contradicted old information, which one was deleted?</li>
+</ul>
+
+<p>Z Memory starts by making those three questions database fields. A memory is "traceable structured knowledge": type, subject, source, trust, importance, confidence, relations, events and conflicts all live in tables. You can switch models; the database stays on your machine, and memory does not follow a provider's session.</p>
+
+<table>
+<thead><tr><th>Principle</th><th>Implementation</th></tr></thead>
+<tbody>
+<tr><td>Local-first</td><td>One SQLite file. No account, sync or telemetry.</td></tr>
+<tr><td>Structured</td><td>10 memory types, subject, tags, relations, sources, events.</td></tr>
+<tr><td>Searchable</td><td>FTS5 keywords, local vectors, metadata filters.</td></tr>
+<tr><td>Explainable</td><td>Source excerpts, score breakdowns, activity timeline.</td></tr>
+<tr><td>Editable</td><td>Edit, archive, restore, delete and merge are all exposed.</td></tr>
+<tr><td>Forgetful</td><td>Archive, expire, hard delete, erase all.</td></tr>
+<tr><td>Portable</td><td>JSON, Markdown, TXT, CSV and SQLite import/export.</td></tr>
+<tr><td>Agent-ready</td><td>35 Tauri commands, a JSON CLI and a context builder.</td></tr>
+</tbody>
+</table>
+
+<h2>The data model: twelve tables and an audit trail that survives deletion</h2>
+
+<p><code>database/migrations/001_init.sql</code> defines twelve ordinary tables plus one FTS5 virtual table:</p>
+
+<table>
+<thead><tr><th>Table</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>memories</code></td><td>Type, content, normalized content, subject, importance, confidence, trust, status, reinforcement count, timestamps</td></tr>
+<tr><td><code>memory_tags</code></td><td>Many-to-many tags</td></tr>
+<tr><td><code>memory_relations</code></td><td><code>supports</code>, <code>contradicts</code>, <code>derived_from</code>, <code>related_to</code>, <code>supersedes</code></td></tr>
+<tr><td><code>memory_sources</code></td><td>Source type, source id, original excerpt</td></tr>
+<tr><td><code>memory_events</code></td><td>Created, merged, conflicted, accessed, archived, restored, expired</td></tr>
+<tr><td><code>memory_embeddings</code></td><td>Model name, dimension, vector BLOB</td></tr>
+<tr><td><code>memory_conflicts</code></td><td>Old memory, new memory, reason, status, resolution</td></tr>
+<tr><td><code>memory_candidates</code></td><td>Pending review: type, content, scores, conflict/duplicate pointers, status</td></tr>
+<tr><td><code>conversations</code></td><td>Raw conversations</td></tr>
+<tr><td><code>conversation_messages</code></td><td>Messages, with a <code>trusted</code> flag</td></tr>
+<tr><td><code>audit_log</code></td><td>Who did what, and when</td></tr>
+<tr><td><code>settings</code></td><td>Configuration key/value pairs</td></tr>
+<tr><td><code>memory_fts</code></td><td>FTS5 index over content, subject and tags</td></tr>
+</tbody>
+</table>
+
+<p>The most important design decision is written in a comment: <strong>event rows deliberately do not follow a memory deletion.</strong> <code>memory_events.memory_id</code> has no foreign key, so events survive a hard delete, and <code>audit_log</code> behaves the same way. A user can ask the system to forget a memory; the content, tags, sources, vector and relations are deleted, but the fact that it was created, merged and accessed remains. Privacy ("delete the content") and audit ("keep the behavior") are two different promises.</p>
+
+<p>The connection settings are the usual single-machine combination: <code>PRAGMA foreign_keys = ON</code>, <code>synchronous = NORMAL</code>, WAL for file-backed databases, and <code>busy_timeout = 5s</code>. Read-heavy, write-light, willing to lose the last write on a crash, but a slow query must not lock another process forever.</p>
+
+<h2>Two-stage ingestion: candidate first, memory second</h2>
+
+<p>The extractor is not allowed to write <code>memories</code> directly. Extraction produces rows in <code>memory_candidates</code>; the user reviews them on the Remember page before they are stored. <code>require_review</code> defaults to true. That is not caution for its own sake: automatic extraction will never be reliable enough to skip the step.</p>
+
+<p>The <code>memory_extract</code> command enforces three boundaries first:</p>
+
+<ol>
+<li>Empty text is rejected.</li>
+<li>Text over 200,000 characters is rejected.</li>
+<li>Untrusted input goes through <code>sanitize_untrusted()</code>, which drops instruction-looking lines one by one.</li>
+</ol>
+
+<p>Then the engine setting chooses <code>llm</code>, <code>heuristic</code> or <code>auto</code>. <code>auto</code> means "use the model if configured, otherwise use the offline engine". If model extraction fails under <code>auto</code>, the code falls back to the offline engine and records the failure as a warning. Only an explicit <code>llm</code> setting surfaces the error.</p>
+
+<p>The offline rules are short, and every one is explainable:</p>
+
+<ul>
+<li>Split into sentences; skip anything shorter than four characters.</li>
+<li>Skip greetings and questions.</li>
+<li>Skip sentences containing sensitive data when <code>redact_sensitive</code> is on.</li>
+<li>Skip one-off task requests unless they also contain an explicit marker such as "remember", "from now on" or the Chinese equivalent.</li>
+<li>Classify into one of ten types by keyword rule. If no rule matches but an explicit marker exists, classify as <code>fact</code>.</li>
+</ul>
+
+<p>The scores are computed, not guessed:</p>
+
+<pre><code>importance = rule base + 0.12 if explicit + (hits - 1) x 0.02
+             temporary capped at 0.35; hedged x 0.85
+confidence = 0.90 if explicit, otherwise 0.72 + (hits - 1) x 0.03
+             hedged x 0.7; temporary capped at 0.5</code></pre>
+
+<p>Candidates are then deduplicated against each other: same type and lexical similarity above 0.8 merge. The survivors are sorted by <code>importance x confidence</code> and cut to <code>max_candidates</code> (default 8). <code>min_importance</code> defaults to 0.2; anything below is not shown.</p>
+
+<p>Trust is a separate axis with a fixed order:</p>
+
+<pre><code>explicit &gt; observed &gt; imported &gt; inferred &gt; external</code></pre>
+
+<ul>
+<li><code>explicit</code>: the user said "remember", "from now on", "always".</li>
+<li><code>observed</code>: a direct statement in conversation.</li>
+<li><code>imported</code>: data brought in from a file.</li>
+<li><code>inferred</code>: indirect evidence, capped and always reviewed.</li>
+<li><code>external</code>: web or third-party content, capped at 0.4, never auto-accepted.</li>
+</ul>
+
+<p>External content also has a hard gate: <code>allow_external_ingestion</code> is off by default. Even when it is turned on, every candidate is forced to <code>external</code> and both importance and confidence are clamped below 0.4. The rule is simple: <strong>external content can be a lead, but it cannot promote itself into a fact.</strong></p>
+
+<h2>Deduplication: normalize first, then 0.82</h2>
+
+<p>Deduplication only compares memories of the same type. That restriction matters: <code>preference: I like Rust</code> and <code>fact: I like Rust</code> are not the same memory and must not merge.</p>
+
+<p>Similarity has four parts:</p>
+
+<pre><code>similarity = lexical similarity x 0.6
+           + 384-dim hash cosine  x 0.4
+           + same subject         + 0.06
+           + same trust level     + 0.02</code></pre>
+
+<p>There is a fast path first: strip whitespace, lowercase, keep only alphanumerics and CJK, and compare the normalized key. An identical key returns 1.0 immediately.</p>
+
+<p>Above the threshold (default <code>0.82</code>) the new draft merges into the existing memory instead of creating a row. The merge rules are fixed:</p>
+
+<ul>
+<li>Higher trust wins the content. Equal trust requires the new confidence to be at least 0.05 higher.</li>
+<li>Importance and confidence become <code>max(old, new) + 0.01</code>.</li>
+<li>Reinforcement count increments.</li>
+<li>Tags are unioned; the source is appended.</li>
+<li>A <code>merged</code> event records the similarity, whether content changed, and the new reinforcement count.</li>
+</ul>
+
+<p>Reinforcement is not a UI like button. It feeds the frequency factor, <code>ln(1 + count) / ln(1 + 12)</code>, so a repeatedly confirmed memory rises in ranking but saturates.</p>
+
+<h2>Conflict: never overwrite, place side by side</h2>
+
+<p>Deduplication handles "the same thing said twice". Conflict handles "the same thing said the opposite way". They are mutually exclusive: anything above the dedup threshold never reaches conflict detection.</p>
+
+<p>Conflict detection also stays within one type. It first asks whether the two memories are on the same topic: normalized subjects match, or similarity reaches <code>conflict_threshold</code> (default 0.55). Then there are three reasons:</p>
+
+<ul>
+<li><strong>Polarity flip</strong>: one side has a negation (dislike, hate, never use) and the other has a positive (prefer, like), with different polarity.</li>
+<li><strong>Change over time</strong>: a change marker appears ("now prefer", "switched to", "instead") and similarity is at least 0.7 of the threshold.</li>
+<li><strong>Different choice for the same subject</strong>: both sides contain a choice verb, the tails after the verb are extracted, generic tokens are removed, the remaining token sets do not intersect, and both sides contain Latin text.</li>
+</ul>
+
+<p>On a hit, the old row is not overwritten. A new memory is inserted, a <code>memory_conflicts</code> row is written, and a <code>contradicts</code> relation is recorded at confidence 0.8. There are four resolutions:</p>
+
+<table>
+<thead><tr><th>Resolution</th><th>Behavior</th></tr></thead>
+<tbody>
+<tr><td><code>keep_old</code></td><td>Archive the new memory; add a <code>supersedes</code> relation at 0.9</td></tr>
+<tr><td><code>keep_new</code></td><td>Archive the old memory; add a <code>supersedes</code> relation at 0.9</td></tr>
+<tr><td><code>keep_both</code></td><td>Keep both; add a <code>related_to</code> relation</td></tr>
+<tr><td><code>dismiss</code></td><td>Mark the conflict handled; change neither memory</td></tr>
+</tbody>
+</table>
+
+<p>The archived side stays on the Archived page and can be restored. The point is not to pick the right answer automatically. The point is to leave the decision to the user and <strong>never silently discard information that was once trusted.</strong></p>
+
+<h2>Retrieval: FTS5, a hash vector and five weights</h2>
+
+<p>Keyword search uses SQLite FTS5 with <code>tokenize = 'unicode61 remove_diacritics 2'</code>. Chinese does not need a custom tokenizer because the application pre-tokenizes before indexing: runs of CJK characters become bigrams, Latin text is split into words, and the result is joined with spaces. Queries go through the same tokenizer, take at most 24 tokens, quote each one, join with <code>OR</code>, and run <code>ORDER BY bm25(memory_fts) LIMIT 500</code>.</p>
+
+<p>Vector search is a local hash, not a model:</p>
+
+<pre><code>model = "local-hash-v1"
+dim   = 384
+token -&gt; FNV-1a -&gt; index = hash % 384
+sign  = top bit of hash ? -1 : +1
+value = sign x (1 + ln(count))
+then L2-normalize the whole vector</code></pre>
+
+<p>It is deterministic, offline and dependency-free, and it captures texts that share surface tokens. The repository's own test states the boundary: <code>I prefer Rust and Tauri</code> scores higher against <code>desktop app technology preference</code> than <code>my favorite food is noodles</code>. Synonyms are another matter.</p>
+
+<p>Fusion normalizes keyword rank within the filtered candidate set, takes the semantic cosine, and weights them 0.60 / 0.40. The final score has five factors:</p>
+
+<pre><code>score = relevance  x 0.40
+      + importance x 0.25
+      + confidence x 0.20
+      + recency    x 0.10
+      + frequency  x 0.05</code></pre>
+
+<p>If the weights do not sum to one, the result is divided by the total, so changing weights cannot push the score outside 0–1. Recency uses a trust-dependent half-life: <code>explicit</code> 3,650 days, <code>observed</code> 730, <code>imported</code> 1,095, <code>inferred</code> 365, <code>external</code> 180, and <code>temporary</code> capped at 3 days. Access updates <code>last_accessed_at</code> at most once per hour, so repeated searches do not keep resetting "recently used" to now.</p>
+
+<p>A search response can include <code>score_breakdown</code>: relevance, keyword, semantic, importance, confidence, recency, frequency, keyword rank and semantic similarity, one by one. The detail page can recompute it under the current settings. That is what "explainable" means here: <strong>not a natural-language justification, but every multiplier and where it came from.</strong></p>
+
+<h2>Context building: 12 rows, 4,000 characters, whole rows dropped</h2>
+
+<p>The agent interface is not "dump the database into the prompt". It is <code>build_context</code>:</p>
+
+<ul>
+<li>Search by query, 12 rows by default, 50 maximum.</li>
+<li>Render each row as <code>index. [type · confidence%] content</code>.</li>
+<li>Default budget 4,000 characters, allowed range 200–32,000.</li>
+<li>A row that does not fit is dropped whole; it is never cut mid-sentence.</li>
+<li>A fixed <code>CONTEXT_PREAMBLE</code> says memories are context, not unquestionable instructions, and the current user request wins on conflict.</li>
+</ul>
+
+<p><code>estimated_tokens</code> is simply characters divided by four. That estimate is optimistic for Chinese, but it is display-only; the budget itself is enforced in characters, so the UI cannot claim there is room when there is not.</p>
+
+<p>There are two agent surfaces: 35 Tauri commands for the desktop UI, and <code>z-memory-cli</code> for scripts and external agents. The CLI supports <code>search</code>, <code>list</code>, <code>get</code>, <code>detail</code>, <code>create</code>, <code>update</code>, <code>archive</code>, <code>restore</code>, <code>delete</code>, <code>conflicts</code>, <code>context</code>, <code>export</code> and <code>import</code>. It reads <code>%APPDATA%\ai.zmemory.app\z-memory.db</code> by default, overridable with <code>--db</code> or <code>Z_MEMORY_DB_PATH</code>, and emits JSON.</p>
+
+<h2>Lifecycle: archive, expire and hard delete</h2>
+
+<pre><code>Candidate -&gt; Stored -&gt; Retrieved -&gt; Reinforced -&gt; Updated
+        -&gt; Archived / Expired / Deleted</code></pre>
+
+<ul>
+<li>A <code>temporary</code> memory expires after seven days by default.</li>
+<li>Every search runs <code>expire_due()</code> first, marking due active memories as expired.</li>
+<li>Archiving does not delete; it excludes the memory from retrieval and can be reversed.</li>
+<li>Restoring clears <code>expires_at</code>.</li>
+<li>A hard delete cascades through tags, relations, sources and the vector, but events and audit rows remain.</li>
+</ul>
+
+<p>Deleting a memory requires typing <code>DELETE</code>, and erasing everything requires the same. The friction is deliberate: destructive actions in a memory system should not be as easy as a normal button.</p>
+
+<h2>Untrusted content can never become a memory on its own</h2>
+
+<p>The defense has three layers:</p>
+
+<ol>
+<li><strong>Input</strong>: untrusted text goes through <code>sanitize_untrusted()</code> line by line. Lines matching one of 24 patterns such as <code>ignore previous instructions</code>, <code>you are now</code> or "delete all files" are removed whole, with a warning.</li>
+<li><strong>Extraction</strong>: <code>heuristic_extract()</code> returns an empty candidate list when <code>trusted = false</code>, and the model prompt says instructions inside external content are data, not commands.</li>
+<li><strong>Write</strong>: even if external content produces a candidate, trust is forced to <code>external</code>, importance and confidence are clamped below 0.4, and external ingestion is off by default.</li>
+</ol>
+
+<p>Sensitive information has its own path. <code>contains_secret()</code> checks 14 markers such as "password", "private key" and "credit card", plus two shapes: <code>sk-</code> followed by at least 16 characters, and a run of 32 hex digits. A hit either skips the sentence or replaces the token with <code>[redacted]</code>. <code>redact_sensitive</code> is on by default.</p>
+
+<p>None of this stops every attack. It closes the most dangerous path, where external content writes itself into long-term memory. The remaining risk is real: once the user accepts an external fact, it ranks with the same machinery as their own statements. The trust field can push it down; the system cannot judge whether it is true.</p>
+
+<h2>Seven gaps that remain</h2>
+
+<ol>
+<li><strong>The hash vector only understands surface words.</strong> Synonyms, paraphrase and cross-language rewrites can score near zero. It is a dependency-free approximation of semantics, not semantic understanding.</li>
+<li><strong>Semantic search is O(n).</strong> Every query loads all vectors from SQLite, computes cosine one by one, filters, then truncates to 200. At tens of thousands of memories this becomes visible latency. There is no ANN index and no incremental candidate set.</li>
+<li><strong><code>rrf_k</code> is dead configuration.</strong> <code>ScoringConfig</code> carries <code>rrf_k: 60.0</code>, but <code>fused_relevance()</code> uses linear rank normalization plus weights. Changing the value affects nothing.</li>
+<li><strong>Conflict detection is rules, not understanding.</strong> A purely Chinese choice change ("switch to braised" versus "switch to steamed") will not trigger <code>different_choice</code>, because that function requires Latin tokens on both sides. Negation is substring matching, so a phrase like "no need to be polite" can be read as a negative preference.</li>
+<li><strong>Candidate extraction is conservative.</strong> Stable facts without an explicit marker or a type keyword are missed. Conversely, a sentence containing "I like" but describing a one-off preference can be captured; review is the backstop.</li>
+<li><strong>One memory is capped at 8,000 characters.</strong> Long documents, meeting notes and full articles must be chunked outside the system. There is no automatic segmentation.</li>
+<li><strong>Cross-process writes have no application-level coordination.</strong> The GUI and CLI can open the same database, relying on WAL and a five-second busy timeout. But "check for a duplicate, then insert" is two operations; two processes writing the same new memory at once can still each insert one.</li>
+</ol>
+
+<p>Two boundaries are not gaps but are worth knowing. If LLM extraction is enabled, text is sent to the configured provider; that is not a purely local path. And <code>inferred</code> and <code>external</code> are marked untrusted in the model, but retrieval does not exclude them by default. They decay faster and rank lower; they are not removed.</p>
+
+<h2>Closing</h2>
+
+<p>The interesting part of Z Memory is not the refusal to use a vector database. It is that four things most memory systems leave vague are turned into mechanisms you can inspect:</p>
+
+<ul>
+<li><strong>Source</strong>: every memory has <code>memory_sources</code>, and candidates keep the original excerpt.</li>
+<li><strong>Trust</strong>: the five levels are not labels. They decide merge winners, decay speed and whether a candidate is auto-accepted.</li>
+<li><strong>Conflict</strong>: no overwrite and no silent delete. The old record is archived and linked with <code>supersedes</code> or <code>contradicts</code>.</li>
+<li><strong>Ranking</strong>: relevance, importance, confidence, recency and reinforcement are independently configurable and returned item by item.</li>
+</ul>
+
+<p>The costs are equally clear: the hash vector is not a semantic model, the scan is linear, and conflict detection is still rules. In other words, it does not claim that the AI truly understands your preferences. It claims that for every memory the AI has, you can see where it came from, why it ranked there, and what it conflicts with.</p>
+
+<p>For memory, <strong>explainable matters more than clever</strong>, because one wrong preference is harder to notice than ten things that were never remembered.</p>
+
+<h2>Further reading</h2>
+<ul>
+<li><a href="https://github.com/zhoujungis/z-memory" rel="noopener noreferrer" target="_blank">zhoujungis/z-memory</a> — source and schema.</li>
+<li><a href="/en/article/z-desktop-permission-gate/">Z Desktop: putting 44 local tools behind a risk gate</a> — the execution side of the same local-first agent.</li>
+<li><a href="/en/article/agent-memory-without-vector-db/">Agent memory without a vector database</a> — a smaller, in-process approach to the same problem.</li>
+</ul>
+`,
+  },
+  {
     slug: 'aidevops-terminal-client',
     zhSlug: 'aidevops-terminal-client',
     topicSlug: 'projects',
