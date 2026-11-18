@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：正在做 desktop agent、computer-use 或「让模型操作本机」的工程师；关心权限模型、审批交互与命令分级的人；" />
+<!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/z-desktop-permission-gate/" />
+    <meta property="og:title" content="Z Desktop：44 个本机工具怎么过闸" />
+    <meta property="og:description" content="适用读者：正在做 desktop agent、computer-use 或「让模型操作本机」的工程师；关心权限模型、审批交互与命令分级的人；" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/z-desktop-permission-gate/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/z-desktop-permission-gate-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/z-desktop-permission-gate-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Z Desktop：44 个本机工具怎么过闸 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Z Desktop：44 个本机工具怎么过闸" />
+    <meta name="twitter:description" content="适用读者：正在做 desktop agent、computer-use 或「让模型操作本机」的工程师；关心权限模型、审批交互与命令分级的人；" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/z-desktop-permission-gate-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Z Desktop：44 个本机工具怎么过闸 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+      <meta property="article:section" content="项目实战" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/z-desktop-permission-gate/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/z-desktop-permission-gate/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/z-desktop-permission-gate/" />
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-18T17:05:31.069778+08:00" />
+        <meta property="article:modified_time" content="2026-11-18T17:07:11.413241+08:00" />
+        <meta property="article:tag" content="Agent" />
+    <meta property="article:tag" content="Rust" />
+    <meta property="article:tag" content="Tauri" />
+    <meta property="article:tag" content="安全" />
+    <meta property="article:tag" content="桌面应用" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/z-desktop-permission-gate/#article","url":"https://blog.zhoujun.dev/article/z-desktop-permission-gate/","headline":"Z Desktop：44 个本机工具怎么过闸","description":"适用读者：正在做 desktop agent、computer-use 或「让模型操作本机」的工程师；关心权限模型、审批交互与命令分级的人；","image":"https://blog.zhoujun.dev/photos/z-desktop-permission-gate-cover.png","datePublished":"2026-11-18T17:05:31.069778+08:00","dateModified":"2026-11-18T17:07:11.413241+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/z-desktop-permission-gate/"},"articleSection":"项目实战","keywords":"Agent, Rust, Tauri, 安全, 桌面应用","inLanguage":"zh-CN","wordCount":4387},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/z-desktop-permission-gate/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"Z Desktop：44 个本机工具怎么过闸","item":"https://blog.zhoujun.dev/article/z-desktop-permission-gate/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"z-desktop-permission-gate","title":"Z Desktop：44 个本机工具怎么过闸","created_at":"2026-11-18T17:05:31.069778+08:00","updated_at":"2026-11-18T17:07:11.413241+08:00","author":null,"category":{"id":14,"name":"项目实战","slug":"projects"},"tags":[{"id":48,"name":"Agent","slug":"agent"},{"id":163,"name":"Rust","slug":"rust"},{"id":216,"name":"Tauri","slug":"tauri"},{"id":107,"name":"安全","slug":"security"},{"id":190,"name":"桌面应用","slug":"desktop-app"}],"cover_image":"/photos/z-desktop-permission-gate-cover.png","excerpt":"适用读者：正在做 desktop agent、computer-use 或「让模型操作本机」的工程师；关心权限模型、审批交互与命令分级的人；想把安全边界放在 Rust 而不是前端 prompt 里的人 结论先行：Z Desktop 的 44 个工具全部只能走 request_tool_execution() 一个入口。","reading_time":18,"views_count":1,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>Z Desktop：44 个本机工具怎么过闸</span></nav><h1>Z Desktop：44 个本机工具怎么过闸</h1><div class="ns-meta">2026/11/18 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/projects/">项目实战</a> · 标签：<a href="https://blog.zhoujun.dev/tags/agent/">Agent</a> <a href="https://blog.zhoujun.dev/tags/rust/">Rust</a> Tauri <a href="https://blog.zhoujun.dev/tags/security/">安全</a> <a href="https://blog.zhoujun.dev/tags/desktop-app/">桌面应用</a></p><nav class="ns-series"><p><strong>本系列 · 项目实战</strong>（11 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li><a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/aidevops-terminal-client/">【开源】aidevops 技术拆解：研发数据关联与可解释风险</a></li><li><a href="https://blog.zhoujun.dev/article/halo-music-square-architecture/">Halo 音乐广场技术拆解：多音源在线音乐应用</a></li><li><a href="https://blog.zhoujun.dev/article/happy-games-24-games-zero-framework-guide/">快乐小游戏：24 款零框架小游戏的全栈实践</a></li><li><a href="https://blog.zhoujun.dev/article/google-matter-smart-home-dev-guide/">谷歌 Matter 智能家居开发完全指南：从入门到认证</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/projects/">查看项目实战专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：正在做 desktop agent、computer-use 或「让模型操作本机」的工程师；关心权限模型、审批交互与命令分级的人；想把安全边界放在 Rust 而不是前端 prompt 里的人
+结论先行：Z Desktop 的 44 个工具全部只能走 <code>request_tool_execution()</code> 一个入口。五级风险里 CRITICAL 直接拦截，HIGH 永远要人确认，Always-allow 只对 MEDIUM 及以下生效；Shell 命令按 <code>;</code> <code>&amp;&amp;</code> <code>||</code> <code>|</code> 拆段后取最高风险，避免 <code>echo ok &amp;&amp; rm -rf</code> 借 SAFE 白名单自动执行。真正值得复盘的，是这些规则落成代码之后仍然存在的七个缺口
+阅读时间：约 18 分钟 | 难度：进阶 | 收获：一套可复用的五级风险 + 审批队列实现 + Shell 分段判级与路径沙箱的具体写法 + 44 个工具的分层清单 + 一份不粉饰的绕过面清单
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>桌面 Agent 的难点不在模型，在不可逆</li>
+<li>分层：循环在前端，闸门在 Rust</li>
+<li>五级风险：把「能不能做」变成「谁批准」</li>
+<li>Shell 分级：整条命令不是一个等级</li>
+<li>审批队列：<code>approval_required</code> 是返回值，不是异常</li>
+<li>路径沙箱：读写不对称是刻意的</li>
+<li>Agent Loop 的四道刹车</li>
+<li>44 个工具的分层与上限</li>
+<li>停止：取消标志、流中断与进程树</li>
+<li>浏览器与 UIA：为什么先找 AutomationId</li>
+<li>七个仍然存在的缺口</li>
+<li>小结</li>
+</ul>
+<hr>
+<h2>桌面 Agent 的难点不在模型，在不可逆</h2>
+
+让模型读文件、列目录、查进程，这些都不难。难的是另一类调用：删除、覆盖、杀进程、关机、改注册表。它们共同的特征是不可逆，而模型对「执行完会发生什么」并没有可靠的直觉。
+
+Z Desktop 是一个 Windows 桌面工作台：Tauri 2 + Vue 3 + Rust，44 个本机工具覆盖文件、Shell、进程、窗口、GUI 自动化、浏览器、截图和剪贴板。它把产品命题压成一句话：<strong>模型可以规划，但每一次真正碰到机器的动作，都必须先经过 Rust 侧的判定。</strong>
+
+这条原则落到三处代码约束：
+<ul>
+<li>规划与状态机放在前端（<code>src/agent/loop.ts</code>），因为流式展示和 UI 状态迁移在那里最自然；</li>
+<li>权限判定、路径沙箱、工具执行、进程回收全部在 <code>src-tauri</code>，前端无法绕过 <code>invoke</code> 直接调工具；</li>
+<li>工具 schema 只有一份，由 Rust 的 <code>tool_definitions()</code> 提供，前端只维护展示元数据，避免双份定义漂移。</li>
+</ul>
+<h2>分层：循环在前端，闸门在 Rust</h2>
+
+一次工具调用的完整链路是这样的：
+<div class="codehilite"><pre><span></span><code>Agent Loop (Vue)
+  → invoke(&quot;tool_execute&quot;, { taskId, tool, input, approvalRequestId? })
+  → security::permission::decide()
+      ├─ CRITICAL           → { status: &quot;blocked&quot; }
+      ├─ 需要审批           → pending_approvals 入队
+      │                       emit(&quot;approval-requested&quot;)
+      │                       前端等待 approval-resolved
+      │                       allow → 带 requestId 重发
+      │                       deny  → 作为失败观察结果返回
+      └─ 自动允许 / 已批准   → tools::registry::execute()
+  → emit(&quot;activity&quot;, tool_started / completed / failed / blocked)
+  → 返回 { status, result | error | reason, durationMs }
+</code></pre></div>
+
+
+Rust 侧只有 20 个 Tauri 命令，大多是薄转发。真正有分量的判断集中在三个文件：<code>security/risk.rs</code> 负责「这条命令有多危险」，<code>security/permission.rs</code> 负责「这个危险等级要不要人批」，<code>security/sandbox.rs</code> 负责「这个路径能不能写」。
+<h2>五级风险：把「能不能做」变成「谁批准」</h2>
+
+风险等级有五个：SAFE、LOW、MEDIUM、HIGH、CRITICAL。它解决的不是「工具能不能调用」，而是「这一次调用由谁拍板」。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>等级</th>
+<th>默认行为</th>
+<th>典型工具</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SAFE</td>
+<td>自动允许</td>
+<td>读文件、列目录、查进程、截图、读剪贴板</td>
+</tr>
+<tr>
+<td>LOW</td>
+<td>可配置自动</td>
+<td>复制、重命名、启动应用、写剪贴板</td>
+</tr>
+<tr>
+<td>MEDIUM</td>
+<td>需审批（可配置自动）</td>
+<td>写文件、移动文件、关窗口、UI 点击、未知 Shell</td>
+</tr>
+<tr>
+<td>HIGH</td>
+<td>每次确认</td>
+<td>删除、杀进程、<code>git push</code>、安装软件</td>
+</tr>
+<tr>
+<td>CRITICAL</td>
+<td>默认禁止</td>
+<td>格式化、关机、改 HKLM、关 Defender</td>
+</tr>
+</tbody>
+</table></div>
+
+默认设置是「宽 SAFE、严其余」：<code>auto_approve_safe = true</code>，<code>auto_approve_low = false</code>，<code>auto_approve_medium = false</code>，<code>shell_safe_auto_exec = true</code>，<code>max_steps = 30</code>（可调 1–200）。这个组合意味着：读操作不打扰人，写操作默认要确认，危险操作根本没有确认入口。
+
+工具本身的等级登记在 <code>state.rs::tool_risk()</code>：SAFE 一组、LOW 一组、MEDIUM 一组、HIGH 只有 <code>filesystem.delete</code> 与 <code>process.kill</code>，未知工具一律回落 MEDIUM。这里有一个刻意的默认值选择：<strong>未知不等于安全</strong>。
+<h2>Shell 分级：整条命令不是一个等级</h2>
+
+<code>shell.exec</code> 是唯一一个不能靠工具名定级的工具。<code>git status</code> 是只读，<code>git clean -fdx</code> 会删掉未跟踪文件，它们都叫 Shell。所以最终等级由命令内容决定。
+
+<code>classify_command()</code> 先把命令按 <code>;</code>、换行、<code>&amp;&amp;</code>、<code>||</code>、<code>|</code> 拆成段，再逐段判级，取最高值。这个拆分不是洁癖，而是堵一个具体的绕过：
+<div class="codehilite"><pre><span></span><code>echo ok &amp;&amp; rm -rf ./build
+</code></pre></div>
+
+
+如果只看整条命令里是否出现 SAFE 关键字，<code>echo</code> 会让它通过；拆段之后，<code>rm -rf ./build</code> 会被判为 HIGH，整条命令因此必须审批。仓库里的测试把这个行为钉死了：
+<div class="codehilite"><pre><span></span><code><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">classify_command</span><span class="p">(</span><span class="s">&quot;echo ok &amp;&amp; rm -rf ./build&quot;</span><span class="p">),</span><span class="w"> </span><span class="n">RiskLevel</span><span class="p">::</span><span class="n">High</span><span class="p">);</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">classify_command</span><span class="p">(</span><span class="s">&quot;git status; git clean -fdx&quot;</span><span class="p">),</span><span class="w"> </span><span class="n">RiskLevel</span><span class="p">::</span><span class="n">High</span><span class="p">);</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">classify_command</span><span class="p">(</span><span class="s">&quot;dir | Remove-Item -Recurse&quot;</span><span class="p">),</span><span class="w"> </span><span class="n">RiskLevel</span><span class="p">::</span><span class="n">High</span><span class="p">);</span>
+<span class="fm">assert_eq!</span><span class="p">(</span><span class="n">classify_command</span><span class="p">(</span><span class="s">&quot;dir | findstr foo&quot;</span><span class="p">),</span><span class="w"> </span><span class="n">RiskLevel</span><span class="p">::</span><span class="n">Safe</span><span class="p">);</span>
+</code></pre></div>
+
+
+判级顺序是：CRITICAL 模式（31 条）→ HIGH 模式（35 条）→ 破坏性首词 → 只读判断 → 其余 MEDIUM。CRITICAL 名单里既有 <code>format</code>、<code>shutdown</code>、<code>diskpart</code>、<code>vssadmin delete</code>，也有 <code>rm -rf /</code> 和 fork 炸弹；HIGH 名单里除了删除、杀进程、包管理器安装，还包括一组会改写历史的 git 命令：<code>git reset --hard</code>、<code>git clean</code>、<code>git push</code>、<code>git checkout --</code>。
+
+只读判断有两个细节值得抄：
+<ul>
+<li>首 token 必须构成完整单词。<code>cdx.exe</code> 不能因为前缀是 <code>cd</code> 就判 SAFE，<code>catalog.exe</code> 不能命中 <code>cat</code>，<code>lsblk</code> 不能命中 <code>ls</code>。实现上是在前缀匹配后检查下一个字符是否为空白或 <code>-</code>。</li>
+<li>只要出现重定向 <code>&gt;</code>，就不算只读。<code>echo hi &gt; out.txt</code> 是 MEDIUM，<code>echo hi</code> 才是 SAFE。</li>
+</ul>
+
+这也带来两个已知的误判面，后面会展开：拆段不认识引号和转义，<code>echo "a &amp;&amp; b"</code> 会被拆开；模式匹配是词法级的，<code>powershell -enc &lt;base64&gt;</code> 这种编码执行可以绕过所有关键字。
+<h2>审批队列：<code>approval_required</code> 是返回值，不是异常</h2>
+
+需要审批时，工具不会抛错，而是返回一个结构化结果：
+<div class="codehilite"><pre><span></span><code><span class="p">{</span><span class="w"> </span><span class="nt">&quot;status&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;approval_required&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;requestId&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;riskLevel&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;high&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;reason&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;需要用户审批&quot;</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+
+
+<code>request_tool_execution()</code> 先把请求放进 <code>pending_approvals</code>，再广播 <code>approval-requested</code>。顺序不能反：如果先广播，用户可能在事件到达后立刻点「允许」，而 <code>resolve_approval</code> 还找不到这个 requestId。
+
+审批有三个结果：拒绝、允许一次、总是允许。它们的语义分别是：
+<ul>
+<li><strong>拒绝</strong>：请求立即从队列移除，前端把 <code>{ status: "failed", error: "用户拒绝该操作" }</code> 作为工具观察结果交回模型。模型可以换一条路，但不会得到异常。</li>
+<li><strong>允许一次</strong>：请求保留到重放。重发时必须同时匹配工具名和完整输入 JSON，匹配后消费掉这条请求。这是防「批准 A、执行 B」的关键：只比对工具名不够，参数可以在两次调用之间被改掉。</li>
+<li><strong>总是允许</strong>：写入 <code>approval_rules</code> 表，但只在 <code>effective_risk &lt;= MEDIUM</code> 时生效。HIGH 即使命中了规则也会继续要求审批。</li>
+</ul>
+
+拒绝和取消都会清理队列。<code>cancel_task()</code> 只清理属于该任务的审批请求，并给每个残留 requestId 发一条 <code>approval-resolved: deny</code>，避免审批卡片在 UI 上挂着不动；任务正常结束时 <code>finish_task()</code> 做同样的清理。这些看起来是边角，实际是长跑应用的必需项：审批表如果只增不减，跑一天就会泄漏。
+<h2>路径沙箱：读写不对称是刻意的</h2>
+
+<code>check_path()</code> 只做一件事：在写入类操作（write、mkdir、copy、move、rename、delete）前，拒绝落在系统保护目录里的目标。保护目录包括：
+<div class="codehilite"><pre><span></span><code>C:\Windows
+C:\Program Files
+C:\Program Files (x86)
+C:\ProgramData\Microsoft
+/bin  /boot  /etc  /lib  /lib64  /sbin  /usr  /var  /sys  /proc
+</code></pre></div>
+
+
+实现上有三个细节，都是为了处理 Windows 路径的坑：
+<ol>
+<li><strong>先消 <code>..</code>，再 canonicalize。</strong> 只做字符串前缀比较会被 <code>C:\Windows\..\Users\...</code> 绕过；<code>normalize()</code> 逐组件处理 <code>ParentDir</code>，<code>resolve_real()</code> 对不存在的目标逐级向上找到已存在祖先再拼接剩余部分，这样即使文件还没创建，也能识别父目录里的符号链接。</li>
+<li><strong>去掉 <code>\\?\</code> verbatim 前缀。</strong> 否则 <code>\\?\C:\Windows</code> 与 <code>C:\Windows</code> 比较不相等。</li>
+<li><strong>统一分隔符再比较。</strong> Windows 上 <code>/etc/passwd</code> 会被规范化为 <code>\etc\passwd</code>，如果不把 <code>\</code> 换成 <code>/</code>，Unix 保护目录在 Windows 上就形同虚设。</li>
+</ol>
+
+读写不对称是刻意的：<code>check_path()</code> 对 <code>PathOp::Read</code> 直接放行，只对 <code>PathOp::Mutate</code> 做保护目录检查。所以读 <code>C:\Windows\System32\drivers\etc\hosts</code> 是允许的，写它不行。这个设计的边界是「不许破坏操作系统」，不是「把 Agent 关进项目目录」——用户自己的 <code>D:\Downloads</code> 本来就应该能写。
+<h2>Agent Loop 的四道刹车</h2>
+
+前端循环是一个显式状态机：<code>IDLE → THINKING → PLANNING → EXECUTING → OBSERVING → VERIFYING</code>，未通过或需继续时回到 <code>THINKING</code>，用户停止进 <code>CANCELLED</code>，异常进 <code>ERROR</code>。主循环在 <code>src/agent/loop.ts</code>，四道刹车都写死在那里：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>机制</th>
+<th>实现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>最大步数</td>
+<td>默认 30，钳制在 1–200；用尽后任务标记 failed，并提示去设置里调大</td>
+</tr>
+<tr>
+<td>LLM 重试</td>
+<td>临时错误自动重试一次；重试前把失败原因写进对话，要求「从当前进度继续」</td>
+</tr>
+<tr>
+<td>观察截断</td>
+<td>单条工具结果 JSON 序列化后最长 4000 字符，超出直接截断</td>
+</tr>
+<tr>
+<td>验证收敛</td>
+<td>验证器连续两次不通过，保留最终输出并附上验证意见，不再继续循环</td>
+</tr>
+</tbody>
+</table></div>
+
+验证器本身也值得看。它只问模型一个问题：「任务是否已完成且验证通过？只回答 yes 或 no，随后用一句话说明原因。」解析时只看回答开头的第一个词，而不是全文搜索 yes/no——否则 <code>no, but it could be yes</code> 会被误判为通过。验证器调用失败时会直接采纳最终输出（fail-open），只有在用户主动停止导致的取消时才向上抛错。这是一个明确的取舍：宁可放过一次未验证的完成，也不要把任务卡在「验证器不可用」的死循环里。
+<h2>44 个工具的分层与上限</h2>
+
+工具清单不是越多越好，而是每一类都要有明确的上限，否则模型一次调用就能把内存或上下文打满。
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>类别</th>
+<th>数量</th>
+<th>关键上限</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>文件系统</td>
+<td>10</td>
+<td>列目录 2000 条、深度 1–8；读默认 2 MB、硬上限 50 MB；搜索默认 200、上限 2000</td>
+</tr>
+<tr>
+<td>Shell</td>
+<td>1</td>
+<td>默认超时 120 秒、上限 1 小时；stdout/stderr 各只留尾部 100 KB</td>
+</tr>
+<tr>
+<td>进程</td>
+<td>4</td>
+<td>列表默认 100、上限 1000</td>
+</tr>
+<tr>
+<td>窗口</td>
+<td>6</td>
+<td>枚举、查找、聚焦、最小化、最大化、关闭</td>
+</tr>
+<tr>
+<td>UI 自动化</td>
+<td>7</td>
+<td>树深度默认 4、上限 10；查找超时 5000 ms</td>
+</tr>
+<tr>
+<td>浏览器</td>
+<td>11</td>
+<td>CDP 驱动本机 Chrome/Edge；下载上限 10 MB；提取上限 20000 字符</td>
+</tr>
+<tr>
+<td>截图</td>
+<td>3</td>
+<td>全屏、窗口、区域；支持多显示器与负坐标</td>
+</tr>
+<tr>
+<td>剪贴板</td>
+<td>2</td>
+<td>读文本、写文本</td>
+</tr>
+</tbody>
+</table></div>
+
+几个实现细节比数量更重要：
+<ul>
+<li><code>filesystem.write</code> 把 <code>content</code> 设为必填，而不是默认空串。LLM 漏传参数时，默认空串会静默清空目标文件——这是一个真实存在过的事故模式。</li>
+<li><code>filesystem.read</code> 用前 8 KB 判断二进制（是否含 <code>0x00</code>）。二进制走 base64，文本走 UTF-8 宽松解码，并返回 <code>truncated</code> 标志，让模型知道它看到的不是全部。</li>
+<li><code>shell.exec</code> 的输出读取在独立线程里做，缓冲区始终只保留尾部 100 KB；进程结束、超时或取消后，用 <code>taskkill /PID &lt;pid&gt; /T /F</code> 终止整棵进程树，<code>Child::kill()</code> 作为兜底，防止 <code>wait()</code> 永久阻塞。</li>
+<li>浏览器用 <code>chromiumoxide</code> 以带界面模式启动 Chrome/Edge，会话存在 <code>AppState</code> 里复用同一个页面；<code>browser.open</code> 第二次调用不会开新实例，只做导航。</li>
+<li>UIA 的定位优先级是 <code>AutomationId &gt; Name &gt; ControlType &gt; 父子关系 &gt; UI Tree</code>，点击优先走 Invoke 模式，失败才用坐标点击。坐标是最后手段，因为窗口一移动就会点错。</li>
+</ul>
+<h2>停止：取消标志、流中断与进程树</h2>
+
+「停止」在桌面 Agent 里不是 UI 上的一个按钮，而是一条要贯穿三层的信号：
+<ol>
+<li>前端 <code>requestStop()</code> 置 <code>stopRequested</code>，并 <code>abort()</code> 当前 LLM 流式请求；</li>
+<li>循环在每一步开头、每个工具调用前、审批等待返回后都检查取消标志；</li>
+<li>Rust 侧 <code>cancel_task()</code> 置任务取消标志、清理该任务的待审批请求，并把该任务登记过的 PID 逐个 <code>kill_tree()</code>。</li>
+</ol>
+
+Shell 的超时与取消共用同一个 <code>wait_loop</code>：每 100 ms 轮询一次 <code>try_wait()</code>，超时或取消就杀进程树。完成后从两个 channel 收 stdout/stderr，最多等 2 秒；读不到就用占位文本，不让取消流程卡在管道上。
+
+可观测性也不是事后补的：每次工具调用写 <code>task_steps</code>（输入截到 4000 字符、输出截到 8000 字符），每次状态变化写 <code>events</code> 表并广播 <code>activity</code>，任务详情页的时间线就是这两张表的投影。
+<h2>浏览器与 UIA：为什么先找 AutomationId</h2>
+
+GUI 自动化最容易写成「截个图，让模型猜坐标」。Z Desktop 的顺序反过来：能用控件语义就用语义，坐标只作兜底。
+<ul>
+<li><code>ui.inspect</code> 遍历 UI 树，返回每个元素的 Name、AutomationId、ControlType 和矩形；</li>
+<li><code>ui.find</code> 按 <code>automation_id</code>、<code>name</code>、<code>control_type</code> 依次收窄；</li>
+<li><code>ui.click</code> 优先 <code>UIInvokePattern</code>，没有 Invoke 模式才取控件中心点做鼠标点击；</li>
+<li><code>ui.getValue</code> 优先 Value 模式，其次 Text 模式，最后才读 Name。</li>
+</ul>
+
+这个顺序的收益是稳定性：AutomationId 不随窗口位置和 DPI 变化，Name 会随语言变化，ControlType 只能定位到一类控件，坐标什么都不保证。代价是覆盖率——自绘控件、游戏、部分 Electron 应用根本不暴露 UIA 树，这时候仍然要退回截图和坐标。
+<h2>七个仍然存在的缺口</h2>
+
+把限制写清楚，比把功能写清楚更有价值。以下七条都能在源码里指到具体位置：
+<ol>
+<li><strong>命令拆段不认识引号和转义。</strong> <code>split_segments()</code> 只看字符，<code>echo "a &amp;&amp; b"</code> 会被拆成两段；PowerShell 的反引号转义、单引号包裹同样不处理。这会造成误报（把一条安全命令判成需要审批），但不会造成漏报。</li>
+<li><strong>词法匹配无法覆盖编码执行。</strong> <code>powershell -EncodedCommand &lt;base64&gt;</code>、按别名调用、下载后执行，都不会命中关键字名单。这不是名单不够长的问题，是词法方案的天花板。</li>
+<li><strong>读没有边界，只有写有。</strong> 沙箱只拦写入类操作。提示注入可以让 Agent 读 <code>C:\Users\...\.ssh\id_rsa</code> 再把内容写进它有权写的文件；审批卡在「工具调用」粒度，不追踪数据流。</li>
+<li><strong>HIGH 的「总是允许」永远不生效。</strong> 这是刻意的，但也意味着用户每天要重复批准同一批高风险操作，长期会诱导他们去改全局设置，而不是逐次确认。</li>
+<li><strong>验证器 fail-open。</strong> 验证器本身调用失败时，任务会被当作完成。这个选择的代价是：模型可以在验证器不可用时「蒙混过关」。</li>
+<li><strong>任务用尽步数直接 failed。</strong> 30 步对整理下载目录够用，对长链路重构不够；调大上限只是把问题推后，没有断点续跑。</li>
+<li><strong>Windows 专属能力没有跨平台等价物。</strong> <code>window.*</code>、<code>ui.*</code>、<code>screenshot.window</code> 在非 Windows 平台是返回提示的桩实现，能编译、不能干活。</li>
+</ol>
+
+还有一条不算缺口的边界：Rust 单测有 42 个，覆盖了风险分级、权限判定、路径沙箱、审批生命周期、Shell 输出截断和设置归一化；但没有一套对抗性命令语料，也没有针对提示注入的端到端测试。安全规则的测试覆盖的是「已知规则有没有写对」，不是「未知绕过存不存在」。
+<h2>小结</h2>
+
+Z Desktop 值得读的地方，不是 44 个工具的功能清单，而是它把「谁有权拍板」写成了可执行代码：
+<ul>
+<li>风险分级是数据，不是散落在 if 里的判断；</li>
+<li>Shell 命令按段判级，安全关键字不能借给危险命令；</li>
+<li>审批是一次性凭证，重放必须工具名与参数完全一致；</li>
+<li>路径沙箱只保护写，边界是「不破坏系统」，不是「关进项目目录」；</li>
+<li>每一层输出都有上限，取消信号贯穿前端、Rust 和进程树。</li>
+</ul>
+
+这些机制没有一个能单独保证安全。它们叠在一起，把「模型可能做错」从不可控事故降成了可审批、可回放、可停止的操作。而在一个模型能力还在快速上涨的方向上，<strong>能停、能拒、能追溯，比能做什么更重要。</strong>
+<hr>
+
+<strong>参考链接</strong>
+<ul>
+<li>项目仓库：<a href="https://github.com/zhoujungis/z-desktop" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/z-desktop</a></li>
+<li>风险分级：<code>src-tauri/src/security/risk.rs</code></li>
+<li>权限判定：<code>src-tauri/src/security/permission.rs</code></li>
+<li>路径沙箱：<code>src-tauri/src/security/sandbox.rs</code></li>
+<li>工具执行入口：<code>src-tauri/src/agent/mod.rs</code></li>
+<li>工具注册表：<code>src-tauri/src/tools/registry.rs</code></li>
+<li>前端 Agent Loop：<code>src/agent/loop.ts</code></li>
+<li>验证器：<code>src/agent/verifier.ts</code></li>
+</ul>
+
+<em>本文所有实现细节均核对自仓库源码；数字与常量以 v0.1.0 为准。</em></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/crash-recovery-redo-undo/">断电之后：redo、undo 与半页写怎么把数据库救回来</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/z-memory-explainable-provenance/">Z Memory：让 AI 记住并说清理由</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/z-memory-explainable-provenance/">Z Memory：让 AI 记住并说清理由</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+  </body>
+</html>

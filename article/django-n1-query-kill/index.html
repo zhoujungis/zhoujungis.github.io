@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -181,6 +181,7 @@ N+1 是 Django 项目里最常见、最隐蔽的性能杀手：代码看着没�
     <span class="n">tags</span> <span class="o">=</span> <span class="n">TagNestedField</span><span class="p">(</span><span class="n">many</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
 
+
 每篇文章要展示分类名和标签名。ORM 的执行过程是：
 <ol>
 <li><code>SELECT * FROM articles WHERE status='published' LIMIT 10</code> —— 1 条，查出 10 篇文章；</li>
@@ -223,6 +224,7 @@ N+1 是 Django 项目里最常见、最隐蔽的性能杀手：代码看着没�
         <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">Category</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()]</span>
 </code></pre></div>
 
+
 4 个分类 = 1 条查分类 + 4 条 <code>COUNT</code> = <strong>5 条 SQL</strong>。分类、标签越多，线性越狠。
 
 修复（<code>articles/views.py</code>，注释原话"in a single query instead of N+1"）：
@@ -236,6 +238,7 @@ N+1 是 Django 项目里最常见、最隐蔽的性能杀手：代码看着没�
     <span class="p">)</span>
 </code></pre></div>
 
+
 <code>annotate + Count + filter</code> 把计数翻译成一条带 <code>COUNT ... FILTER (WHERE ...)</code> 的 SQL：<strong>分类和计数一次查出，永远 1 条</strong>。Tag 列表同理。实测：5 条 → 1 条。
 
 注意 <code>filter=Q(...)</code> 这个细节：<strong>只统计已发布的</strong>。草稿、定时、归档的文章不能算进去——计数逻辑必须和列表页的可见性规则一致，否则分类上写着"12 篇"，点进去只有 8 篇。这种"数字对不上"是最伤信任的 bug。
@@ -247,6 +250,7 @@ N+1 是 Django 项目里最常见、最隐蔽的性能杀手：代码看着没�
     <span class="c1"># usage (admin etc.) so the field never silently returns 0.</span>
     <span class="n">article_count</span> <span class="o">=</span> <span class="n">serializers</span><span class="o">.</span><span class="n">IntegerField</span><span class="p">(</span><span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 </code></pre></div>
+
 
 字段声明为只读的普通整数字段，<strong>数据由 queryset 的注解提供，而不是序列化器自己再查一次</strong>。权责分清：查几次、怎么查，是 queryset 的事；序列化器只负责"呈现已经查好的东西"。这是后面所有优化的总原则。
 <hr>
@@ -262,6 +266,7 @@ N+1 是 Django 项目里最常见、最隐蔽的性能杀手：代码看着没�
 <span class="k">def</span><span class="w"> </span><span class="nf">get_article_title</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
     <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">article</span><span class="o">.</span><span class="n">title</span> <span class="o">...</span>  <span class="c1"># 外键</span>
 </code></pre></div>
+
 
 每条评论触发：1 次 <code>article</code> 查询 + 1 次 <code>replies</code> 查询。20 条评论一页，就是 40 多条 SQL。
 
@@ -286,6 +291,7 @@ N+1 是 Django 项目里最常见、最隐蔽的性能杀手：代码看着没�
     <span class="k">return</span> <span class="p">[]</span>
 </code></pre></div>
 
+
 这防的是另一类灾难：恶意构造父子循环（A 是 B 的父亲，B 又是 A 的父亲）导致无限递归，或者超长串烧出巨大 payload。<strong>N+1 管的是"查询太多"，depth 管的是"递归太深"</strong>——序列化嵌套关联时，两个都要管。
 <hr>
 <h2>04 第三杀：RSS 订阅（最容易漏的一处）</h2>
@@ -296,6 +302,7 @@ RSS（<code>articles/feeds.py</code>）是最容易漏掉 N+1 的地方——它
 <span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;category&quot;</span><span class="p">)</span>
 <span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;tags&quot;</span><span class="p">)</span>
 </code></pre></div>
+
 
 feed 的每一项都要输出分类和标签，不预取的话，订阅器每半小时来抓一次，每次几十条 SQL。RSS 平时没人看，但<strong>爬虫和订阅器是最高频的"用户"</strong>，漏掉这里等于把最热的路径留在最慢的状态。
 <blockquote>
@@ -311,6 +318,7 @@ feed 的每一项都要输出分类和标签，不预取的话，订阅器每半
     <span class="c1"># ← 没有 select_related / prefetch_related</span>
 </code></pre></div>
 
+
 而 <code>ArticleListSerializer</code> 恰恰访问了 <code>category</code> 和 <code>tags</code>（01 节算的就是这笔账）：实测 8 篇文章 14 条 SQL，满页 10 篇就是 21 条。分类页、标签页修了，最热的首页反而漏了——典型的"灯下黑"。
 
 修复方案就两行：
@@ -318,6 +326,7 @@ feed 的每一项都要输出分类和标签，不预取的话，订阅器每半
     <span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span>
 <span class="p">)</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;category&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;tags&quot;</span><span class="p">)</span>
 </code></pre></div>
+
 
 实测：14 条 → <strong>2 条</strong>（1 条文章 + 1 条标签预取，分类被 JOIN 带出），且与 N 无关，加多少文章都是 2 条。
 
@@ -373,7 +382,6 @@ N+1 的可怕之处不在于难修——修复往往就是一两行 <code>select
 
 以及最诚实的一条：修完记得回头看——<strong>最热的那个接口，往往就是灯下黑的那个</strong>。
 
-同一条链路上还可以接着读：<a href="/article/django-slow-query-index-tuning/">《索引建了，为什么排序还是没用上？——慢查询实战》</a>、<a href="/article/django-zero-downtime-migration/">《上线那一刻，数据库在重建整张表——零停机迁移》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li><a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li><a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去——Django 事务深水区</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同一条链路上还可以接着读：<a href="/article/django-slow-query-index-tuning/">《索引建了，为什么排序还是没用上？——慢查询实战》</a>、<a href="/article/django-zero-downtime-migration/">《上线那一刻，数据库在重建整张表——零停机迁移》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li><a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li><a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去——Django 事务深水区</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

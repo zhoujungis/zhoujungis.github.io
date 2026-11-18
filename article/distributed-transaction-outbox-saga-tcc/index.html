@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -208,6 +208,7 @@
         <span class="n">order</span><span class="o">.</span><span class="n">delete</span><span class="p">()</span>
 </code></pre></div>
 
+
 这段代码里其实有三笔独立的本地事务：订单库写订单、支付库扣款、订单库改状态。它们各自都能成功，也各自都能失败，中间隔着两次网络调用。事故发生的那次，支付服务已经提交扣款并返回 200，订单服务在 <code>update(status="paid")</code> 之前被发布流程的 <code>kill -9</code> 打断了。重启之后没有任何补偿任务知道这笔支付对应的订单该不该补建。
 
 更常见的一种变体是「订单建了，钱没扣」：订单先落库，调用支付超时，客户端重试，支付服务第二次请求才成功；订单库里却出现了两条订单，或者一条订单被扣了两次。反过来也有「消息发了，本地事务回滚了」：<code>publish_order_paid</code> 在 <code>transaction.atomic()</code> 内部被调用，消息已经进了 MQ，后面一个校验失败导致事务回滚，下游收到一条指向不存在订单的事件。
@@ -271,6 +272,7 @@
 <span class="w">    </span><span class="k">ON</span><span class="w"> </span><span class="n">outbox_event</span><span class="w"> </span><span class="p">(</span><span class="n">aggregate_type</span><span class="p">,</span><span class="w"> </span><span class="n">aggregate_id</span><span class="p">,</span><span class="w"> </span><span class="n">id</span><span class="p">);</span>
 </code></pre></div>
 
+
 <code>event_id</code> 是给消费端做幂等用的，必须在生产端生成，不能等消费端自己造。<code>aggregate_id</code> 决定分区键和顺序边界。<code>available_at</code> 让重试退避不需要额外的调度表。<code>schema_version</code> 是给未来留的退路：事件格式一定会变，消费端需要知道自己在读第几版。
 <h2>写入路径：业务事务和消息必须同库同事务</h2>
 
@@ -278,6 +280,7 @@
 <div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">transaction</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">django.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">timezone</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
+
 
 <span class="k">class</span><span class="w"> </span><span class="nc">OutboxEvent</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
     <span class="n">event_id</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">UUIDField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
@@ -293,6 +296,7 @@
     <span class="n">last_error</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">locked_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">locked_by</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
 
 <span class="k">def</span><span class="w"> </span><span class="nf">create_order</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">sku_id</span><span class="p">,</span> <span class="n">amount</span><span class="p">):</span>
     <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
@@ -313,6 +317,7 @@
         <span class="p">)</span>
     <span class="k">return</span> <span class="n">order</span>
 </code></pre></div>
+
 
 如果外层已经有一个 <code>transaction.atomic()</code>，或者开了 <code>ATOMIC_REQUESTS</code>，内层的 outbox 写入会自动加入外层事务，不需要额外处理。反过来，如果你在事务里调用支付、发短信、写 Redis，那么事务的持续时间就被这些 IO 拉长，行锁和连接被一起拖住。<strong>outbox 的写入应该尽量靠近事务末尾，并且事务里只做数据库操作。</strong>
 
@@ -341,6 +346,7 @@ payload 也有几条纪律。不要把 ORM 对象、文件句柄、datetime 对�
 <span class="k">WHERE</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">id</span>
 <span class="n">RETURNING</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">id</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">event_id</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">event_type</span><span class="p">,</span><span class="w"> </span><span class="n">o</span><span class="p">.</span><span class="n">payload</span><span class="p">;</span>
 </code></pre></div>
+
 
 对应的 Python 伪代码：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">relay_once</span><span class="p">(</span><span class="n">worker_id</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">100</span><span class="p">):</span>
@@ -381,6 +387,7 @@ payload 也有几条纪律。不要把 ORM 对象、文件句柄、datetime 对�
     <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span>
 </code></pre></div>
 
+
 注意这里的崩溃窗口：事务提交了 <code>status='sending'</code>，进程在 <code>producer.send</code> 之前被杀，这一行就永远停在 sending。修法是租约：<code>locked_at</code> 超过一个阈值（比如五分钟）就视为过期，由一个清理任务把它改回 pending。代价是可能重复发送，但这正是「至少一次」的含义。你也可以把发送放在事务内，但那样会在持有行锁的同时等网络，并且一旦发送成功、事务回滚，消息就变成了幽灵。两害相权，重复发送比丢消息便宜。
 
 轮询的延迟由轮询间隔决定，吞吐由「每批行数 / 每轮耗时」决定。如果事件到达速率是每秒 λ 条，单轮处理 b 条、耗时 t 秒，那么 relay 的服务率大约是 b/t；要保证积压不增长，必须让 b/t 明显大于 λ，并留出余量给下游抖动。这个估算不需要压测，用小学除法就够了，但它能提前告诉你「batch=10、每秒轮询一次」在峰值时一定会堆积。
@@ -400,6 +407,7 @@ CDC 是另一条路径。Debezium 的 PostgreSQL connector 通过 logical decodi
 <span class="p">}</span>
 </code></pre></div>
 
+
 CDC 的代价转移到了运维：复制槽会保留 WAL，connector 停的时间越长，磁盘涨得越快；表结构变更要同步到 connector 的配置；connector 重启后可能重复投递，消费端仍然要幂等；你还得监控 connector 的 lag，而不是 outbox 表的积压。它适合已经有 Kafka Connect 和 Debezium 运维能力的团队，不适合把它当成「免运维的 relay」。
 
 两条路径有一个共同点：<strong>顺序只能按分区保证。</strong> 多个 relay 实例用 <code>SKIP LOCKED</code> 抢行，谁先发出去没有保证；即使 outbox 表按 id 排序，并发发送也会乱序。要让同一个订单的事件有序，必须用 <code>aggregate_id</code> 作为 MQ 的 key，让同一聚合根的事件进同一个分区，并且每个分区只有一个消费者。跨聚合根的全局顺序，本来就不该是业务依赖的东西。
@@ -415,6 +423,7 @@ outbox 把「消息不丢」做成了数据库事务的一部分，但重复仍�
     <span class="n">consumer</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">64</span><span class="p">)</span>
     <span class="n">processed_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
+
 <span class="k">def</span><span class="w"> </span><span class="nf">handle_order_created</span><span class="p">(</span><span class="n">event</span><span class="p">):</span>
     <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
         <span class="n">_</span><span class="p">,</span> <span class="n">created</span> <span class="o">=</span> <span class="n">ProcessedEvent</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get_or_create</span><span class="p">(</span>
@@ -428,6 +437,7 @@ outbox 把「消息不丢」做成了数据库事务的一部分，但重复仍�
         <span class="p">)</span>
 </code></pre></div>
 
+
 <code>get_or_create</code> 内部会处理唯一键冲突：先查，查不到就插，插入撞唯一键就再查一次。它把「检查」和「写入」放在同一个事务里，但并发下仍可能两个请求都走到插入，其中一个拿到 IntegrityError 后重新查询，最终只有一个 <code>created=True</code>。这比「先查再写」的两段式可靠，因为两段式在查和写之间有窗口。
 
 如果业务表本身就有天然唯一键，可以不用去重表。比如「支付成功」事件要改订单状态：
@@ -435,6 +445,7 @@ outbox 把「消息不丢」做成了数据库事务的一部分，但重复仍�
 <span class="k">SET</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;paid&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">paid_at</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">now</span><span class="p">()</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">:</span><span class="n">order_id</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">status</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;pending&#39;</span><span class="p">;</span>
 </code></pre></div>
+
 
 这条语句的 <code>rowcount</code> 就是幂等信号：第一次执行返回 1，重复执行返回 0。把状态机迁移本身当成幂等键，比额外维护一张表更省事，但它要求所有写入都走条件更新，不能有人绕过状态机直接 <code>UPDATE status='paid'</code>。
 
@@ -452,6 +463,7 @@ Saga 不是「分布式事务框架」的同义词。它 1987 年由 Garcia-Moli
 4. 支付扣款                         补偿：退款
 5. 发送发货通知                     补偿：无法撤销
 </code></pre></div>
+
 
 前四步都能写一个语义上的反向操作，第五步不能。所以第五步必须放在最后，并且只在前面全部成功后才执行。这就是「不可补偿步骤放最后」的全部理由：不是它不重要，而是它一旦执行，就没有自动恢复的路。
 
@@ -483,6 +495,7 @@ Saga 不是「分布式事务框架」的同义词。它 1987 年由 Garcia-Moli
 <span class="p">);</span>
 </code></pre></div>
 
+
 每一步执行前先把状态改成 executing，执行后记录 done 或 failed；补偿也一样。进程崩溃后，恢复任务扫描「state=running 且 updated_at 超过阈值」的实例，从 <code>current_step</code> 继续。每一步的业务接口必须用 <code>(saga_id, step_name)</code> 做幂等键，否则恢复时会把同一步做两遍。
 
 协同没有中心状态机，各个服务监听事件、执行本地事务、再发下一个事件。订单服务发 <code>order.created</code>，库存服务扣减后发 <code>inventory.reserved</code>，支付服务收到后扣款。补偿也走事件：<code>order.cancelled</code> 触发库存释放。它的优点是服务之间松耦合，没有单点；缺点是全局状态不可见，出问题时你不知道整条 Saga 卡在哪，只能沿着事件日志一段一段拼。步骤少、团队边界清晰时它很好用；步骤多、补偿关系复杂时，编排更容易维护。
@@ -500,17 +513,20 @@ Saga B: 此时读到库存 0，判定无货，拒绝用户下单
 Saga A: 补偿执行，库存回到 1
 </code></pre></div>
 
+
 从最终结果看，库存没有被永久占用，A 的补偿也是对的。但 B 的拒绝是基于一个即将被撤销的中间态做出的。用户看到「没货」，而实际上货还在。这类问题不会出现在对账里，只会出现在用户投诉里。
 
 第三种是补偿覆盖别人的写入。如果补偿写成绝对值：
 <div class="codehilite"><pre><span></span><code><span class="k">UPDATE</span><span class="w"> </span><span class="n">inventory</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">available</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">sku_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;SKU-1&#39;</span><span class="p">;</span>
 </code></pre></div>
 
+
 而在这条补偿执行之前，另一个 Saga 已经扣掉了 2 件，那么这次补偿会把别人的扣减一起抹掉。正确写法是增量：
 <div class="codehilite"><pre><span></span><code><span class="k">UPDATE</span><span class="w"> </span><span class="n">inventory</span>
 <span class="k">SET</span><span class="w"> </span><span class="n">available</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">available</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">sku_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;SKU-1&#39;</span><span class="p">;</span>
 </code></pre></div>
+
 
 增量补偿是可交换的，顺序不影响结果；绝对值补偿不是。这个区别在单测里很难发现，因为单测通常只有一个 Saga。
 
@@ -545,11 +561,13 @@ TCC 把一次资源操作拆成三个阶段。Try 做资源预留和业务检查
 <span class="p">);</span>
 </code></pre></div>
 
+
 Try 写成「插入或读取」：
 <div class="codehilite"><pre><span></span><code><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">tcc_record</span><span class="w"> </span><span class="p">(</span><span class="n">business_id</span><span class="p">,</span><span class="w"> </span><span class="n">participant</span><span class="p">,</span><span class="w"> </span><span class="k">state</span><span class="p">,</span><span class="w"> </span><span class="n">amount</span><span class="p">)</span>
 <span class="k">VALUES</span><span class="w"> </span><span class="p">(:</span><span class="n">business_id</span><span class="p">,</span><span class="w"> </span><span class="p">:</span><span class="n">participant</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;TRIED&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">:</span><span class="n">amount</span><span class="p">)</span>
 <span class="k">ON</span><span class="w"> </span><span class="n">CONFLICT</span><span class="w"> </span><span class="p">(</span><span class="n">business_id</span><span class="p">,</span><span class="w"> </span><span class="n">participant</span><span class="p">)</span><span class="w"> </span><span class="k">DO</span><span class="w"> </span><span class="k">NOTHING</span><span class="p">;</span>
 </code></pre></div>
+
 
 插入成功，说明第一次 Try，去冻结额度；插入返回 0 行，说明已经有记录，再查状态：如果是 <code>CANCELLED</code>，说明 Cancel 先到了，直接拒绝这次 Try，这就是防悬挂；如果是 <code>TRIED</code> 或 <code>CONFIRMED</code>，按幂等成功返回。
 
@@ -560,6 +578,7 @@ Cancel 写成「插入墓碑或条件更新」：
 <span class="k">DO</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="k">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;CANCELLED&#39;</span>
 <span class="k">WHERE</span><span class="w"> </span><span class="n">tcc_record</span><span class="p">.</span><span class="k">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;TRIED&#39;</span><span class="p">;</span>
 </code></pre></div>
+
 
 如果插入成功，说明之前没有 Try，这就是空回滚，记墓碑后返回成功；如果冲突且原状态是 <code>TRIED</code>，释放冻结额度并置为 <code>CANCELLED</code>；如果已经是 <code>CANCELLED</code> 或 <code>CONFIRMED</code>，直接返回成功，这就是幂等。关键点是释放额度这一步必须和状态迁移在同一个事务里，用条件更新保证只有一行能成功，不能先释放再改状态。
 
@@ -644,6 +663,7 @@ outbox 最先要看的是「最老的一条 pending 有多老」：
 <span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">available_at</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">now</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">interval</span><span class="w"> </span><span class="s1">&#39;5 minutes&#39;</span><span class="p">;</span>
 </code></pre></div>
 
+
 只看 pending 数量会被吞吐量误导：每秒一万条的系统，积压一千条可能只意味着 0.1 秒；每秒十条的系统，积压一千条已经是几分钟的延迟。用 <code>now() - min(occurred_at)</code> 做告警阈值，才和用户体验对得上。
 
 relay 的吞吐要用「到达速率 vs 服务速率」比较。服务速率的粗估是 <code>batch_size / 单轮耗时</code>，单轮耗时包含抢锁、发送、更新状态。若到达速率接近服务速率，积压会线性增长；要留出余量给下游抖动。还可以看 <code>attempts</code> 的分布：如果大量事件停在 <code>attempts=5</code> 以上，说明下游有持续故障，不是偶发抖动。
@@ -662,6 +682,7 @@ Saga 看「按状态分组的实例数」和「最老的 running 实例年龄」
 <span class="k">WHERE</span><span class="w"> </span><span class="k">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;running&#39;</span>
 <span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">updated_at</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">now</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">interval</span><span class="w"> </span><span class="s1">&#39;10 minutes&#39;</span><span class="p">;</span>
 </code></pre></div>
+
 
 一个 running 超过十分钟的 Saga，要么是某一步在无限重试，要么是补偿卡住了。补偿失败数要单独计数，因为它和正向失败的处理方式不同：正向失败可以重试，补偿失败往往需要人工确认资源到底有没有释放。
 
@@ -692,7 +713,6 @@ TCC 还要看空回滚次数和悬挂拒绝次数。空回滚偶尔出现是正�
 <li><a href="/article/api-idempotency-deep-dive/">用户只是双击了一下，订单多了 7 条——接口幂等</a></li>
 <li><a href="/article/cache-consistency-deep-dive/">先删缓存还是先删库？——缓存一致性实战</a></li>
 <li><a href="/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去——Django 事务深水区</a></li>
-</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/">指标与链路追踪：从 RED 到 OpenTelemetry</a></li><li><a href="https://blog.zhoujun.dev/article/api-versioning-deep-dive/">API 还在用 /v1、/v2？——接口版本管理的演进与实战策略</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/btree-delete-merge-redistribute/">B+ 树删除：页合并、借位与根收缩</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/">指标与链路追踪：从 RED 到 OpenTelemetry</a></li><li><a href="https://blog.zhoujun.dev/article/api-versioning-deep-dive/">API 还在用 /v1、/v2？——接口版本管理的演进与实战策略</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

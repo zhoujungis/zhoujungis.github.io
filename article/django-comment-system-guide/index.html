@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -202,6 +202,7 @@
   → 博主后台 pending → 审核通过 → 读者刷新可见
 </code></pre></div>
 
+
 七层每一层只干一件事，层层设卡。设计哲学：<strong>匿名可评（别登录），但默认不可见（先审后发）</strong>。个人博客流量小，先审后发零成本；日活上万再切“白名单免审 + 黑名单秒删”。
 <hr>
 <h2>评论模型为什么要自关联？</h2>
@@ -224,6 +225,7 @@
     <span class="k">class</span><span class="w"> </span><span class="nc">Meta</span><span class="p">:</span>
         <span class="n">ordering</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;-created_at&quot;</span><span class="p">]</span>
 </code></pre></div>
+
 
 三处关键决策：
 <ol>
@@ -254,6 +256,7 @@
             <span class="n">article</span><span class="o">=</span><span class="n">article</span><span class="p">,</span> <span class="n">is_approved</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="kc">None</span>  <span class="c1"># 只顶级+已审，回复走嵌套</span>
         <span class="p">)</span><span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;article&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">prefetch_related</span><span class="p">(</span><span class="s2">&quot;replies__article&quot;</span><span class="p">)</span>
 </code></pre></div>
+
 
 四层过滤，顺序不能乱：
 <div class="table-scroll"><table>
@@ -298,6 +301,7 @@
 <span class="c1"># was previously falling back to the default anon throttle (30/min).</span>
 </code></pre></div>
 
+
 之前只写了 <code>throttle_scope = "comment"</code>，<code>throttle_classes</code> 用的默认（anon 30/min），<code>comment 3/min</code> 配了却从没生效 —— 广告脚本 1 分钟 30 条畅通无阻。修法就是上面代码：<strong><code>ScopedRateThrottle</code> + <code>throttle_scope</code> 必须成对出现</strong>。教训：限流配完必用循环脚本打一遍（见 7.x 压测），别信“配了就行”。
 <hr>
 <h2>4. 写接口：parent 归属 + honeypot + 默认待审</h2>
@@ -320,6 +324,7 @@
 
     <span class="n">serializer</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">article</span><span class="o">=</span><span class="n">article</span><span class="p">,</span> <span class="n">parent</span><span class="o">=</span><span class="n">parent</span><span class="p">,</span> <span class="n">is_approved</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 </code></pre></div>
+
 
 逐行拆：
 <ol>
@@ -354,6 +359,7 @@
             <span class="n">context</span><span class="o">=</span><span class="p">{</span><span class="o">**</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">context</span> <span class="ow">or</span> <span class="p">{}),</span> <span class="s1">&#39;depth&#39;</span><span class="p">:</span> <span class="n">depth</span> <span class="o">+</span> <span class="mi">1</span><span class="p">},</span>
         <span class="p">)</span><span class="o">.</span><span class="n">data</span>
 </code></pre></div>
+
 
 三个保命设计：
 <ol>
@@ -493,7 +499,6 @@ XSS 特别说明：现在安全是因为前端 <code>{{ }}</code> 转义 + 后�
 评论区聊聊：你的 honeypot 叫什么名？限流几档？误伤过真人吗？
 </blockquote>
 
-同一条链路上还可以接着读：<a href="/article/django-anon-like-dedup/">《为什么我敢让匿名用户点赞：五层防刷设计》</a>、<a href="/article/django-bleach-xss-defense/">《为什么我敢渲染用户的 Markdown：一条 XSS 防线》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/django-jwt-dual-token-auth/">登录态 1 小时就掉？Django + Vue 双 Token 认证实战</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/redis-distributed-lock-deep-dive/">Redis 分布式锁：一次讲透正确姿势与失效边界</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/django-jwt-dual-token-auth/">登录态 1 小时就掉？Django + Vue 双 Token 认证实战</a></li><li><a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li><li><a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li><a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li><a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同一条链路上还可以接着读：<a href="/article/django-anon-like-dedup/">《为什么我敢让匿名用户点赞：五层防刷设计》</a>、<a href="/article/django-bleach-xss-defense/">《为什么我敢渲染用户的 Markdown：一条 XSS 防线》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/django-jwt-dual-token-auth/">登录态 1 小时就掉？Django + Vue 双 Token 认证实战</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/redis-distributed-lock-deep-dive/">Redis 分布式锁：一次讲透正确姿势与失效边界</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/django-jwt-dual-token-auth/">登录态 1 小时就掉？Django + Vue 双 Token 认证实战</a></li><li><a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li><li><a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li><a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li><a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

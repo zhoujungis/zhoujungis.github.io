@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -215,6 +215,7 @@
 refresh 也过期（1 天没碰后台）
   → /token/refresh/ 也 401 → 清本地 token → 跳 /admin 登录页
 </code></pre></div>
+
 
 两个 token 的分工：
 <div class="table-scroll"><table>
@@ -340,6 +341,7 @@ SimpleJWT 源码速览（知道三处就够）：<code>TokenObtainPairView.post(
 <span class="p">}</span>
 </code></pre></div>
 
+
 为什么是 60 分钟 + 1 天？我的调参逻辑：
 <ul>
 <li>access 太短（如 5 分钟）：后台写长文时频繁续期，弱网下容易续失败；</li>
@@ -381,6 +383,7 @@ SimpleJWT 源码速览（知道三处就够）：<code>TokenObtainPairView.post(
 <span class="k">def</span><span class="w"> </span><span class="nf">upload_image</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
     <span class="o">...</span>
 </code></pre></div>
+
 
 效果矩阵：
 <div class="table-scroll"><table>
@@ -468,6 +471,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>
 <span class="s1">&#39;refresh&#39;</span><span class="p">:</span> <span class="s1">&#39;30/minute&#39;</span><span class="p">,</span> <span class="c1"># 刷新宽一点（多 Tab 并发续期），但也封顶</span>
 </code></pre></div>
 
+
 为什么登录只给 5/min？正常人输错 3 次就去找密码了，脚本 1 分钟几百次直接 429 + 日志告警。进阶可上 <code>django-axes</code>（失败 5 次锁 IP 30 分钟 + 管理员邮件），小博客先限流就够。<strong>上线前必查：所有吃密码/发 token 的端点都有 throttle</strong>。
 
 前端配合：登录 429/401 不要提示“密码错”（给爆破者确认用户名的信息），统一提示“用户名或密码错误，稍后再试”，登录按钮加 3 秒禁用 + 验证码留作后手。
@@ -502,6 +506,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>
 <span class="n n-Quoted">const USER_KEY = &#39;user&#39;</span>
 <span class="n n-Quoted">// refresh 存 &#39;refresh_token&#39;</span>
 </code></pre></div>
+
 
 通用名容易和别的库撞，也容易被一锅端。<code>token_expiry</code> 存的是 <code>exp*1000</code>（毫秒），打开 F12 → Application → Local Storage 能直接看到三个 key。
 <h3>4.4 进阶：HttpOnly Cookie 完整迁移指南（收藏备用）</h3>
@@ -548,6 +553,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_user</span><span class="p">(</span><span class="n">validated</span><span class="p">),</span> <span class="n">validated</span>
 <span class="c1"># REST_FRAMEWORK.DEFAULT_AUTHENTICATION_CLASSES 换成它</span>
 </code></pre></div>
+
 
 代价：CSRF 回来了（Cookie 自动带，恶意站可跨站 POST），必须 <code>SameSite=None; Secure</code> + Django CSRF 中间件 + 前端 <code>X-CSRFToken</code> 头三件套。所以<strong>单人博客继续 localStorage，多用户/支付切 Cookie</strong>，按威胁模型选，不跟风。
 <hr>
@@ -619,6 +625,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>
 <span class="p">})</span>
 </code></pre></div>
 
+
 两个细节：
 <ul>
 <li><code>safeParseUser()</code> 包 try/catch：localStorage 手改坏了/旧版本残留脏 JSON，不能白屏整个站（真实踩过）；</li>
@@ -642,6 +649,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>
         <span class="k">return</span> <span class="n">token</span>
 <span class="c1"># urls 里 TokenObtainPairView.as_view(serializer_class=MyTokenSerializer)</span>
 </code></pre></div>
+
 
 前端 <code>parseJwtPayload(access).is_staff</code> 直接判断菜单显隐，不用再调我是谁。但记住：<strong>payload 可解码，别塞手机号/邮箱</strong>，只塞展示用的非敏感字段。
 
@@ -723,6 +731,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>
 <span class="p">)</span>
 </code></pre></div>
 
+
 四道保险缺一不可：
 <ol>
 <li><code>_skipRefresh</code>：刷新请求自己不触发刷新，否则 401 死递归；</li>
@@ -750,6 +759,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>
 <span class="p">})</span>
 </code></pre></div>
 
+
 早期这里和 client.js 各写了一套刷新逻辑，两边行为分叉出过 bug，现在统一复用 <code>refreshAccessToken()</code>，<strong>同一逻辑只留一份</strong>。
 <h3>6.4 多 Tab 同步 + 草稿保护 + AdminLogin 完整代码</h3>
 
@@ -767,6 +777,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>
 <span class="p">})</span>
 </code></pre></div>
 
+
 <strong>草稿保护</strong>：续期重试“只慢几百毫秒”建立在 refresh 有效的前提下；refresh 也过期时保存还是会挂。编辑器必须本地存草稿兜底：
 <div class="codehilite"><pre><span></span><code><span class="c1">// ArticleEditor.vue：输入防抖 1s 存 localStorage，发布成功清掉</span>
 <span class="nx">watch</span><span class="p">(</span><span class="nx">content</span><span class="p">,</span><span class="w"> </span><span class="nx">debounce</span><span class="p">((</span><span class="nx">v</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
@@ -774,6 +785,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>
 <span class="p">},</span><span class="w"> </span><span class="mf">1000</span><span class="p">))</span>
 <span class="c1">// 挂载时读出恢复 + 提示“已恢复 12:30 的草稿”</span>
 </code></pre></div>
+
 
 <strong>AdminLogin 完整逻辑</strong>（防爆破版）：
 <div class="codehilite"><pre><span></span><code><span class="p">&lt;</span><span class="nt">script</span> <span class="na">setup</span><span class="p">&gt;</span>
@@ -804,6 +816,7 @@ curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>
 <span class="p">}</span>
 </code></pre></div>
 
+
 这清的是<strong>这台浏览器</strong>。refresh 在 1 天有效期内<strong>依然有效</strong>：别人拷走 refresh，照样能换 access。后端无状态，根本不知道你“退出了”。对单人博客可接受，对多用户站不可接受。
 <h3>7.2 立刻能做的两件事（不改后端）</h3>
 <ol>
@@ -825,6 +838,7 @@ python<span class="w"> </span>manage.py<span class="w"> </span>migrate
     <span class="s1">&#39;AUTH_HEADER_TYPES&#39;</span><span class="p">:</span> <span class="p">(</span><span class="s1">&#39;Bearer&#39;</span><span class="p">,),</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 开了之后 <code>/token/refresh/</code> 返回 <code>{access, refresh（新的）}</code>，旧 refresh 再用直接 401（<code>Token is blacklisted</code>）。前端我已经提前写好了兼容（<code>if (newRefresh) localStorage.setItem(...)</code>，见 6.2），后端一开即生效，不用改前端。
 
@@ -852,6 +866,7 @@ python<span class="w"> </span>manage.py<span class="w"> </span>migrate
 <span class="n">path</span><span class="p">(</span><span class="s2">&quot;api/logout/&quot;</span><span class="p">,</span> <span class="n">logout</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">&quot;logout&quot;</span><span class="p">),</span>
 </code></pre></div>
 
+
 前端 <code>logout()</code> 改成先调接口再清本地：
 <div class="codehilite"><pre><span></span><code><span class="k">async</span><span class="w"> </span><span class="nx">logout</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">  </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
@@ -860,6 +875,7 @@ python<span class="w"> </span>manage.py<span class="w"> </span>migrate
 <span class="w">  </span><span class="k">finally</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* 原来的 removeItem 四件套 */</span><span class="w"> </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 这套做完才敢说“退出即吊销”。没做之前，诚实地在管理页写“退出仅清除本机登录态”都比撒谎强。
 <hr>
@@ -945,6 +961,7 @@ python<span class="w"> </span>manage.py<span class="w"> </span>migrate
 <span class="n">CORS_ALLOW_ALL_ORIGINS</span> <span class="o">=</span> <span class="kc">False</span>       <span class="c1"># 永远别开 *</span>
 </code></pre></div>
 
+
 外加内容侧 <code>bleach</code> 白名单 + 上传禁 SVG（见 XSS 那篇 + 三件套上传限流），认证侧 <code>login 5/min</code>（3.5）。攻击者要偷后台，得连过：HTTPS → 爆破限流 → XSS（bleach）→ 短 access（60min）→ 黑名单/rotation。单点被破不致命，这就是纵深。
 <h3>10.2 测试：5 个后端 + 3 个前端用例，锁死行为</h3>
 <div class="codehilite"><pre><span></span><code><span class="c1"># backend/accounts/tests.py（pytest/django TestCase 均可）</span>
@@ -986,7 +1003,6 @@ python<span class="w"> </span>manage.py<span class="w"> </span>migrate
 评论区聊聊：你的 access/refresh 设的多长？localStorage 还是 Cookie？为什么？
 </blockquote>
 
-同一条链路上还可以接着读：<a href="/article/django-comment-system-guide/">《敢让匿名用户评论的底气：七层防线实战》</a>、<a href="/article/django-anon-like-dedup/">《为什么我敢让匿名用户点赞：五层防刷设计》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/django-comment-system-guide/">敢让匿名用户评论的底气：七层防线实战</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/django-comment-system-guide/">敢让匿名用户评论的底气：七层防线实战</a></li><li><a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li><li><a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li><a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li><a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同一条链路上还可以接着读：<a href="/article/django-comment-system-guide/">《敢让匿名用户评论的底气：七层防线实战》</a>、<a href="/article/django-anon-like-dedup/">《为什么我敢让匿名用户点赞：五层防刷设计》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/django-comment-system-guide/">敢让匿名用户评论的底气：七层防线实战</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/django-comment-system-guide/">敢让匿名用户评论的底气：七层防线实战</a></li><li><a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li><li><a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li><a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li><a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

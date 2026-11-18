@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -192,6 +192,7 @@ API 网关的思路很简单：<strong>把所有服务的共性需求收到一�
 客户端 ─► API 网关（鉴权 + 限流 + 路由 + 日志 + 熔断）─► 业务服务（只写业务）
 </code></pre></div>
 
+
 这篇文章不打算只列功能清单，而是把网关涉及的每一个核心能力<strong>讲清楚为什么、怎么做、有什么坑</strong>。
 
 <strong>目录</strong>
@@ -262,6 +263,7 @@ API 网关的思路很简单：<strong>把所有服务的共性需求收到一�
                 ▼         ▼         ▼         ▼
             401/403    429      目标服务   协议适配
 </code></pre></div>
+
 
 网关执行的是<strong>管道模型</strong>：请求依次经过认证 → 限流 → 路由 → 转发，每一步都可以拒绝或修改请求。
 <h3>1.3 什么时候不需要网关</h3>
@@ -419,6 +421,7 @@ API 网关的思路很简单：<strong>把所有服务的共性需求收到一�
 <span class="w">      </span><span class="nt">strip_claim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">    </span><span class="c1"># 保留 JWT 里的 claims，方便后端取</span>
 </code></pre></div>
 
+
 关键点：
 <ul>
 <li><strong>网关只验证签名和过期时间</strong>，不做业务授权（那是后端的事）</li>
@@ -501,6 +504,7 @@ API 网关的思路很简单：<strong>把所有服务的共性需求收到一�
                     ▼
                    429 Too Many Requests
 </code></pre></div>
+
 
 <strong>漏桶（Leaky Bucket）</strong>：
 <ul>
@@ -657,6 +661,7 @@ API 网关的思路很简单：<strong>把所有服务的共性需求收到一�
 <span class="w">          </span><span class="nt">weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
 </code></pre></div>
 
+
 <strong>按条件切流</strong>（更精准）：
 <div class="codehilite"><pre><span></span><code><span class="c1"># 内部员工走新版本，其他人走旧版本</span>
 <span class="nt">routes</span><span class="p">:</span>
@@ -667,6 +672,7 @@ API 网关的思路很简单：<strong>把所有服务的共性需求收到一�
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/api/orders/*</span>
 <span class="w">    </span><span class="nt">upstream</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">orders-v1</span>
 </code></pre></div>
+
 
 灰度发布的要点：
 <ol>
@@ -691,6 +697,7 @@ API 网关的思路很简单：<strong>把所有服务的共性需求收到一�
 后端服务越来越多用 gRPC（强类型、高性能、双向流），但客户端（浏览器、移动端）通常只支持 HTTP/JSON。网关的协议转换能力解决的就是这个矛盾：
 <div class="codehilite"><pre><span></span><code>浏览器 ──HTTP/JSON──► 网关 ──gRPC/Protobuf──► 后端服务
 </code></pre></div>
+
 
 这不只是"翻译"——还有几个关键差异要处理：
 <div class="table-scroll"><table>
@@ -748,6 +755,7 @@ WebSocket 和网关是天生的"不对付"——网关设计时假设有请求-�
 <span class="w">    </span><span class="kn">proxy_send_timeout</span><span class="w"> </span><span class="s">3600s</span><span class="p">;</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 <strong>负载均衡策略</strong>：对 WebSocket 用 <code>ip_hash</code>（同一客户端 IP 始终到同一后端），而不是 Round-Robin。这样连接重建时不会飘到别的机器。
 <h3>6.3 SSE（Server-Sent Events）</h3>
@@ -970,7 +978,6 @@ API 网关的核心思想可以用一句话概括：<strong>把服务的"怎么�
 
 <em>本文为架构设计经验总结，不涉及具体代码实现。文中 Kong / APISIX / Envoy 配置示例均为示意用途，生产环境请参考官方文档。</em>
 
-同一条链路上还可以接着读：<a href="/article/api-versioning-deep-dive/">《API 还在用 /v1、/v2？——接口版本管理的演进与实战策略》</a>、<a href="/article/rate-limit-algorithms-deep-dive/">《限流算法实测：固定窗口 2 倍溢出、令牌桶突刺》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/resilience-timeout-retry-circuit-breaker-deep-dive/">下游只抖 3 秒，我的服务被拖死——超时与熔断实战</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/api-versioning-deep-dive/">API 还在用 /v1、/v2？——接口版本管理的演进与实战策略</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/mq-reliable-delivery-deep-dive/">消息凭空消失排查记：MQ 可靠投递实测</a></li><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/">负载均衡：轮询、最少连接与一致性哈希的代价</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同一条链路上还可以接着读：<a href="/article/api-versioning-deep-dive/">《API 还在用 /v1、/v2？——接口版本管理的演进与实战策略》</a>、<a href="/article/rate-limit-algorithms-deep-dive/">《限流算法实测：固定窗口 2 倍溢出、令牌桶突刺》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/resilience-timeout-retry-circuit-breaker-deep-dive/">下游只抖 3 秒，我的服务被拖死——超时与熔断实战</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/api-versioning-deep-dive/">API 还在用 /v1、/v2？——接口版本管理的演进与实战策略</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/mq-reliable-delivery-deep-dive/">消息凭空消失排查记：MQ 可靠投递实测</a></li><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/">负载均衡：轮询、最少连接与一致性哈希的代价</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

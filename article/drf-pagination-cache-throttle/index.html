@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -180,6 +180,7 @@
     <span class="n">max_page_size</span> <span class="o">=</span> <span class="mi">1000</span>  <span class="c1"># 当时觉得“灵活点没坏处”</span>
 </code></pre></div>
 
+
 前端同学随手试了下 <code>GET /api/articles/?page_size=500</code>，结果：
 <ul>
 <li>后端 SQLite 扫 500 篇 <code>content</code>（Markdown 大字段，平均 15KB/篇）+ 序列化 7.5MB JSON，耗时 <strong>860ms</strong>；</li>
@@ -211,6 +212,7 @@
      → Cache（缓存：下次同样请求直接返回？）
      → DB（实在躲不过才查库）
 </code></pre></div>
+
 
 三件套的分工一句话：
 <div class="table-scroll"><table>
@@ -267,6 +269,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
+
 外加缓存（PA 免费版无 Redis，用内存缓存）：
 <div class="codehilite"><pre><span></span><code><span class="n">CACHES</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">&quot;default&quot;</span><span class="p">:</span> <span class="p">{</span>
@@ -277,6 +280,7 @@
     <span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 下面逐件拆开讲透。
 <hr>
@@ -314,6 +318,7 @@ DRF 全局 <code>PAGE_SIZE = 10</code> 只解决“默认切多少”，没解�
     <span class="n">pagination_class</span> <span class="o">=</span> <span class="kc">None</span>
 </code></pre></div>
 
+
 <code>pagination_class = None</code> 时 DRF 直接返回 <code>[...]</code>数组而不是 <code>{count, next, previous, results}</code> 包裹，前端 <code>v-for</code> 直接用，对小字典表特别友好。
 <h3>2.2 DRF 分页源码：三行看懂执行顺序</h3>
 
@@ -331,6 +336,7 @@ DRF 全局 <code>PAGE_SIZE = 10</code> 只解决“默认切多少”，没解�
     <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">page</span><span class="p">)</span>
 </code></pre></div>
 
+
 关键在 <code>get_page_size()</code>：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_page_size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">):</span>
     <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">page_size_query_param</span><span class="p">:</span>
@@ -344,6 +350,7 @@ DRF 全局 <code>PAGE_SIZE = 10</code> 只解决“默认切多少”，没解�
             <span class="k">pass</span>
     <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">page_size</span>
 </code></pre></div>
+
 
 两个细节很多人不知道：
 <ul>
@@ -398,6 +405,7 @@ Cursor 举例（评论按时间倒序，<code>created</code> 可能重复，必�
     <span class="n">ordering</span> <span class="o">=</span> <span class="s2">&quot;-created_at,-id&quot;</span>  <span class="c1"># 双字段保证 cursor 稳定</span>
 </code></pre></div>
 
+
 博客 99% 用 <code>PageNumberPagination</code> 就够了。文章几百上千篇时 OFFSET 深度不是问题；等你到十万篇那天，再把评论流切成 Cursor 也不迟。
 <h3>2.4 事故复盘：max_page_size=1000 是怎么打挂我的</h3>
 
@@ -449,6 +457,7 @@ Cursor 举例（评论按时间倒序，<code>created</code> 可能重复，必�
     <span class="k">return</span> <span class="n">ArticleListSerializer</span>
 </code></pre></div>
 
+
 铁律：<strong><code>max_page_size</code> 按最坏情况算</strong>。公式：<code>max_page_size × 单条 list 大小 &lt; 500KB</code>。我的 list 单条约 5KB（title+excerpt+cover+计数），50 条 ≈ 250KB，安全。
 <h3>2.5 列表瘦身 + 详情加料：最被低估的优化</h3>
 
@@ -470,6 +479,7 @@ Cursor 举例（评论按时间倒序，<code>created</code> 可能重复，必�
                   <span class="s2">&quot;category&quot;</span><span class="p">,</span> <span class="s2">&quot;tags&quot;</span><span class="p">]</span>
 </code></pre></div>
 
+
 效果：列表单条从 ~15KB 降到 ~5KB（在 50 条/页时就是 750KB → 250KB 的差距）。配合 <code>only()</code>（见 2.6）连 DB 层面都不查 <code>content</code>：
 <div class="codehilite"><pre><span></span><code><span class="n">queryset</span> <span class="o">=</span> <span class="p">(</span>
     <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)</span>
@@ -477,6 +487,7 @@ Cursor 举例（评论按时间倒序，<code>created</code> 可能重复，必�
           <span class="s2">&quot;views_count&quot;</span><span class="p">,</span> <span class="s2">&quot;likes_count&quot;</span><span class="p">,</span> <span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;category&quot;</span><span class="p">)</span>
 <span class="p">)</span>
 </code></pre></div>
+
 
 但 <code>only()</code> 有个坑：访问未列出的字段会触发额外查询。所以 <code>retrieve</code> 详情接口必须用另一个 queryset（或不用 <code>only</code>），否则详情页反而 N+1。我的做法是 <code>get_queryset()</code> 按 action 区分：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">get_queryset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -501,10 +512,12 @@ Cursor 举例（评论按时间倒序，<code>created</code> 可能重复，必�
 <span class="p">)</span>
 </code></pre></div>
 
+
 验证方法（任意 View 里临时加）：
 <div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.db</span><span class="w"> </span><span class="kn">import</span> <span class="n">connection</span>
 <span class="nb">print</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">connection</span><span class="o">.</span><span class="n">queries</span><span class="p">))</span>  <span class="c1"># 列表页应 ≤ 3 条：1 articles + 1 tags + 1 count</span>
 </code></pre></div>
+
 
 <code>count</code> 是分页自带的 <code>SELECT COUNT(*)</code>，翻页必然有一次，这是正常的，别去“优化”掉它。
 <h3>2.7 前端配套：分页组件 + page_size 透传</h3>
@@ -544,6 +557,7 @@ Cursor 举例（评论按时间倒序，<code>created</code> 可能重复，必�
 <span class="p">&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
 </code></pre></div>
 
+
 注意：<code>page-sizes</code> 的最大值必须 ≤ 后端 <code>max_page_size</code>，否则选 100 实际只回 50，前端 <code>total/pageSize</code> 算页数会错位。
 <h3>2.8 分页 5 个常见坑</h3>
 <ol>
@@ -564,6 +578,7 @@ Django 的 <code>cache</code> API 是统一的，换 Redis 还是内存，只改
 <span class="n">cache</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">&quot;key&quot;</span><span class="p">)</span>           <span class="c1"># 删</span>
 <span class="n">cache</span><span class="o">.</span><span class="n">get_or_set</span><span class="p">(</span><span class="s2">&quot;key&quot;</span><span class="p">,</span> <span class="n">default_fn</span><span class="p">,</span> <span class="mi">300</span><span class="p">)</span>  <span class="c1"># 取不到就调函数存</span>
 </code></pre></div>
+
 
 这是选型的最大底气：<strong>先用免费的跑起来，上量再换 Redis，业务代码零改动</strong>。
 <h3>3.2 四种缓存后端对比（PA 视角）</h3>
@@ -619,6 +634,7 @@ PA 免费版没有 Redis 服务，直接 <code>LocMemCache</code>：
     <span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 以后迁 Redis 只改这一段：
 <div class="codehilite"><pre><span></span><code><span class="c1"># pip install django-redis</span>
@@ -686,6 +702,7 @@ PA 免费版没有 Redis 服务，直接 <code>LocMemCache</code>：
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </code></pre></div>
 
+
 <code>cache_page</code> 原理：按完整 URL（含 querystring）做 key，命中直接返回上次的 <code>Response.content</code>，连 View 都不进。等价手写：
 <div class="codehilite"><pre><span></span><code><span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;page:</span><span class="si">{</span><span class="n">request</span><span class="o">.</span><span class="n">get_full_path</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span>
 <span class="n">data</span> <span class="o">=</span> <span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
@@ -717,6 +734,7 @@ PA 免费版没有 Redis 服务，直接 <code>LocMemCache</code>：
         <span class="k">return</span> <span class="n">Response</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
 </code></pre></div>
 
+
 失效放在 signals（<code>articles/signals.py</code>）：
 <div class="codehilite"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">django.core.cache</span><span class="w"> </span><span class="kn">import</span> <span class="n">cache</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">django.db.models.signals</span><span class="w"> </span><span class="kn">import</span> <span class="n">post_save</span><span class="p">,</span> <span class="n">post_delete</span>
@@ -738,6 +756,7 @@ PA 免费版没有 Redis 服务，直接 <code>LocMemCache</code>：
     <span class="c1"># 也可以按 slug 精确清：cache.delete(f&quot;api:article:{instance.slug}&quot;)</span>
 </code></pre></div>
 
+
 key 里加 <code>v1</code> 是版本号技巧：大改版时把 <code>v1</code> 改 <code>v2</code>，旧缓存自然废弃，比逐个删靠谱。
 <h3>3.6 终极矛盾：浏览量自增 vs 详情缓存，怎么选？</h3>
 
@@ -748,6 +767,7 @@ key 里加 <code>v1</code> 是版本号技巧：大改版时把 <code>v1</code> 
     <span class="n">instance</span><span class="o">.</span><span class="n">refresh_from_db</span><span class="p">(</span><span class="n">fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;views_count&quot;</span><span class="p">])</span>
     <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </code></pre></div>
+
 
 加了 <code>cache_page</code> 后，缓存命中时 View 不执行，浏览量就不涨了。三种解法：
 <div class="table-scroll"><table>
@@ -789,6 +809,7 @@ C 的埋点接口示例：
     <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">slug</span><span class="o">=</span><span class="n">slug</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">views_count</span><span class="o">=</span><span class="n">F</span><span class="p">(</span><span class="s2">&quot;views_count&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;ok&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">})</span>
 </code></pre></div>
+
 
 小博客选 B，大流量选 C。别为了精确浏览量放弃缓存，因小失大。
 <h3>3.7 缓存三兄弟：穿透、击穿、雪崩</h3>
@@ -864,6 +885,7 @@ PythonAnywhere 生产是多 worker（多进程），<code>LocMemCache</code> 是
 <span class="s1">&#39;user&#39;</span><span class="p">:</span> <span class="s1">&#39;100/minute&#39;</span><span class="p">,</span>
 </code></pre></div>
 
+
 这能挡住“把列表接口当压测打”，但挡不住：1 分钟刷 30 条垃圾评论、1 小时试 30 个订阅邮箱、1 分钟给某篇文章点 30 个赞。<strong>读接口和写接口的“正常频率”差两个数量级，必须分级</strong>。
 
 我的分级表：
@@ -917,6 +939,7 @@ PythonAnywhere 生产是多 worker（多进程），<code>LocMemCache</code> 是
     <span class="c1"># ... 然后才是 check_permissions, check_content_negotiation</span>
 </code></pre></div>
 
+
 <code>SimpleRateThrottle.allow_request()</code> 核心是滑动窗口计数（<code>rest_framework/throttling.py</code> 精简）：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">allow_request</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">):</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">key</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_cache_key</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">view</span><span class="p">)</span>  <span class="c1"># key = scope + ident(IP/用户)</span>
@@ -929,6 +952,7 @@ PythonAnywhere 生产是多 worker（多进程），<code>LocMemCache</code> 是
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">throttle_failure</span><span class="p">()</span>  <span class="c1"># 超了 → 429</span>
     <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">throttle_success</span><span class="p">()</span>      <span class="c1"># 没超 → 记录本次时间戳</span>
 </code></pre></div>
+
 
 <code>get_cache_key()</code> 默认按 IP（匿名）或 user_id（登录）。这意味着<strong>限流计数也存在缓存里</strong> —— 用 <code>LocMemCache</code> 时多 worker 各算各的，实际阈值会被放大 N 倍（2 worker ≈ 60/min）。小博客无所谓，大流量必须换共享缓存（Redis/DB）。
 <h3>4.3 四种限流器怎么选？</h3>
@@ -949,6 +973,7 @@ PythonAnywhere 生产是多 worker（多进程），<code>LocMemCache</code> 是
     <span class="n">scope</span> <span class="o">=</span> <span class="s2">&quot;subscribe&quot;</span>
 </code></pre></div>
 
+
 我用第 4 种，函数视图一行搞定：
 <div class="codehilite"><pre><span></span><code><span class="c1"># backend/articles/views.py</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">SubscribeThrottle</span><span class="p">(</span><span class="n">AnonRateThrottle</span><span class="p">):</span>
@@ -967,6 +992,7 @@ PythonAnywhere 生产是多 worker（多进程），<code>LocMemCache</code> 是
     <span class="c1"># IP+UA 24小时去重 + F() 原子计数（详见点赞防刷那篇）</span>
     <span class="c1"># ...</span>
 </code></pre></div>
+
 
 评论（<code>backend/comments/views.py</code> 同理）：
 <div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">CommentThrottle</span><span class="p">(</span><span class="n">AnonRateThrottle</span><span class="p">):</span>
@@ -989,6 +1015,7 @@ DRF 取 IP 看 <code>get_ident()</code>：优先 <code>X-Forwarded-For</code>，
 <span class="c1"># 限流和点赞去重全部绕过。</span>
 </code></pre></div>
 
+
 正确写法（我博客现在用的）：
 <div class="codehilite"><pre><span></span><code><span class="n">xff</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">META</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;HTTP_X_FORWARDED_FOR&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
 <span class="k">if</span> <span class="n">xff</span><span class="p">:</span>
@@ -998,12 +1025,14 @@ DRF 取 IP 看 <code>get_ident()</code>：优先 <code>X-Forwarded-For</code>，
 <span class="n">ip</span> <span class="o">=</span> <span class="p">(</span><span class="n">ip</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)[:</span><span class="mi">64</span><span class="p">]</span>
 </code></pre></div>
 
+
 复现伪造（本地试）：
 <div class="codehilite"><pre><span></span><code><span class="c1"># 正常请求</span>
 curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/api/articles/hello/like/
 <span class="c1"># 伪造 XFF，每次换 IP，错误写法下可无限点赞</span>
 curl<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;X-Forwarded-For: 9.9.9.</span><span class="nv">$RANDOM</span><span class="s2">&quot;</span><span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/api/articles/hello/like/
 </code></pre></div>
+
 
 <strong>铁律：限流 key 的 IP 取法必须和业务去重 key 的 IP 取法一致</strong>，否则限流和去重各说各话，形同虚设。
 <h3>4.5 前端：429 不是报错，是正常流程</h3>
@@ -1042,6 +1071,7 @@ DRF 429 响应头带 <code>Retry-After</code>（秒）。前端 axios 拦截器�
 <span class="k">export</span><span class="w"> </span><span class="k">default</span><span class="w"> </span><span class="nx">api</span>
 </code></pre></div>
 
+
 再配个按钮级防抖（点赞连点是 429 最大来源）：
 <div class="codehilite"><pre><span></span><code><span class="p">&lt;</span><span class="nt">script</span> <span class="na">setup</span><span class="p">&gt;</span>
 <span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">ref</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;vue&#39;</span>
@@ -1064,6 +1094,7 @@ DRF 429 响应头带 <code>Retry-After</code>（秒）。前端 axios 拦截器�
 <span class="k">for</span><span class="w"> </span>i<span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="m">2</span><span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="m">5</span><span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w"> </span>curl<span class="w"> </span>-s<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://127.0.0.1:8000/api/comments/<span class="w"> </span>-H<span class="w"> </span><span class="s2">&quot;Content-Type: application/json&quot;</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;content&quot;:&quot;test&quot;}&#39;</span><span class="p">;</span><span class="w"> </span>echo<span class="p">;</span><span class="w"> </span><span class="k">done</span>
 </code></pre></div>
 
+
 Django 日志里把 429 单独记（<code>settings.py</code>）：
 <div class="codehilite"><pre><span></span><code><span class="n">LOGGING</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">&quot;version&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
@@ -1074,6 +1105,7 @@ Django 日志里把 429 单独记（<code>settings.py</code>）：
     <span class="p">},</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 上线后看一周 429 比例调阈值：正常用户 429 率 &gt; 1% 说明太严，评论垃圾 &gt; 0 说明太松。我的 <code>comment 3/min</code> 就是从 10/min 收紧下来的 —— 10/min 时一晚上 40 条广告。
 <hr>
@@ -1125,6 +1157,7 @@ Django 日志里把 429 单独记（<code>settings.py</code>）：
     <span class="k">def</span><span class="w"> </span><span class="nf">retrieve</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
         <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 </code></pre></div>
+
 
 总压测（120 篇，SQLite，本地）：
 <div class="table-scroll"><table>
@@ -1234,7 +1267,6 @@ A：读多写少 + 三件套后，SQLite 撑几千日活没问题。写多（评
 觉得有用欢迎点赞 + 订阅，评论区聊聊你的 <code>max_page_size</code> 和 throttle 阈值是多少～
 </blockquote>
 
-同一条链路上还可以接着读：<a href="/article/cursor-pagination-deep-dive/">《为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页》</a>、<a href="/article/cache-consistency-deep-dive/">《先删缓存还是先删库？——缓存一致性实战》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/django-jwt-dual-token-auth/">登录态 1 小时就掉？Django + Vue 双 Token 认证实战</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li><a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li><li><a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去——Django 事务深水区</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同一条链路上还可以接着读：<a href="/article/cursor-pagination-deep-dive/">《为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页》</a>、<a href="/article/cache-consistency-deep-dive/">《先删缓存还是先删库？——缓存一致性实战》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/django-jwt-dual-token-auth/">登录态 1 小时就掉？Django + Vue 双 Token 认证实战</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li><a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li><li><a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去——Django 事务深水区</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -228,6 +228,7 @@
             <span class="n">left</span> <span class="o">+=</span> <span class="mi">1</span>
     <span class="k">return</span> <span class="n">grid</span>
 </code></pre></div>
+
 
 两个 <code>if</code> 守卫是全部难点所在。它们防的不是"越界"（<code>range</code> 自己会处理），而是<strong>重复写入</strong>：当剩余区域退化成一整行或一整整列时，第三条边和第一条边是同一批格子，第四条边和第二条边也是。
 
@@ -366,8 +367,10 @@
 <span class="mf">3</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="mf">5</span>
 </code></pre></div>
 
+
 <strong>它恰好是上面那个矩阵的转置。</strong> 这个关系在方阵下恒成立（我用 3×3 验证过），但<strong>非方阵不成立</strong> —— <code>2 x 3</code> 时前者是 <code>[[1,2,3],[6,5,4]]</code>、后者是 <code>[[1,6,5],[2,3,4]]</code>，完全不同的两个矩阵。所以"逆时针就是顺时针转个置"这个说法，只在方阵面试题里碰巧对。
 <div class="algo-viz algo-viz--spiralccw"></div>
+
 
 第二个动画就是「下、右、上、左」这一套，同一个状态机换了个方向顺序 —— 你可以直接对照两套动画，确认"口径"到底差在哪。
 <h2>五、进阶：撞墙变向法与真逆时针</h2>
@@ -388,6 +391,7 @@
         <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">=</span> <span class="n">nr</span><span class="p">,</span> <span class="n">nc</span>
     <span class="k">return</span> <span class="n">grid</span>
 </code></pre></div>
+
 
 换方向顺序只要改 <code>dirs</code> 一行 —— 这也是本文两个动画能共用一套状态机的原因。代价是 <code>seen</code> 数组：<strong>额外空间 O(M x N)</strong>，而四边界收缩法只要 O(1)。想省空间就用边界法，想要代码短、方向好换就用撞墙法。
 
@@ -416,6 +420,7 @@
 <span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">grid</span><span class="p">;</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 想换成真逆时针，把四个循环块按「下、右、上、左」重排即可，两个守卫的位置跟着一起换。撞墙变向的 Java 版就是把 <code>dirs</code> 写成 <code>int[][] dirs = {{1,0},{0,1},{-1,0},{0,-1}}</code> 再配一个 <code>boolean[][] seen</code>。
 <h2>七、边界情况</h2>
@@ -491,7 +496,6 @@
 
 螺旋填数是那种"代码十分钟、口径半小时"的题：算法本身简单到不值一提 —— 四边界收缩，<code>O(M x N)</code> 时间、<code>O(1)</code> 额外空间，而且 <code>O(M x N)</code> 有硬下界（输出就有 <code>M x N</code> 个数），没有优化余地。真正的知识点有两个：<strong>方向顺序的口径要先对齐</strong>（"右下上左"几何上是顺时针，却被大量面经叫作逆时针；方阵下"真逆时针"恰好是它的转置，非方阵不成立），以及<strong>两个守卫防的不是越界而是覆盖</strong>（只在单行/单列时触发，<code>1 x 3</code> 会输出 <code>[[5,4,3]]</code>）。这两点都是"不写就不会知道"的类型 —— 所以回归测试请直接钉 <code>1 x N</code> 和 <code>N x 1</code>。
 
-同族题延伸：<a href="/article/lc-189-rotate-array/">《【LC 189】轮转数组：三次翻转 —— 反转是自己的逆运算》</a>、<a href="/article/lc-56-merge-intervals/">《【LC 56】合并区间：排序把重叠压成只比当前》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/partition-variance-dp/">【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/">【数组】重复元素找第 10 大：答案能差一倍，差别全在口径</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/">【数组】重复元素找第 10 大：答案能差一倍，差别全在口径</a></li><li><a href="https://blog.zhoujun.dev/article/partition-variance-dp/">【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和</a></li><li><a href="https://blog.zhoujun.dev/article/nim-stone-games/">【博弈论】石子游戏：一行异或判定先手必胜</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1262-greatest-sum-divisible-by-three/">【LC 1262】可被三整除的最大和：贪心与滚动 dp</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同族题延伸：<a href="/article/lc-189-rotate-array/">《【LC 189】轮转数组：三次翻转 —— 反转是自己的逆运算》</a>、<a href="/article/lc-56-merge-intervals/">《【LC 56】合并区间：排序把重叠压成只比当前》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/partition-variance-dp/">【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/">【数组】重复元素找第 10 大：答案能差一倍，差别全在口径</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/">【数组】重复元素找第 10 大：答案能差一倍，差别全在口径</a></li><li><a href="https://blog.zhoujun.dev/article/partition-variance-dp/">【DP】序列切分使方差和最大：反直觉的地方，和一条 O(1) 的前缀和</a></li><li><a href="https://blog.zhoujun.dev/article/nim-stone-games/">【博弈论】石子游戏：一行异或判定先手必胜</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1262-greatest-sum-divisible-by-three/">【LC 1262】可被三整除的最大和：贪心与滚动 dp</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

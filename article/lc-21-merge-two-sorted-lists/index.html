@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -178,12 +178,14 @@
 输出：[1,1,2,3,4,4]
 </code></pre></div>
 
+
 链表节点的定义（和上一篇 LC 206 一致，后面所有代码都用它）：
 <div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">next</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
 </code></pre></div>
+
 
 注意题目里「<strong>拼接</strong>」两个字：不是让你 new 出一串新节点把值抄过去，而是<strong>把原来的节点重新串起来</strong>。值一个都不改，改的只有 <code>next</code> 指针的指向。
 
@@ -199,6 +201,7 @@
 链表不一样。链表的节点散落在堆里，唯一的组织方式是 <code>next</code> 指针。所以「把节点 X 放进结果链表」这件事，翻译成指针操作只有一句：
 <div class="codehilite"><pre><span></span><code><span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">X</span>    <span class="c1"># X 接到结果尾部</span>
 </code></pre></div>
+
 
 没有复制，没有搬移，就是<strong>改一根指针</strong>。这也是为什么链表版归并的空间复杂度能做到 O(1)——结果链表用的全是现成的节点。
 <h3>1.2 每一轮只做一件事：选一个人出场</h3>
@@ -223,6 +226,7 @@
 <span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">l1</span>          <span class="c1"># l1 接上结果链表</span>
 <span class="n">l1</span> <span class="o">=</span> <span class="n">l1</span><span class="o">.</span><span class="n">next</span>            <span class="c1"># 再往后走</span>
 </code></pre></div>
+
 
 这两行顺序<strong>是对的</strong>。但初学者常写成下面的变体：先让 <code>l1 = l1.next</code> 再接，或者接完之后忘了前移 <code>tail</code>，下一轮又往<strong>同一个</strong> <code>tail</code> 后面接——上一个节点直接被覆盖，从结果链表里消失了。后者不会报错、不会异常，只有在输出的时候你才发现结果只有一两个节点。
 
@@ -249,6 +253,7 @@
 <span class="k">return</span> <span class="n">head</span>
 </code></pre></div>
 
+
 数一下：4 个特判分支 + 一个和正式循环几乎重复的初始化逻辑。重复意味着两处要同步维护，而同步维护的代码迟早改挂一处。
 
 <strong>哑结点解决的就是这个</strong>。
@@ -260,6 +265,7 @@
 tail ——^                 ← tail 永远指向结果链表当前最后一个节点
 </code></pre></div>
 
+
 有了它，之后每接一个节点，都是「接在 <code>tail</code> 后面」这个<strong>普通操作</strong>——第一个接进来的节点，和第二十个接进来的节点，走的是<strong>完全相同的代码路径</strong>。不再有任何「它是不是第一个」的判断。
 
 最后返回的时候，真正的头是 <code>dummy.next</code>——dummy 自己只是个占位符，不进结果。
@@ -268,6 +274,7 @@ tail ——^                 ← tail 永远指向结果链表当前最后一个
 
 下面这段动画把 <code>1→2→4</code> 和 <code>1→3→4</code> 合并的<strong>完整 13 步</strong>演了一遍：绿色来自 A 链表，橙色来自 B 链表，虚线框是哑结点。注意看 <code>tail</code> 每一步怎么走、收尾那一歩「整段接上」长什么样。
 <div class="algo-viz algo-viz--lc21"></div>
+
 
 看完动画，你应该对三个画面有印象：<strong>compare 时两个候选节点同时高亮</strong>、<strong>take 时节点飞进结果行并且颜色暴露了它的出身</strong>、<strong>收尾时 B 剩下的那个 <code>4</code> 整段亮起来一次性接入</strong>。带着这三个画面，我们读代码。
 <hr>
@@ -287,6 +294,7 @@ tail ——^                 ← tail 永远指向结果链表当前最后一个
     <span class="n">tail</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">l1</span> <span class="k">if</span> <span class="n">l1</span> <span class="k">else</span> <span class="n">l2</span>     <span class="c1"># 一方走空，另一方整段接上</span>
     <span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>                <span class="c1"># dummy 是占位符，真正的头在它后面</span>
 </code></pre></div>
+
 
 8 行有效代码。每一行都在干什么，对着动画再过一遍：
 <ul>
@@ -396,6 +404,7 @@ tail ——^                 ← tail 永远指向结果链表当前最后一个
         <span class="k">return</span> <span class="n">l2</span>
 </code></pre></div>
 
+
 Java：
 <div class="codehilite"><pre><span></span><code><span class="kd">public</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="nf">mergeTwoLists</span><span class="p">(</span><span class="n">ListNode</span><span class="w"> </span><span class="n">l1</span><span class="p">,</span><span class="w"> </span><span class="n">ListNode</span><span class="w"> </span><span class="n">l2</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">l1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="kc">null</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">l2</span><span class="p">;</span>
@@ -428,6 +437,7 @@ Java：
           merge(∅, 4) → 返回 4      ← 触底
 </code></pre></div>
 
+
 回溯阶段（逐层把头接回去）：
 <div class="codehilite"><pre><span></span><code><span class="nv">merge</span><span class="ss">(</span>∅,<span class="w"> </span><span class="mi">4</span><span class="ss">)</span><span class="w">    </span>返回<span class="w"> </span><span class="mi">4</span>
 <span class="nv">merge</span><span class="ss">(</span><span class="mi">4</span>,<span class="w"> </span><span class="mi">4</span><span class="ss">)</span><span class="w">    </span><span class="mi">4</span>.<span class="k">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span><span class="w">   </span>返回<span class="w"> </span><span class="mi">4</span>→<span class="mi">4</span>
@@ -436,6 +446,7 @@ Java：
 <span class="nv">merge</span><span class="ss">(</span><span class="mi">24</span>,<span class="w"> </span><span class="mi">134</span><span class="ss">)</span><span class="w"> </span><span class="mi">1</span><span class="s1">&#39;.next = 2  返回 1&#39;</span>→<span class="mi">2</span>→<span class="mi">3</span>→<span class="mi">4</span>→<span class="mi">4</span>
 <span class="nv">merge</span><span class="ss">(</span><span class="mi">124</span>,<span class="mi">134</span><span class="ss">)</span><span class="w"> </span><span class="mi">1</span>.<span class="k">next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="s1">&#39;  返回 1→1&#39;</span>→<span class="mi">2</span>→<span class="mi">3</span>→<span class="mi">4</span>→<span class="mi">4</span>
 </code></pre></div>
+
 
 压到最深是 5 层，<strong>恰好等于节点总数</strong>。这不是巧合：每层递归消耗一个节点，递归深度 = m + n。
 <h3>5.4 递归的账单</h3>
@@ -492,6 +503,7 @@ Python 默认递归深度限制约 1000 层，两条各 600 节点的链表就�
     <span class="n">result</span> <span class="o">=</span> <span class="n">mergeTwoLists</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">lst</span><span class="p">)</span>
 </code></pre></div>
 
+
 对，但慢。第 i 轮合并时，<code>result</code> 已经长到约 <code>i·N</code> 个节点（K 条各长 N），每轮都是 O(iN)，总时间 <strong>O(k²N)</strong>。瓶颈在于：早期接进 result 的节点，会被后面每一轮<strong>反复摸一遍</strong>。
 <h3>7.2 分治：两两配对，轮数从 k 变成 log k</h3>
 
@@ -518,6 +530,7 @@ Python 默认递归深度限制约 1000 层，两条各 600 节点的链表就�
             <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">val</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">next</span><span class="p">))</span>
     <span class="k">return</span> <span class="n">dummy</span><span class="o">.</span><span class="n">next</span>
 </code></pre></div>
+
 
 时间 O(N log k)——每个节点进出堆各一次，堆里始终只有 K 个元素；空间 O(k)。
 
@@ -564,7 +577,6 @@ Python 默认递归深度限制约 1000 层，两条各 600 节点的链表就�
 
 下一篇大概率是 LC 148——把这两题拼起来，你就有了一个 O(1) 空间的链表归并排序。刷题这条线，到那里才算真正串成串。
 
-同族题延伸：<a href="/article/lc-23-merge-k-sorted-lists/">《【LC 23】合并 K 个升序链表：堆里到底该放几个节点》</a>、<a href="/article/lc-206-reverse-linked-list/">《【LC 206】反转链表：指针一改就断链，问题到底出在哪》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-206-reverse-linked-list/">【LC 206】反转链表：指针一改就断链，问题到底出在哪</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-23-merge-k-sorted-lists/">【LC 23】合并 K 个升序链表：堆里到底该放几个节点</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">【LC 146】LRU 缓存：手写哈希表与双向链表</a></li><li><a href="https://blog.zhoujun.dev/article/lc-82-remove-duplicates-from-sorted-list-ii/">【LC 82】删除重复元素 II：为什么必须有 dummy</a></li><li><a href="https://blog.zhoujun.dev/article/lc-160-intersection-of-two-linked-lists/">【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了</a></li><li><a href="https://blog.zhoujun.dev/article/lc-234-palindrome-linked-list/">【LC 234】回文链表：翻后半段，比是否相同</a></li><li><a href="https://blog.zhoujun.dev/article/lc-143-reorder-list/">【LC 143】重排链表：一题拆三题，中间那道刷过</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同族题延伸：<a href="/article/lc-23-merge-k-sorted-lists/">《【LC 23】合并 K 个升序链表：堆里到底该放几个节点》</a>、<a href="/article/lc-206-reverse-linked-list/">《【LC 206】反转链表：指针一改就断链，问题到底出在哪》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-206-reverse-linked-list/">【LC 206】反转链表：指针一改就断链，问题到底出在哪</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-23-merge-k-sorted-lists/">【LC 23】合并 K 个升序链表：堆里到底该放几个节点</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">【LC 146】LRU 缓存：手写哈希表与双向链表</a></li><li><a href="https://blog.zhoujun.dev/article/lc-82-remove-duplicates-from-sorted-list-ii/">【LC 82】删除重复元素 II：为什么必须有 dummy</a></li><li><a href="https://blog.zhoujun.dev/article/lc-160-intersection-of-two-linked-lists/">【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了</a></li><li><a href="https://blog.zhoujun.dev/article/lc-234-palindrome-linked-list/">【LC 234】回文链表：翻后半段，比是否相同</a></li><li><a href="https://blog.zhoujun.dev/article/lc-143-reorder-list/">【LC 143】重排链表：一题拆三题，中间那道刷过</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

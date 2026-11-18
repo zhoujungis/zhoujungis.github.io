@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -244,6 +244,7 @@ S3 兼容接口提供两种签名方式，语义不同，不能混用。
 <span class="p">)</span>
 </code></pre></div>
 
+
 生成的 URL 里会带 <code>X-Amz-Algorithm</code>、<code>X-Amz-Credential</code>、<code>X-Amz-Date</code>、<code>X-Amz-Expires</code>、<code>X-Amz-SignedHeaders</code> 和 <code>X-Amz-Signature</code>。<code>X-Amz-Expires</code> 的上限按 S3 API docs 是 604800 秒，也就是七天，但生产里没人会用七天：票的有效期越长，泄漏后的窗口越长。上传票给五到十五分钟就够，客户端拿到后应当立刻开始传。
 
 预签名 PUT 有一个容易忽略的边界：签名只覆盖 <code>X-Amz-SignedHeaders</code> 里列出的头。<code>Content-Type</code> 如果不进签名，客户端可以把它改成 <code>text/html</code>，对象存储照样接受。想把类型锁死，就要把 <code>ContentType</code> 放进 <code>Params</code>，让它进入签名头；服务端在完成回调里还要再查一次对象的实际类型，不能只信客户端。
@@ -262,6 +263,7 @@ S3 兼容接口提供两种签名方式，语义不同，不能混用。
 <span class="p">)</span>
 </code></pre></div>
 
+
 POST 的优势在于条件由对象存储强制执行。<code>content-length-range</code> 能在服务端拦掉超大文件，<code>starts-with</code> 能把 key 锁在用户自己的前缀里，客户端改表单字段会直接得到 403。PUT 没有 policy 这一层，大小限制只能在签名前根据声明的 <code>Content-Length</code> 判断，或者在完成后用 <code>HeadObject</code> 复核；前者可被伪造，后者是事后补救。
 
 浏览器直传绕不过 CORS。对象存储默认不允许跨域 PUT，预检请求会失败，控制台里看到的往往只是一句含糊的「CORS error」。桶的 CORS 配置至少要放行来源、方法和必要请求头：
@@ -276,11 +278,13 @@ POST 的优势在于条件由对象存储强制执行。<code>content-length-ran
 <span class="p">]</span>
 </code></pre></div>
 
+
 <code>AllowedHeaders</code> 里的 <code>x-amz-*</code> 是给分片上传用的，缺了它，带校验头的 <code>UploadPart</code> 会在预检阶段被拒。<code>ExposeHeaders</code> 里的 <code>ETag</code> 也必须显式暴露，否则浏览器读不到响应头，分片上传拿不到每个分片的 ETag，后续 <code>Complete</code> 无从拼装。
 
 key 的设计比签名更值得花时间。原则是：<strong>永远不要用用户提供的文件名直接做 key</strong>。原始文件名里可能带 <code>../</code>、反斜杠、控制字符、超长 Unicode、双向文本控制符；即使对象存储的 key 是扁平字符串，这些字符也会在 CDN 回源、本地缓存、日志和下载头里制造麻烦。可用的结构是：
 <div class="codehilite"><pre><span></span><code>raw/{user_id}/{yyyy}/{mm}/{uuid4}/{sanitized_name}
 </code></pre></div>
+
 
 <code>user_id</code> 用来做租户隔离和配额统计，年月用来做生命周期扫描的前缀，<code>uuid4</code> 保证不可猜测，<code>sanitized_name</code> 只保留白名单字符，并且长度截断。原始文件名放进对象 metadata 或数据库，展示时再做转义，不要参与路径。
 
@@ -324,6 +328,7 @@ key 里也不建议放邮箱、手机号、身份证号这类信息。对象存�
 <span class="p">)</span>
 </code></pre></div>
 
+
 断点续传靠的是 <code>ListParts</code>。客户端断线后重新进来，先按 <code>UploadId</code> 拉取已经传完的分片列表，拿到每个分片的号、大小和 ETag，再和本地的分片计划对比，只补缺失的号。同一个分片号重复上传是覆盖语义，不会产生两份数据，所以「不确定上次是否成功」时，重传那一片是安全的。
 
 这里有一个必须提前想清楚的状态问题：<code>UploadId</code> 存在哪里。浏览器刷新会丢内存，所以会话要落库，客户端只保存一个业务侧的 <code>session_id</code>。服务端的表至少要有这些列：
@@ -349,6 +354,7 @@ key 里也不建议放邮箱、手机号、身份证号这类信息。对象存�
 <span class="p">);</span>
 </code></pre></div>
 
+
 <code>status</code> 用一个明确的状态机：<code>uploading</code>、<code>completing</code>、<code>completed</code>、<code>aborted</code>。没有这个状态机，重试的 <code>Complete</code> 和用户的取消会互相打架。
 
 分片上传还有一个隐形成本：未完成的上传会一直占着已上传的分片空间，按对象存储的计费规则照常收存储费。用户传了一半就走人，这些分片不会自动消失。两道清理必须都做：用户主动取消时调用 <code>AbortMultipartUpload</code>；桶上配置生命周期规则 <code>AbortIncompleteMultipartUpload</code>，按 <code>DaysAfterInitiation</code> 在若干天后自动清掉。只做前者，一定会留下孤儿；只做后者，取消后的空间要等好几天才释放。
@@ -365,6 +371,7 @@ key 里也不建议放邮箱、手机号、身份证号这类信息。对象存�
 吞吐的估算可以写成：
 <div class="codehilite"><pre><span></span><code>总吞吐 ≈ min(客户端上行, 单连接可达吞吐 × 并发数, 对象存储侧限额)
 </code></pre></div>
+
 
 并发不是越大越好。连接数上去以后，单连接能分到的带宽反而下降，重试和限流也会增加。三到六路并发是常见起点，再高要用真实网络验证，不能只看机房内的压测。
 
@@ -396,12 +403,14 @@ key 里也不建议放邮箱、手机号、身份证号这类信息。对象存�
     <span class="k">return</span> <span class="n">digest</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
 </code></pre></div>
 
+
 上传完成后，客户端把 <code>sha256</code> 和 <code>size</code> 交给服务端。服务端不信任这个值，而是用 <code>HeadObject</code> 读对象存储记录的 <code>ContentLength</code> 和校验和：大小必须与声明一致；如果上传时带了 SHA-256 校验和，直接比对；如果没带，对高价值文件做一次服务端回读计算，普通文件则至少校验大小和可读性。
 <div class="codehilite"><pre><span></span><code><span class="n">head</span> <span class="o">=</span> <span class="n">s3</span><span class="o">.</span><span class="n">head_object</span><span class="p">(</span><span class="n">Bucket</span><span class="o">=</span><span class="s2">&quot;blog-uploads&quot;</span><span class="p">,</span> <span class="n">Key</span><span class="o">=</span><span class="n">key</span><span class="p">)</span>
 <span class="k">assert</span> <span class="n">head</span><span class="p">[</span><span class="s2">&quot;ContentLength&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">declared_size</span>
 <span class="k">if</span> <span class="n">head</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;ChecksumSHA256&quot;</span><span class="p">):</span>
     <span class="k">assert</span> <span class="n">head</span><span class="p">[</span><span class="s2">&quot;ChecksumSHA256&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="n">declared_sha256_base64</span>
 </code></pre></div>
+
 
 校验失败时的处理顺序也要定死：先把会话标成 <code>failed</code>，再删除已经写入的对象，保留失败原因和已上传分片信息供重试，最后告警。不要「先落库再校验」，否则数据库里会出现指向坏对象的记录；也不要「校验失败就静默重试三次」，坏文件往往不是偶发网络问题，重试只会放大存储成本。
 <h2>安全：文件名、magic bytes、压缩炸弹与 SSRF</h2>
@@ -417,6 +426,7 @@ key 里也不建议放邮箱、手机号、身份证号这类信息。对象存�
 <span class="k">if</span> <span class="n">mime</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;image/jpeg&quot;</span><span class="p">,</span> <span class="s2">&quot;image/png&quot;</span><span class="p">,</span> <span class="s2">&quot;application/pdf&quot;</span><span class="p">,</span> <span class="s2">&quot;application/zip&quot;</span><span class="p">}:</span>
     <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;unsupported content type&quot;</span><span class="p">)</span>
 </code></pre></div>
+
 
 <code>python-magic</code> 依赖 libmagic，容器里要装系统库；它对 polyglot 文件也不是万能的，所以高风控场景还要结合解析器实际打开一次。
 
@@ -471,12 +481,14 @@ CDN 场景还有两个细节。第一，私有内容的缓存键必须包含签�
     <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;raw/u_</span><span class="si">{</span><span class="n">instance</span><span class="o">.</span><span class="n">owner_id</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">timezone</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="si">:</span><span class="s2">%Y/%m</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="si">}{</span><span class="n">ext</span><span class="si">}</span><span class="s2">&quot;</span>
 </code></pre></div>
 
+
 真正落盘时，唯一不能做的事是先 <code>read()</code> 再写。正确姿势是按块消费：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">save_stream</span><span class="p">(</span><span class="n">uploaded</span><span class="p">,</span> <span class="n">dest_path</span><span class="p">,</span> <span class="n">chunk_size</span><span class="o">=</span><span class="mi">64</span> <span class="o">*</span> <span class="mi">1024</span><span class="p">):</span>
     <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">dest_path</span><span class="p">,</span> <span class="s2">&quot;xb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">out</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">uploaded</span><span class="o">.</span><span class="n">chunks</span><span class="p">(</span><span class="n">chunk_size</span><span class="p">):</span>
             <span class="n">out</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span>
 </code></pre></div>
+
 
 <code>chunks()</code> 对 <code>TemporaryUploadedFile</code> 是从磁盘读，对 <code>InMemoryUploadedFile</code> 是从内存切；无论哪种，都不会一次性构造完整副本。写完以后用 <code>os.fsync</code> 或依赖文件系统的持久化语义，再做大小校验。如果进程在中途被杀，临时文件可能残留，启动时的清理任务要按修改时间清掉超过一定时长的临时文件。
 <h2>断点续传协议与幂等：tus、S3 multipart、客户端重试</h2>
@@ -513,6 +525,7 @@ tus 的价值在于语义统一：创建、查询、追加、终止（<code>DELE
 月请求费 ≈ 上传请求数 + 分片请求数 + 完成请求数 + 下载请求数
 月流量费 ≈ 下载字节数 × 出口单价
 </code></pre></div>
+
 
 分片请求数近似为 <code>ceil(S/P) + 2</code>（创建和完成各一次）。把分片大小从 8 MiB 调到 64 MiB，1 GB 文件的请求数从 130 降到 18，但单次失败的重传成本从 8 MiB 升到 64 MiB。这个取舍要按网络质量做，不是单纯追求请求数最少。
 
@@ -578,7 +591,6 @@ tus 的价值在于语义统一：创建、查询、追加、终止（<code>DELE
 <li><a href="/article/django-bleach-xss-defense/">Django XSS 防御：bleach 白名单与渲染层转义</a></li>
 <li><a href="/article/api-idempotency-deep-dive/">接口幂等：重复请求为什么必须被设计掉</a></li>
 <li><a href="/article/django-pythonanywhere-deploy/">如何将 Django 后端部署到 PythonAnywhere</a></li>
-</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/">指标与链路追踪：从 RED 到 OpenTelemetry</a></li><li><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a></li><li><a href="https://blog.zhoujun.dev/article/api-versioning-deep-dive/">API 还在用 /v1、/v2？——接口版本管理的演进与实战策略</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/">指标与链路追踪：从 RED 到 OpenTelemetry</a></li><li><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a></li><li><a href="https://blog.zhoujun.dev/article/api-versioning-deep-dive/">API 还在用 /v1、/v2？——接口版本管理的演进与实战策略</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

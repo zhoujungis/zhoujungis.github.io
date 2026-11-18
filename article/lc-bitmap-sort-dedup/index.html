@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -185,11 +185,13 @@
 <div class="codehilite"><pre><span></span><code><span class="mf">10</span><span class="o">^</span><span class="mf">9</span><span class="w"> </span><span class="err">×</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="n">字节</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="n">GB</span>
 </code></pre></div>
 
+
 一般的机器直接出局。换 <code>HashSet</code>？每个元素要装装箱后的对象、引用和哈希节点，一个元素几十字节，10 亿个就是<strong>几十 GB</strong>，比原数组还夸张。
 
 但注意一件事：<strong>这些整数的值域是有界的</strong>。如果值域是 <code>0 ~ 10^9 - 1</code>，那一共只有 10^9 种可能的取值 —— 给每种取值发一个「来过 / 没来」的记号，只需要：
 <div class="codehilite"><pre><span></span><code><span class="mf">10</span><span class="o">^</span><span class="mf">9</span><span class="w"> </span><span class="n">bit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">10</span><span class="o">^</span><span class="mf">9</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">8</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">125</span><span class="p">,</span><span class="mf">000</span><span class="p">,</span><span class="mf">000</span><span class="w"> </span><span class="n">字节</span><span class="w"> </span><span class="err">≈</span><span class="w"> </span><span class="mf">119</span><span class="w"> </span><span class="n">MiB</span>
 </code></pre></div>
+
 
 119 MiB，1 GB 的内存限制轻轻松松装下，还顺带解决了去重和排序：
 <ul>
@@ -221,10 +223,12 @@
         <span class="k">return</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">size</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">v</span><span class="p">)]</span>
 </code></pre></div>
 
+
 三步走：<strong>置位</strong>（<code>|=</code>）、<strong>判重</strong>（看一眼 bit 是 0 还是 1）、<strong>扫描</strong>（下标顺序就是值顺序）。整道题的主体就这三行。
 
 用一组小数据走一遍 —— <code>[37, 12, 37, 5, 63, 42]</code>，值域 <code>0 ~ 63</code>（刚好两个字）：
 <div class="algo-viz algo-viz--bitmap"></div>
+
 
 注意第二个 37：<code>locate</code> 帧算出它落在字 1 第 5 位，那一位已经是 1 —— 直接跳过，<strong>去重就这样发生了，没有比较、没有哈希、没有额外空间</strong>。
 <h2>三、动画怎么看</h2>
@@ -347,6 +351,7 @@
 <div class="codehilite"><pre><span></span><code><span class="mf">00</span><span class="w"> </span><span class="n">未出现</span><span class="w">  </span><span class="err">→</span><span class="w">  </span><span class="mf">01</span><span class="w"> </span><span class="n">出现一次</span><span class="w">  </span><span class="err">→</span><span class="w">  </span><span class="mf">10</span><span class="w"> </span><span class="n">出现多次</span><span class="w">  </span><span class="err">→</span><span class="w">  </span><span class="err">（</span><span class="mf">11</span><span class="w"> </span><span class="n">保留态</span><span class="err">）</span>
 </code></pre></div>
 
+
 转移表：
 <div class="table-scroll"><table>
 <thead>
@@ -390,6 +395,7 @@
     <span class="c1"># cur == 0b10：已经是多次，什么都不做</span>
 </code></pre></div>
 
+
 为什么不是「00/01/10/11 分别表示出现 0/1/2/3 次」？那样第 4 次就溢出了，而这道题只需要区分「一次」和「多次」两档 —— <strong>10 就是多次的垃圾桶</strong>，来多少都接得住。
 
 空间代价是 1-bit 位图的两倍：int32 全域 2-bit 位图 1 GiB。换来的是一次扫描同时输出三个集合：
@@ -404,6 +410,7 @@
 <span class="n">查存</span><span class="err">：</span><span class="p">(</span><span class="n">words</span><span class="o">[</span><span class="n">word</span><span class="o">]</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="nc">bit</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span>
 <span class="n">清位</span><span class="err">：</span><span class="n">words</span><span class="o">[</span><span class="n">word</span><span class="o">]</span><span class="w"> </span><span class="o">&amp;=</span><span class="w"> </span><span class="o">~</span><span class="p">(</span><span class="mi">1</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="nc">bit</span><span class="p">)</span><span class="w">      </span><span class="err">←</span><span class="w"> </span><span class="n">波浪号不能丢</span>
 </code></pre></div>
+
 
 以 37 为例：<code>37 &gt;&gt; 5 = 1</code>（在字 1），<code>37 &amp; 31 = 5</code>（字内第 5 位）—— 因为 <code>37 = 1 × 32 + 5</code>。字内 32 个 bit 互不干扰，<code>|=</code> 只翻本位，这是整套操作安全性的根基。
 
@@ -475,10 +482,12 @@
 <div class="codehilite"><pre><span></span><code><span class="n">words</span><span class="p">[</span><span class="n">v</span> <span class="o">&gt;&gt;</span> <span class="mi">5</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="p">(</span><span class="n">v</span> <span class="o">&amp;</span> <span class="mi">31</span><span class="p">)</span>    <span class="c1"># 错，应为 |=</span>
 </code></pre></div>
 
+
 赋值把<strong>整个字</strong>冲掉，同字其他位置的全部清零。反例 <code>[0, 5]</code>：先置 0，再置 5，0 被冲掉 —— 输出只剩 <code>[5]</code>。这类 bug 在稀疏数据上要漏掉一大片。
 <h3>9.2 清位忘写波浪号</h3>
 <div class="codehilite"><pre><span></span><code><span class="n">words</span><span class="p">[</span><span class="n">w</span><span class="p">]</span> <span class="o">&amp;=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="n">b</span><span class="p">)</span>    <span class="c1"># 错，应为 &amp;= ~(1 &lt;&lt; b)</span>
 </code></pre></div>
+
 
 <code>&amp;</code> 之后整个字只剩本位，同字其他位被误伤。反例：字里已有 0 和 5，清 5 会把 0 一起清掉。<strong><code>~</code> 一丢，清位变屠版。</strong>
 <h3>9.3 负数不减 min</h3>
@@ -507,7 +516,6 @@
 
 这套题的完整状态机、渲染层和 26 个单测（含与 <code>set</code> / <code>Counter</code> 参考解各 3000 组随机对拍）都在仓库里，动画对应文章里的两个占位符。
 
-同族题延伸：<a href="/article/lc-347-top-k-frequent-elements/">《【LC 347】前 K 个高频元素：频率是天然的桶下标》</a>、<a href="/article/lc-215-kth-largest-element/">《【LC 215】第 K 个最大元素：快速选择只答排名》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-lcs-one-mismatch/">【动态规划】允许一个错的最长公共连续子串：额度只能从干净的 f 接</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-lcs-one-mismatch/">【动态规划】允许一个错的最长公共连续子串：额度只能从干净的 f 接</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/lc-61-poker-straight/">【扑克】5 张牌判断顺子：王只补缺失，补不了重复</a></li><li><a href="https://blog.zhoujun.dev/article/lc-233-number-of-digit-one/">【数学】1~n 中数字 1 的个数：逐位拆解，O(log n) 的账本算法</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同族题延伸：<a href="/article/lc-347-top-k-frequent-elements/">《【LC 347】前 K 个高频元素：频率是天然的桶下标》</a>、<a href="/article/lc-215-kth-largest-element/">《【LC 215】第 K 个最大元素：快速选择只答排名》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-lcs-one-mismatch/">【动态规划】允许一个错的最长公共连续子串：额度只能从干净的 f 接</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-lcs-one-mismatch/">【动态规划】允许一个错的最长公共连续子串：额度只能从干净的 f 接</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/lc-61-poker-straight/">【扑克】5 张牌判断顺子：王只补缺失，补不了重复</a></li><li><a href="https://blog.zhoujun.dev/article/lc-233-number-of-digit-one/">【数学】1~n 中数字 1 的个数：逐位拆解，O(log n) 的账本算法</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

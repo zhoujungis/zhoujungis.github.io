@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -173,6 +173,7 @@
 输出: -1
 </code></pre></div>
 
+
 <strong>LC 69 x 的平方根</strong>：给定一个非负整数 <code>x</code>，计算并返回 <code>x</code> 的<strong>算术平方根</strong>，结果<strong>只保留整数部分</strong>（即向下取整，<code>⌊√x⌋</code>）。可用二分或牛顿法。
 <div class="codehilite"><pre><span></span><code>输入: x = 8
 输出: 2   （√8 ≈ 2.828，小数部分舍去）
@@ -180,6 +181,7 @@
 输入: x = 16
 输出: 4
 </code></pre></div>
+
 
 两道题是二分查找的"课内与课外"：704 是<strong>标准形态</strong> —— 在真实数组里找特定值；69 是<strong>毕业形态</strong> —— 数组根本不存在，"有序数组"是你自己构造的整数区间，要找的也不是某个值，而是一条<strong>谓词边界</strong>。把 69 写对，说明二分真的学会了。
 <ul>
@@ -230,6 +232,7 @@
     <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
 </code></pre></div>
 
+
 八行代码，三个细节全是考点。记住：<strong>你不是在"折半查找"，你是在"每轮扔掉一半嫌疑、且绝不误伤嫌疑人"</strong>。
 <h2>二、LC 69 核心洞察：答案不在数组里，在谓词的边界上</h2>
 
@@ -244,6 +247,7 @@
 P(k):   T    T    T    F    F   ...   F     （x=8 时：T T T F F ... F）
 </code></pre></div>
 
+
 "算术平方根的整数部分"是什么？就是<strong>最后一个 <code>true</code> 的下标</strong>。于是 704 的模板一步不改地搬过来 —— 把 <code>nums[mid]</code> 换成 <code>P(mid)</code>：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">mySqrt</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
     <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">,</span> <span class="n">ans</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="mi">0</span>
@@ -256,6 +260,7 @@ P(k):   T    T    T    F    F   ...   F     （x=8 时：T T T F F ... F）
             <span class="n">hi</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">-</span> <span class="mi">1</span>
     <span class="k">return</span> <span class="n">ans</span>
 </code></pre></div>
+
 
 和 704 的<strong>唯一动作之差</strong>，正是"找特定值"与"找边界"的分岔口：
 <div class="table-scroll"><table>
@@ -299,11 +304,13 @@ P(k):   T    T    T    F    F   ...   F     （x=8 时：T T T F F ... F）
     <span class="k">return</span> <span class="n">k</span>
 </code></pre></div>
 
+
 <code>x = 8</code>：<code>8 → 4 → 3 → 2</code>，三步到位。牛顿法是<strong>二次收敛</strong> —— 每迭代一次有效位数翻倍，从 <code>x ≈ 2³¹</code> 出发五六步就到底，理论更快；但面试写它的人不到一成，且"为什么整除版收敛到的是 <code>⌊√x⌋</code> 而不是 <code>⌈√x⌉</code>"需要额外论证。二分版胜在每一步都走在第一节的模板上，<strong>写不错</strong>。
 <h2>三、动画怎么看</h2>
 <div class="algo-viz algo-viz--lc704"></div>
 
 <div class="algo-viz algo-viz--lc69"></div>
+
 
 <strong>704 动画</strong>（<code>algo-viz--lc704</code>）：顶部是有序数组格子行 —— 窗口 <code>[left, right]</code> 内正常、窗口外整段变灰（被排除的嫌疑区）、<code>mid</code> 金框，<code>mid</code> 指针在上方、<code>left</code>/<code>right</code> 指针在下方；中部是比较横幅（<code>nums[mid] ? target → 边界怎么动、排除几个</code>）；底部面板实时显示区间大小与<strong>累计排除数</strong> —— 看着"已排除"一帧砍一半，<code>O(log n)</code> 就不再是口号。默认 12 个元素找 <code>31</code>：4 探命中下标 9。
 
@@ -485,6 +492,7 @@ P(k):   T    T    T    F    F   ...   F     （x=8 时：T T T F F ... F）
 <span class="p">}</span>
 </code></pre></div>
 
+
 不想升 <code>long</code> 就把乘法改除法：<code>mid &lt;= x / mid</code>（整数除法下与 <code>mid² &lt;= x</code> 等价）—— 但记得 <code>mid == 0</code> 时 <code>x / mid</code> 除零，需先 <code>if (x &lt; 2) return x;</code> 再令 <code>lo = 1</code>。
 <h2>七、边界情况</h2>
 
@@ -559,7 +567,6 @@ P(k):   T    T    T    F    F   ...   F     （x=8 时：T T T F F ... F）
 
 同族题延伸：<a href="/article/lc-33-153-rotated-binary-search/">《【LC 33/153】旋转排序数组：同一断崖，比法相反》</a>、<a href="/article/lc-215-kth-largest-element/">《【LC 215】第 K 个最大元素：快速选择只答排名》</a>。
 
-下一篇见。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-224-772-basic-calculator/">【LC 224/772】基本计算器：一个来一个结，一个等优先级</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-300-longest-increasing-subsequence/">【LC 300】最长递增子序列：加锚，再压到 O(n log n)</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/lc-61-poker-straight/">【扑克】5 张牌判断顺子：王只补缺失，补不了重复</a></li><li><a href="https://blog.zhoujun.dev/article/lc-233-number-of-digit-one/">【数学】1~n 中数字 1 的个数：逐位拆解，O(log n) 的账本算法</a></li><li><a href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/">【数组】重复元素找第 10 大：答案能差一倍，差别全在口径</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+下一篇见。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-224-772-basic-calculator/">【LC 224/772】基本计算器：一个来一个结，一个等优先级</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-300-longest-increasing-subsequence/">【LC 300】最长递增子序列：加锚，再压到 O(n log n)</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/lc-61-poker-straight/">【扑克】5 张牌判断顺子：王只补缺失，补不了重复</a></li><li><a href="https://blog.zhoujun.dev/article/lc-233-number-of-digit-one/">【数学】1~n 中数字 1 的个数：逐位拆解，O(log n) 的账本算法</a></li><li><a href="https://blog.zhoujun.dev/article/kth-largest-with-duplicates/">【数组】重复元素找第 10 大：答案能差一倍，差别全在口径</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

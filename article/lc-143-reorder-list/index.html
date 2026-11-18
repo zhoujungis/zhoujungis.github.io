@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -179,12 +179,14 @@
 输出：[1,4,2,3]
 </code></pre></div>
 
+
 链表节点的定义（后面所有代码都用它）：
 <div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ListNode</span><span class="p">:</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="nb">next</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">val</span> <span class="o">=</span> <span class="n">val</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="nb">next</span>
 </code></pre></div>
+
 
 这道题在拼多多 2025 后端面经和美团测开岗都出现过，出现频率比它「中等」的标签暗示的要高。原因很实在：<strong>它是链表三件套的合成题</strong>——面试官用它一次能问出你会不会快慢指针、会不会反转、会不会合并，还能顺带看你有没有「先拆后做」的习惯。
 
@@ -199,11 +201,13 @@
               ↑ 从尾巴上拽下来，插进前半段的缝里
 </code></pre></div>
 
+
 规律很直白：<strong>前半段顺序不变，后半段被倒过来，然后一个一个插进前半段的缝隙里。</strong>
 <div class="codehilite"><pre><span></span><code>前半段：1 → 2
 后半段：3 → 4      倒过来 →  4 → 3
 交替插入：1 → 4 → 2 → 3
 </code></pre></div>
+
 
 再验证奇数长度 <code>[1,2,3,4,5]</code>：前半 <code>1 → 2 → 3</code>，后半 <code>4 → 5</code> 倒过来 <code>5 → 4</code>，交替插入 → <code>1 → 5 → 2 → 4 → 3</code>。中间那个 <code>3</code> 留在前半段末尾，不动。
 <h3>1.2 为什么「改值」不算数</h3>
@@ -268,6 +272,7 @@
     <span class="n">fast</span> <span class="o">=</span> <span class="n">fast</span><span class="o">.</span><span class="n">next</span><span class="o">.</span><span class="n">next</span>
 </code></pre></div>
 
+
 <code>fast</code> 起步比 <code>slow</code> 多一格，配合 <code>while fast and fast.next</code> 这个条件，能让 <strong><code>slow</code> 停在「前半段的最后一个节点」上</strong>——这是我们要的位置，因为接下来要从它后面断开。
 <ul>
 <li>长度 4：<code>slow</code> 停在 <code>2</code>，前半 <code>1 → 2</code>，后半 <code>3 → 4</code>；</li>
@@ -280,6 +285,7 @@
 <span class="n">slow</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="kc">None</span>        <span class="c1"># ← 断开！少这一行就会成环</span>
 </code></pre></div>
 
+
 <strong>这一行是整个算法里最不起眼、但最要命的一行。</strong> 它把一条链彻底切成了两条互不相干的链。少了它，前半段的尾巴还搭在后半段上，第 ③ 步合并时会把两个指针绕成一个环，链表从此走不到头。
 
 断完之后，反转后半段：
@@ -291,6 +297,7 @@
     <span class="n">curr</span> <span class="o">=</span> <span class="n">nxt</span>
 </code></pre></div>
 
+
 和 LC 206 逐字一样，只是起点从 <code>head</code> 换成了 <code>second</code>，终点从「走到 <code>None</code>」还是「走到 <code>None</code>」。反转完，<code>prev</code> 站在新的段头（原来的尾节点）上。
 <h3>2.3 第 ③ 步：交替合并</h3>
 <div class="codehilite"><pre><span></span><code><span class="n">first</span><span class="p">,</span> <span class="n">second</span> <span class="o">=</span> <span class="n">head</span><span class="p">,</span> <span class="n">prev</span>
@@ -300,6 +307,7 @@
     <span class="n">second</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">t1</span>                   <span class="c1"># 后半这个 → 前半的下家</span>
     <span class="n">first</span><span class="p">,</span> <span class="n">second</span> <span class="o">=</span> <span class="n">t1</span><span class="p">,</span> <span class="n">t2</span>             <span class="c1"># 两个指针各自往前</span>
 </code></pre></div>
+
 
 每一轮做两件事：把后半段的一个节点插进来，再把它接回前半段的下一个节点。<strong>循环条件写 <code>while second</code> 就够了</strong>——后半段不会比前半段长，它用完了就结束，剩下的前半段尾巴自然带着。
 
@@ -314,6 +322,7 @@
 <li><strong>交替合并</strong>：后半段的节点一个一个「跳」回上行，插进前半段的缝隙里，指针跟着重连。</li>
 </ul>
 <div class="algo-viz algo-viz--lc143"></div>
+
 
 看完动画可以数一下指针移动次数：<code>fast</code> 走 <code>⌊L/2⌋</code> 次大步，<code>slow</code> 走同样次数的小步，反转后半段 <code>L/2</code> 个节点，合并再改 <code>L</code> 次 <code>next</code>。<strong>每个节点在整个流程里被访问的次数是常数</strong>——这就是 O(L) 的来源。
 <hr>
@@ -347,6 +356,7 @@
         <span class="n">second</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">t1</span>
         <span class="n">first</span><span class="p">,</span> <span class="n">second</span> <span class="o">=</span> <span class="n">t1</span><span class="p">,</span> <span class="n">t2</span>
 </code></pre></div>
+
 
 <strong>开头那个 <code>if not head or not head.next</code> 要不要写？</strong> 建议写。长度为 1 时后面三步虽然不会崩（<code>slow</code> 和 <code>fast</code> 都停在唯一节点上，后半段为空，合并循环不进），但显式返回能让意图清楚，也让长度为 0 的输入不至于在 <code>slow.next</code> 上炸掉。面试时说一句「长度 0 和 1 直接返回」，比让它隐式跑通更稳。
 <h3>4.2 完整推演表</h3>
@@ -457,6 +467,7 @@
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 注意 Java 版返回值是 <code>void</code>——题目只要求就地重排，不返回新头节点（头节点始终是原来的 <code>head</code>）。这一点和 LC 206 不一样，<strong>别顺手 <code>return head</code></strong>。
 <hr>
@@ -577,6 +588,7 @@
 <span class="n">first</span><span class="o">.</span><span class="n">next</span> <span class="o">=</span> <span class="n">second</span>   <span class="c1"># 但 t1 已经在上一行被用过，语义变了</span>
 </code></pre></div>
 
+
 必须先把两条链的「下家」都存进 <code>t1/t2</code>，再改指针。这也是为什么代码里 <code>t1, t2 = first.next, second.next</code> 一定要写在最前面——<strong>改指针之前先把路记住</strong>，和反转链表里那个 <code>nxt = curr.next</code> 是同一个道理。
 
 <strong>6. 以为要返回新头节点</strong>
@@ -645,7 +657,6 @@
 本文的推演动画是页面里的交互组件，可以单步回放。想自己验证的话，拿纸画四个格子，按「切两半 → 后半倒过来 → 一个隔一个插」走一遍——<strong>在纸上推一遍，胜过看十遍代码。</strong>
 </blockquote>
 
-同族题延伸：<a href="/article/lc-206-reverse-linked-list/">《【LC 206】反转链表：指针一改就断链，问题到底出在哪》</a>、<a href="/article/lc-141-142-linked-list-cycle/">《【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-19-remove-nth-from-end/">【LC 19】删除链表倒数第 N 个：快指针先出发</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-234-palindrome-linked-list/">【LC 234】回文链表：翻后半段，比是否相同</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">【LC 146】LRU 缓存：手写哈希表与双向链表</a></li><li><a href="https://blog.zhoujun.dev/article/lc-82-remove-duplicates-from-sorted-list-ii/">【LC 82】删除重复元素 II：为什么必须有 dummy</a></li><li><a href="https://blog.zhoujun.dev/article/lc-160-intersection-of-two-linked-lists/">【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了</a></li><li><a href="https://blog.zhoujun.dev/article/lc-234-palindrome-linked-list/">【LC 234】回文链表：翻后半段，比是否相同</a></li><li><a href="https://blog.zhoujun.dev/article/lc-19-remove-nth-from-end/">【LC 19】删除链表倒数第 N 个：快指针先出发</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同族题延伸：<a href="/article/lc-206-reverse-linked-list/">《【LC 206】反转链表：指针一改就断链，问题到底出在哪》</a>、<a href="/article/lc-141-142-linked-list-cycle/">《【LC 141/142】环形链表：为什么快 2 慢 1 一定相遇》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-19-remove-nth-from-end/">【LC 19】删除链表倒数第 N 个：快指针先出发</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-234-palindrome-linked-list/">【LC 234】回文链表：翻后半段，比是否相同</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">【LC 146】LRU 缓存：手写哈希表与双向链表</a></li><li><a href="https://blog.zhoujun.dev/article/lc-82-remove-duplicates-from-sorted-list-ii/">【LC 82】删除重复元素 II：为什么必须有 dummy</a></li><li><a href="https://blog.zhoujun.dev/article/lc-160-intersection-of-two-linked-lists/">【LC 160】相交链表：让 pA 走完 A 去走 B，两条路就一样长了</a></li><li><a href="https://blog.zhoujun.dev/article/lc-234-palindrome-linked-list/">【LC 234】回文链表：翻后半段，比是否相同</a></li><li><a href="https://blog.zhoujun.dev/article/lc-19-remove-nth-from-end/">【LC 19】删除链表倒数第 N 个：快指针先出发</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

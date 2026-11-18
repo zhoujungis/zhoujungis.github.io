@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -177,6 +177,7 @@
 输出: false（207）；[]（210）—— 1 等 0、0 等 1，互相等待
 </code></pre></div>
 
+
 先把方向钉死，这是本题第一大坑：<code>[a, b]</code> 是「修 a 前先修 b」，所以边是 <strong>b → a</strong>（先修课指向后修课）。画反了不是小事 —— 它决定你后面所有入度、所有顺序的对错。
 
 于是整道题的翻译只有一句话：
@@ -238,6 +239,7 @@
     <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">order</span><span class="p">)</span> <span class="o">==</span> <span class="n">numCourses</span>   <span class="c1"># 207 的答案；210 直接返回 order（不足则 []）</span>
 </code></pre></div>
 
+
 判据一句话：<strong>出队数量 == numCourses ⇔ 没有环</strong>。如果只剩环（或等环）的课，它们的入度永远减不到 0，队列提前枯竭，<code>len(order) &lt; numCourses</code>。
 <h2>三、DFS 三色标记：白、灰、黑，和灰色回边</h2>
 
@@ -273,6 +275,7 @@
     <span class="k">return</span> <span class="kc">True</span>                     <span class="c1"># 210 的答案 = order[::-1]</span>
 </code></pre></div>
 
+
 两个要点：
 <ol>
 <li><strong>必须区分灰和黑</strong>。只用一个 <code>visited</code> 布尔数组会把「黑邻居（安全汇合）」也当成环，误报；</li>
@@ -284,6 +287,7 @@
 <div class="algo-viz algo-viz--lc207"></div>
 
 <div class="algo-viz algo-viz--lc207dfs"></div>
+
 
 <strong>动画一</strong>（<code>algo-viz--lc207</code>）：<strong>Kahn</strong>。上方是课程图（圆点 = 课程，箭头 = 先修 → 后修，<strong>右上角小圆 = 当前入度</strong>）；下方两行分别是<strong>队列</strong>（0 入度的课）和<strong>顺序 order</strong>（已修完的课）。盯住三件事：0 入度的课怎么第一时间全部进队列、每修完一门课它的后继入度 −1（<strong>角标当场变小</strong>）、以及<strong>入度减到 0 的课才入队</strong>。最后 <code>order</code> 满员 = 能修完。
 
@@ -480,6 +484,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
+
 Java 专属注意点：递归版 DFS 的深度最坏是 <code>O(V)</code>（一条链），<code>V = 2000</code> 级没事，更大就用<strong>显式栈的迭代版</strong>；<code>210</code> 要在 <code>dfs</code> 里再维护一个 <code>post</code> 列表，节点变黑时 <code>post.add(v)</code>，最后 <code>Collections.reverse(post)</code>。
 <h2>七、同族题：210 / 269 / 310 / 802 / 1203 / 444</h2>
 
@@ -566,7 +571,6 @@ Java 专属注意点：递归版 DFS 的深度最坏是 <code>O(V)</code>（一�
 
 同族题延伸：<a href="/article/lc-200-number-of-islands/">《【LC 200】岛屿数量：一次染色与防爆栈替代》</a>、<a href="/article/lc-994-rotting-oranges/">《【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表》</a>。
 
-下一篇见。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-994-rotting-oranges/">【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">【LC 146】LRU 缓存：手写哈希表与双向链表</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-994-rotting-oranges/">【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</a></li><li><a href="https://blog.zhoujun.dev/article/lc-200-number-of-islands/">【LC 200】岛屿数量：一次染色与防爆栈替代</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/lc-61-poker-straight/">【扑克】5 张牌判断顺子：王只补缺失，补不了重复</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+下一篇见。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-994-rotting-oranges/">【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-146-lru-cache/">【LC 146】LRU 缓存：手写哈希表与双向链表</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-994-rotting-oranges/">【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</a></li><li><a href="https://blog.zhoujun.dev/article/lc-200-number-of-islands/">【LC 200】岛屿数量：一次染色与防爆栈替代</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/lc-61-poker-straight/">【扑克】5 张牌判断顺子：王只补缺失，补不了重复</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

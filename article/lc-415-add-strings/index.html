@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -175,6 +175,7 @@
 输出: &quot;533&quot;
 </code></pre></div>
 
+
 腾讯面试高频（TOP 9 常客），还有两个常见延伸：大数相加<strong>含负数</strong>（符号处理 + 转减法），以及进阶的<strong>大数相乘</strong>（LC 43）。这篇把主解法和两个延伸一次讲透。
 <ul>
 <li><a href="#section-1">一、核心洞察：不是算法题，是翻译题</a></li>
@@ -205,6 +206,7 @@
 -------
   5 3 3          ← 从个位往高位，一列一列算出来
 </code></pre></div>
+
 
 个位：6 + 7 = 13，<strong>写下 3，进位 1 带上一位</strong>；十位：5 + 7 + 1 = 13，写下 3 进 1；百位：4 + 0 + 1 = 5（num2 没有百位，<strong>补 0</strong>），写下 5 进 0 —— 结束。
 
@@ -242,12 +244,14 @@ out  = sum % 10           ← 写下的本位
 carry = sum &gt;= 10 ? 1 : 0 ← 带上一位的进位（两个非负一位数相加，进位最多是 1）
 </code></pre></div>
 
+
 为什么进位最多是 1？<code>9 + 9 + 1 = 19</code>，就算两个加数都是 9、低位还进 1，和也不会到 20 —— 所以 <code>carry</code> 是 0/1 变量，不是"除以 10 取整"的一般化。这是非负十进制竖式的特例，写代码时可以直接利用。
 <h3>2.3 循环条件：三连 or</h3>
 
 这是<strong>全题最容易漏的一处</strong>：
 <div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">i</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">j</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">carry</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>   <span class="c1"># 三连 or，一个都不能少</span>
 </code></pre></div>
+
 
 前两个条件管"还有数位没加"，<code>carry &gt; 0</code> 管"最后还有进位要长出一位"。漏掉 <code>carry</code> 的经典翻车现场：
 <div class="codehilite"><pre><span></span><code>&quot;999&quot; + &quot;1&quot;：
@@ -273,6 +277,7 @@ carry = sum &gt;= 10 ? 1 : 0 ← 带上一位的进位（两个非负一位数�
 
     <span class="k">return</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">res_low_to_high</span><span class="p">)))</span>
 </code></pre></div>
+
 
 两个实现细节：
 <ul>
@@ -414,6 +419,7 @@ carry = sum &gt;= 10 ? 1 : 0 ← 带上一位的进位（两个非负一位数�
     <span class="k">return</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">res</span><span class="p">[</span><span class="n">k</span><span class="p">:]))</span>
 </code></pre></div>
 
+
 注意它和加法的关系：<strong>进位的搬运和竖式加法完全同款</strong>（满十进一），只是每列的"加数"从一个变成了 <code>m</code> 个乘积的累加 —— 所以 LC 43 本质上是"LC 415 的每列叠了多层"。
 <h3>5.3 同族题</h3>
 <div class="table-scroll"><table>
@@ -460,6 +466,7 @@ carry = sum &gt;= 10 ? 1 : 0 ← 带上一位的进位（两个非负一位数�
 <span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">sb</span><span class="p">.</span><span class="na">reverse</span><span class="p">().</span><span class="na">toString</span><span class="p">();</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 Java 的 <code>StringBuilder.append</code> 尾插 + 最后 <code>reverse</code>，和 Python 的 push + reversed 完全同构。
 <h2>七、边界情况</h2>
@@ -537,7 +544,6 @@ Java 的 <code>StringBuilder.append</code> 尾插 + 最后 <code>reverse</code>�
 
 字符串相加表面是模拟，内核是<strong>"把一个你早就会的过程翻译成无遗漏的代码"</strong>。竖式人人会列，但三连 or、补零、reverse 这三处细节决定了翻译的完整度 —— 算法的能力边界往往不在"想到"，而在"写全"。下一题若被追问大数相乘，记住那个落位公式：<code>i + j + 1</code>。
 
-同族题延伸：<a href="/article/lc-165-compare-version-numbers/">《【LC 165】比较版本号：归一化后逐列比》</a>、<a href="/article/lc-93-restore-ip-addresses/">《【LC 93】复原 IP 地址：分段回溯，剪枝分两层》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-189-rotate-array/">【LC 189】轮转数组：三次翻转 —— 反转是自己的逆运算</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-165-compare-version-numbers/">【LC 165】比较版本号：归一化后逐列比</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-5-longest-palindromic-substring/">【LC 5】最长回文子串：枚举中心 —— 2n-1 个中心，别漏了间隙</a></li><li><a href="https://blog.zhoujun.dev/article/lc-165-compare-version-numbers/">【LC 165】比较版本号：归一化后逐列比</a></li><li><a href="https://blog.zhoujun.dev/article/lc-189-rotate-array/">【LC 189】轮转数组：三次翻转 —— 反转是自己的逆运算</a></li><li><a href="https://blog.zhoujun.dev/article/lc-42-trapping-rain-water/">【LC 42】接雨水：四种解法，同一个问题</a></li><li><a href="https://blog.zhoujun.dev/article/lc-15-3sum/">【LC 15】三数之和：难点是两处去重，不是双指针</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同族题延伸：<a href="/article/lc-165-compare-version-numbers/">《【LC 165】比较版本号：归一化后逐列比》</a>、<a href="/article/lc-93-restore-ip-addresses/">《【LC 93】复原 IP 地址：分段回溯，剪枝分两层》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-189-rotate-array/">【LC 189】轮转数组：三次翻转 —— 反转是自己的逆运算</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-165-compare-version-numbers/">【LC 165】比较版本号：归一化后逐列比</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-5-longest-palindromic-substring/">【LC 5】最长回文子串：枚举中心 —— 2n-1 个中心，别漏了间隙</a></li><li><a href="https://blog.zhoujun.dev/article/lc-165-compare-version-numbers/">【LC 165】比较版本号：归一化后逐列比</a></li><li><a href="https://blog.zhoujun.dev/article/lc-189-rotate-array/">【LC 189】轮转数组：三次翻转 —— 反转是自己的逆运算</a></li><li><a href="https://blog.zhoujun.dev/article/lc-42-trapping-rain-water/">【LC 42】接雨水：四种解法，同一个问题</a></li><li><a href="https://blog.zhoujun.dev/article/lc-15-3sum/">【LC 15】三数之和：难点是两处去重，不是双指针</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

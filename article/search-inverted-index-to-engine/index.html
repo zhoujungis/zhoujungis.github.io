@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -251,6 +251,7 @@ Lucene 还把索引切成不可变的段（segment）。新写入先进入内存
 <span class="err">}</span>
 </code></pre></div>
 
+
 响应里的 <code>tokens</code> 会告诉你每个词项、位置和偏移。索引和查询的分析结果必须一致，这是一条硬约束。
 
 同义词要决定放在索引时还是查询时。索引时扩展同义词，会让 posting 变大，而且同义词表一改就得重建索引；查询时扩展更灵活，改完立即生效，代价是查询词项变多、延迟略增。绝大多数场景应该选查询时扩展，索引只保留原文的词项。
@@ -260,6 +261,7 @@ Lucene 还把索引切成不可变的段（segment）。新写入先进入内存
 <div class="codehilite"><pre><span></span><code>score(q, d) = Σ tf(t, d) × idf(t)
 idf(t) = log(N / df(t))
 </code></pre></div>
+
 
 <code>tf</code> 是词在文档里出现的次数，<code>df</code> 是包含这个词的文档数，<code>N</code> 是文档总数。直觉很合理：词出现得越多越相关，越稀有越有区分度。但直接用它会有两个明显问题。
 
@@ -271,6 +273,7 @@ BM25 针对这两点做了修正。它的常见形式是：
 <div class="codehilite"><pre><span></span><code>score(q, d) = Σ idf(t) × [ tf × (k1 + 1) ] / [ tf + k1 × (1 - b + b × dl / avgdl) ]
 idf(t) = ln(1 + (N - df + 0.5) / (df + 0.5))
 </code></pre></div>
+
 
 <code>dl</code> 是文档长度，<code>avgdl</code> 是平均文档长度，<code>k1</code> 控制词频饱和的速度，<code>b</code> 控制长度归一化的强度。Lucene 的 <code>BM25Similarity</code> 默认 <code>k1 = 1.2</code>、<code>b = 0.75</code>，Elasticsearch 默认就用这套。
 
@@ -294,6 +297,7 @@ PostgreSQL 的做法是把文本转成 <code>tsvector</code>：一串按位置�
 <span class="c1">-- &#39;brown&#39;:3 &#39;fox&#39;:4 &#39;jump&#39;:6 &#39;quick&#39;:2</span>
 </code></pre></div>
 
+
 <code>foxes</code> 被词干化成 <code>fox</code>，<code>jumping</code> 变成 <code>jump</code>，<code>the</code> 和 <code>are</code> 作为停用词被去掉，数字是词在原文中的位置。权重可以用 <code>setweight</code> 标成 A、B、C、D，分别对应标题、摘要、正文等不同重要程度。
 
 查询侧用 <code>tsquery</code>，支持与、或、非、短语和距离。下面的中文例子统一用 <code>chinese</code> 配置，这个配置的创建命令在本节后半段；没装中文解析器时，可以先用 <code>simple</code> 在英文语料上验证整条链路。
@@ -301,6 +305,7 @@ PostgreSQL 的做法是把文本转成 <code>tsvector</code>：一串按位置�
 <span class="k">SELECT</span><span class="w"> </span><span class="n">to_tsvector</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">body</span><span class="p">)</span><span class="w"> </span><span class="o">@@</span><span class="w"> </span><span class="n">to_tsquery</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;缓存 &lt;-&gt; 穿透&#39;</span><span class="p">);</span>
 <span class="k">SELECT</span><span class="w"> </span><span class="n">to_tsvector</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">body</span><span class="p">)</span><span class="w"> </span><span class="o">@@</span><span class="w"> </span><span class="n">to_tsquery</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;缓存 &lt;3&gt; 雪崩&#39;</span><span class="p">);</span>
 </code></pre></div>
+
 
 <code>&lt;-&gt;</code> 要求相邻，<code>&lt;N&gt;</code> 允许中间隔 N 个词。<code>websearch_to_tsquery</code> 更适合直接接用户输入：按 PostgreSQL docs 的说明，它把引号里的内容当短语，把 <code>OR</code> 当或，把 <code>-</code> 当前面词的排除，并且不会因为用户输入里的特殊字符报错。这是面向搜索框最实用的入口。
 
@@ -317,6 +322,7 @@ PostgreSQL 的做法是把文本转成 <code>tsvector</code>：一串按位置�
 <span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
 </code></pre></div>
 
+
 GIN 是倒排式的索引，适合 <code>@@</code> 这种包含查询；GiST 也能用，但更新更贵，通常只在需要动态重排或有特殊数据类型时才考虑。PostgreSQL docs 对 GIN 的适用场景和更新代价有明确说明。表达式索引要求查询里的表达式和索引定义逐字一致，<code>coalesce</code> 和配置名都不能差，否则规划器不会用它。
 
 中文需要额外的解析器。PostgreSQL 内置的分词器面向空格分隔的语言，直接对中文用 <code>simple</code> 配置，往往把整句当成一个词位，或者按标点切得乱七八糟。常见方案是 <code>zhparser</code>（基于 SCWS）或 <code>pg_jieba</code>。以 zhparser 为例，安装扩展后创建配置，把词性映射到 <code>simple</code> 字典：
@@ -327,6 +333,7 @@ GIN 是倒排式的索引，适合 <code>@@</code> 这种包含查询；GiST 也
 
 <span class="k">SELECT</span><span class="w"> </span><span class="n">to_tsvector</span><span class="p">(</span><span class="s1">&#39;chinese&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Django 部署与断点续传&#39;</span><span class="p">);</span>
 </code></pre></div>
+
 
 <code>zhparser</code> 的边界要提前知道：词典覆盖有限，专业术语和新词需要 <code>zhparser.zhprs_custom_word</code> 补词；词性映射配错会导致某些词直接被丢掉；它没有 Elasticsearch 那种同义词图和丰富的分析器链。它够用，但不万能。
 
@@ -352,6 +359,7 @@ Elasticsearch 建立在 Lucene 之上，把「一个索引」拆成多个分片�
 <span class="err">  }</span>
 <span class="err">}</span>
 </code></pre></div>
+
 
 <code>text</code> 用于全文检索，会被分词、建 posting、参与打分；<code>keyword</code> 用于精确过滤、排序和聚合，不分词，走 doc values 的列式存储。把该用 <code>keyword</code> 的字段建成 <code>text</code>，过滤会变慢且语义不对；把该用 <code>text</code> 的字段建成 <code>keyword</code>，全文检索直接失效。
 
@@ -387,6 +395,7 @@ Elasticsearch 建立在 Lucene 之上，把「一个索引」拆成多个分片�
 <span class="err">}</span>
 </code></pre></div>
 
+
 <code>must</code> 参与打分，<code>filter</code> 不参与打分且可以被缓存，<code>must_not</code> 排除。把状态、租户、时间范围这类「硬条件」放进 <code>filter</code>，是性能优化的第一步，也是权限过滤的正确位置。
 
 排序信号可以用 <code>function_score</code> 叠加。比如给新文章一个时间衰减，给高阅读量一个加权：
@@ -405,6 +414,7 @@ Elasticsearch 建立在 Lucene 之上，把「一个索引」拆成多个分片�
 <span class="err">  }</span>
 <span class="err">}</span>
 </code></pre></div>
+
 
 聚合用于筛选面板和统计：<code>terms</code> 聚合按标签分桶，<code>date_histogram</code> 按时间分桶，<code>cardinality</code> 估算去重数。聚合走 doc values，和全文检索的 posting 是两套结构，所以「搜索 + 聚合」在 Elasticsearch 里是一次请求能完成的事，在纯 PostgreSQL 里往往要额外写 SQL。
 <h2>NRT、副本与深分页</h2>
@@ -426,6 +436,7 @@ Elasticsearch 常被称为「近实时」，这个词容易被误解成「写入
 <span class="err">  &quot;pit&quot;: { &quot;id&quot;: &quot;pit_id&quot;, &quot;keep_alive&quot;: &quot;5m&quot; }</span>
 <span class="err">}</span>
 </code></pre></div>
+
 
 <code>search_after</code> 不适合「跳到第 N 页」的交互，它只适合「下一页」。需要随机跳页的产品，要么限制页数，要么换一种呈现方式。导出全量数据用 scroll 或 PIT 加切片，不要用 <code>from + size</code> 硬翻。
 
@@ -459,6 +470,7 @@ Typesense 类似，强调 schema 明确、拼写容错、前缀搜索和地理�
 <span class="p">);</span>
 </code></pre></div>
 
+
 投递端要保证幂等。搜索引擎的写入用外部版本号（<code>version_type=external</code>）或应用层版本比较：只有更大的版本才能覆盖当前文档。这样即使同一事件被投递两次，或者旧事件晚到，也不会把新数据覆盖回旧值。删除也要带版本，否则「删除事件晚于更新事件」会让已删除的文档复活。
 
 版本号从哪里来，是这套机制的关键。可以用数据库的自增序列、行的 <code>updated_at</code> 加版本列，或者 CDC 里的 binlog 位点。无论哪种，必须单调递增且能比较；只靠时间戳在并发写入下不可靠，因为同一毫秒内的顺序不确定。
@@ -472,6 +484,7 @@ Typesense 类似，强调 schema 明确、拼写容错、前缀搜索和地理�
 <span class="err">  ]</span>
 <span class="err">}</span>
 </code></pre></div>
+
 
 切换期间旧索引仍然可读，新索引写好后一次别名操作完成切换，用户无感。重建要能重复执行，导入脚本按主键分页、可断点续跑，不要用一个长时间的事务把数据库拖住。
 
@@ -577,7 +590,6 @@ Typesense 类似，强调 schema 明确、拼写容错、前缀搜索和地理�
 <li><a href="/article/mq-reliable-delivery-deep-dive/">消息可靠投递：至少一次、幂等与去重</a></li>
 <li><a href="/article/django-slow-query-index-tuning/">Django 慢查询与索引调优</a></li>
 <li><a href="/article/cache-consistency-deep-dive/">缓存一致性：先删缓存还是先更新数据库</a></li>
-</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/">指标与链路追踪：从 RED 到 OpenTelemetry</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/metrics-and-distributed-tracing/">指标与链路追踪：从 RED 到 OpenTelemetry</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/distributed-transaction-outbox-saga-tcc/">分布式事务：本地消息表、Outbox、Saga 与 TCC 的边界</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

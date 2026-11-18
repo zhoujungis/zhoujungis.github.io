@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -398,6 +398,7 @@ Agent 的任务是串行的：读文件、改一处、跑测试、看输出、�
 通过判定   = 文件内容匹配 + 退出码 0 + 轮数 &lt;= 8
 </code></pre></div>
 
+
 换成一句话：<strong>分子是什么、分母是什么、判定是什么、跑了几次</strong>。缺任何一个，这个数字都可以被解释成任意结论。
 
 常见的三种缺分母写法：
@@ -545,6 +546,7 @@ pass@k 也不是越高越好。如果一个任务需要 5 次才能成功一次�
   0/5 通过        -&gt; stable fail（真 bug）
   1..4/5 通过     -&gt; flaky（最该修的一类）
 </code></pre></div>
+
 
 第三类是评测里最有价值的数据。它既不是「功能坏了」，也不是「功能好了」，而是「功能取决于运气」。运气在本地是随机的，在线上是随负载变化的，所以它会在最忙的时候集中爆发。
 <h2>评测的最小闭环</h2>
@@ -701,6 +703,7 @@ pass@k 也不是越高越好。如果一个任务需要 5 次才能成功一次�
 <span class="p">}</span>
 </code></pre></div>
 
+
 它是有想法的：端口用 0 让内核分配，避免并行测试抢端口；临时目录的名字带 pid、纳秒和原子计数，避免并行测试互相覆盖；SSE 用例把工具参数拆成两帧，专门验证增量拼接。这些都是「写得好」的地方，后文会单独列。
 
 但注意那一行 <code>read_full_request(&amp;mut stream);</code>。这个函数的返回值是一个 <code>Vec&lt;u8&gt;</code>，里面是完整的请求行、头和 JSON 请求体。<strong>它被读出来了，然后被丢掉了。</strong>
@@ -781,6 +784,7 @@ pass@k 也不是越高越好。如果一个任务需要 5 次才能成功一次�
 <span class="p">}</span>
 </code></pre></div>
 
+
 这段代码的断言质量其实不低：它验证了 SSE 增量拼参数、工具真的写盘、两轮请求的 usage 被累加。比「断言返回非空」强得多。
 
 问题在所有用例都止步于此。没有任何一行代码去看「第一轮请求里到底有没有 <code>write_file</code> 这个工具」。
@@ -830,6 +834,7 @@ pass@k 也不是越高越好。如果一个任务需要 5 次才能成功一次�
 <span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">stream</span><span class="p">.</span><span class="n">write_all</span><span class="p">(</span><span class="n">responses</span><span class="p">[</span><span class="n">served</span><span class="p">].</span><span class="n">as_bytes</span><span class="p">());</span>
 </code></pre></div>
 
+
 后果可以直接推导出来：五个用例里，没有任何一个能发现「请求体被改坏」。
 
 做一个思想实验。把 <code>Agent::build_tools()</code> 改成永远返回空数组，也就是告诉模型「你没有任何工具」。会发生什么？
@@ -864,6 +869,7 @@ pass@k 也不是越高越好。如果一个任务需要 5 次才能成功一次�
 <span class="p">}</span>
 </code></pre></div>
 
+
 每一行都有理由：<code>auto_approve</code> 避免测试卡在交互上，<code>memory: false</code> 避免碰真实用户目录，<code>project_docs: false</code> 避免读仓库里的 <code>AGENTS.md</code>。这些是为了「测试可控」而做的合理取舍。
 
 但合起来的效果是：<strong>e2e 跑的不是生产配置</strong>。生产里 <code>project_docs</code> 默认开、记忆块每轮注入、审批会拦命令、沙箱会限制路径。这些路径在 e2e 里一条都没走到。
@@ -886,6 +892,7 @@ pass@k 也不是越高越好。如果一个任务需要 5 次才能成功一次�
 <span class="p">}</span>
 </code></pre></div>
 
+
 这个测试证明了「决策函数是对的」，但没有证明「决策被接进了执行路径」。前者是 L3，后者是 L2。中间少的那一段，正是 agent 最容易出事的地方：策略写对了，但某条分支没调用它。
 
 评测里要补的不是再写十个 <code>needs_approval</code> 的断言，而是一条过程断言：<strong>给定 <code>ApprovalPolicy::Untrusted</code>，模型请求 <code>run_command</code> 时，这一轮必须停下来等待确认，而不是直接执行</strong>。这条断言需要 mock 能观察到「请求了几次」「第二次请求里有没有工具结果」，也就是需要 L1 能力。
@@ -907,11 +914,13 @@ pass@k 也不是越高越好。如果一个任务需要 5 次才能成功一次�
 <span class="nb">Ok</span><span class="p">(</span><span class="n">final_text</span><span class="p">)</span>
 </code></pre></div>
 
+
 三条出口——正常完成、被中断、撞上轮次上限——返回的都是 <code>Ok</code>。区别只在于往 UI 打了一行警告。
 
 于是 e2e 里这句：
 <div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">answer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">agent</span><span class="p">.</span><span class="n">run</span><span class="p">(</span><span class="n">json</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;write a file&quot;</span><span class="p">)).</span><span class="n">expect</span><span class="p">(</span><span class="s">&quot;turn completes&quot;</span><span class="p">);</span>
 </code></pre></div>
+
 
 断言的是「没有返回 Err」，而不是「任务完成了」。如果模型在第 40 轮还在调用工具，测试会拿到最后一次的文本（可能是个半截答案），然后心满意足地变绿。
 
@@ -929,6 +938,7 @@ pass@k 也不是越高越好。如果一个任务需要 5 次才能成功一次�
 <span class="p">}</span>
 </code></pre></div>
 
+
 <code>is_supported()</code> 在非 Linux 平台恒为 <code>false</code>。而 CI 是 <code>runs-on: windows-latest</code>。也就是说，<strong>这个测试在 CI 上永远跳过，永远不会红，也永远什么都没验证</strong>。
 
 类似地：
@@ -940,6 +950,7 @@ pass@k 也不是越高越好。如果一个任务需要 5 次才能成功一次�
 <span class="w">    </span><span class="c1">// ...</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会真跑。但只要环境一变，它就会安静地变成「假通过」。
 
@@ -1000,6 +1011,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="p">}</span>
 </code></pre></div>
 
+
 名字里的 <code>without_hanging</code> 没有任何断言支撑。如果代码真的卡住了，测试就会一直卡着，CI job 超时——那是另一个信号，不是这条测试发出的。要兑现这个名字，至少需要 <code>Instant::now()</code> 和一句 <code>assert!(elapsed &lt; Duration::from_secs(15))</code>。
 
 第二个：
@@ -1010,6 +1022,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="w">    </span><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">answer</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;recovered&quot;</span><span class="p">);</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 它没有断言「恰好请求了两次」。如果实现里多试了一次，第三次连接会因为 mock 已经退出而失败，测试确实会红——但那是「碰巧被抓住」，不是「显式断言」。如果 mock 恰好准备了三个响应（比如为了别的用例复用），这个 bug 就漏了。
 
@@ -1029,6 +1042,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="p">}</span>
 </code></pre></div>
 
+
 现有的并发测试是直接对 <code>execute()</code> 开线程，跑 30 个调用，验证线程安全。但 <code>chunks(8)</code> 这个分批逻辑（9 个调用会分成 8 + 1 两批，顺序要保持）没有被任何一个测试覆盖。而这正是「模型一次返回 12 个工具调用」时会走的路。
 
 还有一个更细的：<code>accumulate_tool_calls</code> 把流式工具调用的下标上限设为 64，防止恶意端点让 <code>resize</code> 申请巨量内存。这个防御没有测试——没有用例发一个 <code>index: 100000</code> 的帧，验证它被安静地丢掉。
@@ -1042,6 +1056,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="p">);</span>
 <span class="fm">assert!</span><span class="p">(</span><span class="n">out</span><span class="p">.</span><span class="n">contains</span><span class="p">(</span><span class="s">&quot;no output yet&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="n">out</span><span class="p">.</span><span class="n">is_empty</span><span class="p">());</span>
 </code></pre></div>
+
 
 第一句是有意义的：轮询一个正在跑的任务不应该阻塞超过 2 秒。这是真正的 L2 断言。
 
@@ -1172,6 +1187,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="p">}</span>
 </code></pre></div>
 
+
 这段代码只多了一个 <code>Arc&lt;Mutex&lt;Vec&lt;Vec&lt;u8&gt;&gt;&gt;&gt;</code> 和一个 <code>bodies()</code>。之后所有断言都建立在真实请求体上，而不是建立在「我相信它发对了」上。
 
 注意用的是 <code>split("\r\n\r\n").nth(1)</code> 而不是 <code>last()</code>：请求体里也可能出现这个串（比如字符串里带换行），头一定在第一段，后面的都算体。
@@ -1187,6 +1203,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="w">    </span><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">bodies</span><span class="p">.</span><span class="n">len</span><span class="p">(),</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;轮数膨胀，实际请求体：{bodies:#?}&quot;</span><span class="p">);</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 第二条，工具序列：
 <div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">tool_sequence</span><span class="p">(</span><span class="n">bodies</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="p">[</span><span class="n">Value</span><span class="p">])</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Vec</span><span class="o">&lt;</span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
@@ -1208,6 +1225,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="w">    </span><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">first</span><span class="p">,</span><span class="w"> </span><span class="n">sorted</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;工具没排序，跨会话前缀无法复用&quot;</span><span class="p">);</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 这条断言会直接抓住「加了个工具忘了排序」导致的缓存失效——上一篇里那个 3 到 20 倍的成本杠杆，就挂在这一点上。
 
@@ -1232,6 +1250,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="p">}</span>
 </code></pre></div>
 
+
 这三条加起来不到四十行，覆盖的却是「成本退化」和「能力消失」两类最贵的回归。而且它们都写在测试侧，不需要改生产代码。
 <h2>补法三：把固定脚本换成状态机</h2>
 
@@ -1255,6 +1274,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 这变成了一个显式的状态机：状态是「有没有工具结果」，转移由请求内容决定。好处有三个：
 <ul>
@@ -1365,6 +1385,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="p">}</span>
 </code></pre></div>
 
+
 而超时在 <code>chat_with_model</code> 里被格式化成 <code>request failed: ...</code>。这个字符串一个状态码都不含，所以<strong>即使 <code>max_retries</code> 大于 0，超时也不会重试</strong>。更微妙的是，单元测试把这个行为固化了：
 <div class="codehilite"><pre><span></span><code><span class="cp">#[test]</span>
 <span class="k">fn</span><span class="w"> </span><span class="nf">retryable_errors_are_recognised</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
@@ -1372,6 +1393,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="w">    </span><span class="fm">assert!</span><span class="p">(</span><span class="o">!</span><span class="n">is_retryable_error</span><span class="p">(</span><span class="s">&quot;request failed: dns error&quot;</span><span class="p">));</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 这句 <code>assert!(!...)</code> 在当时的语境里是对的（DNS 错误确实不该重试），但它同时也把「所有传输错误都不重试」写进了契约。绿灯在这里不是保障，是枷锁。
 
@@ -1381,6 +1403,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="p">}</span>
 <span class="nb">Ok</span><span class="p">(</span><span class="n">turn</span><span class="p">)</span>
 </code></pre></div>
+
 
 只要收到过一帧，即使连接在半路被掐断、没有 <code>[DONE]</code>，也会返回 <code>Ok</code>。对聊天来说这是「答案短了一截」，对 agent 来说这是「工具参数只拼了一半」——<code>accumulate_tool_calls</code> 会拿半个 JSON 去 <code>serde_json::from_str</code>，然后回灌一个 <code>invalid JSON arguments</code> 错误给模型。整轮不会崩，但会多烧一轮。
 
@@ -1398,6 +1421,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="w">    </span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 注意 <code>stalled_response</code> 不能真的「不关闭」——测试进程会一直挂着。正确做法是发完头之后 sleep 到客户端的 timeout 到期，或者用 <code>timeout_secs: 1</code> 把等待压到一秒。这也是评测里常见的坑：<strong>你想测超时，但测试自己先超时了</strong>。
 <h2>补法五：给「完成」一个类型</h2>
@@ -1417,12 +1441,14 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="p">}</span>
 </code></pre></div>
 
+
 保留 <code>run()</code> 作为薄包装，返回字符串，避免影响现有调用方：
 <div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">content</span><span class="p">:</span><span class="w"> </span><span class="nc">Value</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="nb">Ok</span><span class="p">(</span><span class="bp">self</span><span class="p">.</span><span class="n">run_with_outcome</span><span class="p">(</span><span class="n">content</span><span class="p">)</span><span class="o">?</span>
 <span class="w">        </span><span class="p">.</span><span class="n">into_text</span><span class="p">())</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 有了这个类型，评测里就能写：
 <div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">outcome</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">agent</span><span class="p">.</span><span class="n">run_with_outcome</span><span class="p">(</span><span class="n">json</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;fix the bug&quot;</span><span class="p">)).</span><span class="n">expect</span><span class="p">(</span><span class="s">&quot;no hard error&quot;</span><span class="p">);</span>
@@ -1431,6 +1457,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="w">    </span><span class="s">&quot;任务没做完：{outcome:?}&quot;</span>
 <span class="p">);</span>
 </code></pre></div>
+
 
 这一句断言的价值超过前面所有 L3 断言之和，因为它把「答了」和「做完了」分开了。而这两件事在 agent 场景里经常不一致。
 
@@ -1541,6 +1568,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="p">}</span>
 </code></pre></div>
 
+
 <code>oracle</code> 里最容易被漏掉的是 <code>must_not_change</code>。只断言「改对了」不够，还要断言「没改别的地方」——agent 最典型的破坏不是没改，是改多了。<code>max_turns</code> 和 <code>must_complete</code> 是上一篇和这一篇的交汇点：成本和完成度也是判定的一部分。
 
 <code>severity</code> 决定这个 case 红了之后要不要阻塞发布。把它写进样本，而不是写在某个人的脑子里，是为了让门禁可以自动决策。
@@ -1598,6 +1626,7 @@ git 在 GitHub 的 Windows 镜像上通常存在，所以这条多数时候会�
 <span class="p">}</span>
 </code></pre></div>
 
+
 这个函数只有十几行，但它把「什么叫成功」变成了可审查的代码。评审时争论的就不再是「感觉还行」，而是「<code>max_turns</code> 为什么是 8」。
 <h2>重复怎么跑：次数、种子、并行</h2>
 
@@ -1651,6 +1680,7 @@ for case in cases:
 report = summarize(records)
 # 输出：每 case 的通过率、区间、flaky 标记、成本分位数
 </code></pre></div>
+
 
 关键在最后一行。评测的产物不是「通过 / 失败」，是一张带分母的表。
 <h2>去 flaky 的六个隔离手段</h2>
@@ -1714,10 +1744,12 @@ for i in 1..5; do
 done | sort | uniq -c
 </code></pre></div>
 
+
 输出会长这样：
 <div class="codehilite"><pre><span></span><code>      4 
       1 run 2 failed
 </code></pre></div>
+
 
 四行空、一行失败。这比「重试后通过」有用得多：它告诉你这个用例有 20% 的失败率，而这个用例覆盖的是工具调用往返。
 
@@ -1879,6 +1911,7 @@ done | sort | uniq -c
 <span class="p">}</span>
 </code></pre></div>
 
+
 这份结构里没有任何用户文本、文件内容、命令输出。它能回答「成功率、轮数分布、哪个工具最慢、哪类错误最多」，不能回答「用户说了什么」。
 
 需要内容才能定位的问题，走另一条路：用户主动上报，或加一个显式的「调试模式」，让用户知情并授权。默认采集应该是结构，不是内容。
@@ -1937,11 +1970,13 @@ CI 要快而确定，不跑真实模型：延迟和费用都不适合每次提�
   report.md            # 每次运行的汇总
 </code></pre></div>
 
+
 命令保持朴素，能进任何 CI：
 <div class="codehilite"><pre><span></span><code>cargo test --workspace                     # 单元 + 快速 e2e
 cargo run --bin eval -- --cases evals/cases --repeat 10 --json &gt; report.json
 jq &#39;.cases[] | select(.flaky) | .id&#39; report.json
 </code></pre></div>
+
 
 第二行是核心：一个独立二进制，不是测试框架插件，既能进 CI，也能单跑某个 case，还能把结果喂给报表。
 
@@ -2061,7 +2096,6 @@ jq &#39;.cases[] | select(.flaky) | .id&#39; report.json
 <li><code>ui/src/App.e2e.test.tsx</code>：jsdom 环境下的端到端（含布局替身）</li>
 <li><code>.github/workflows/ci.yml</code>：<code>cargo test --workspace</code> 与 <code>npm --prefix ui run test</code></li>
 <li><code>agent/src/config.rs</code>：<code>max_iterations</code>、<code>max_retries</code>、<code>retry_base_ms</code>、<code>timeout_secs</code></li>
-</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/aiagent/"><strong>AI Agent</strong></a> — 多智能体、提示注入防御、上下文工程与可观测性</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a></li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li><li><a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/aiagent/"><strong>AI Agent</strong></a> — 多智能体、提示注入防御、上下文工程与可观测性</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-observability-turn-ledger/">Agent 观测：给每个轮次记一本账</a></li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li><li><a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

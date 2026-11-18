@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -206,6 +206,7 @@
 <div class="codehilite"><pre><span></span><code>生产者 ──①──&gt; Broker ──②──&gt; 存储 ──③──&gt; 消费者
 </code></pre></div>
 
+
 每一跳都有独立的丢失原因：
 <div class="table-scroll"><table>
 <thead>
@@ -318,6 +319,7 @@ Kafka 的 <code>acks</code> 参数是个很好的度量衡：
 <span class="k">COMMIT</span><span class="p">;</span>
 </code></pre></div>
 
+
 然后由一个独立的<strong>投递任务</strong>轮询 <code>outbox</code>，把 <code>pending</code> 的消息发出去，收到 Broker 确认后标记为 <code>sent</code>：
 <div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">deliver_outbox</span><span class="p">():</span>
     <span class="n">rows</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">query</span><span class="p">(</span>
@@ -331,6 +333,7 @@ Kafka 的 <code>acks</code> 参数是个很好的度量衡：
         <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
             <span class="k">continue</span>  <span class="c1"># 下轮重试</span>
 </code></pre></div>
+
 
 这个模式叫 <strong>Transactional Outbox</strong>，它的精髓是：<strong>把"发消息"这个网络操作从事务里挪出去，事务里只做本地写</strong>。本地写是原子的，消息只要落了库就永远不会丢——最多是晚一点被投递出去。
 
@@ -375,6 +378,7 @@ Kafka 的 <code>acks</code> 参数是个很好的度量衡：
         <span class="n">ch</span><span class="o">.</span><span class="n">basic_nack</span><span class="p">(</span><span class="n">method</span><span class="o">.</span><span class="n">delivery_tag</span><span class="p">,</span> <span class="n">requeue</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>  <span class="c1"># 不可恢复，也进死信</span>
 </code></pre></div>
 
+
 注意两个细节：
 <ol>
 <li><strong>崩溃在 ACK 之前</strong>，Broker 会把消息重投给其他消费者——消息不丢，但<strong>会被处理多次</strong>（见下一节）；</li>
@@ -402,6 +406,7 @@ Kafka 的 <code>acks</code> 参数是个很好的度量衡：
 <span class="k">UPDATE</span><span class="w"> </span><span class="n">points</span><span class="w"> </span><span class="k">SET</span><span class="w"> </span><span class="n">balance</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">balance</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">100</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">order_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">...;</span>
 <span class="k">COMMIT</span><span class="p">;</span>
 </code></pre></div>
+
 
 两个实践要点：
 <ol>
@@ -524,6 +529,7 @@ Kafka 的 <code>acks</code> 参数是个很好的度量衡：
 <div class="codehilite"><pre><span></span><code><span class="n">delay</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">base</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="n">attempt</span><span class="p">)</span> <span class="o">+</span> <span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">base</span><span class="p">),</span> <span class="n">max_delay</span><span class="p">)</span>
 </code></pre></div>
 
+
 末尾的 <code>random.uniform</code> 是<strong>抖动（jitter）</strong>：没有它，同一批失败的重试会在完全相同的时刻再次打出波峰，退避了个寂寞。
 
 重试策略要配合<strong>分层队列</strong>：
@@ -630,7 +636,6 @@ MQ 可靠性这件事，知识本身不复杂，复杂的是<strong>三跳里任
 
 如果这篇文章对你有帮助，欢迎在评论区聊聊你遇到过的"消息消失"事故。
 
-同一条链路上还可以接着读：<a href="/article/django-subscribe-mass-mail/">《别让一个坏邮箱毒死整批群发：三次加固》</a>、<a href="/article/resilience-timeout-retry-circuit-breaker-deep-dive/">《下游只抖 3 秒，我的服务被拖死——超时与熔断实战》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/feature-flag-progressive-delivery/">灰度到 20%，一半用户功能消失了——特性开关实战</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/distributed-id-deep-dive/">分布式 ID 实测：页分裂、回拨 1 万次、号段扛 20 万</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/api-gateway-deep-dive/">API 网关实战：认证、限流与路由的统一入口</a></li><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/">负载均衡：轮询、最少连接与一致性哈希的代价</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同一条链路上还可以接着读：<a href="/article/django-subscribe-mass-mail/">《别让一个坏邮箱毒死整批群发：三次加固》</a>、<a href="/article/resilience-timeout-retry-circuit-breaker-deep-dive/">《下游只抖 3 秒，我的服务被拖死——超时与熔断实战》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/feature-flag-progressive-delivery/">灰度到 20%，一半用户功能消失了——特性开关实战</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/distributed-id-deep-dive/">分布式 ID 实测：页分裂、回拨 1 万次、号段扛 20 万</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/api-gateway-deep-dive/">API 网关实战：认证、限流与路由的统一入口</a></li><li><a href="https://blog.zhoujun.dev/article/search-inverted-index-to-engine/">搜索：从倒排索引到 PostgreSQL、Elasticsearch 选型</a></li><li><a href="https://blog.zhoujun.dev/article/file-upload-production-deep-dive/">文件上传：分片、断点续传与直传对象存储</a></li><li><a href="https://blog.zhoujun.dev/article/websocket-production-deep-dive/">WebSocket 上生产：心跳、重连与水平扩展</a></li><li><a href="https://blog.zhoujun.dev/article/load-balancing-algorithms-in-practice/">负载均衡：轮询、最少连接与一致性哈希的代价</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

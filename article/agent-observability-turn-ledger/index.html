@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -349,6 +349,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">}</span>
 </code></pre></div>
 
+
 三个字段，一个派生方法，两种读取方式：
 <ul>
 <li><code>Agent::usage()</code> 返回一份 <code>UsageTotals</code> 拷贝，供 <code>/cost</code>、<code>--output-format json</code>、daemon 的差分使用</li>
@@ -364,6 +365,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <div class="codehilite"><pre><span></span><code><span class="k">fn</span><span class="w"> </span><span class="nf">run_subagent</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">name</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nb">Result</span><span class="o">&lt;</span><span class="nb">String</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="o">&gt;</span>
 </code></pre></div>
 
+
 <code>&amp;self</code> 写不了 <code>self.usage</code>。子代理在内部跑了一到四十轮模型请求，这些请求的 token 有去无回。想让子代理记账，<code>UsageTotals</code> 就不能是 <code>Copy</code> 的值，而得变成 <code>Arc&lt;Ledger&gt;</code> 这样一个共享句柄，让每个执行路径都能往里加一行。
 
 这就是 08 和前面几篇的分水岭：01 到 07 的共享状态（待办、任务板、限流门）都是为了<strong>协作</strong>；账本的共享是为了<strong>归属</strong>。前者关心「谁能改」，后者关心「改的时候署谁的名」。
@@ -372,6 +374,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 用量不是 agent 自己算的，是从服务端响应里读的。<code>read_json</code> 在解析完 <code>choices</code> 之后补一行：
 <div class="codehilite"><pre><span></span><code><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">usage_from_value</span><span class="p">(</span><span class="o">&amp;</span><span class="n">v</span><span class="p">);</span>
 </code></pre></div>
+
 
 而 <code>usage_from_value</code> 的实现只有一个动作——按 key 取值，取不到就当 0：
 <div class="codehilite"><pre><span></span><code><span class="k">pub</span><span class="w"> </span><span class="k">fn</span><span class="w"> </span><span class="nf">usage_from_value</span><span class="p">(</span><span class="n">v</span><span class="p">:</span><span class="w"> </span><span class="kp">&amp;</span><span class="nc">Value</span><span class="p">)</span><span class="w"> </span><span class="p">-&gt;</span><span class="w"> </span><span class="nc">Usage</span><span class="w"> </span><span class="p">{</span>
@@ -388,6 +391,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">}</span>
 </code></pre></div>
 
+
 「取不到就当 0」是这一整段里最重要的设计决定。它让字段缺失不会炸掉整轮对话——这对兼容各种 OpenAI 风格的端点来说是必要的。但它也意味着<strong>账本无法区分「真的用了 0 个 token」和「服务端没告诉我们」</strong>。测试里那句断言把这个语义写得很清楚：
 <div class="codehilite"><pre><span></span><code><span class="c1">// Missing usage (e.g. a stream delta) counts as zero, not an error.</span>
 <span class="fm">assert_eq!</span><span class="p">(</span>
@@ -395,6 +399,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="w">    </span><span class="n">Usage</span><span class="p">::</span><span class="n">default</span><span class="p">()</span>
 <span class="p">);</span>
 </code></pre></div>
+
 
 一个能对账的系统，这里应该是一个三态：<code>Some(0)</code>、<code>Some(n)</code>、<code>None</code>。<code>None</code> 要单独计数，让「本次任务的用量未知」成为一个可见的事实，而不是悄悄变成 0。
 <h2>只读两个字段：缓存与思维链在账上是免费的</h2>
@@ -405,6 +410,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">completion_tokens</span><span class="p">:</span><span class="w"> </span><span class="kt">u64</span><span class="p">,</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 对比主流服务端的 <code>usage</code> 对象，至少有三类信息被丢掉了：
 <div class="table-scroll"><table>
@@ -440,6 +446,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">}</span>
 </code></pre></div>
 
+
 打开思维链之后，<code>completion_tokens</code> 会明显上升，但账本里没有任何字段能说明「这里面有多少是推理」。用户看到的只是一个变大的数字，然后去猜是模型变笨了、上下文变长了，还是推理费变贵了。观测的价值恰恰在于把这种猜测变成可查证的事实。
 
 这里也有个反面的公平话：<code>cached_tokens</code> 属于 <code>prompt_tokens_details</code>，不是所有兼容端点都返回它。读它要写成「有则记、无则标未知」，而不是 <code>unwrap_or(0)</code>——后者会把「不支持」伪装成「没命中缓存」，比不记更误导。
@@ -452,11 +459,13 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">}</span>
 </code></pre></div>
 
+
 对应的解析在 <code>read_stream</code>：
 <div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="n">v</span><span class="p">.</span><span class="n">get</span><span class="p">(</span><span class="s">&quot;usage&quot;</span><span class="p">).</span><span class="n">is_some</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">usage_from_value</span><span class="p">(</span><span class="o">&amp;</span><span class="n">v</span><span class="p">);</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 注意这里是「覆盖」而不是「累加」。这是对的：用量帧只有一帧，覆盖即赋值。但它同时暴露了一个隐含假设——<strong>只可能有一帧</strong>。如果某个端点把用量拆成两帧发（比如增量式上报），后一帧会覆盖前一帧，账就少了一半。要稳妥，应该判断 <code>total_tokens</code> 是否单调，或者干脆把每帧用量都记进一个 span，让求和发生在账本层。
 <h2>流断在中途，那一轮的用量一起丢</h2>
@@ -468,6 +477,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">};</span>
 </code></pre></div>
 
+
 问题在于：<code>turn</code> 是函数内的局部变量，<code>Err</code> 返回时它被一起丢掉。如果流已经读到第 900 个 chunk、服务端已经算完了 3 万 prompt token，然后在最后一帧之前断开，这一轮的用量就凭空消失了——不仅没进账本，连「有个失败请求花了钱」这件事也不会出现在任何地方。
 
 这是一个「错误路径不携带数据」的经典形状：函数的返回类型是 <code>Result&lt;AssistantTurn, String&gt;</code>，<code>Err</code> 只能带一句字符串。要保住这部分数据，返回类型得改成 <code>Result&lt;AssistantTurn, (AssistantTurn, String)&gt;</code> 之类，或者把 <code>turn</code> 通过 <code>&amp;mut</code> 传进来，让调用方在失败时仍能看见已经累积的部分。
@@ -478,6 +488,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="w">    </span><span class="fm">format!</span><span class="p">(</span><span class="s">&quot;{}… ({} bytes truncated)&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">s</span><span class="p">[</span><span class="o">..</span><span class="n">end</span><span class="p">],</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">end</span><span class="p">)</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 错误详情被截到 800 字节。这个上限对「别把一整页 HTML 塞进终端」是合理的，但对观测来说意味着：<strong>服务端返回的长错误在账上永远只剩开头</strong>。当你要排查一次诡异的 400 时，被截掉的那段往往才是关键。错误应当按「终端显示截断、账本全文留存」两个口径分别处理。
 <h2>记账点写在错误返回之后：失败轮次不计入</h2>
@@ -494,6 +505,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="bp">self</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">prompt_tokens</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">prompt_tokens</span><span class="p">;</span>
 <span class="bp">self</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">completion_tokens</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">completion_tokens</span><span class="p">;</span>
 </code></pre></div>
+
 
 错误分支在记账之前。<code>complete()</code> 返回 <code>Err</code> 时，<code>persist()</code> 之后直接向上返回，记账那四行一行都不会执行。这意味着整个账本的口径其实是「<strong>成功的模型请求</strong>」，而不是「发生过的模型请求」。
 
@@ -530,6 +542,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">}</span>
 </code></pre></div>
 
+
 <code>chat</code> 返回的是<strong>最后一次成功</strong>的 <code>AssistantTurn</code>，里面只有最后一次请求的用量。前面 <code>max_retries</code> 次失败请求的耗时、以及 fallback 模型这次请求，全都没有出现在返回值里。
 
 于是主循环看到的永远是「1 次请求」，账本永远不知道中间发生过三次 503 和一次降级。重试次数唯一的痕迹是那行 <code>eprintln!</code>——在终端里滚过去就没了，在 daemon 里直接写进服务端日志，客户端一个字都收不到。
@@ -543,12 +556,14 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">}</span>
 </code></pre></div>
 
+
 子代理还可以用自己的 <code>def.model</code> 覆盖：
 <div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="k">mut</span><span class="w"> </span><span class="n">sub_cfg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">cfg</span><span class="p">.</span><span class="n">clone</span><span class="p">();</span>
 <span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Some</span><span class="p">(</span><span class="n">m</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">def</span><span class="p">.</span><span class="n">model</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="n">sub_cfg</span><span class="p">.</span><span class="n">model</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">m</span><span class="p">.</span><span class="n">clone</span><span class="p">();</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 同一个 <code>UsageTotals</code> 里，可能混着两三个不同模型的 token，而账本上只有一个总数。这就像把人民币、美元、欧元加在一起报一个「总金额」——数字是对的，含义是错的。
 
@@ -597,6 +612,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">}</span>
 </code></pre></div>
 
+
 这不是「忘了记账」，而是结构上没有地方记：这三个函数都不持有 <code>&amp;mut Agent</code>，<code>UsageTotals</code> 又是值类型。要让它们记账，只能把账本提升成一个独立对象，作为参数传进去，或者塞进 <code>Config</code>（不推荐，配置是只读契约，不该承担可变状态）。
 <h2>压缩的账：摘要是一次完整的模型请求</h2>
 
@@ -607,6 +623,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="w">    </span><span class="nb">None</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="s">&quot;[Earlier conversation was omitted to keep the context small]&quot;</span><span class="p">.</span><span class="n">to_string</span><span class="p">(),</span>
 <span class="p">};</span>
 </code></pre></div>
+
 
 把被丢弃的消息原样拼成一个摘录（这里没有逐条截断，只有整个摘要请求的输入），发给模型要一段不超过 300 词的总结。这次请求的 prompt 可能有好几万 token——因为它塞的就是半个上下文。
 
@@ -624,6 +641,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="w">    </span><span class="n">text</span><span class="p">.</span><span class="n">chars</span><span class="p">().</span><span class="n">count</span><span class="p">()</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">24</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 只要这一轮调用过工具，就一定会提炼。提炼的输入是 <code>excerpt_from(&amp;self.messages, 6000)</code>——最近 6000 字符的对话；输出是一个 JSON 数组。这次调用同样没有记账，而且它的触发条件是「有过工具调用」，也就是<strong>在大多数真实任务里都会发生</strong>。
 
@@ -679,6 +697,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="nb">Ok</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
 </code></pre></div>
 
+
 注意三件事：
 
 <strong>第一，子代理最多跑 <code>sub_cfg.max_iterations</code> 轮</strong>，而 <code>sub_cfg</code> 是从父配置克隆的——默认 40。07 已经指出这是个危险的默认值；从账本角度看，它意味着一次 <code>subagent</code> 工具调用背后最多藏着 40 次模型请求，全部不可见。
@@ -696,6 +715,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">}</span>
 </code></pre></div>
 
+
 然后由父代理在收口处把它记成一行 <code>who = agent-7</code> 的子账，再决定怎么汇总。这样 <code>agent_list</code> 才能回答「哪个子代理最贵」，而不只是「哪个子代理最慢」。
 <h2>任务板只有时间没有钱</h2>
 
@@ -712,6 +732,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">}</span>
 </code></pre></div>
 
+
 七个字段里，只有 <code>duration</code> 是「量」，<code>result</code> 是截到 500 字符的预览，其余都是标识与状态。没有 <code>usage</code>，没有 <code>requests</code>，也没有 <code>model</code>。
 
 <code>render_agent_board</code> 的输出也因此只能是：
@@ -720,6 +741,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
   result: looks fine
 - agent-2 [running] explorer (…) — map the repo
 </code></pre></div>
+
 
 这份输出对「谁在干什么」够用，对「这次任务的钱花在哪」完全不够。07 说过任务板是「一个只追加的观测结构」；从账本的角度看，它更像一个<strong>只记了时长的事件表</strong>——事件表能还原顺序，但不能求和。
 <h2><code>duration</code> 测的是排队加执行</h2>
@@ -733,11 +755,13 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">});</span>
 </code></pre></div>
 
+
 而 <code>run_subagent</code> 的调用顺序是：
 <div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">board</span><span class="p">.</span><span class="n">start</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">);</span>
 <span class="kd">let</span><span class="w"> </span><span class="n">_permit</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">ctx</span><span class="p">.</span><span class="n">gate</span><span class="p">.</span><span class="n">acquire</span><span class="p">();</span>
 <span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="bp">self</span><span class="p">.</span><span class="n">run_subagent_inner</span><span class="p">(</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">task</span><span class="p">);</span>
 </code></pre></div>
+
 
 登记的时机在 <code>acquire</code> 之前。所以 <code>finish</code> 里算出来的 <code>duration</code> 是 <code>job.started.elapsed()</code>——<strong>包含排队时间</strong>。
 
@@ -758,9 +782,11 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">}</span>
 </code></pre></div>
 
+
 结果回到主循环之后，只做了一件事：
 <div class="codehilite"><pre><span></span><code><span class="bp">self</span><span class="p">.</span><span class="n">style</span><span class="p">.</span><span class="n">tool_call</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">summarize</span><span class="p">(</span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">call</span><span class="p">.</span><span class="n">arguments</span><span class="p">),</span><span class="w"> </span><span class="o">&amp;</span><span class="n">result</span><span class="p">);</span>
 </code></pre></div>
+
 
 也就是说，一次工具调用在账本上留下的信息是「名字 + 参数摘要 + 结果文本」，没有开始时刻、没有耗时、没有输出字节数。而工具恰恰是 agent 里最不可控的一段：<code>run_command</code> 可能跑满 120 秒超时，<code>web_fetch</code> 可能卡在网络，<code>grep</code> 可能在几十万个文件里扫。
 
@@ -817,9 +843,11 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="p">},</span>
 </code></pre></div>
 
+
 第一行说「Cumulative（累计）」，最后一行说「客户端把这些值加起来」，也就是「增量」。同一段注释里出现了两个相反的口径。实际发送方是主循环：
 <div class="codehilite"><pre><span></span><code><span class="bp">self</span><span class="p">.</span><span class="n">style</span><span class="p">.</span><span class="n">usage</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">prompt_tokens</span><span class="p">,</span><span class="w"> </span><span class="n">turn</span><span class="p">.</span><span class="n">usage</span><span class="p">.</span><span class="n">completion_tokens</span><span class="p">);</span>
 </code></pre></div>
+
 
 第一个参数硬编码为 <code>1</code>，所以<strong>实现是增量</strong>，注释的头一行是错的。
 
@@ -830,6 +858,7 @@ NanoHermes 在这件事上的状态很典型：它有观测的零件，但没有
 <span class="w">    </span><span class="bp">self</span><span class="p">.</span><span class="n">emit</span><span class="p">(</span><span class="n">UiEvent</span><span class="p">::</span><span class="n">Usage</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="o">..</span><span class="p">.</span><span class="w"> </span><span class="p">});</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 <code>emit</code> 在没有 sink 时返回 <code>false</code>，函数就结束了。注释里说「终端已经有 <code>/cost</code>」，这个理由成立，但它意味着<strong>终端的实时观测能力为零</strong>：你只能在轮次结束后敲一次 <code>/cost</code>，中间发生了什么完全看不见。一个跑 20 分钟的轮次，中途没有任何用量反馈。
 <h2>daemon 的差分记账：<code>saturating_sub</code></h2>
@@ -853,6 +882,7 @@ daemon 用一个 Agent 服务多个会话。因为 <code>usage</code> 是进程�
 <span class="w">    </span><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">e</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;session&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">session_id</span><span class="w"> </span><span class="p">}),</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 <code>saturating_sub</code> 是个体贴的细节：万一计数回绕或被人为清零，订单不会变成天文数字。差分法本身在串行服务下也是对的——daemon 一次只处理一个请求，两个快照之间不会有别的写入。
 
@@ -907,6 +937,7 @@ daemon 用一个 Agent 服务多个会话。因为 <code>usage</code> 是进程�
 <span class="p">}),</span>
 </code></pre></div>
 
+
 然后收尾时写一行 <code>done</code>：
 <div class="codehilite"><pre><span></span><code><span class="nb">Ok</span><span class="p">(</span><span class="n">response</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">write_event</span><span class="p">(</span>
 <span class="w">    </span><span class="o">&amp;</span><span class="n">out</span><span class="p">,</span>
@@ -914,11 +945,13 @@ daemon 用一个 Agent 服务多个会话。因为 <code>usage</code> 是进程�
 <span class="p">),</span>
 </code></pre></div>
 
+
 <code>done</code> 行里<strong>没有累计用量</strong>。客户端要自己把前面收到的所有 <code>usage</code> 行加起来——这恰好是 <code>UiEvent</code> 注释里承诺的用法，所以不算错，但它把「求和」这件事推给了每一个客户端。三个客户端就得写三遍求和，其中两个可能写错。
 
 更麻烦的是错误路径：
 <div class="codehilite"><pre><span></span><code><span class="nb">Err</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">write_event</span><span class="p">(</span><span class="o">&amp;</span><span class="n">out</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">json</span><span class="o">!</span><span class="p">({</span><span class="w"> </span><span class="s">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;error&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;error&quot;</span><span class="p">:</span><span class="w"> </span><span class="nc">e</span><span class="w"> </span><span class="p">})),</span>
 </code></pre></div>
+
 
 一个跑到第 5 轮才失败的流式任务，客户端拿到了 5 行 usage、1 行 error，没有总计。如果客户端是「收到 done 才记账」的实现，这 5 行的花费就丢了；如果它边收边记，那它记的是「部分用量」，而它无从知道这是部分。
 
@@ -935,6 +968,7 @@ daemon 用一个 Agent 服务多个会话。因为 <code>usage</code> 是进程�
 <span class="p">}</span>
 </code></pre></div>
 
+
 <code>save_session_file</code> 写的就是 <code>messages</code> 的 pretty JSON。没有 header，没有 meta，没有用量。
 
 而 <code>Agent::with_mcp</code> 构造时：
@@ -943,6 +977,7 @@ daemon 用一个 Agent 服务多个会话。因为 <code>usage</code> 是进程�
 <span class="w">    </span><span class="n">usage</span><span class="p">:</span><span class="w"> </span><span class="nc">UsageTotals</span><span class="p">::</span><span class="n">default</span><span class="p">(),</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 即使 <code>--session</code> 加载了昨天的对话，<code>usage</code> 也是从零开始。于是 <code>agent -c</code> 之后敲 <code>/cost</code>，看到的是「本次进程的用量」，而不是「这个会话的用量」。任务连续跑了三天、每天重启一次，账本每天清零三次。
 
@@ -957,11 +992,13 @@ daemon 用一个 Agent 服务多个会话。因为 <code>usage</code> 是进程�
 <span class="p">}</span>
 </code></pre></div>
 
+
 代价是向后兼容：旧文件是裸数组，新代码读到数组要当成「v1，无账」处理。<code>load_session_file</code> 现在只接受数组：
 <div class="codehilite"><pre><span></span><code><span class="kd">let</span><span class="w"> </span><span class="n">arr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span>
 <span class="w">    </span><span class="p">.</span><span class="n">as_array</span><span class="p">()</span>
 <span class="w">    </span><span class="p">.</span><span class="n">ok_or_else</span><span class="p">(</span><span class="o">||</span><span class="w"> </span><span class="s">&quot;session file does not contain a JSON array&quot;</span><span class="p">.</span><span class="n">to_string</span><span class="p">())</span><span class="o">?</span><span class="p">;</span>
 </code></pre></div>
+
 
 改的时候要同时接受对象形态，否则所有老会话都会加载失败——而加载失败会退回默认消息，用户会以为「历史丢了」。
 <h2><code>/status</code> 与 <code>/cost</code>：进程级仪表盘</h2>
@@ -981,6 +1018,7 @@ daemon 用一个 Agent 服务多个会话。因为 <code>usage</code> 是进程�
   completion tokens: 12,880
   total tokens:      226,913
 </code></pre></div>
+
 
 <code>/status</code> 五行里没有一行是「量」——<code>messages</code> 是结构大小，不是消耗。<code>/cost</code> 四行是纯计数，没有时间、没有按模型拆分、没有按来源拆分（主循环 / 压缩 / 提炼 / 子代理）。
 
@@ -1003,6 +1041,7 @@ daemon 用一个 Agent 服务多个会话。因为 <code>usage</code> 是进程�
 <span class="p">}</span>
 </code></pre></div>
 
+
 这是整个项目里唯一一份「结构化、可管道、可入库」的账。它有三个局限：
 <ul>
 <li>只有一次 one-shot 的账，没有按轮拆分</li>
@@ -1020,6 +1059,7 @@ daemon 用一个 Agent 服务多个会话。因为 <code>usage</code> 是进程�
 <span class="w">  </span><span class="nt">&quot;usage&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;requests&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;prompt_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">18200</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;completion_tokens&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">940</span><span class="w"> </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 外层 <code>usage</code> 保留，是为了不让现有消费者（脚本、<code>jq</code> 管道）断掉；<code>turns</code> 是新账，供需要审计的人用。这种「加字段不改语义」的演进方式，比推倒重来安全得多。
 <h2>观测的现状是 <code>eprintln!</code></h2>
@@ -1073,6 +1113,7 @@ note: request failed (HTTP 503 from API: ...); retrying in 1000ms (attempt 1/2)
 sub-agent `reviewer` finished in 41.2s
 </code></pre></div>
 
+
 你能确定这三行属于同一次委派吗？不能。第二行可能来自主代理，也可能来自另一个子代理；第一行是启动期，第三行甚至不存在——因为子代理完成时根本不打印。
 
 能串起一条链路的东西应该是一个 id，从发起到结束一路传下去：
@@ -1120,6 +1161,7 @@ sub-agent `reviewer` finished in 41.2s
 <span class="p">.</span><span class="n">env</span><span class="p">(</span><span class="s">&quot;NANOHERMES_HOOK_EVENT&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">event</span><span class="p">)</span>
 </code></pre></div>
 
+
 07 已经指出缺 <code>NANOHERMES_AGENT</code>，所以钩子分不出父子。同一个问题在观测上的版本是：钩子分不出「这是本轮第几次调用同一个工具」，于是它没法做「同一个文件被改第三次就告警」这类策略。
 <h2>钩子是观测点，但钩子自己不被观测</h2>
 
@@ -1131,6 +1173,7 @@ sub-agent `reviewer` finished in 41.2s
 <span class="w">    </span><span class="k">pub</span><span class="w"> </span><span class="n">output</span><span class="p">:</span><span class="w"> </span><span class="nb">String</span><span class="p">,</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 调用方拿它做两件事：<code>ok()</code> 判断是否放行，失败时把 output 拼进 tool result 字符串。然后——就没有然后了。
 
@@ -1331,6 +1374,7 @@ sub-agent `reviewer` finished in 41.2s
 按 kind 聚合：模型请求耗时 / 工具耗时 / 钩子耗时
 </code></pre></div>
 
+
 三张表的关系是 <code>turn 1 → N span</code>，与 open tracing 的 trace/span 同构。之所以要分成 turn 和 span 两层，是因为这两层的语义不一样：turn 是「用户感知到的一次操作」，span 是「系统内部的一次外部依赖」。用户问「这次任务花了多少」问的是 turn，运维问「哪个工具最慢」问的是 span。
 
 顺带说一句存储。账本要不要落盘，取决于你要回答的问题：
@@ -1447,6 +1491,7 @@ NanoHermes 现在的选择是第三条，这是它「低依赖」哲学的一部
 <span class="p">}</span>
 </code></pre></div>
 
+
 关键在于三处：
 <ul>
 <li><code>Usage.cached_tokens</code> 是 <code>Option&lt;u64&gt;</code>，把「未知」和「0」分开</li>
@@ -1471,6 +1516,7 @@ NanoHermes 现在的选择是第三条，这是它「低依赖」哲学的一部
 <span class="w">    </span><span class="fm">assert_eq!</span><span class="p">(</span><span class="n">ledger</span><span class="p">.</span><span class="n">totals</span><span class="p">().</span><span class="n">prompt_tokens</span><span class="p">,</span><span class="w"> </span><span class="mi">5900</span><span class="p">);</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 <strong>二、父子可加。</strong> 父 turn 的用量等于「自身 + 所有子 span」。这条能抓住「子代理的钱记了但没挂到父上」。
 
@@ -1587,7 +1633,6 @@ NanoHermes 现在的选择是第三条，这是它「低依赖」哲学的一部
 <li><code>agent/src/memory.rs</code>：<code>distill</code>、<code>excerpt_from</code>、<code>worth_distilling</code></li>
 <li><code>agent/src/hooks.rs</code>：<code>HookOutcome</code>、<code>HOOK_TIMEOUT_SECS</code></li>
 <li><code>agent/src/tools/mod.rs</code>：<code>clamp</code>、<code>render_agent_board</code>、<code>Ctx</code></li>
-</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/aiagent/"><strong>AI Agent</strong></a> — 多智能体、提示注入防御、上下文工程与可观测性</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li><li><a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/aiagent/"><strong>AI Agent</strong></a> — 多智能体、提示注入防御、上下文工程与可观测性</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/agent-prompt-injection-boundary/">Agent 提示注入：谁说的话算指令</a></li><li><a href="https://blog.zhoujun.dev/article/agent-evaluation-not-a-benchmark/">Agent 评测：只跑一次的测试不算数</a></li><li><a href="https://blog.zhoujun.dev/article/agent-token-economics/">Token 经济学：同一任务十倍的差价</a></li><li><a href="https://blog.zhoujun.dev/article/agent-multiagent-subagents-board-and-gate/">Agent 多体：子代理、任务板与限流</a></li><li><a href="https://blog.zhoujun.dev/article/agent-security-run-commands-safely/">Agent 安全：让它跑命令而不失控</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

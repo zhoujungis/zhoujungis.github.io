@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -182,6 +182,7 @@
     <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="s2">&quot;请输入有效的邮箱地址&quot;</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span>
 </code></pre></div>
 
+
 它放过了所有"含 @" 的字符串。我用 Django 的 <code>validate_email</code> 对这些漏网之鱼做了实测：
 <div class="table-scroll"><table>
 <thead>
@@ -237,6 +238,7 @@
     <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;error&quot;</span><span class="p">:</span> <span class="s2">&quot;请输入有效的邮箱地址&quot;</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_400_BAD_REQUEST</span><span class="p">)</span>
 </code></pre></div>
 
+
 第一行干了三件事，一个都不能少：
 <ol>
 <li><code>(request.data.get("email") or "")</code> —— 没传字段时是 <code>None</code>，直接 <code>.strip()</code> 会炸 <code>AttributeError</code>，先兜底成空串；</li>
@@ -258,6 +260,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
+
 为什么订阅是全场最严（每小时 5 次）？对比一下：点赞刷爆了只是数字难看，评论刷爆了只是内容被污染——都是<strong>库内伤害</strong>，可回滚。但订阅刷爆了是<strong>库外伤害</strong>：每个垃圾地址都对应未来的真实 SMTP 发送成本，烧配额、进黑名单，发件域名信誉掉一次要养几个月。<strong>配额松紧不看"接口热不热"，看"被刷一次亏多少、亏的地方能不能撤销"。</strong>
 <hr>
 <h2>02 第二关：状态机——三种订阅请求，三种返回码</h2>
@@ -269,6 +272,7 @@
     <span class="n">subscribed_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">auto_now_add</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">verbose_name</span><span class="o">=</span><span class="s2">&quot;订阅时间&quot;</span><span class="p">)</span>
 </code></pre></div>
 
+
 <code>unique=True</code> 配 <code>lower()</code> 归一化，保证"一个邮箱一行"；<code>is_active</code> 而不是删行，保证"退订可追溯"（这个选择在下面会救场）。三种请求走同一个接口，返回各不相同：
 
 <strong>Case A：新邮箱首次订阅 → <code>201</code></strong>
@@ -277,6 +281,7 @@
 <span class="w">  </span>-d<span class="w"> </span><span class="s1">&#39;{&quot;email&quot;: &quot;reader@example.com&quot;}&#39;</span>
 <span class="c1"># → 201 {&quot;detail&quot;: &quot;订阅成功！&quot;}</span>
 </code></pre></div>
+
 
 <strong>Case B：退订过的邮箱重新订阅 → <code>201</code>，行内翻转</strong>
 <div class="codehilite"><pre><span></span><code><span class="n">sub</span><span class="p">,</span> <span class="n">created</span> <span class="o">=</span> <span class="n">Subscriber</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">get_or_create</span><span class="p">(</span><span class="n">email</span><span class="o">=</span><span class="n">email</span><span class="p">)</span>
@@ -287,11 +292,13 @@
     <span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;detail&quot;</span><span class="p">:</span> <span class="s2">&quot;订阅成功！&quot;</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_201_CREATED</span><span class="p">)</span>
 </code></pre></div>
 
+
 这是 L6 修的 bug：退订只是 <code>is_active=False</code>，行还在。<code>get_or_create</code> 返回 <code>created=False</code>，老代码直接回"该邮箱已订阅"——用户明明点了"重新订阅"，却永远收不到邮件。注意 <code>save(update_fields=["is_active"])</code>：只写一个字段，不碰 <code>subscribed_at</code>（保留"最初订阅时间"），也不触发无谓的全行 UPDATE。
 
 <strong>Case C：已订阅的邮箱重复提交 → <code>200</code></strong>
 <div class="codehilite"><pre><span></span><code><span class="k">return</span> <span class="n">Response</span><span class="p">({</span><span class="s2">&quot;detail&quot;</span><span class="p">:</span> <span class="s2">&quot;该邮箱已订阅&quot;</span><span class="p">},</span> <span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_200_OK</span><span class="p">)</span>
 </code></pre></div>
+
 
 200 vs 201 的区分和点赞接口是同一哲学：<strong>重复请求不是错误，用状态码告诉调用方"这次有没有发生变化"</strong>。前端据此决定 toast 文案，后端日志据此区分"新用户增长"和"重复提交噪音"。
 <blockquote>
@@ -306,6 +313,7 @@
     <span class="kn">import</span><span class="w"> </span><span class="nn">articles.signals</span>  <span class="c1"># noqa: F401 — register signal handlers</span>
 </code></pre></div>
 
+
 <code>@receiver(post_save, sender=Article)</code> 装饰器只在模块被导入时执行注册。如果哪天有人重构 <code>apps.py</code> 删了这一行，群发会静默停止——<strong>没有任何报错，只是读者再也收不到邮件</strong>。和 04 节的 <code>.update()</code> 坑是同一家族：信号机制的发布者和订阅者之间没有契约，全靠"记得接线"。
 <h3>3.1 双闸：什么情况下一封都不发</h3>
 <div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">instance</span><span class="o">.</span><span class="n">status</span> <span class="o">!=</span> <span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">:</span>
@@ -313,6 +321,7 @@
 <span class="k">if</span> <span class="n">instance</span><span class="o">.</span><span class="n">notification_sent</span><span class="p">:</span>
     <span class="k">return</span>
 </code></pre></div>
+
 
 第一闸：草稿保存、归档操作都不触发——只有状态变为 published 才发。第二闸：<code>notification_sent</code> 幂等旗，发过的文章再编辑保存不再打扰。两闸都是"默认不打扰"：<strong>群发的默认行为应该是沉默，任何一次发送都需要明确的理由。</strong>
 <h3>3.2 具体推演：230 个订阅者，5 批是怎么走的</h3>
@@ -332,6 +341,7 @@
         <span class="n">batch</span> <span class="o">=</span> <span class="p">[]</span>
 <span class="c1"># 尾批同样处理</span>
 </code></pre></div>
+
 
 假设 230 个活跃订阅者，执行过程是：
 <div class="table-scroll"><table>
@@ -387,6 +397,7 @@
     <span class="k">return</span>
 </code></pre></div>
 
+
 否则每次保存文章都要重新查一遍订阅表——读放大。标记的语义从"已发送"扩展为"<strong>已处理</strong>"，更准确。
 <h3>3.4 邮件长什么样</h3>
 
@@ -394,6 +405,7 @@
 <div class="codehilite"><pre><span></span><code><span class="n">subject</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="se">\U0001F4DD</span><span class="s2"> 新文章: </span><span class="si">{</span><span class="n">instance</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2">&quot;</span>
 <span class="c1"># 实际效果：📝 新文章: 为什么我敢在 Django 博客里渲染用户的 Markdown……</span>
 </code></pre></div>
+
 
 正文是纯文本模板（<code>templates/articles/email/new_article.txt</code> 全文）：
 <div class="codehilite"><pre><span></span><code><span class="x">ZhouJun&#39;s Blog — 新文章发布通知</span>
@@ -409,6 +421,7 @@
 <span class="x">你收到这封邮件是因为你在 </span><span class="cp">{{</span> <span class="nv">site_url</span> <span class="cp">}}</span><span class="x"> 订阅了新文章通知。</span>
 <span class="x">如果不想再收到通知，可以忽略此邮件。</span>
 </code></pre></div>
+
 
 标题、正文、链接全是模板变量——<strong>群发内容和文章数据同源</strong>，文章改标题重发通知不会出现"标题对不上"的事故。另有一处诚实记录：仓库里还有个 <code>new_article.html</code> 精美模板（渐变 header、阅读全文按钮），但信号目前只渲染 txt 纯文本——<code>send_mass_mail</code> 不支持 HTML，HTML 版是给未来 <code>EmailMultiAlternatives</code> 预留的。<strong>先让纯文本链路跑通，再谈精美排版</strong>，顺序不能反。
 <hr>
@@ -427,12 +440,14 @@
     <span class="n">article</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>  <span class="c1"># triggers post_save → notify_subscribers_on_publish</span>
 </code></pre></div>
 
+
 <code>QuerySet.update()</code> 直接拼 SQL，不走 <code>save()</code>，不触发 <code>post_save</code>。如果定时命令图省事写成：
 <div class="codehilite"><pre><span></span><code><span class="c1"># 错误示范：千万别这么写</span>
 <span class="n">Article</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
     <span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">SCHEDULED</span><span class="p">,</span> <span class="n">scheduled_at__lte</span><span class="o">=</span><span class="n">now</span>
 <span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="n">Article</span><span class="o">.</span><span class="n">Status</span><span class="o">.</span><span class="n">PUBLISHED</span><span class="p">)</span>
 </code></pre></div>
+
 
 文章照常上线，定时逻辑照常工作，日志里干干净净——<strong>只是 230 个订阅者谁也没收到邮件，没有任何报错</strong>。这是最阴险的一类 bug：所有环节都"正常工作"，只是它们没连起来。排查时你会先怀疑 SMTP、再怀疑信号、最后才发现是定时命令少调了一个方法。
 <div class="table-scroll"><table>
@@ -505,7 +520,6 @@
 </ol>
 </blockquote>
 
-同一条链路上还可以接着读：<a href="/article/mq-reliable-delivery-deep-dive/">《消息凭空消失排查记：MQ 可靠投递实测》</a>、<a href="/article/django-transaction-atomic-on-commit/">《事务回滚了，邮件照样发出去——Django 事务深水区》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li><a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li><li><a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去——Django 事务深水区</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同一条链路上还可以接着读：<a href="/article/mq-reliable-delivery-deep-dive/">《消息凭空消失排查记：MQ 可靠投递实测》</a>、<a href="/article/django-transaction-atomic-on-commit/">《事务回滚了，邮件照样发出去——Django 事务深水区》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/backend/"><strong>后端架构</strong></a> — Django、并发、限流、灰度与线上部署</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li><a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li><li><a href="https://blog.zhoujun.dev/article/django-anon-like-dedup/">为什么我敢让匿名用户点赞：五层防刷设计</a></li><li><a href="https://blog.zhoujun.dev/article/database-connection-pool-deep-dive/">数据库连接池：为什么 100 个连接比 20 个更慢</a></li><li><a href="https://blog.zhoujun.dev/article/django-transaction-atomic-on-commit/">事务回滚了，邮件照样发出去——Django 事务深水区</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

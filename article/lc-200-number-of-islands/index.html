@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -184,6 +184,7 @@
 输出: 3
 </code></pre></div>
 
+
 一个 <code>3 × 3</code> 全是陆地的网格（你题面里的例子）→ 输出 <code>1</code>，因为九块陆地水平竖直全连通，是<strong>一座</strong>岛。注意 <code>'1'</code>/<code>'0'</code> 是<strong>字符</strong>，也<strong>只有上下左右</strong>四个方向算连通，对角线不算。
 
 这题的骨架短到一句话：
@@ -229,6 +230,7 @@
     <span class="k">return</span> <span class="n">count</span>
 </code></pre></div>
 
+
 三个细节决定成败：
 <ol>
 <li><strong>只对"未被访问的陆地"计数</strong>。水和已访问的陆地都直接跳过 —— 计数发生在"第一次碰到这座岛"的瞬间，一次一座，不多不少。</li>
@@ -249,6 +251,7 @@
     <span class="n">flood</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">seen</span><span class="p">)</span>
     <span class="n">flood</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">c</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">seen</span><span class="p">)</span>
 </code></pre></div>
+
 
 代码短、好写，但它有一个<strong>隐藏的 O(岛屿大小) 调用栈</strong>：每深入一层连通路径就压一个栈帧。递归深度 = 从入口到最远处的那条<strong>最长无重复连通路径</strong>。
 
@@ -274,6 +277,7 @@
 
 <div class="algo-viz algo-viz--lc200uf"></div>
 
+
 <strong>动画一</strong>（<code>algo-viz--lc200</code>）：<strong>染色法</strong>。左边是网格，陆地深色、水浅色、已访问的陆地染灰；右上是一条<strong>显式栈</strong>（从栈底到栈顶列出坐标），右下是"岛屿计数"。每发一帧：<code>seed</code> 帧是"扫描到一块新陆地 → <code>count+1</code>、入栈"（计数格描金）；<code>pop</code> 帧从栈顶弹出一块，把它四周<strong>未被访问的陆地</strong>（描绿）标记并压栈。盯住两件事：<strong>新岛只在 seed 帧计数</strong>，以及<strong>栈的深度会随连通块大小起伏</strong> —— 这正是递归版"调用栈深度"的可视化。
 
 <strong>动画二</strong>（<code>algo-viz--lc200uf</code>）：<strong>并查集</strong>。每块陆地初始各自成集合（<code>count</code> 从 0 起，每加一块 <code>+1</code>）；扫描时把它和<strong>上方、左方</strong>已经处理过的陆地合并 —— 合并成功一次，<code>count-1</code>。网格里每块陆地标着它当前的<strong>根坐标</strong>，相同根同色。盯住计数格：<strong>加一块 +1、成功合并 -1</strong>，一趟扫完，剩下的就是岛屿数。它<strong>全程没有递归、没有栈</strong>，深度安全。
@@ -287,6 +291,7 @@
 <span class="mf">0</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="mf">0</span>
 <span class="mf">0</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="mf">1</span>
 </code></pre></div>
+
 
 三座岛：左上 <code>2×2</code>、中央单块 <code>(2,2)</code>、右下两块 <code>(3,3)(3,4)</code>。约定邻居入栈顺序为 <strong>上、右、下、左</strong>，栈是 LIFO，所以<strong>后入先出</strong>。逐帧如下：
 <div class="table-scroll"><table>
@@ -450,6 +455,7 @@
     <span class="k">return</span> <span class="n">count</span>
 </code></pre></div>
 
+
 <strong>显式栈 DFS</strong> 同理，只把 <code>deque</code> 换成 <code>list</code> 的 <code>append</code>/<code>pop</code> —— 深度不再受调用栈限制，代价是栈内容存在<strong>堆</strong>里。
 
 <strong>并查集：数连通块</strong>，全程无递归：
@@ -482,6 +488,7 @@
                         <span class="n">count</span> <span class="o">-=</span> <span class="mi">1</span>            <span class="c1"># 合并成功，连通块少一个</span>
     <span class="k">return</span> <span class="n">count</span>
 </code></pre></div>
+
 
 并查集的好处很实在：<strong>它没有递归、没有显式栈、也不依赖"一入就标"</strong>；而且当题目要<strong>动态加陆地</strong>（LC 305 岛屿数量 II）时，只有它能增量维护答案 —— 这正是它在面试追问里被点名的原因。
 
@@ -603,6 +610,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
+
 一个 Java 细节：<code>new int[m*n]</code> 对 <code>300×300</code> 是 <code>90000</code>，没问题；但如果网格更大，可以把 <code>parent</code> 用 <code>int[]</code> 继续压（无需 <code>Map</code>）。<code>union</code> 返回"是否真的合并了"，正好用来决定 <code>count--</code>。
 <h2>七、同族题：695 / 130 / 463 / 1254 / 733 / 694 / 1905 / 1020</h2>
 
@@ -705,7 +713,6 @@
 
 同族题延伸：<a href="/article/lc-994-rotting-oranges/">《【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表》</a>、<a href="/article/lc-207-course-schedule/">《【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）》</a>。
 
-下一篇见。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-1262-greatest-sum-divisible-by-three/">【LC 1262】可被三整除的最大和：贪心与滚动 dp</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-994-rotting-oranges/">【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-207-course-schedule/">【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）</a></li><li><a href="https://blog.zhoujun.dev/article/lc-994-rotting-oranges/">【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/lc-61-poker-straight/">【扑克】5 张牌判断顺子：王只补缺失，补不了重复</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+下一篇见。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-1262-greatest-sum-divisible-by-three/">【LC 1262】可被三整除的最大和：贪心与滚动 dp</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-994-rotting-oranges/">【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-207-course-schedule/">【LC 207】课程表：Kahn 的入度表，和 DFS 的三色标记（附 210 返序）</a></li><li><a href="https://blog.zhoujun.dev/article/lc-994-rotting-oranges/">【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li><li><a href="https://blog.zhoujun.dev/article/lc-61-poker-straight/">【扑克】5 张牌判断顺子：王只补缺失，补不了重复</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

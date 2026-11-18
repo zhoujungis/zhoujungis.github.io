@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -174,10 +174,12 @@
 输出: -9
 </code></pre></div>
 
+
 <strong>LC 772 基本计算器 III</strong>（腾讯特色）：在 224 的基础上加上 <code>'*'</code>、<code>'/'</code>，处理运算优先级与括号。整数除法截断小数部分（向零取整）。
 <div class="codehilite"><pre><span></span><code>输入: &quot;2*(5+5*2)/3+(6/2+8)&quot;
 输出: 21
 </code></pre></div>
+
 
 两道题是一套题的"退化版与满血版"：224 只有加减 —— <strong>同级、左结合，根本没有优先级要处理</strong>；772 加上乘除后优先级不再统一，"来一个结一个"当场失效。腾讯爱考它，是因为一道题能同时考到<strong>词法切分、栈、优先级调度、括号处理、整数除法语义</strong> —— 表达式求值全家桶。
 <ul>
@@ -234,6 +236,7 @@
     <span class="k">return</span> <span class="n">result</span>
 </code></pre></div>
 
+
 注意栈里存的<strong>不是中间结果本身</strong>，而是"外层欠账"：外层累计值 + 括号符号。<code>1 + 2 - (3 + 4) - 5</code> 扫到 <code>(</code> 时压入 <code>{3, -1}</code>，扫到 <code>)</code> 时括号内算出 <code>7</code>，合并成 <code>3 + (-1) * 7 = -4</code> —— 括号作为一个<strong>整体数值</strong>回到外层，继续 <code>- 5</code> 得 <strong>-9</strong>。
 <h2>二、LC 772 核心洞察：优先级打破"立刻结算" → 双栈调度场</h2>
 
@@ -288,6 +291,7 @@
         <span class="n">apply</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">nums</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
 </code></pre></div>
+
 
 拿 <code>"2*(5+5*2)/3+(6/2+8)"</code> 走一遍最值钱的三步：<code>)</code> 关闭 <code>(5+5*2)</code> 时先弹 <code>5*2=10</code> 再弹 <code>5+10=15</code>（乘法在括号内层栈顶，先走）；接着 <code>/</code> 来临，栈顶 <code>*</code> 优先级相等，先结算 <code>2*15=30</code> 再压 <code>/</code>；最后收尾时 <code>ops</code> 里只剩一个 <code>+</code>，<code>10 + 11 = 21</code>。全程没有任何一处"回头看"，<strong>优先级全部由栈顶比较当场裁决</strong>。
 <div class="algo-viz algo-viz--lc224"></div>
@@ -613,6 +617,7 @@
 <span class="p">}</span>
 </code></pre></div>
 
+
 <strong>LC 772</strong>（注意：Java 的 <code>/</code> <strong>本来就向零截断</strong>，<code>-3 / 2 == -1</code>，比 Python 省心）：
 <div class="codehilite"><pre><span></span><code><span class="kd">class</span> <span class="nc">Solution</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kd">public</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="nf">calculate</span><span class="p">(</span><span class="n">String</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
@@ -655,6 +660,7 @@
 <span class="w">    </span><span class="p">}</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 中间结果用 <code>long</code> 存：<code>2147483647+1</code> 这类输入会让 <code>int</code> 在<strong>结算中途</strong>溢出，最后再 <code>intValue()</code> 截回是这类题的常规防御。
 <h2>七、边界情况</h2>
@@ -732,7 +738,6 @@
 
 这是本系列第三十一篇。从 LC 20 的"括号配谁"，到 155 的"记住历史"、232 的"再翻一次"、239 的"按值排队"，再到今天 224/772 的"按优先级结算"—— 栈这个只会后进先出的数据结构，在六道题里换了六张面孔，但每次被逼出来的理由都一样：<strong>当下处理不了、又不能丢的东西，交给栈</strong>。
 
-同族题延伸：<a href="/article/lc-20-valid-parentheses/">《【LC 20】有效的括号：栈是被结构逼出来的》</a>、<a href="/article/lc-155-232-min-stack-and-queue-via-stacks/">《【LC 155/232】最小栈 &amp; 用栈实现队列：记历史与再翻一次》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-155-232-min-stack-and-queue-via-stacks/">【LC 155/232】最小栈 &amp; 用栈实现队列：记历史与再翻一次</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-704-69-binary-search-and-sqrt/">【LC 704/69】二分查找 &amp; 平方根：命中返回 vs 还向右</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-155-232-min-stack-and-queue-via-stacks/">【LC 155/232】最小栈 &amp; 用栈实现队列：记历史与再翻一次</a></li><li><a href="https://blog.zhoujun.dev/article/lc-239-sliding-window-maximum/">【LC 239】滑动窗口最大值：单调队列只留候选</a></li><li><a href="https://blog.zhoujun.dev/article/lc-20-valid-parentheses/">【LC 20】有效的括号：栈是被结构逼出来的</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同族题延伸：<a href="/article/lc-20-valid-parentheses/">《【LC 20】有效的括号：栈是被结构逼出来的》</a>、<a href="/article/lc-155-232-min-stack-and-queue-via-stacks/">《【LC 155/232】最小栈 &amp; 用栈实现队列：记历史与再翻一次》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-155-232-min-stack-and-queue-via-stacks/">【LC 155/232】最小栈 &amp; 用栈实现队列：记历史与再翻一次</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-704-69-binary-search-and-sqrt/">【LC 704/69】二分查找 &amp; 平方根：命中返回 vs 还向右</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-155-232-min-stack-and-queue-via-stacks/">【LC 155/232】最小栈 &amp; 用栈实现队列：记历史与再翻一次</a></li><li><a href="https://blog.zhoujun.dev/article/lc-239-sliding-window-maximum/">【LC 239】滑动窗口最大值：单调队列只留候选</a></li><li><a href="https://blog.zhoujun.dev/article/lc-20-valid-parentheses/">【LC 20】有效的括号：栈是被结构逼出来的</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

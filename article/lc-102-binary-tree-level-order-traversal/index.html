@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -185,6 +185,7 @@
 输出：[]
 </code></pre></div>
 
+
 注意输出的<strong>嵌套结构</strong>：不是 <code>[3,9,20,15,7]</code>，而是 <code>[[3],[9,20],[15,7]]</code>。
 
 单看题目，这就是 BFS 走一遍。但面试里它几乎不会裸考 —— 带出来的是这一串：
@@ -256,6 +257,7 @@
     <span class="k">return</span> <span class="n">out</span>
 </code></pre></div>
 
+
 跑一下 <code>[3,9,20,null,null,15,7]</code>，得到 <code>[3, 9, 20, 15, 7]</code> —— 这个顺序是<strong>对的</strong>，层序遍历要的就是它。
 
 问题是：<strong>这五個数字之间的"层边界"在哪？</strong> 光看这个一维数组，你分不清哪几个是同一层的。
@@ -276,6 +278,7 @@
 出队 7      q = []
 </code></pre></div>
 
+
 看第二行：<code>9</code> 和 <code>20</code> 是<strong>连续</strong>排在一起的，中间没有 <code>15</code>、<code>7</code> 插进来。这不是巧合 —— 因为入队的顺序严格是"第 0 层出队时把第 1 层全部入队"，第 1 层出队时才轮到第 2 层。<strong>FIFO 天然保证了这一点。</strong>
 
 所以分层的信息<strong>本来就在队列里</strong>，只是上面那段代码每轮只出队一个、出完就没了。要做的是：<strong>在一层开始的时候，先记下这一层有几个节点。</strong>
@@ -293,11 +296,13 @@
     <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
 </code></pre></div>
 
+
 <strong>为什么必须用 <code>size</code>，不能直接写 <code>while q</code>？</strong>
 
 因为内层那个 <code>for</code> 循环是<strong>一边出队、一边入队</strong>的。<code>9</code> 和 <code>20</code> 出队的同一轮里，<code>15</code> 和 <code>7</code> 已经被推进队列了。如果不先把长度存下来，而是拿<strong>实时长度</strong>当循环条件：
 <div class="codehilite"><pre><span></span><code><span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>    <span class="c1"># ✗ 错的：len(q) 每一轮都在变</span>
 </code></pre></div>
+
 
 那么第 0 层出队 <code>3</code> 之后 <code>len(q)</code> 变成 2，<code>9</code> 和 <code>20</code> 出队时 <code>len(q)</code> 又涨回去 —— 循环会一直把<strong>下一层</strong>的节点也卷进来，层就分不开了。
 
@@ -338,6 +343,7 @@
         <span class="k">return</span> <span class="n">res</span>
 </code></pre></div>
 
+
 <strong>十行，主流程就这些。</strong> 下面几节全部是在这一副骨架上换皮。
 <hr>
 <h2>二、动画：看着 size 把层"框"住</h2>
@@ -349,6 +355,7 @@
 <li><strong>结果区逐行长出来</strong>：每次"封层"（<code>close</code> 帧）才追加一行，所以它长出来的节奏是 <code>[3]</code> → 两行 → 三行，跟树的层一一对应。</li>
 </ul>
 <div class="algo-viz algo-viz--lc102"></div>
+
 
 看动画时可以专门盯住第 4 帧和第 9 帧（两个 <code>close</code> 帧）：<strong>只有在 <code>size</code> 个节点全部出队之后，结果区才会多出一行。</strong> 这就是"分层"在画面上最直接的体现。
 <hr>
@@ -548,6 +555,7 @@
 <div class="codehilite"><pre><span></span><code><span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">res</span><span class="p">)</span> <span class="o">%</span> <span class="mi">2</span> <span class="k">else</span> <span class="n">level</span><span class="p">)</span>      <span class="c1"># 事后翻转</span>
 </code></pre></div>
 
+
 能过，但有两种小毛病：一是"反"这件事发生在事后，跟"入队顺序"这个真正的机制没有对应关系；二是有的面试官会追问"能不能一边收集一边就放对位置"。
 <h3>4.2 换一只头：头插代替事后翻转</h3>
 
@@ -565,6 +573,7 @@
     <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">:</span>
         <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">right</span><span class="p">)</span>
 </code></pre></div>
+
 
 <strong>头插的法子好在哪</strong>：<code>9</code> 先出队，头插进去是 <code>[9]</code>；<code>20</code> 后出队，头插进去把它顶到前面变成 <code>[20, 9]</code> —— 一个插入动作同时完成了"收集"和"排序"，不需要第二次遍历。
 <blockquote>
@@ -601,6 +610,7 @@
         <span class="k">return</span> <span class="n">res</span>
 </code></pre></div>
 
+
 跟 LC 102 的 diff 只有三处：多一个 <code>reverse</code> 变量、<code>append</code> 变成条件二选一、其余不动。<strong><code>size</code> 快照那行完全没碰。</strong>
 <blockquote>
 
@@ -629,6 +639,7 @@
     <span class="n">right_view</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>     <span class="c1"># ★ 就这一行：封层时取末位</span>
 </code></pre></div>
 
+
 <strong>复杂度没变、循环结构没变，加一行就出结果。</strong>
 <h3>5.2 完整代码</h3>
 <div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Solution</span><span class="p">:</span>
@@ -652,6 +663,7 @@
 
         <span class="k">return</span> <span class="n">right_view</span>
 </code></pre></div>
+
 
 <code>i == size - 1</code> 和 <code>level[-1]</code> 是同一件事，前者省了一个 <code>level</code> 数组 —— 只要右视图的话用这个更省。
 <h3>5.3 ⚠️ 锯齿 + 右视图会打架</h3>
@@ -690,6 +702,7 @@
 <div class="codehilite"><pre><span></span><code><span class="k">return</span> <span class="n">res</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>        <span class="c1"># 或者层级遍历时 res.insert(0, level)</span>
 </code></pre></div>
 
+
 <strong>注意</strong>：只翻<strong>层与层之间</strong>的顺序，每层内部的左右顺序<strong>不动</strong>。<code>[[3],[9,20],[15,7]]</code> → <code>[[15,7],[9,20],[3]]</code>。把每层内部也反了，就变成 103 了。
 <h3>6.2 LC 429 N 叉树：把"两个孩子"换成"孩子列表"</h3>
 <div class="codehilite"><pre><span></span><code><span class="k">while</span> <span class="n">q</span><span class="p">:</span>
@@ -702,6 +715,7 @@
             <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">child</span><span class="p">)</span>
     <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">level</span><span class="p">)</span>
 </code></pre></div>
+
 
 N 叉树节点没有 <code>left</code>/<code>right</code>，只有一个 <code>children</code> 列表。<strong><code>size</code> 快照那一行照抄。</strong>
 <hr>
@@ -730,6 +744,7 @@ N 叉树节点没有 <code>left</code>/<code>right</code>，只有一个 <code>c
 <span class="p">}</span>
 </code></pre></div>
 
+
 锯齿版（Java 比 Python 还干净，<code>LinkedList</code> 两头都能插）：
 <div class="codehilite"><pre><span></span><code><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">q</span><span class="p">.</span><span class="na">isEmpty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
 <span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">q</span><span class="p">.</span><span class="na">size</span><span class="p">();</span>
@@ -745,6 +760,7 @@ N 叉树节点没有 <code>left</code>/<code>right</code>，只有一个 <code>c
 <span class="w">    </span><span class="n">res</span><span class="p">.</span><span class="na">add</span><span class="p">(</span><span class="n">level</span><span class="p">);</span>
 <span class="p">}</span>
 </code></pre></div>
+
 
 Java 里两个提醒：
 <ul>
@@ -829,6 +845,7 @@ Java 里两个提醒：
         <span class="o">...</span>
 </code></pre></div>
 
+
 这是这题唯一真正的坑，也是最常见的失分点。<strong>必须 <code>size = len(q)</code> 先存下来。</strong>
 
 <strong>2. 忘了 <code>if not root</code> 守卫。</strong>
@@ -837,6 +854,7 @@ Java 里两个提醒：
     <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
     <span class="n">level</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">val</span><span class="p">)</span>     <span class="c1"># ✗ AttributeError</span>
 </code></pre></div>
+
 
 <strong>3. 结果返回 <code>[[]]</code> 而不是 <code>[]</code>。</strong>
 
@@ -848,12 +866,14 @@ Java 里两个提醒：
     <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">:</span>  <span class="n">q</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">left</span><span class="p">)</span>
 </code></pre></div>
 
+
 <strong>入队永远 <code>left → right</code>，只反输出的那一头。</strong>
 
 <strong>5. 用 <code>list.pop(0)</code> 当出队。</strong>
 <div class="codehilite"><pre><span></span><code><span class="n">q</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span>
 <span class="n">node</span> <span class="o">=</span> <span class="n">q</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>                <span class="c1"># ✗ O(n) 的删除，整体退化成 O(n²)</span>
 </code></pre></div>
+
 
 Python 里用 <code>collections.deque.popleft()</code>，Java 里用 <code>ArrayDeque.poll()</code>。<strong>这个坑在大数据量用例上会超时。</strong>
 
@@ -948,9 +968,9 @@ Python 里用 <code>collections.deque.popleft()</code>，Java 里用 <code>Array
 <span class="nv">q</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>[<span class="mi">15</span>,<span class="w"> </span><span class="mi">7</span>]<span class="w">          </span>←<span class="w"> </span>再下轮：<span class="nv">size</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span>
 </code></pre></div>
 
+
 <strong><code>size</code> 就是每一层的边界线。</strong> 它是在进 <code>while</code> 的那一刻被拍下来的快照，拍完之后队列里怎么翻江倒海，都跟这一层无关了。
 
-同族题延伸：<a href="/article/lc-104-226-max-depth-and-invert-binary-tree/">《【LC 104/226】最大深度 &amp; 翻转二叉树：各藏一颗钉子》</a>、<a href="/article/lc-994-rotting-oranges/">《【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-82-remove-duplicates-from-sorted-list-ii/">【LC 82】删除重复元素 II：为什么必须有 dummy</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-236-lowest-common-ancestor-of-a-binary-tree/">【LC 236】二叉树的最近公共祖先：命中即返回</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-104-226-max-depth-and-invert-binary-tree/">【LC 104/226】最大深度 &amp; 翻转二叉树：各藏一颗钉子</a></li><li><a href="https://blog.zhoujun.dev/article/lc-124-binary-tree-maximum-path-sum/">【LC 124】二叉树最大路径和：返回值只选一条</a></li><li><a href="https://blog.zhoujun.dev/article/lc-236-lowest-common-ancestor-of-a-binary-tree/">【LC 236】二叉树的最近公共祖先：命中即返回</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同族题延伸：<a href="/article/lc-104-226-max-depth-and-invert-binary-tree/">《【LC 104/226】最大深度 &amp; 翻转二叉树：各藏一颗钉子》</a>、<a href="/article/lc-994-rotting-oranges/">《【LC 994】腐烂的橘子：多源 BFS，和一张腐烂时刻表》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/leetcode/"><strong>算法题解</strong></a> — 从暴力解推到最优解，写清每一步为什么</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/lc-82-remove-duplicates-from-sorted-list-ii/">【LC 82】删除重复元素 II：为什么必须有 dummy</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/lc-236-lowest-common-ancestor-of-a-binary-tree/">【LC 236】二叉树的最近公共祖先：命中即返回</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/lc-104-226-max-depth-and-invert-binary-tree/">【LC 104/226】最大深度 &amp; 翻转二叉树：各藏一颗钉子</a></li><li><a href="https://blog.zhoujun.dev/article/lc-124-binary-tree-maximum-path-sum/">【LC 124】二叉树最大路径和：返回值只选一条</a></li><li><a href="https://blog.zhoujun.dev/article/lc-236-lowest-common-ancestor-of-a-binary-tree/">【LC 236】二叉树的最近公共祖先：命中即返回</a></li><li><a href="https://blog.zhoujun.dev/article/kmp-next-array/">【KMP】求 next 数组：自己跟自己的最长相等前后缀</a></li><li><a href="https://blog.zhoujun.dev/article/lc-1928-min-cost/">【LC 1928】规定时间内到达终点的最小花费：分层图上的 dp</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>

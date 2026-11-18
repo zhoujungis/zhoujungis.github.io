@@ -91,7 +91,7 @@
         navigator.serviceWorker.register('/sw.js');
       }
     </script>
-    <script type="module" crossorigin src="/assets/index-q1nhi97G.js"></script>
+    <script type="module" crossorigin src="/assets/index-nhRsQAH9.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
     <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
     <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
@@ -358,6 +358,7 @@ aidevops approve &lt;id&gt;              # 确认 → 代码固定的 Executor �
 aidevops reject &lt;id&gt;               # 拒绝 → 丢弃
 </code></pre></div>
 
+
 三条硬规则：
 <ol>
 <li><strong>只有 <code>approve</code> 会真正执行</strong>。执行逻辑不在模型手里，在代码写死的 Executor 里——模型只能「提」，不能「做」；</li>
@@ -374,6 +375,7 @@ aidevops reject &lt;id&gt;               # 拒绝 → 丢弃
 pip install aidevops
 </code></pre></div>
 
+
 登录走 <strong>GitHub 设备码</strong>（device flow），浏览器输个码就行，不在终端贴密码；远程服务器 / 容器用 <code>login --no-browser</code>。
 <div class="codehilite"><pre><span></span><code>aidevops login                       # GitHub 设备码登录
 aidevops org-add &quot;My Team&quot;           # 首次使用：建组织（创建者即 admin）
@@ -382,6 +384,7 @@ aidevops use qa-copilot-platform     # 选中项目，后续命令默认作用�
 aidevops status                      # 当前后端 / 账号 / 项目
 </code></pre></div>
 
+
 <strong>接入仓库</strong>是产品入口，缺任何一环后面的 <code>commits</code> / <code>risk</code> / <code>explain</code> 都是空态：
 <div class="codehilite"><pre><span></span><code><span class="nv">aidevops</span><span class="w"> </span><span class="nv">connections</span><span class="w">                                     </span>#<span class="w"> </span>看现有<span class="w"> </span><span class="nv">Git</span><span class="w"> </span>凭据，拿<span class="w"> </span><span class="nv">connection</span><span class="w"> </span><span class="nv">id</span>
 <span class="nv">aidevops</span><span class="w"> </span><span class="nv">connection</span><span class="o">-</span><span class="nv">add</span><span class="w"> </span><span class="o">-</span><span class="nv">l</span><span class="w"> </span><span class="nv">my</span><span class="o">-</span><span class="nv">github</span><span class="w"> </span><span class="o">-</span><span class="nv">t</span><span class="w"> </span><span class="o">&lt;</span><span class="nv">PAT</span><span class="o">&gt;</span><span class="w">            </span>#<span class="w"> </span>私有库需要<span class="w"> </span><span class="nv">repo</span><span class="w"> </span>读权限
@@ -389,6 +392,7 @@ aidevops status                      # 当前后端 / 账号 / 项目
 <span class="nv">aidevops</span><span class="w"> </span><span class="nv">repo</span><span class="o">-</span><span class="nv">add</span><span class="w"> </span><span class="o">-</span><span class="nv">c</span><span class="w"> </span><span class="o">&lt;</span><span class="nv">connection</span><span class="o">-</span><span class="nv">id</span><span class="o">&gt;</span><span class="w"> </span><span class="o">-</span><span class="nv">f</span><span class="w"> </span><span class="nv">owner</span><span class="o">/</span><span class="nv">repo</span><span class="w">       </span>#<span class="w"> </span>注册仓库
 <span class="nv">aidevops</span><span class="w"> </span><span class="nv">sync</span><span class="w"> </span><span class="o">&lt;</span><span class="nv">repository</span><span class="o">-</span><span class="nv">id</span><span class="o">&gt;</span><span class="w"> </span><span class="o">--</span><span class="k">wait</span><span class="w">                     </span>#<span class="w"> </span>拉取历史，跑完即用
 </code></pre></div>
+
 
 <code>connection</code> 是<strong>组织级</strong>凭据（管理员管理），一个凭据可注册多个仓库；<code>repo-update</code> 能调同步窗口与模块归属深度。
 
@@ -401,6 +405,7 @@ aidevops status                      # 当前后端 / 账号 / 项目
 <div class="codehilite"><pre><span></span><code>aidevops --json findings | jq &#39;.[] | select(.severity == &quot;critical&quot;)&#39;
 </code></pre></div>
 
+
 两个为管道做的细节：<code>--json</code> 模式下升级提示走 <strong>stderr</strong>，不污染 stdout；<code>AIDEVOPS_JSON=1</code> 环境变量等价于全局 flag。CI 里用 <code>AIDEVOPS_TOKEN</code> 直接注入令牌（免交互登录），<code>AIDEVOPS_BASE_URL</code> 指向测试后端做集成验证。
 
 一个实际的 CI 场景：流水线里跑 <code>aidevops --json risk $GITHUB_SHA</code>，分数超过阈值就把关联的回归候选列表贴到 PR 评论里——风险引擎和 AI 建议都变成了流水线的一等公民。
@@ -411,6 +416,7 @@ aidevops status                      # 当前后端 / 账号 / 项目
 python -m ruff check .
 python -m mypy ai_devops_cli
 </code></pre></div>
+
 
 TUI 用 Textual 的 pilot 做交互测试——全屏应用的按键流、面板切换都覆盖到了，不靠人肉点。后端另有 <strong>569 个测试</strong>（4 个 network 用例默认跳过），全部不依赖外网，CI 上跑得飞快。
 
@@ -431,7 +437,6 @@ Roadmap 优先级：终端详情视图补完 → 真实 LLM smoke test → Celer
 
 如果你也在做 QA 平台，或者对「研发数据关联」和「有笼子的 AI Agent」这两个方向有兴趣，欢迎提 issue：<a href="https://github.com/zhoujungis/ai_devops" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/ai_devops</a>。装起来一行命令：<code>pipx install aidevops</code>。
 
-同一条链路上还可以接着读：<a href="/article/nanohermes-rust-coding-agent/">《NanoHermes：零运行时的 Rust Agent》</a>、<a href="/article/agent-network-octo/">《Agent 之间，有互联网了！》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/rea-reverse-engineer-anything/">一周 15 万 Star 的 REA：让 Agent 逆向一切的开源 MCP Server</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/english-site-without-js/">从 3 秒到毫秒首屏：英文站去 JS 化</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
-
+同一条链路上还可以接着读：<a href="/article/nanohermes-rust-coding-agent/">《NanoHermes：零运行时的 Rust Agent》</a>、<a href="/article/agent-network-octo/">《Agent 之间，有互联网了！》</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/rea-reverse-engineer-anything/">一周 15 万 Star 的 REA：让 Agent 逆向一切的开源 MCP Server</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/z-memory-explainable-provenance/">Z Memory：让 AI 记住并说清理由</a></li><li><a href="https://blog.zhoujun.dev/article/z-desktop-permission-gate/">Z Desktop：44 个本机工具怎么过闸</a></li><li><a href="https://blog.zhoujun.dev/article/english-site-without-js/">从 3 秒到毫秒首屏：英文站去 JS 化</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
   </body>
 </html>
