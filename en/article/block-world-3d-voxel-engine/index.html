@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A voxel sandbox written from scratch on top of Three.js: 528 blocks, 34 biomes, 17 structure types, 251-layer worlds, one-byte lighting, instanced rendering, a 4,096-event simulation queue and a v6 save format. Measured: about 5 ms of terrain prep per chunk, 80 bytes per block key, and a cloud schema two versions behind." />
+<!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/en/article/block-world-3d-voxel-engine/" />
+    <meta property="og:title" content="Block World 3D: a voxel engine with no game engine | Stack Frame" />
+    <meta property="og:description" content="A voxel sandbox written from scratch on top of Three.js: 528 blocks, 34 biomes, 17 structure types, 251-layer worlds, one-byte lighting, instanced rendering, a 4,096-event simulation queue and a v6 save format. Measured: about 5 ms of terrain prep per chunk, 80 bytes per block key, and a cloud schema two versions behind." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/en/article/block-world-3d-voxel-engine/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="尘世栈帧首页 — 技术笔记与原创项目" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Block World 3D: a voxel engine with no game engine | Stack Frame" />
+    <meta name="twitter:description" content="A voxel sandbox written from scratch on top of Three.js: 528 blocks, 34 biomes, 17 structure types, 251-layer worlds, one-byte lighting, instanced rendering, a 4,096-event simulation queue and a v6 save format. Measured: about 5 ms of terrain prep per chunk, 80 bytes per block key, and a cloud schema two versions behind." />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/og-image.jpg" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Block World 3D: a voxel engine with no game engine | Stack Frame</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+
+
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style><style>
+.en-shell{width:min(100% - 48px,900px);margin-inline:auto;padding:28px 0 48px;color:var(--text-primary);line-height:1.8}
+.en-shell__bar{display:flex;justify-content:space-between;align-items:baseline;gap:8px 24px;flex-wrap:wrap;padding-bottom:6px;border-bottom:3px solid var(--text-primary)}
+.en-brand{color:inherit;text-decoration:none}
+.en-brand__name{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:1.4rem;font-weight:900;line-height:1.1}
+.en-nav{display:flex;align-items:center;gap:16px;flex-wrap:wrap;line-height:1.2}
+.en-nav a{color:var(--text-secondary);font-size:.82rem;font-weight:600;text-decoration:none;border-bottom:1px solid transparent;padding-bottom:1px}
+.en-nav a:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.en-theme{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:50%;cursor:pointer}
+.en-theme:hover{color:var(--accent);border-color:var(--glass-border)}
+.en-theme svg{width:16px;height:16px}
+html.theme-dark .en-theme .i-sun{display:block}
+html.theme-dark .en-theme .i-moon{display:none}
+.en-theme .i-sun{display:none}
+.en-theme .i-moon{display:block}
+.en-shell__foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:56px;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.78rem}
+.en-shell__built{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell__legal{display:flex;gap:14px;flex-wrap:wrap}
+.en-shell__legal a{color:var(--text-secondary);text-decoration:none}
+.en-shell__legal a:hover{color:var(--accent)}
+.en-shell .post,.en-shell .ns-article,.en-shell .ns-list,.en-shell .ns-home-list{margin:26px 0 0;max-width:none;padding:0}
+.en-shell .post h1,.en-shell .ns-article h1,.en-shell .ns-list h1,.en-shell .ns-home-list h1{font-family:'Noto Serif SC','Source Han Serif SC','Songti SC','STSong',serif;font-size:clamp(1.7rem,3.6vw,2.1rem);line-height:1.25;margin:0 0 .4em}
+.en-shell .post__eyebrow,.en-shell .post__meta{color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem;margin:0 0 .4em}
+.en-shell .post__eyebrow a,.en-shell .post__foot a{color:var(--accent);text-decoration:none}
+.en-shell .post__foot{display:flex;justify-content:space-between;gap:16px;margin-top:48px;padding-top:14px;border-top:1px solid var(--glass-border);font-size:.82rem}
+.ns-thread-note{margin:2.4em 0 0;padding-top:14px;border-top:1px solid var(--glass-border);color:var(--text-secondary);font-size:.8rem}
+.ns-thread-note a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.ns-thread-note a:hover{border-bottom-color:var(--accent)}
+.markdown-body{font-size:1.05rem;line-height:1.85;color:var(--text-primary)}
+.markdown-body p{margin:.9em 0}
+.markdown-body h2{font-size:1.5rem;margin:1.6em 0 .6em;line-height:1.35;font-weight:700}
+.markdown-body h3{font-size:1.18rem;margin:1.4em 0 .5em;line-height:1.35;font-weight:700}
+.markdown-body ul,.markdown-body ol{margin:.8em 0;padding-left:1.5em}
+.markdown-body li{margin:.3em 0}
+.markdown-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(63,107,87,.3)}
+.markdown-body a:hover{border-bottom-color:var(--accent)}
+.markdown-body code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.88em;background:rgba(63,107,87,.08);padding:.12em .35em;border-radius:4px}
+.markdown-body pre{background:rgba(20,26,23,.05);border:1px solid var(--glass-border);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.86rem;line-height:1.65}
+.markdown-body pre code{background:none;padding:0;font-size:inherit}
+.markdown-body blockquote{margin:1.2em 0;padding:.4em 0 .4em 16px;border-left:3px solid var(--accent-secondary);color:var(--text-secondary)}
+.markdown-body blockquote p{margin:.4em 0}
+.markdown-body table{width:100%;border-collapse:collapse;margin:1.2em 0;font-size:.92rem}
+.markdown-body th,.markdown-body td{border:1px solid var(--glass-border);padding:8px 10px;text-align:left;vertical-align:top}
+.markdown-body th{background:rgba(63,107,87,.06);font-weight:700}
+.markdown-body img{max-width:100%;height:auto;border-radius:8px}
+.markdown-body hr{border:none;border-top:1px solid var(--glass-border);margin:2em 0}
+.en-shell .ns-list ul{padding:0;margin:1.6em 0 0;list-style:none}
+.en-shell .ns-list li{margin:0;padding:16px 0;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-list li>a{display:block;font-size:1.06rem;font-weight:600;line-height:1.45;color:var(--text-primary);text-decoration:none}
+.en-shell .ns-list li>a:hover{color:var(--accent)}
+.en-shell .ns-list .ns-date{display:block;margin-top:5px;color:var(--text-secondary);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.7rem}
+.en-shell .ns-list .ns-excerpt{margin:.45em 0 0;color:var(--text-secondary);font-size:.92rem;line-height:1.75}
+.en-shell .ns-list .ns-lead{color:var(--text-secondary);font-size:.9rem;margin:0 0 1.2em}
+.en-shell .ns-list .ns-nav{margin-top:2em;padding-top:1em;border-top:1px solid var(--glass-border);font-size:.85rem}
+.en-shell .ns-list .ns-nav a{margin-right:1em;color:var(--text-secondary);text-decoration:none}
+.en-shell .ns-list .ns-nav a:hover{color:var(--accent)}
+.en-shell .ns-list h2{border-bottom:none}
+.en-pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:28px 0 0;padding-top:18px;border-top:1px solid var(--glass-border);font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.78rem}
+.en-pager a,.en-pager__current{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:30px;padding:0 8px;border:1px solid var(--glass-border);border-radius:6px;color:var(--text-secondary);text-decoration:none}
+.en-pager a:hover{color:var(--accent);border-color:var(--accent)}
+.en-pager__current{color:var(--text-primary);border-color:var(--accent);background:rgba(63,107,87,.08)}
+.en-shell .ns-home-list p{margin:.6em 0}
+.en-shell .ns-home-list .ns-sub{margin:.3em 0 1.1em}
+.en-shell .ns-home-list h2{margin-top:2em;border-bottom:1px solid var(--glass-border)}
+.en-shell .ns-home-list ul{padding-left:1.2em}
+.en-shell .ns-home-list li{margin:.4em 0}
+.en-shell .ns-home-list .ns-meta{margin-top:1em}
+@media (max-width:640px){.en-shell{width:calc(100% - 32px);padding-top:20px}.en-nav{gap:12px}}
+</style>
+<script>
+(function(){
+  var root=document.documentElement;
+  try{if(localStorage.getItem('theme')==='dark')root.classList.add('theme-dark')}catch(e){}
+  function bind(){
+    var btn=document.querySelector('[data-theme-toggle]');
+    if(!btn)return;
+    btn.addEventListener('click',function(){
+      var dark=root.classList.toggle('theme-dark');
+      try{localStorage.setItem('theme',dark?'dark':'light')}catch(e){}
+    });
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
+})();
+</script>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/block-world-3d-voxel-engine/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/block-world-3d-voxel-engine/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/block-world-3d-voxel-engine/" />
+  </head>
+  <body>
+    <div id="app"><div class="en-shell"><header class="en-shell__bar"><a class="en-brand" href="/en/"><span class="en-brand__name">Stack Frame</span></a><nav class="en-nav" aria-label="Primary"><a href="/en/">Home</a><a href="/en/articles/">Articles</a><a href="/en/topics/">Topics</a><a href="/en/about/">About</a><a href="/rss.xml">RSS</a><a href="/" hreflang="zh-CN">中文</a><button class="en-theme" type="button" data-theme-toggle aria-label="Toggle theme"><svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></button></nav></header><div class="ns-article"><h1>Block World 3D: a voxel engine with no game engine</h1><div class="ns-meta">2026-11-19 · 34 min · Stack Frame</div><div class="markdown-body">
+<blockquote>
+<p>Who this is for: people who want a voxel world with Three.js but do not want a full game engine; frontend engineers interested in procedural generation, chunk streaming and instanced rendering; indie developers fighting frame time, memory and save formats.</p>
+<p><strong>TL;DR:</strong> Block World 3D uses Three.js for rendering only. Terrain, chunks, lighting, physics, redstone, mob AI and saves are all written from scratch. It moves terrain sampling into a Worker with a 28 by 28 grid, stores blocks in a string-keyed Map across 251 layers, packs sky light and torch light into one byte, batches draws with InstancedMesh by block type and state, and runs block updates through a priority queue with a 4,096-event budget. Measured on this machine, one chunk's terrain prep costs about 5 ms, terrain sampling runs at 160,000 to 250,000 points per second, and A* finds a path in 0.05 ms. The costs are a string key at roughly 80 bytes, redstone that is still incomplete, and a cloud save schema two versions behind the client.</p>
+<p>Reading time around 36 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>The boundary: what is engine, what is gameplay</h2>
+
+<p>"Build Minecraft with Three.js" sounds like a joke. Three.js does three things: scene graph, materials, and drawing triangles. It does not know what a block is, what "standing on the ground" means, or how a redstone signal attenuates.</p>
+
+<p>Block World 3D draws the boundary clearly:</p>
+
+<table>
+<thead><tr><th>Layer</th><th>Owner</th><th>Code</th></tr></thead>
+<tbody>
+<tr><td>Rendering</td><td>Three.js: camera, materials, InstancedMesh, fog, shadows</td><td><code>src/rendering/</code></td></tr>
+<tr><td>World data</td><td>Custom: block Map, chunks, block states, water levels</td><td><code>src/world/block-store.js</code></td></tr>
+<tr><td>Terrain</td><td>Custom: noise, biomes, caves, ore veins</td><td><code>src/world/terrain.js</code></td></tr>
+<tr><td>Generation</td><td>Custom: trees, villages, 17 structure types, loot</td><td><code>src/world/generation.js</code></td></tr>
+<tr><td>Physics</td><td>Custom: AABB collision, gravity, swimming, ladders</td><td><code>src/physics/player-physics.js</code></td></tr>
+<tr><td>Simulation</td><td>Custom: fluids, fire, crops, random ticks, redstone</td><td><code>src/systems/</code></td></tr>
+<tr><td>Saves</td><td>Custom: schema v6, Electron SQLite, D1 cloud sync</td><td><code>src/persistence/</code>, <code>cloudflare/worker.mjs</code></td></tr>
+</tbody>
+</table>
+
+<p>The repository, excluding Three.js and build output, is 103 text files and about 22,900 lines. The entry point alone, <code>game.js</code>, is 87 KB. This is not a Three.js demo. It is a small engine split across more than twenty modules.</p>
+
+<p>Start with the scale. Counting the real data modules gives:</p>
+
+<pre><code>blocks                 528
+expanded block names   263
+items                  835
+crafting recipes       332
+stonecutter recipes     80
+hostile types           40
+animal types            20
+villager professions    13
+surface biomes          34
+world height           251 (-50..200)
+load / unload radius   4 / 5 chunks
+autosave interval      15000 ms</code></pre>
+
+<p>The README badges still say "479 blocks" and "325 recipes". The code says 528 and 332. That drift is a useful reminder: content grows faster than documentation, and the data table is the source of truth, not the marketing image.</p>
+
+<h2>The world: string keys, 251 layers, 81 chunks</h2>
+
+<p>The world data structure is deliberately plain:</p>
+
+<pre><code>world = new Map();          // key: "x,y,z" -> value: "stone"
+blockStates = new Map();    // same key -> { facing, half, powered, ... }
+worldLevels = new Map();    // same key -> 0..8, for water and lava</code></pre>
+
+<p><code>keyOf(x, y, z)</code> is a template string. It is not compact, but it has two advantages: you can read it while debugging, and it serializes directly as a JSON key without another encoding layer.</p>
+
+<p>The vertical range is <code>MIN_Y = -50</code> to <code>MAX_Y = 200</code>, 251 layers. Horizontally the world is split into 16 by 16 chunks, with a load radius of 4 and an unload radius of 5:</p>
+
+<ul>
+<li>Load radius 4 means 81 chunks.</li>
+<li>Unload radius 5 means a chunk is only released after five chunks of distance, which prevents reload thrash at the boundary.</li>
+<li>View distance is 112 blocks, with fog closing the far edge.</li>
+</ul>
+
+<p>The number of blocks in a chunk depends on terrain height. Sea level is 2. Surface usually sits between -10 and 40, so a column holds roughly 60 to 100 non-air blocks. With 16 by 16 columns that is 15,000 to 25,000 keys. Load all 81 chunks and the Map holds close to 1.9 million entries.</p>
+
+<p>I measured the key cost on its own: 300,000 entries of <code>"x,y,z" -> "stone"</code>, with <code>--expose-gc</code> and the Map still alive, retained 23.0 MB, or <strong>80 bytes per entry</strong>. At 1.86 million entries that is roughly 149 MB for the block Map alone. It is not exact, because V8 string interning and Map growth both matter, but the magnitude is enough to make the point: <strong>string keys buy readability with memory.</strong></p>
+
+<p>Why not a <code>Uint16Array</code> or a chunk bitmap? Because the world is not fixed size. Infinite terrain means chunks are created and released on demand, and player edits have to be persisted separately. A Map stores sparse data with O(1) lookups and deletes, and it is the cheapest thing to implement. When the world grows another order of magnitude, it will be worth moving to one typed array per chunk plus a palette.</p>
+
+<p>A chunk object itself is tiny:</p>
+
+<pre><code>const chunk = { x: chunkX, z: chunkZ, keys: new Set(), meshes: [] };</code></pre>
+
+<p><code>keys</code> holds every non-air block key in that chunk. It serves two purposes: rebuilding light and meshes iterates only this chunk instead of the whole world, and unloading can delete the blocks from the global Map by walking <code>keys</code>.</p>
+
+<p>The unload path in <code>ensureChunks()</code> is:</p>
+
+<pre><code>for (const key of chunk.keys) {
+  world.delete(key);
+  worldLevels.delete(key);
+  blockStates.delete(key);
+  fallingBlockKeys.delete(key);
+  copperBlockKeys.delete(key);
+}
+for (const mesh of chunk.meshes) removeChunkMesh(mesh);
+chunks.delete(chunkKey);</code></pre>
+
+<p>There is room for improvement here. It clears five index sets but leaves <code>waterSet</code>, <code>lavaSet</code>, <code>fireKeys</code>, <code>cropKeys</code>, <code>leafKeys</code> and <code>torchKeys</code> alone. The simulation loop checks whether a chunk is still loaded and skips stale keys, and the key is removed lazily when the chunk loads again. Nothing computes wrong, but long exploration leaves entries from unloaded chunks in those sets. For a sandbox that lets you walk forever, that is a long-term memory item worth watching.</p>
+
+<p>Block state is a second Map. Stair facing, slab half, door upper and lower halves, repeater delay, comparator mode, water level and crop stage all live there. <code>setBlock()</code> maintains more than a dozen index sets:</p>
+
+<pre><code>fallingBlockKeys   sand, gravel, concrete powder
+copperBlockKeys    copper that can oxidize
+farmlandKeys       farmland
+fireKeys           fire
+leafKeys           leaves
+saplingKeys        saplings
+growableKeys       crops that can be bonemealed
+waterSet / lavaSet fluids
+cropKeys           crops
+torchKeys          light sources</code></pre>
+
+<p>These sets are not decoration. They let random ticks avoid scanning the world. Each frame iterates only the active sets, so the cost is proportional to the number of active blocks, not the number of blocks in the world.</p>
+
+<h2>Terrain: seven noise layers and 34 biomes</h2>
+
+<p>Terrain generation is built on seven noise salts:</p>
+
+<pre><code>const NOISE_SALT = {
+  continents: 0x1a2b3c4d,
+  erosion:    0x2b3c4d5e,
+  ridges:     0x3c4d5e6f,
+  temperature:0x4d5e6f70,
+  vegetation: 0x5e6f7081,
+  river:      0x6f708192,
+  detail:     0x708192a3,
+  variant:    0x8192a3b4,
+};</code></pre>
+
+<p>Each salt drives a <code>fractalNoise2D</code> with two to five octaves of value noise. <code>latticeNoise2D</code> mixes the coordinates and seed as integers, then scrambles the result with <code>mix32</code>. That is more stable than a <code>Math.sin</code> hash and avoids floating-point differences across calls.</p>
+
+<p><code>heightAt(x, z)</code> does not simply add noise. It works in layers:</p>
+
+<pre><code>base     = continentalness -> base elevation (-14 to 30)
+macro    = low-frequency detail * (5 + low erosion * 8)
+detail   = high-frequency detail * 2.6
+mountain = low erosion * land mask * ridge mask^1.38 * (92 + peak * 142)
+natural  = base + macro + detail + mountain</code></pre>
+
+<p>Then it handles oceans, rivers and ravines:</p>
+
+<ul>
+<li>Below a continentalness threshold, the sea floor is pushed down by <code>SEA_LEVEL - 5 - oceanStrength * 8</code>.</li>
+<li>Rivers use warped coordinates and two noise channels, carving the channel down to near sea level.</li>
+<li>Ridges use <code>1 - abs(ridge) * 2.15</code>, multiplied by an erosion mask. Mountains only rise when low erosion, high land and high ridges all agree.</li>
+</ul>
+
+<p>Biomes are not cut by height. They use climate targets and weighted distance:</p>
+
+<pre><code>distance = dTemperature^2 * 1.45
+         + dVegetation^2 * 1.25
+         + dContinentalness^2 * 0.45
+         + dErosion^2 * 0.58
+         + dRidges^2 * 0.72</code></pre>
+
+<p>Twelve targets, including plains, forest, jungle, birch, swamp, mountains, snow, desert, taiga, savanna, badlands and meadow, compete for the nearest match. A <code>variant</code> noise then derives sub-biomes: plains can become sunflower plains, forest can become dark forest or flower forest, jungle can become bamboo or sparse jungle. The result is 34 surface biomes.</p>
+
+<p>Caves are a separate system, not a biome:</p>
+
+<ul>
+<li><code>caveFieldAt</code> sums four trigonometric fields; a value above 1.12 becomes a cave.</li>
+<li><code>isTunnel</code> creates horizontal tunnels per 20-block segment, seeded per world.</li>
+<li><code>isRavine</code> uses warped noise to find narrow, deep canyons whose width varies with height.</li>
+<li><code>aquiferAt</code> creates water below the sea floor and lava deeper down.</li>
+<li><code>isLavaLake</code> uses a 34 by 12 grid to place lava lakes.</li>
+</ul>
+
+<p>Ore veins are not per-block random. Each ore has its own <code>spacing</code>, <code>verticalSpacing</code>, <code>radius</code> and <code>chance</code>. The generator first candidates centers in a 3 by 3 by 3 neighborhood, then tests whether the current point falls inside an ellipsoid. That clusters veins instead of scattering ore like pepper.</p>
+
+<h2>Chunks: 28 by 28 worker sampling</h2>
+
+<p>The main thread's worst enemy is computing terrain while the player walks. <code>chunk.worker.js</code> moves terrain sampling into a Worker:</p>
+
+<pre><code>const MARGIN = 6;
+const width = chunkSize + MARGIN * 2;   // 16 + 12 = 28
+const originX = chunkX * chunkSize - MARGIN;
+const originZ = chunkZ * chunkSize - MARGIN;
+
+for (let localZ = 0; localZ &lt; width; localZ += 1) {
+  for (let localX = 0; localX &lt; width; localX += 1) {
+    const x = originX + localX;
+    const z = originZ + localZ;
+    heights[index] = heightAt(x, z);
+    biomes[index] = BIOME_IDS.get(biomeAt(x, z)) ?? 0;
+    slopes[index] = Math.min(255, terrainSlopeAt(x, z));
+  }
+}
+self.postMessage({ id, ok: true, heights, biomes, slopes },
+  [heights.buffer, biomes.buffer, slopes.buffer]);</code></pre>
+
+<p>Several details decide the performance:</p>
+
+<ul>
+<li><strong>Six-block margin:</strong> canopies, structures and slopes need two to six blocks outside the chunk, so the worker samples 28 by 28 instead of 16 by 16. The main thread then does not need cross-chunk queries.</li>
+<li><strong>Typed arrays:</strong> heights use <code>Int16Array</code>; biomes and slopes use <code>Uint8Array</code>. Compact memory, fast transfer.</li>
+<li><strong>Transferables:</strong> the three buffers transfer ownership instead of being structured-cloned.</li>
+<li><strong>One layer at a time:</strong> the worker returns heights, biomes and slopes, not blocks. Block filling stays on the main thread because it reads the global <code>world</code>, <code>blockStates</code> and saved edits.</li>
+</ul>
+
+<p>Measured on 81 chunks at radius 4, 63,504 sample points cost 385 to 479 ms of CPU time, or <strong>4.8 to 5.9 ms per chunk</strong>. Radius 1 costs 4.0 to 5.8 ms per chunk, radius 2 costs 4.2 to 5.2 ms. Notice that this is not "bigger is cheaper". <code>terrainRouterAt</code> caches 16,384 samples. Radius 4's 63,504 points clear that cache repeatedly, so the per-chunk cost rises slightly. Cache hit rate explains the difference better than JIT warm-up.</p>
+
+<p>This is why the Worker matters: not raw speed, but not blocking the frame. A 5 ms budget on the main thread would visibly eat a 60 FPS frame. In a Worker, the main thread only has to fill blocks and build meshes.</p>
+
+<h2>Generation: how 17 structures stay pinned to a seed</h2>
+
+<p><code>generateChunk(chunkX, chunkZ)</code> runs in a fixed order:</p>
+
+<pre><code>1. Take the prepared samples (or fall back to heightAt/biomeAt/terrainSlopeAt)
+2. Fill terrain column by column: bedrock, caves, surface/filler, stone/ore
+3. Fill water below sea level
+4. Fill deep lava and aquifers
+5. Decorate caves (lush, dripstone, deep dark)
+6. Plant trees (roots may sit two blocks outside the chunk)
+7. Surface vegetation (flowers, grass, cactus, sugar cane, pumpkin, mushrooms)
+8. Villages
+9. The other 16 structure types
+10. Apply saved player edits</code></pre>
+
+<p>Structures are not placed at random. Their positions are computed from the seed. Each structure has <code>bounds</code> and a region grid, so a chunk first checks whether it intersects the bounding box. Villages are the clearest example:</p>
+
+<pre><code>const gridX = Math.floor(chunk.x / 32);
+const gridZ = Math.floor(chunk.z / 32);
+const centerX = (gridX * 32 + 16) * 16 + 8;
+const centerZ = (gridZ * 32 + 16) * 16 + 8;
+if (Math.abs(centerX) + Math.abs(centerZ) &lt; 128) return;   // keep spawn clear
+if (hash(gridX * 127, gridZ * 911) &gt;= .065) return;        // 6.5% of cells</code></pre>
+
+<p>One village per 32-chunk grid at most. Each has three to six houses, one villager for each of 13 professions, an iron golem, a farm plot and a loot chest. Beds are real points of interest, with two beds per house leaving capacity for children instead of treating the house itself as population capacity.</p>
+
+<p>House generation has a practical detail:</p>
+
+<pre><code>// A structure foundation must flatten natural caves and bumps,
+// or the same seed produces a house with a missing corner.
+if (getBlock(x, y, z)) put(x, y, z, null);
+put(x, y, z, "planks");</code></pre>
+
+<p>Clear the foundation, then lay the floor. If a cave happens to be underneath, the house still has all four corners. Structure generation is most fragile when the seed is fixed but the terrain boundary conditions are not. Flattening the foundation is what makes snapshot regression possible.</p>
+
+<p>The list runs to 17: mineshafts, nether fortresses, end cities, ocean monuments, woodland mansions, ancient cities, trial chambers, desert temples, jungle temples, igloos, pillager outposts, ruined portals, shipwrecks, abandoned mineshafts and end ships. All of them share one pattern: position comes from the seed, layout from local randomness, loot from <code>STRUCTURE_LOOT</code>.</p>
+
+<p>Structure positions also get a cache:</p>
+
+<pre><code>const cacheKey = seed + ':' + type;
+if (structureCenterCache.has(cacheKey)) return { ...structureCenterCache.get(cacheKey) };</code></pre>
+
+<p>Each world and structure type is located once, then shared by every chunk. That matters. If every chunk recomputed "where is the nearest village", structure lookup would go from milliseconds to seconds.</p>
+
+<p>Cross-chunk structures are the other problem. A house bounding box can span four chunks, and each chunk has to decide which part it builds. <code>structureIntersects(type, minX, maxX, minZ, maxZ)</code> handles the bounding-box test, and coordinates are clipped inside the chunk. Whichever chunk loads first, the assembled house is the same.</p>
+
+<p>This is exactly why <code>world-generation-v1.json</code> exists. Structure generation has no runtime state, only seed and coordinates. If the snapshot is unchanged, no village moved by accident.</p>
+
+<p>On seed 1337, all 17 structure types locate successfully, in 1.9 to 3.7 ms per pass. Location is not the bottleneck. Filling blocks and building meshes is.</p>
+
+<h2>Lighting: one byte for sky light and torch light</h2>
+
+<p>Each chunk owns a <code>Uint8Array(16 * 16 * 251)</code> light array, 64,256 bytes. One byte is split in half:</p>
+
+<pre><code>high 4 bits: sky light 0-15
+low 4 bits:  torch light 0-15</code></pre>
+
+<p><code>setLight()</code> writes with bit operations:</p>
+
+<pre><code>chunk.light[index] = (sky !== null ? (sky &lt;&lt; 4) : (cell &amp; 0xF0))
+                   | (torch !== null ? torch : (cell &amp; 0x0F));</code></pre>
+
+<p>Sky light scans top-down:</p>
+
+<ul>
+<li>From <code>MAX_Y</code> downward, an opaque block drops the level to zero.</li>
+<li>Water attenuates by 2 per block, other transparent blocks by 1.</li>
+<li>Air keeps the current level.</li>
+</ul>
+
+<p>This simplified model does not spread sky light horizontally, so cave mouths are less subtle than the original game. It is cheap: a chunk is a fixed 64,256 operations.</p>
+
+<p>Torch light is a BFS. Each source starts at 14, spreads in six directions, stops at opaque blocks, and does not enqueue a cell that is already brighter:</p>
+
+<pre><code>const existing = lightAt(nx, ny, nz) &amp; 0x0F;
+if (existing &gt;= current.l - 1) continue;
+setLight(nx, ny, nz, null, current.l - 1);
+queue.push({ x: nx, y: ny, z: nz, l: current.l - 1 });</code></pre>
+
+<p>At render time, each instance color comes from the light array:</p>
+
+<pre><code>brightness = max(1, min(15, round(sky * min(1, daylight + 0.2))), torch)
+base       = brightness * 3
+color      = LIGHT_RAMP[base..base+2]
+variation  = 0.94 + hash(x * 3 + y, z * 5) * 0.1
+ao         = 1 - min(0.24, blockedNeighbors * 0.045)
+final      = color * variation * ao</code></pre>
+
+<p><code>LIGHT_RAMP</code> is a precomputed 16-step color table, so no pow call runs per frame. At night a readability floor is applied:</p>
+
+<pre><code>const readableFloor = 0.36 + daylight * 0.16;</code></pre>
+
+<p>This is not physically correct lighting. It is a product decision: at night the silhouette still has to be readable. Fully correct nights in voxel games are usually too dark, and players turn up gamma. Better to raise the floor in the renderer.</p>
+
+<h2>Rendering: buried-block culling and InstancedMesh</h2>
+
+<p>The expensive part of rendering is not triangles. It is draw calls. A chunk has tens of thousands of blocks. One Mesh per block would kill the browser before the GPU sees anything.</p>
+
+<p>The code buckets by block type and state signature:</p>
+
+<pre><code>const bucketKey = type + '|' + stateSignature(type, state);</code></pre>
+
+<p>Each bucket becomes an <code>InstancedMesh</code>. All blocks of the same type and state share geometry and material and only pass instance matrices. Draw calls per chunk equal the number of distinct type and state combinations, usually a handful to a few dozen.</p>
+
+<p>Before bucketing, buried blocks are culled:</p>
+
+<pre><code>const buried = occludesBlockFace(type, x, y, z, x+1, y, z) &amp;&amp;
+               occludesBlockFace(type, x, y, z, x-1, y, z) &amp;&amp;
+               occludesBlockFace(type, x, y, z, x, y+1, z) &amp;&amp;
+               occludesBlockFace(type, x, y, z, x, y-1, z) &amp;&amp;
+               occludesBlockFace(type, x, y, z, x, y, z+1) &amp;&amp;
+               occludesBlockFace(type, x, y, z, x, y, z-1);
+if (!buried) { /* add to bucket */ }</code></pre>
+
+<p>An underground block with all six faces hidden is not rendered. This cuts 60 to 80 percent of instances underground, especially around deep caves.</p>
+
+<p>Several performance switches matter:</p>
+
+<ul>
+<li><code>mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage)</code>, because block positions rarely change, so the driver does less synchronization.</li>
+<li>Shadows only for blocks within one chunk of the player, and never for water, leaves or plants.</li>
+<li>Shadow receiving only within two chunks.</li>
+<li>Water is separate: water body, water surface and foam are three InstancedMeshes with <code>renderOrder</code> 1, 2 and 3.</li>
+<li>Torches use a scaled matrix instead of a separate model.</li>
+<li>Crops change height by growth stage instead of swapping geometry.</li>
+</ul>
+
+<p>Water has one more detail. A surface mesh is only created where the block above is not water, and foam only where a solid neighbor touches the water. Without that, every water cell would stack a transparent face and transparent sorting would get much worse.</p>
+
+<p>Geometry and materials are reused by type. <code>getBlockGeometry(type, state)</code> caches one geometry for combinations such as "stairs facing north, top half, not waterlogged", and <code>materials[type]</code> reuses one material per block type. The README says 250 of the 528 blocks use procedural textures, and the repository also ships <code>common-blocks.png</code> as a base atlas. Procedural textures avoid one image per variant, but the first generation costs CPU, so caching is mandatory.</p>
+
+<p>This also explains why the state signature participates in bucketing. Two stairs differ in instance matrix but can share geometry. Top and bottom slabs need different geometry offsets. Folding state into <code>bucketKey</code> balances draw-call reduction against geometry reuse.</p>
+
+<h2>Physics and feel: 1.6 tall, 0.10 radius, 6 block reach</h2>
+
+<p>All player parameters live in <code>constants.js</code>:</p>
+
+<pre><code>PLAYER_HEIGHT = 1.6;
+PLAYER_RADIUS = 0.10;
+EYE_HEIGHT = 1.43;
+REACH = 6;
+CAMERA_FOV = 56;
+THIRD_PERSON_DISTANCE = 3.8;
+MOUSE_LOOK_SENSITIVITY = 0.0015;
+TOUCH_LOOK_SENSITIVITY = 0.0055;</code></pre>
+
+<p>A radius of 0.10 is much narrower than the original game's roughly 0.3. That is a deliberate feel trade-off: a narrow radius makes it easier to squeeze through a one-block gap and reduces "it looks passable but I am stuck". The cost is a higher chance of clipping when hugging a wall, so collision cannot test only the center point. It has to test the four corners of the AABB.</p>
+
+<p>Movement is four steps: input, desired velocity, collision resolution, grounded check. Water, ladders, cobwebs and ice each change acceleration and friction. The third-person camera follows at a speed of 14 with damping, so turning does not snap the camera.</p>
+
+<p><code>REACH = 6</code> sets block interaction distance. Mining, placing, opening doors, lighting fires, feeding animals and trading all validate against it, which blocks "operate through walls".</p>
+
+<h2>Block updates: a 4,096-event priority queue</h2>
+
+<p>A voxel world has many things that need to happen later: water flows, fire burns, crops grow, repeaters delay, pistons push, observers pulse. Iterating the whole world every frame is not an option, so there is one event queue.</p>
+
+<p>An event looks like:</p>
+
+<pre><code>{ x, y, z, type, due, priority, sequence, dedupeKey, payload }</code></pre>
+
+<p>Ordering is due time, then priority, then insertion order:</p>
+
+<pre><code>function compareEvents(a, b) {
+  return a.due - b.due || b.priority - a.priority || a.sequence - b.sequence;
+}</code></pre>
+
+<p><code>dedupeKey</code> merges duplicate events for the same cell. Pouring water repeatedly does not need a hundred fluid updates; one is enough. A later event that is no earlier than an existing one is dropped.</p>
+
+<p><code>tick(dt, { budget })</code> processes at most 4,096 events per frame:</p>
+
+<ul>
+<li>Due events in loaded chunks enter the heap.</li>
+<li>Events outside the loaded range count as <code>inactive</code>, kept but not processed.</li>
+<li>It returns <code>processed</code>, <code>processedByType</code>, <code>inactive</code>, <code>remaining</code> and <code>saturated</code>.</li>
+<li><code>saturated = true</code> means the budget was hit and the next frame continues.</li>
+</ul>
+
+<p>The value of this design is observability. If a redstone circuit jams, the log shows <code>remaining</code> not falling and <code>saturated</code> stuck at true. The diagnosis is "events are produced faster than consumed", not "the game froze for no reason".</p>
+
+<p>Delays are not arbitrary. <code>setBlock()</code> schedules the next tick by type:</p>
+
+<table>
+<thead><tr><th>Type</th><th>Delay</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>Crop</td><td>6.5 s</td><td>Growth stage</td></tr>
+<tr><td>Water</td><td>0.4 s</td><td>Flow</td></tr>
+<tr><td>Lava</td><td>1.2 s</td><td>Flow, slower</td></tr>
+<tr><td>Fire</td><td>0.5 s</td><td>Spread and extinguish</td></tr>
+<tr><td>Sapling, growable, farmland</td><td>2 s</td><td>Ecology update</td></tr>
+</tbody>
+</table>
+
+<p>These delays, along with <code>randomTickSpeed = 3</code> and <code>simulationDistance = 4</code>, are stored in the save. Change a setting and the save remembers it. Open the world on another machine and the rhythm is the same. For a single-player game this is much simpler than server authority, though it also means editing a local file can change random tick speed. A single-player game does not need anti-cheat.</p>
+
+<h2>Redstone: signal, delay and pistons</h2>
+
+<p>Redstone is the easiest system to lose control of, because it is graph computation with feedback and clocks.</p>
+
+<p>Block World 3D recomputes dirty regions every frame. It is not an event-driven circuit solver:</p>
+
+<ul>
+<li>Dust carries strength 0 to 15 and decrements by 1 per BFS step.</li>
+<li>A repeater delays <code>(configured + 1) * 0.1</code> seconds, where <code>configured</code> is 1 to 4, so 0.2 to 0.5 seconds.</li>
+<li>A comparator supports <code>compare</code> and <code>subtract</code>.</li>
+<li>A torch is an inverter: input on, output off.</li>
+<li>An observer watches block state changes and emits a pulse.</li>
+<li>A piston collects the blocks to push, then moves them together, up to 12 blocks in <code>collectPistonMove</code>.</li>
+<li>A target block outputs 15 when hit by an arrow or projectile.</li>
+</ul>
+
+<p>Signal propagation uses <code>propagateDust(seeds)</code>. Every current source, including levers, buttons, torches, pressure plates and comparator outputs, becomes a seed. BFS spreads the signal and updates any cell that becomes stronger. Each frame recomputes only dirty regions, not the whole graph.</p>
+
+<p>The hard part is not signal. It is ordering. Two repeaters pointing at each other: which updates first? The <code>blockUpdateQueue</code> uses due time and sequence to make same-frame events deterministic. Across frames, the configured delay decides. That makes circuits reproducible and lets clock circuits oscillate reliably.</p>
+
+<p>It is still incomplete. There is no full TNT, pressure plate, tripwire or dropper system. Hoppers only point down. Pistons do not move entities. The gaps section covers this.</p>
+
+<h2>Mobs: A* with 900 nodes and 60 creature types</h2>
+
+<p>Creatures split into two data-driven groups: 40 hostile types and 20 animals.</p>
+
+<pre><code>const HOSTILE_TYPES = { zombie: {...}, skeleton: {...}, creeper: {...}, ... };
+const ANIMAL_TYPES  = { cow: {...}, sheep: {...}, wolf: {...}, ... };</code></pre>
+
+<p>Spawn rules check five conditions: dimension, biome, light, height and weather. <code>mobSpawnRules.js</code> turns them into query functions, and <code>canMobSpawn()</code> runs on random ticks.</p>
+
+<p>Pathfinding is a restrained A*:</p>
+
+<pre><code>function manhattan(a, b) {
+  return Math.abs(a.x - b.x) + Math.abs(a.z - b.z) + Math.abs(a.y - b.y) * 1.25;
+}</code></pre>
+
+<ul>
+<li>Four cardinal directions, no diagonals.</li>
+<li>Each step allows one block up or up to two blocks down.</li>
+<li>Up costs 0.6; each block down costs 0.18.</li>
+<li><code>maxNodes = 900</code>, <code>maxDistance = 32</code>, configurable <code>goalTolerance</code>.</li>
+<li>It returns the closest node, not necessarily an exact arrival, so a mob that cannot reach the target stops nearby instead of giving up immediately.</li>
+</ul>
+
+<p>On a flat synthetic world, 5,000 paths of about 20 blocks averaged 23.5 path nodes, 0.05 to 0.06 ms per path, or 16,000 to 20,000 paths per second. Real terrain expands more nodes, but the order of magnitude says per-frame pathfinding for a handful of mobs is affordable.</p>
+
+<p>Villagers are a different system: 13 professions, five trade levels, demand and restocking, point-of-interest workstations, schedules, breeding, bell shelters, raids and iron golems. It behaves more like an economy than an AI.</p>
+
+<p>There are two bosses: the ender dragon, with circling, perching, diving, breath and crystal healing phases, and the wither, summoned from soul sand and wither skeleton skulls, with ranged and armored phases and the wither effect. The wither's full phase loop is still incomplete, as noted later.</p>
+
+<h2>Saves: v6, 15 seconds, D1 sharding</h2>
+
+<p>Saving has three layers.</p>
+
+<p>The first is the world snapshot:</p>
+
+<pre><code>{
+  schemaVersion: 6,
+  world: { id, name, seed, gameTime, difficulty, randomTickSpeed, simulationDistance },
+  player: { position, yaw, pitch, health, hunger, inventory, stats, advancements, deathHistory, ... },
+  dimensions: {
+    overworld: { chunks: [...], entities: [...], redstone: {...} },
+    nether: {...},
+    end: {...}
+  }
+}</code></pre>
+
+<p>The second is chunk edits. The save does not store the whole world, only blocks the player changed:</p>
+
+<pre><code>{ x, y, z, type, state?, level? }</code></pre>
+
+<p>Chunk generation runs from the seed first, then applies the edits. This is what makes an infinite world storable. Otherwise a world you have walked across is hundreds of megabytes.</p>
+
+<p>The third is runtime entities. Hostile mobs, animals, villagers, golems, dropped items, experience orbs and minecarts all serialize per dimension and rebuild on load.</p>
+
+<p>Version migration is explicit. <code>SAVE_SCHEMA_VERSION = 6</code>, <code>MIN_SUPPORTED_SAVE_SCHEMA_VERSION = 1</code>, and migrations run step by step:</p>
+
+<pre><code>if (sourceVersion === 1) { /* lift dimensions, add offhand */ }
+if (sourceVersion &lt;= 2) { /* add effects, unlocked recipes, beacon effect */ }
+if (sourceVersion &lt;= 3) { /* add world.difficulty */ }
+if (sourceVersion &lt;= 4) { /* add random tick speed, simulation distance, spawn dimension, scheduled ticks */ }
+if (sourceVersion &lt;= 5) { /* add stats, advancements, death history */ }
+snapshot.schemaVersion = SAVE_SCHEMA_VERSION;</code></pre>
+
+<p>Unknown versions throw:</p>
+
+<pre><code>if (sourceVersion &gt; SAVE_SCHEMA_VERSION) {
+  throw new RangeError('Save schema ' + sourceVersion + ' is newer than supported schema ' + SAVE_SCHEMA_VERSION);
+}</code></pre>
+
+<p>Rejecting a future version matters more than supporting it. An old client reading a new save should refuse, not guess fields.</p>
+
+<p>Local saves use Electron plus <code>node:sqlite</code>, isolated per world. Autosave runs every 15 seconds, and also on exit, dimension switch and world reset. Cloud saves use Cloudflare Pages Functions plus D1:</p>
+
+<pre><code>worlds              world metadata + snapshot_json
+users               account + PBKDF2 hash + salt + owner_id
+world_dimensions    state JSON per dimension
+world_chunks        edits JSON per chunk
+world_entities      entity state per entity</code></pre>
+
+<p>The cloud does not store one giant JSON. Dimensions, chunks and entities are separate rows, so a save can batch 75 statements at a time and a load can fetch only the current dimension's chunks. The player core snapshot has a 500 KB cap. Over the cap, the save fails loudly instead of truncating silently.</p>
+
+<p>The relationship between local and cloud is "same snapshot, two stores", not "live sync". <code>desktop.worlds.save()</code> writes to the current device, SQLite or cloud D1, every 15 seconds. The cloud updates rows by <code>owner_id + world_id</code>, with no version vector and no conflict merge. If two devices play the same world, the later save wins. For a single-player game that is acceptable, but it is not collaborative editing. The world menu offers JSON export, copy, rename and delete. Backup is delegated to the user, not hidden behind a version history.</p>
+
+<p>Autosave also leaves a window: kill the process and you lose up to 15 seconds. Switching dimensions, leaving the world and resetting it trigger extra saves, so normal play does not lose progress. Task Manager does. That is the same trade most single-player games make: a fixed interval for low overhead, instead of writing on every block change.</p>
+
+<h2>Measurements: about 5 ms per chunk</h2>
+
+<p>To avoid tuning by feel, I ran the real modules from the repository. The environment was Windows with Node 24.18.0. The script imports <code>terrain.js</code>, <code>generation.js</code>, <code>ecology.js</code>, <code>catalog.js</code>, <code>entities.js</code>, <code>pathfinding.js</code> and <code>save-schema.js</code> directly. No implementation was changed.</p>
+
+<p>The method needs a note first. Wall-clock time on Windows can double with background load, so the script measures process CPU time with <code>process.cpuUsage()</code>. The scheduler tick is about 15 ms, so anything smaller is repeated dozens to thousands of times and divided. Even then, the same script varies by 20 to 50 percent across runs. The numbers below are ranges, not promises to two decimal places.</p>
+
+<p>Terrain sampling:</p>
+
+<table>
+<thead><tr><th>Step</th><th>Samples</th><th>CPU time</th><th>Throughput</th></tr></thead>
+<tbody>
+<tr><td>16</td><td>4,225</td><td>7 to 22 ms</td><td>190,000 to 600,000 points/s</td></tr>
+<tr><td>8</td><td>16,641</td><td>63 to 123 ms</td><td>130,000 to 260,000 points/s</td></tr>
+<tr><td>4</td><td>66,049</td><td>260 to 400 ms</td><td>160,000 to 250,000 points/s</td></tr>
+</tbody>
+</table>
+
+<p>Step 16 is fast because 4,225 samples fit entirely inside the 16,384-entry router cache. Step 4 has 66,049 points, clears the cache repeatedly, and the per-point cost rises. Each point includes <code>heightAt + biomeAt</code>. Add the five internal height samples inside <code>terrainSlopeAt</code> and the real per-point cost is higher. That is why "200,000 terrain samples per second" cannot be converted directly into "200,000 blocks per second". Chunk generation also handles caves, ore, trees and structures.</p>
+
+<p>Worker sampling:</p>
+
+<table>
+<thead><tr><th>Radius</th><th>Chunks</th><th>Samples</th><th>CPU time</th><th>Per chunk</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>9</td><td>7,056</td><td>36 to 52 ms</td><td>4.0 to 5.8 ms</td></tr>
+<tr><td>2</td><td>25</td><td>19,600</td><td>104 to 130 ms</td><td>4.2 to 5.2 ms</td></tr>
+<tr><td>4</td><td>81</td><td>63,504</td><td>385 to 479 ms</td><td>4.8 to 5.9 ms</td></tr>
+</tbody>
+</table>
+
+<p>Each chunk has 784 sample points, 28 by 28, and each point does a height, biome and slope query. Radius 4 takes 0.39 to 0.48 seconds for 81 chunks. That is the real terrain cost of entering a world, and the <code>worldReadyMs = 15000</code> budget leaves plenty of room. Per-chunk cost rises slightly with radius for the same cache reason: 63,504 samples exceed the 16,384 limit and force repeated full clears.</p>
+
+<p>The rest:</p>
+
+<pre><code>Structure lookup   17 types all found, 1.9 to 3.7 ms per pass
+Save migration     v1 -> v6, 50,000 runs, 16 to 30 us each
+A* pathfinding     5,000 runs, 23.5 nodes average, 0.05 to 0.06 ms,
+                   16,000 to 20,000 paths/s
+Block key memory   300,000 entries, 23.0 MB retained, 80 bytes/entry</code></pre>
+
+<p>That 80 bytes per entry deserves emphasis. At 81 chunks and roughly 23,000 entries per chunk, the total is about 1.86 million entries, or 149 MB by this ratio. Add light arrays at 64 KB per chunk, about 5.2 MB for 81 chunks, plus meshes, entities, materials and Three.js objects, and a loaded world sits in the hundreds of megabytes. The <code>heapGrowthMb = 20</code> budget only limits growth after eight moves. It is not total memory.</p>
+
+<p>These numbers do not include Three.js rendering, the browser event loop, GPU uploads or actual save I/O. A* runs on a flat synthetic world; real terrain expands more nodes. Structure lookup measures "compute the position", not "build the house". They are useful for answering "which layer is the bottleneck", not for promising a frame rate. The conclusion is clear: terrain prep is milliseconds. Block filling and mesh building are the parts that need more work. And at 149 MB for the block Map, the real ceiling may be memory, not CPU.</p>
+
+<h2>38 test suites and a performance budget</h2>
+
+<p>The repository contains 38 <code>test-*</code> files covering:</p>
+
+<ul>
+<li>Terrain and generation: <code>test-terrain</code>, <code>test-generation-snapshots</code>, <code>test-ecology</code>, <code>test-structures</code>.</li>
+<li>Block rules: <code>test-blocks</code>, <code>test-block-rules</code>, <code>test-building-families</code>, <code>test-building-visual</code>.</li>
+<li>Survival: <code>test-progression</code>, <code>test-player-experience</code>, <code>test-difficulty</code>, <code>test-furnace</code>, <code>test-container-transfer</code>.</li>
+<li>Redstone: <code>test-redstone</code>, <code>test-redstone-devices</code>, <code>test-redstone-e2e</code>.</li>
+<li>Mobs: <code>test-mobs</code>, <code>test-mob-behavior</code>, <code>test-mob-spawn-rules</code>, <code>test-pathfinding</code>, <code>test-mob-navigation</code>.</li>
+<li>Exploration and completion: <code>test-exploration-e2e</code>, <code>test-completion-e2e</code>.</li>
+<li>Saves: <code>test-persistence</code>, <code>test-save-migrations</code>, <code>test-sqlite</code>, <code>test-cloud-api</code>.</li>
+<li>Performance and desktop: <code>test-performance</code>, <code>test-electron</code>.</li>
+</ul>
+
+<p>Two design choices are worth copying.</p>
+
+<p>First, generation snapshots. <code>tools/snapshots/world-generation-v1.json</code> stores terrain output for a fixed seed. After a generator change, compare against the snapshot to see immediately whether a biome boundary moved. Procedural generation is exactly the kind of system where "it looks about right" hides regressions. Snapshot regression is the only reliable defense.</p>
+
+<p>Second, budgets written as JSON:</p>
+
+<pre><code>{
+  "budgets": {
+    "worldReadyMs": 15000,
+    "chunkMoveP95Ms": 4000,
+    "frameMedianMs": 34,
+    "frameP95Ms": 100,
+    "heapGrowthMb": 20,
+    "maxLoadedChunks": 25
+  }
+}</code></pre>
+
+<p><code>frameMedianMs = 34</code> corresponds to roughly 30 FPS median frame time. <code>frameP95Ms = 100</code> allows occasional hitches. <code>chunkMoveP95Ms = 4000</code> is a worst-case bound: moving one chunk must not exceed four seconds at P95. That sounds generous, but it constrains the worst case, not the average feel. Putting budgets in the repository gives CI something to compare against. Otherwise "performance work" stays a slogan.</p>
+
+<h2>Six things still incomplete</h2>
+
+<p><strong>One: redstone is simplified.</strong> There is no full TNT, pressure plate, tripwire or dropper system. Hoppers only point down. Pistons ignore entities. Comparator container signals cover only some containers. You can build circuits, but not the large machines of the original game.</p>
+
+<p><strong>Two: enchanting and brewing are cut down.</strong> Only 14 enchantments exist, with simplified conflict and probability rules. Brewing has four basic chains, without splash, lingering or upgraded potions. The loom, cauldron, grindstone and fletching table are villager workstations with appearance but incomplete function.</p>
+
+<p><strong>Three: the wither has no complete phase loop.</strong> It can be summoned and has ranged, armored and wither phases, but it lacks the original's full "armor plus minion summons at half health" rhythm.</p>
+
+<p><strong>Four: no creative, spectator, hardcore or commands.</strong> Only the survival loop exists. For players who want to "just build something", that is a hard gap.</p>
+
+<p><strong>Five: string keys cost memory.</strong> At 80 bytes per entry, 81 chunks approach 150 MB. Switching to one typed array per chunk plus a palette would cut it significantly, but it would complicate sparse worlds and edit persistence. This is a deliberate trade, not a bug.</p>
+
+<p><strong>Six: the cloud save schema lags the client by two versions.</strong> The client has <code>SAVE_SCHEMA_VERSION = 6</code>; the cloud has <code>SCHEMA_VERSION = 4</code>. On write it labels the snapshot as v4, and on read it runs the v4 to v6 migration. Because migrations only add fields and never delete them, it works. But "cloud save format" and "local save format" are not the same thing, and that gets more awkward over time. The cloud PBKDF2 also uses only 10,000 iterations, not the 120,000 used by the main site.</p>
+
+<p>Two more boundaries are not defects but must be known. The browser build only shows the entry screen; full gameplay requires the Electron desktop app. The README badges, 479 blocks and 325 recipes, are behind the code at 528 and 332.</p>
+
+<h2>Closing</h2>
+
+<p>The interesting part of Block World 3D is not that it resembles Minecraft. It is that it turns five hard voxel problems into inspectable code:</p>
+
+<ul>
+<li><strong>World:</strong> a string-keyed Map plus sparse edits, trading memory for debuggability and simple saves.</li>
+<li><strong>Terrain:</strong> seven noise layers, climate targets, caves, rivers and ore veins. The 34 biomes are not hard-coded shapes.</li>
+<li><strong>Chunks:</strong> 28 by 28 Worker sampling at about 5 ms per chunk, with the main thread only filling and batching.</li>
+<li><strong>Lighting:</strong> one byte for sky and torch light, a 16-step color ramp, ambient occlusion and a night readability floor.</li>
+<li><strong>Rendering:</strong> buried-block culling plus InstancedMesh, taking draw calls from tens of thousands to dozens.</li>
+<li><strong>Simulation:</strong> a 4,096-event priority queue shared by redstone, fluids, crops and random ticks.</li>
+<li><strong>Saves:</strong> edits only, v1 to v6 migrations, future versions rejected, D1 rows split by dimension, chunk and entity.</li>
+</ul>
+
+<p>The gaps are equally clear: incomplete redstone, missing game modes, heavy memory, and a drifting cloud schema. These are not "later" TODOs. They are the current boundaries of the implementation.</p>
+
+<p>If you want to build a voxel world with Three.js, the first things to copy are not the renderer. Copy these three: put terrain in a Worker, save only block edits, and write performance budgets into a file. The first two decide whether it runs. The third decides whether you still know, six months later, that it got slower.</p>
+
+<p><strong>The hard part of a voxel world has never been drawing a block. It is making a million blocks appear, disappear, brighten and flow at the right moment, and still be in the same place the next time you open the world.</strong></p>
+
+<h2>Further reading</h2>
+
+<ul>
+<li><a href="https://github.com/zhoujungis/block_world_3d" rel="noopener noreferrer" target="_blank">zhoujungis/block_world_3d</a> for the source.</li>
+<li><a href="https://github.com/zhoujungis/knowledge_base" rel="noopener noreferrer" target="_blank">ShuGe</a>, the other project teardown published this week.</li>
+<li><a href="/en/article/happy-games-24-games-zero-framework-guide/">Happy Games: 24 games with no framework</a> for a 2D take on the same "no engine" constraint.</li>
+</ul>
+
+</div><p class="ns-thread-note">Comments live on the Chinese edition, where both versions share one thread. <a href="https://blog.zhoujun.dev/article/block-world-3d-voxel-engine/">Open the discussion</a>.</p><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/en/">All English posts</a><a href="https://blog.zhoujun.dev/article/block-world-3d-voxel-engine/">中文版</a><a href="mailto:edfc1582@shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a></nav></div><footer class="en-shell__foot"><span>© Stack Frame</span><nav class="en-shell__legal"><a href="mailto:edfc1582%40shmarpe.resend.app">Email</a><a href="https://github.com/zhoujungis">GitHub</a><a href="/rss.xml">RSS</a><a href="/en/about/">About</a><a href="/en/privacy/">Privacy</a><a href="/en/disclaimer/">Disclaimer</a></nav><span class="en-shell__built">Built with Vue 3 on GitHub Pages; content served by Django.</span></footer></div></div>
+  </body>
+</html>
