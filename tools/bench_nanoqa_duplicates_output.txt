@@ -1,0 +1,18 @@
+NanoQA duplicate-case detector bench
+threshold=0.6  returned pairs capped at 50
+
+  cases  comparisons    seconds   ms/1k cmp  pairs>=0.6
+    100        4,950      0.806     162.785          50
+    200       19,900      3.668     184.323          50
+    400       79,800     13.999     175.421          50
+    800      319,600     46.569     145.710          50
+
+quadratic growth check (comparisons should scale ~4x per doubling):
+    100 ->   200 cases: 4.02x comparisons, 4.55x time
+    200 ->   400 cases: 4.01x comparisons, 3.82x time
+    400 ->   800 cases: 4.01x comparisons, 3.33x time
+
+extrapolated single-project scans (linear fit through the 400/800 points):
+   1600 cases:    1,279,200 comparisons ~=   173.7 s
+   2000 cases:    1,999,000 comparisons ~=   271.5 s
+   5000 cases:   12,497,500 comparisons ~=  1697.4 s

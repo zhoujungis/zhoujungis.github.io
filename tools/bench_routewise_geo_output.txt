@@ -1,0 +1,52 @@
+Routewise geo validator bench
+constants: leg=15km span=22km meal=6km ratio=2.2
+
+geometry (5-item days)
+
+  compact (valid)
+    route      3.3 km
+    mst        3.0 km
+    ratio      1.08
+    issues     0
+
+  east-west ping-pong
+    route      23.4 km
+    mst        9.5 km
+    ratio      2.47
+    issues     0
+
+  long ping-pong (fires)
+    route      26.1 km
+    mst        10.6 km
+    ratio      2.45
+    issues     1: Day 1: stop order backtracks excessively (26 km route for a roughly 11 km area)
+
+  train split (valid)
+    route      370.3 km
+    mst        370.3 km
+    ratio      1.00
+    issues     0
+
+  meal detour
+    route      14.1 km
+    mst        7.4 km
+    ratio      1.91
+    issues     1: Day 1: meal Remote lunch is 7 km from its nearest activity
+
+  missing coords
+    route      0.0 km
+    mst        0.0 km
+    ratio      n/a
+    issues     1: Day 1: Ueno Park is missing a usable coordinate
+
+validator cost  (10000 iterations x 6 fixtures)
+  compact (valid)          mean 0.004 ms  min 0.003  max 0.005
+  east-west ping-pong      mean 0.002 ms  min 0.002  max 0.002
+  long ping-pong (fires)   mean 0.002 ms  min 0.002  max 0.002
+  train split (valid)      mean 0.001 ms  min 0.001  max 0.001
+  meal detour              mean 0.001 ms  min 0.001  max 0.001
+  missing coords           mean 0.000 ms  min 0.000  max 0.000
+
+worst case: 16 days x 6 items, one cluster
+  mean 0.068 ms  min 0.065  max 0.076
+  pair checks: 16 days x C(6,2)=15 pairs = 240 span checks

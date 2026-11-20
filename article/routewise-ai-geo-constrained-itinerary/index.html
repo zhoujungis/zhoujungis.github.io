@@ -1,0 +1,1196 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：用大模型做结构化输出、又被「JSON 看起来对但内容不成立」折磨过的人；在 Cloudflare Pages Functions 上跑流式接口的开发者；" />
+<!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/" />
+    <meta property="og:title" content="Routewise AI：让模型吐出一份能落在地图上的行程" />
+    <meta property="og:description" content="适用读者：用大模型做结构化输出、又被「JSON 看起来对但内容不成立」折磨过的人；在 Cloudflare Pages Functions 上跑流式接口的开发者；" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/routewise-ai-geo-constrained-itinerary-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/routewise-ai-geo-constrained-itinerary-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Routewise AI：让模型吐出一份能落在地图上的行程 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Routewise AI：让模型吐出一份能落在地图上的行程" />
+    <meta name="twitter:description" content="适用读者：用大模型做结构化输出、又被「JSON 看起来对但内容不成立」折磨过的人；在 Cloudflare Pages Functions 上跑流式接口的开发者；" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/routewise-ai-geo-constrained-itinerary-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>Routewise AI：让模型吐出一份能落在地图上的行程 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DH26415p.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+      <meta property="article:section" content="项目实战" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/routewise-ai-geo-constrained-itinerary/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/" />
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-20T10:40:13.416552+08:00" />
+        <meta property="article:modified_time" content="2026-11-20T10:40:13.416552+08:00" />
+        <meta property="article:tag" content="Cloudflare" />
+    <meta property="article:tag" content="TypeScript" />
+    <meta property="article:tag" content="前端架构" />
+    <meta property="article:tag" content="大模型" />
+    <meta property="article:tag" content="实时通信" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/#article","url":"https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/","headline":"Routewise AI：让模型吐出一份能落在地图上的行程","description":"适用读者：用大模型做结构化输出、又被「JSON 看起来对但内容不成立」折磨过的人；在 Cloudflare Pages Functions 上跑流式接口的开发者；","image":"https://blog.zhoujun.dev/photos/routewise-ai-geo-constrained-itinerary-cover.png","datePublished":"2026-11-20T10:40:13.416552+08:00","dateModified":"2026-11-20T10:40:13.416552+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/"},"articleSection":"项目实战","keywords":"Cloudflare, TypeScript, 前端架构, 大模型, 实时通信","inLanguage":"zh-CN","wordCount":11940},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"Routewise AI：让模型吐出一份能落在地图上的行程","item":"https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"routewise-ai-geo-constrained-itinerary","title":"Routewise AI：让模型吐出一份能落在地图上的行程","created_at":"2026-11-20T10:40:13.416552+08:00","updated_at":"2026-11-20T10:40:13.416586+08:00","author":null,"category":{"id":14,"name":"项目实战","slug":"projects"},"tags":[{"id":219,"name":"Cloudflare","slug":"cloudflare"},{"id":201,"name":"TypeScript","slug":"typescript"},{"id":204,"name":"前端架构","slug":"frontend-architecture"},{"id":70,"name":"大模型","slug":"llm"},{"id":184,"name":"实时通信","slug":"realtime"}],"cover_image":"/photos/routewise-ai-geo-constrained-itinerary-cover.png","excerpt":"适用读者：用大模型做结构化输出、又被「JSON 看起来对但内容不成立」折磨过的人；在 Cloudflare Pages Functions 上跑流式接口的开发者；想把一次 AI 调用做成产品级功能而不只是 Demo 的工程师 结论先行：Routewise AI 让 gpt-5.6-luna 输出一份可以直接画在真实地图","reading_time":47,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>Routewise AI：让模型吐出一份能落在地图上的行程</span></nav><h1>Routewise AI：让模型吐出一份能落在地图上的行程</h1><div class="ns-meta">2026/11/20 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/projects/">项目实战</a> · 标签：Cloudflare TypeScript 前端架构 <a href="https://blog.zhoujun.dev/tags/llm/">大模型</a> 实时通信</p><nav class="ns-series"><p><strong>本系列 · 项目实战</strong>（11 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li><a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/aidevops-terminal-client/">【开源】aidevops 技术拆解：研发数据关联与可解释风险</a></li><li><a href="https://blog.zhoujun.dev/article/halo-music-square-architecture/">Halo 音乐广场技术拆解：多音源在线音乐应用</a></li><li><a href="https://blog.zhoujun.dev/article/happy-games-24-games-zero-framework-guide/">快乐小游戏：24 款零框架小游戏的全栈实践</a></li><li><a href="https://blog.zhoujun.dev/article/google-matter-smart-home-dev-guide/">谷歌 Matter 智能家居开发完全指南：从入门到认证</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/projects/">查看项目实战专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：用大模型做结构化输出、又被「JSON 看起来对但内容不成立」折磨过的人；在 Cloudflare Pages Functions 上跑流式接口的开发者；想把一次 AI 调用做成产品级功能而不只是 Demo 的工程师
+结论先行：Routewise AI 让 <code>gpt-5.6-luna</code> 输出一份可以直接画在真实地图上的旅行行程。它的做法不是「写更好的提示词」，而是四层约束叠起来：服务端先固定城市排期、把长行程按 4 天切块并并行请求、每块强制 JSON 结构并逐日做四类地理校验、失败时把具体拒绝原因塞回提示词重试一次。整条后端 1,101 行 TypeScript，没有服务器。代价也很明确：一次生成要 10 积分，校验器只认距离不认语义，四层约束仍然挡不住「地点名对、坐标偏 3 公里」这类错误
+阅读时间：约 33 分钟 | 难度：进阶 | 收获：一套「让模型输出可验证结构」的完整链路 + SSE 流式与 D1 积分扣减的落地细节 + 地理校验器的实测行为（含一条真实的漏检）
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>为什么旅行规划是最难的结构化输出</li>
+<li>架构：五个 Part，一条边缘链路</li>
+<li>固定城市排期，再让模型填空</li>
+<li>按 4 天切块：把串行变成并行</li>
+<li>提示词：把校验规则写进模型要遵守的契约</li>
+<li>SSE：一条流，四种事件，一根心跳</li>
+<li>地理校验器：四类检查与一棵最小生成树</li>
+<li>实测：校验器抓到了什么，漏掉了什么</li>
+<li>积分：扣在生成之后，不是之前</li>
+<li>认证：token 存哈希，IP 只能注册一次</li>
+<li>邀请与积分：一张 daily reward slot 的赌桌</li>
+<li>支付：Stripe 签名与 D1 的条件写入</li>
+<li>用一份 mock 测出 SSE 最脏的边界</li>
+<li>微信登录：一个必须由数据库解决的竞态</li>
+<li>事件契约：四种事件，各自只做一件事</li>
+<li>前端：从 PosterBook 到小程序的两套渲染</li>
+<li>成本：一次生成的账能算到分</li>
+<li>多语言：三套文案与一个运行时转换器</li>
+<li>边界：为什么这些检查不能替代人工</li>
+<li>定位数据：251 个城市 JSON 与一个边缘搜索代理</li>
+<li>仍然存在的边界</li>
+<li>小结</li>
+</ul>
+<hr>
+<h2>为什么旅行规划是最难的结构化输出</h2>
+
+让模型写一份行程，是最容易演示、也最容易翻车的需求。
+
+Demo 版本通常是：给它「东京 3 天」，它返回一段 Markdown，里面有 Day 1、Day 2、浅草寺、晴空塔、一兰拉面。看起来非常像真的。
+
+然后你把它接到地图上。问题立刻出现：
+<ul>
+<li>上午在浅草（东经 139.79），下午去新宿（139.70），晚上又回银座（139.76）。文本读起来合理，地图上是一根来回折返的线。</li>
+<li>坐标是 <code>35.68, 139.76</code> 这种「东京中心点」，五个景点全部落在同一点，因为模型对具体场馆的经纬度没有记忆。</li>
+<li>行程说要坐新干线去京都，但 Day 2 和 Day 3 的城市还是东京，Day 4 突然变成京都。中间的转移消失了。</li>
+<li>预算写「总计约 ¥8,000」，逐日加起来 ¥23,000。</li>
+</ul>
+
+这四个问题有一个共同本质：<strong>模型的输出在语法上是对的，在语义上不成立</strong>。JSON 能 parse，字段齐全，就是不能落地。
+
+Routewise AI 的全部工程复杂度都在这件事上。项目规模不大：
+<div class="codehilite"><pre><span></span><code>functions  18 个文件  1,101 行 TypeScript    Cloudflare Pages Functions
+src        15 个文件  2,283 行 TS/TSX         Web 端 (React)
+miniprogram 28 个文件                         微信小程序 (原生 WXML/JS)
+public/locations 251 个城市 JSON              离线可用的定位数据
+migrations  5 个 SQL 文件                     D1 数据库
+</code></pre></div>
+
+
+在这 1,101 行里，<code>functions/api/plan.ts</code> 一个文件占了 491 行——它就是那条「让输出可验证」的链路。
+<h2>架构：五个 Part，一条边缘链路</h2>
+<div class="codehilite"><pre><span></span><code> Web (React)  ─┐
+               ├─▶ /api/plan (SSE) ─▶ ModelFlare gpt-5.6-luna
+ 小程序 WXML ──┘         │
+                         ├─▶ D1：users / sessions / plans / credit_ledger
+                         │
+ public/locations/*.json ┘        离线城市数据（前端按需加载）
+</code></pre></div>
+
+
+云资源只有两样：Pages Functions 和 D1（SQLite）。没有常驻进程，没有对象存储，没有消息队列。
+
+请求进来先过四道关，然后再谈模型：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">language</span><span class="o">:</span><span class="w"> </span><span class="kt">Language</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">body</span><span class="p">.</span><span class="nx">language</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;zh-TW&#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">body</span><span class="p">.</span><span class="nx">language</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;en&#39;</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">body</span><span class="p">.</span><span class="nx">language</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;zh-CN&#39;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">cities</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Array</span><span class="p">.</span><span class="nx">isArray</span><span class="p">(</span><span class="nx">body</span><span class="p">.</span><span class="nx">cities</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">body</span><span class="p">.</span><span class="nx">cities</span><span class="p">.</span><span class="nx">filter</span><span class="p">(...).</span><span class="nx">slice</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="mf">8</span><span class="p">)</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="p">[]</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">days</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">min</span><span class="p">(</span><span class="mf">16</span><span class="p">,</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">max</span><span class="p">(</span><span class="mf">2</span><span class="p">,</span><span class="w"> </span><span class="nb">Number</span><span class="p">(</span><span class="nx">body</span><span class="p">.</span><span class="nx">days</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="mf">5</span><span class="p">))</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">travelDate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sr">/^\d{4}-\d{2}-\d{2}$/</span><span class="p">.</span><span class="nx">test</span><span class="p">(</span><span class="nx">body</span><span class="p">.</span><span class="nx">travelDate</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">body</span><span class="p">.</span><span class="nx">travelDate</span><span class="w"> </span><span class="kr">as</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">().</span><span class="nx">toISOString</span><span class="p">().</span><span class="nx">slice</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="mf">10</span><span class="p">)</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">budget</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">max</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nb">Number</span><span class="p">(</span><span class="nx">body</span><span class="p">.</span><span class="nx">budget</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="mf">8000</span><span class="p">)</span>
+</code></pre></div>
+
+
+八个城市、十六天、日期格式、预算下限。这些数字在前端也有一份，在小程序的 <code>miniprogram/js/lib/plan.js</code> 里：
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">MAX_CITIES</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">8</span>
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">MIN_DAYS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2</span>
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">MAX_DAYS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">16</span>
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">PLAN_COST_CREDITS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">10</span><span class="w"> </span><span class="c1">// 与后端一致，仅用于展示</span>
+</code></pre></div>
+
+
+两处都写着「与后端一致」。这种一致性靠注释维持，是这套系统的一个已知脆弱点，后面会再提。
+<h2>固定城市排期，再让模型填空</h2>
+
+多城市行程最容易被模型搞乱的地方不是内容，是<strong>分配</strong>。给它「东京、京都、大阪，7 天」，它可能分配成 2/3/2，也可能 3/2/2，还可能第一天在东京、第二天在大阪、第三天回东京。
+
+所以这件事不让模型决定。服务端先算出一份完整的逐日城市表：
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">buildCitySchedule</span><span class="p">(</span><span class="nx">cities</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">[],</span><span class="w"> </span><span class="nx">days</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">baseDays</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">floor</span><span class="p">(</span><span class="nx">days</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="nx">cities</span><span class="p">.</span><span class="nx">length</span><span class="p">)</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">remaining</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">days</span><span class="w"> </span><span class="o">%</span><span class="w"> </span><span class="nx">cities</span><span class="p">.</span><span class="nx">length</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">schedule</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="nx">city</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">cities</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">cityDays</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">baseDays</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="nx">remaining</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">1</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="kt">0</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">remaining</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="nx">remaining</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mf">1</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">index</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span><span class="w"> </span><span class="nx">index</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">cityDays</span><span class="p">;</span><span class="w"> </span><span class="nx">index</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">1</span><span class="p">)</span><span class="w"> </span><span class="nx">schedule</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">city</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="nx">schedule</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">days</span><span class="p">)</span><span class="w"> </span><span class="nx">schedule</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">cities</span><span class="p">[</span><span class="nx">cities</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">1</span><span class="p">])</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">schedule</span><span class="p">.</span><span class="nx">slice</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">days</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+7 天 3 城 → <code>baseDays = 2, remaining = 1</code> → 东京 3 天、京都 2 天、大阪 2 天。余数优先给靠前的城市。
+
+这份排期会被原样拼进每一块的提示词：
+<div class="codehilite"><pre><span></span><code>The city allocation for the complete trip is fixed. Follow it exactly:
+- Day 1 (2026-12-20): 東京
+- Day 2 (2026-12-21): 東京
+- Day 3 (2026-12-22): 東京
+- Day 4 (2026-12-23): 京都
+...
+</code></pre></div>
+
+
+这一步的价值是<strong>把不确定性从模型里拿走</strong>。城市分配是确定性算法，模型只负责「东京这三天怎么玩」。它不需要在生成 Day 4 时记得前面已经过了三天东京——排期表直接告诉它。
+
+日期也是同一套逻辑，用 <code>dateIso(travelDate, offset)</code> 从出发日推，不让模型算：
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">dateIso</span><span class="p">(</span><span class="nx">travelDate</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">offset</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">date</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">(</span><span class="sb">`</span><span class="si">${</span><span class="nx">travelDate</span><span class="si">}</span><span class="sb">T12:00:00Z`</span><span class="p">)</span>
+<span class="w">  </span><span class="nx">date</span><span class="p">.</span><span class="nx">setUTCDate</span><span class="p">(</span><span class="nx">date</span><span class="p">.</span><span class="nx">getUTCDate</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">offset</span><span class="p">)</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">date</span><span class="p">.</span><span class="nx">toISOString</span><span class="p">().</span><span class="nx">slice</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="mf">10</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+用 <code>T12:00:00Z</code> 而不是 <code>T00:00:00Z</code> 是有意的——避免时区导致 <code>setUTCDate</code> 跨日。中午十二点加上任何时区偏移都不会掉到前一天。
+<h2>按 4 天切块：把串行变成并行</h2>
+
+16 天的行程，一次生成会有两个问题：输出太长容易截断、单次等待太久。所以按每 4 天切一块：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">chunks</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="p">[][]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1</span><span class="p">;</span><span class="w"> </span><span class="nx">start</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="nx">input</span><span class="p">.</span><span class="nx">days</span><span class="p">;</span><span class="w"> </span><span class="nx">start</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">chunks</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nb">Array</span><span class="p">.</span><span class="kr">from</span><span class="p">({</span><span class="w"> </span><span class="nx">length</span><span class="o">:</span><span class="w"> </span><span class="kt">Math.min</span><span class="p">(</span><span class="mf">4</span><span class="p">,</span><span class="w"> </span><span class="nx">input</span><span class="p">.</span><span class="nx">days</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">start</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1</span><span class="p">)</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">(</span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">index</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">start</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">index</span><span class="p">))</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+16 天 → 4 块。然后每 4 块一组并发：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">results</span><span class="o">:</span><span class="w"> </span><span class="kt">Plan</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">offset</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span><span class="w"> </span><span class="nx">offset</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">chunks</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span><span class="w"> </span><span class="nx">offset</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">group</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">chunks</span><span class="p">.</span><span class="nx">slice</span><span class="p">(</span><span class="nx">offset</span><span class="p">,</span><span class="w"> </span><span class="nx">offset</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">4</span><span class="p">)</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">generated</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nb">Promise</span><span class="p">.</span><span class="nx">all</span><span class="p">(</span><span class="nx">group</span><span class="p">.</span><span class="nx">map</span><span class="p">((</span><span class="nx">expectedDays</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span>
+<span class="w">    </span><span class="nx">generateChunk</span><span class="p">(</span><span class="nx">env</span><span class="p">,</span><span class="w"> </span><span class="nx">buildPrompt</span><span class="p">(</span><span class="nx">input</span><span class="p">,</span><span class="w"> </span><span class="nx">expectedDays</span><span class="p">,</span><span class="w"> </span><span class="nx">citySchedule</span><span class="p">),</span><span class="w"> </span><span class="nx">expectedDays</span><span class="p">,</span><span class="w"> </span><span class="nx">onDelta</span><span class="p">),</span>
+<span class="w">  </span><span class="p">))</span>
+<span class="w">  </span><span class="nx">results</span><span class="p">.</span><span class="nx">push</span><span class="p">(...</span><span class="nx">generated</span><span class="p">)</span>
+<span class="p">}</span>
+
+<span class="nx">results</span><span class="p">.</span><span class="nx">sort</span><span class="p">((</span><span class="nx">left</span><span class="p">,</span><span class="w"> </span><span class="nx">right</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">left</span><span class="p">.</span><span class="nx">days</span><span class="p">[</span><span class="mf">0</span><span class="p">].</span><span class="nx">day</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">right</span><span class="p">.</span><span class="nx">days</span><span class="p">[</span><span class="mf">0</span><span class="p">].</span><span class="nx">day</span><span class="p">)</span>
+</code></pre></div>
+
+
+注意并发上限也是 4。这不是随意取的数——Pages Functions 有子请求上限，一次开十六个 fetch 是在跟平台的配额对赌。4 块一组，最多 4 个并发，是能用且不越界的折中。
+
+每块只允许输出自己那几天：
+<div class="codehilite"><pre><span></span><code>Generate ONLY Day ${firstDay} through Day ${lastDay} in this response.
+Other chunks are generated separately. Keep transfers consistent with the fixed full-trip schedule.
+</code></pre></div>
+
+
+「Keep transfers consistent」这句是给跨块一致性兜的底。因为第 5 天块和第 9 天块是并发跑的，彼此看不到对方的输出，唯一的共享上下文就是那份完整排期表。
+
+最后合并时按天排序，标题类字段取第一块：
+<div class="codehilite"><pre><span></span><code><span class="k">return</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="kt">input.language</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;en&#39;</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">routeName</span><span class="si">}</span><span class="sb"> · </span><span class="si">${</span><span class="nx">input</span><span class="p">.</span><span class="nx">days</span><span class="si">}</span><span class="sb">-day trip`</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">routeName</span><span class="si">}</span><span class="sb"> · </span><span class="si">${</span><span class="nx">input</span><span class="p">.</span><span class="nx">days</span><span class="si">}</span><span class="sb">天</span><span class="si">${</span><span class="nx">input</span><span class="p">.</span><span class="nx">style</span><span class="si">}</span><span class="sb">之旅`</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">subtitle</span><span class="o">:</span><span class="w"> </span><span class="kt">first.subtitle</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">totalEstimate</span><span class="o">:</span><span class="w"> </span><span class="kt">first.totalEstimate</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">pace</span><span class="o">:</span><span class="w"> </span><span class="kt">first.pace</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">seasonalNote</span><span class="o">:</span><span class="w"> </span><span class="kt">first.seasonalNote</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">days</span><span class="o">:</span><span class="w"> </span><span class="kt">results.flatMap</span><span class="p">((</span><span class="nx">result</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">result</span><span class="p">.</span><span class="nx">days</span><span class="p">).</span><span class="nx">sort</span><span class="p">((</span><span class="nx">left</span><span class="p">,</span><span class="w"> </span><span class="nx">right</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">left</span><span class="p">.</span><span class="nx">day</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">right</span><span class="p">.</span><span class="nx">day</span><span class="p">),</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+标题不再问模型，直接按参数拼——这是同一个思路的延续：能用代码确定的，就不要留给模型。
+<h2>提示词：把校验规则写进模型要遵守的契约</h2>
+
+<code>buildPrompt</code> 有六十多行，但它其实是一份<strong>可机检的契约</strong>，不只是「描述意图」。三段时间线：
+
+第一段给定死的输入：
+<div class="codehilite"><pre><span></span><code>Trip requirements:
+- Destinations, in preferred order: ${input.cities.join(&#39; → &#39;)}
+- Number of days: ${input.days}
+- Departure date: ${input.travelDate}
+- Total budget: ${input.currency} ${input.budget}
+- Travel pace: ${input.style}
+</code></pre></div>
+
+
+第二段给输出结构。注意是完整的 JSON 骨架，包含一个示例 item：
+<div class="codehilite"><pre><span></span><code>Return ONLY valid JSON without markdown, using exactly this structure:
+{
+  &quot;title&quot;: &quot;short trip title&quot;,
+  ...
+  &quot;days&quot;: [{
+    &quot;day&quot;: 1,
+    &quot;items&quot;: [{
+      &quot;time&quot;: &quot;08:00&quot;,
+      &quot;endTime&quot;: &quot;09:00&quot;,
+      &quot;title&quot;: &quot;specific activity, restaurant, train or hotel action&quot;,
+      &quot;latitude&quot;: 35.6812,
+      &quot;longitude&quot;: 139.7671,
+      &quot;type&quot;: &quot;sight&quot;
+    }]
+  }]
+}
+</code></pre></div>
+
+
+第三段是强制规则，每一条都对应后面某个校验或字段消费方：
+<div class="codehilite"><pre><span></span><code>- Return exactly ${expectedDays.length} day objects, numbered ${expectedDays.join(&#39;, &#39;)}.
+- Give each day 5 or 6 chronological items covering breakfast or morning setup, ...
+- Every item must include numeric WGS84 latitude and longitude for its named venue ...
+- For intercity travel, name departure and arrival stations/airports, ...
+- Plan geography before writing the itinerary: first group each day into one nearby district ...
+- Within one local-area segment, keep consecutive stops within about 15 km, keep the whole segment within about 22 km, and keep meal stops within about 6 km of an adjacent activity.
+- A distant day trip or a move to another city is allowed only when it is represented by a separate train item between the two areas. ...
+</code></pre></div>
+
+
+倒数两条就是校验器的字面参数。这里有个重要设计：<strong>15 / 22 / 6 这三个数字同时出现在提示词和 <code>geographicIssues</code> 里</strong>。模型提前知道会被怎么量，校验器也不会遇到「规则从没说过、却判我不合格」的情况。
+
+同时，提示词明确要求模型诚实：
+<div class="codehilite"><pre><span></span><code>- Prices, schedules, opening hours and availability are estimates, never live-verified facts.
+- For meals, ... Tell the user to verify current opening hours instead of claiming live availability.
+</code></pre></div>
+
+
+这一句解决的是另一个层面的可信度问题：与其让模型声称「营业中」，不如让它承认是估算。
+<h2>SSE：一条流，四种事件，一根心跳</h2>
+
+整个接口是一个 SSE 流，因为一次生成可能要一分多钟。客户端要看到进度，而不是对着转圈等。
+
+服务端只发四种事件：
+<div class="codehilite"><pre><span></span><code><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">sendSse</span><span class="p">(</span><span class="nx">writer</span><span class="p">,</span><span class="w"> </span><span class="nx">event</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">data</span><span class="o">:</span><span class="w"> </span><span class="kt">unknown</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">writer</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">encoder</span><span class="p">.</span><span class="nx">encode</span><span class="p">(</span><span class="sb">`event: </span><span class="si">${</span><span class="nx">event</span><span class="si">}</span><span class="sb">\ndata: </span><span class="si">${</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">data</span><span class="p">)</span><span class="si">}</span><span class="sb">\n\n`</span><span class="p">))</span>
+<span class="p">}</span>
+</code></pre></div>
+
+<ul>
+<li><code>status</code>：开始生成</li>
+<li><code>delta</code>：模型吐出的每一个文本增量</li>
+<li><code>complete</code>：校验通过 + 扣积分 + 落库后的最终结果</li>
+<li><code>error</code>：任意环节失败</li>
+</ul>
+
+心跳是 30 秒一次的注释帧：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">heartbeat</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">setInterval</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="ow">void</span><span class="w"> </span><span class="nx">writer</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="nx">encoder</span><span class="p">.</span><span class="nx">encode</span><span class="p">(</span><span class="s1">&#39;:keep-alive\n\n&#39;</span><span class="p">)).</span><span class="k">catch</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="kc">undefined</span><span class="p">)</span>
+<span class="p">},</span><span class="w"> </span><span class="mf">30</span><span class="nx">_000</span><span class="p">)</span>
+</code></pre></div>
+
+
+SSE 注释帧（以 <code>:</code> 开头）会被客户端忽略，但足以让中间层不把连接判死。
+
+真正的活干在 <code>waitUntil</code> 里：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">await</span><span class="w"> </span><span class="nx">sendSse</span><span class="p">(</span><span class="nx">writer</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;status&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">message</span><span class="o">:</span><span class="w"> </span><span class="kt">locale.started</span><span class="w"> </span><span class="p">})</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">plan</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">generatePlan</span><span class="p">(</span><span class="nx">env</span><span class="p">,</span><span class="w"> </span><span class="p">{...},</span><span class="w"> </span><span class="p">(</span><span class="nx">delta</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">sendSse</span><span class="p">(</span><span class="nx">writer</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;delta&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">delta</span><span class="w"> </span><span class="p">}))</span>
+<span class="w">    </span><span class="p">...</span>
+<span class="w">    </span><span class="k">await</span><span class="w"> </span><span class="nx">sendSse</span><span class="p">(</span><span class="nx">writer</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;complete&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">plan</span><span class="p">,</span><span class="w"> </span><span class="nx">credits</span><span class="o">:</span><span class="w"> </span><span class="kt">user.credits</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">costCredits</span><span class="p">,</span><span class="w"> </span><span class="nx">planId</span><span class="w"> </span><span class="p">})</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">try</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">sendSse</span><span class="p">(</span><span class="nx">writer</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;error&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="kt">locale.unavailable</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* client disconnected */</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">finally</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">clearInterval</span><span class="p">(</span><span class="nx">heartbeat</span><span class="p">)</span>
+<span class="w">    </span><span class="k">try</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">writer</span><span class="p">.</span><span class="nx">close</span><span class="p">()</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* client disconnected */</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">})()</span>
+<span class="nx">context</span><span class="p">.</span><span class="nx">waitUntil</span><span class="p">(</span><span class="nx">task</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>context.waitUntil</code> 是这里的关键。Pages Functions 的响应返回后，运行时仍然允许这个 Promise 继续跑——否则流一交出去就被回收了。
+
+响应头也得配合，不然会被中间层缓冲：
+<div class="codehilite"><pre><span></span><code><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="s1">&#39;content-type&#39;</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;text/event-stream; charset=utf-8&#39;</span><span class="p">,</span>
+<span class="w">  </span><span class="s1">&#39;cache-control&#39;</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;no-cache, no-store&#39;</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">connection</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;keep-alive&#39;</span><span class="p">,</span>
+<span class="w">  </span><span class="s1">&#39;x-accel-buffering&#39;</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;no&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>x-accel-buffering: no</code> 这一条专门给 nginx 类反代看的。少了它，客户端会先收到一整块，流式变成批量。
+
+读模型那端的 SSE 解析也是手写的，因为需要处理跨 chunk 的行边界：
+<div class="codehilite"><pre><span></span><code><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">done</span><span class="p">,</span><span class="w"> </span><span class="nx">value</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">reader</span><span class="p">.</span><span class="nx">read</span><span class="p">()</span>
+<span class="w">  </span><span class="nx">lineBuffer</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">decoder</span><span class="p">.</span><span class="nx">decode</span><span class="p">(</span><span class="nx">value</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">stream</span><span class="o">:</span><span class="w"> </span><span class="o">!</span><span class="nx">done</span><span class="w"> </span><span class="p">})</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">newline</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">lineBuffer</span><span class="p">.</span><span class="nx">indexOf</span><span class="p">(</span><span class="s1">&#39;\n&#39;</span><span class="p">)</span>
+<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="nx">newline</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">lineBuffer</span><span class="p">.</span><span class="nx">slice</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">newline</span><span class="p">).</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/\r$/</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">lineBuffer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">lineBuffer</span><span class="p">.</span><span class="nx">slice</span><span class="p">(</span><span class="nx">newline</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">line</span><span class="p">)</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">dispatch</span><span class="p">()</span>
+<span class="w">    </span><span class="k">else</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">line</span><span class="p">.</span><span class="nx">startsWith</span><span class="p">(</span><span class="s1">&#39;data:&#39;</span><span class="p">))</span><span class="w"> </span><span class="nx">eventData</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">line</span><span class="p">.</span><span class="nx">slice</span><span class="p">(</span><span class="mf">5</span><span class="p">).</span><span class="nx">trimStart</span><span class="p">())</span>
+<span class="w">    </span><span class="nx">newline</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">lineBuffer</span><span class="p">.</span><span class="nx">indexOf</span><span class="p">(</span><span class="s1">&#39;\n&#39;</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">done</span><span class="p">)</span><span class="w"> </span><span class="k">break</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>decoder.decode(value, { stream: !done })</code> 的第二个参数很重要：流式解码时多字节字符可能被切断，<code>stream: true</code> 让 TextDecoder 保留不完整的字节序列，等下一块补齐。中文场景下这一点不做就会零星乱码。
+<h2>地理校验器：四类检查与一棵最小生成树</h2>
+
+模型返回后，服务端不直接相信。先做结构归一化，再做地理校验。
+
+归一化负责把「看起来像」变成「确定是」：类型必须在三值白名单里，坐标必须在合法区间，缺失的给默认值，不足四天条目的直接判错：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">itemType</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">itemValue</span><span class="p">.</span><span class="kr">type</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;food&#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">itemValue</span><span class="p">.</span><span class="kr">type</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;train&#39;</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">itemValue</span><span class="p">.</span><span class="kr">type</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;sight&#39;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">text</span><span class="p">(</span><span class="nx">itemValue</span><span class="p">.</span><span class="nx">title</span><span class="p">)</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">title</span><span class="p">)</span><span class="w"> </span><span class="k">throw</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="ne">Error</span><span class="p">(</span><span class="s1">&#39;Missing item title&#39;</span><span class="p">)</span>
+<span class="p">...</span>
+<span class="nx">latitude</span><span class="o">:</span><span class="w"> </span><span class="kt">typeof</span><span class="w"> </span><span class="nx">itemValue</span><span class="p">.</span><span class="nx">latitude</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;number&#39;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">itemValue</span><span class="p">.</span><span class="nx">latitude</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="o">-</span><span class="mf">90</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">itemValue</span><span class="p">.</span><span class="nx">latitude</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mf">90</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">itemValue.latitude</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="kt">undefined</span><span class="p">,</span>
+</code></pre></div>
+
+
+坐标超界的直接变 <code>undefined</code>，后面会被「缺坐标」那条规则抓到。这比抛错好——抛错会整块失败，变 <code>undefined</code> 只是让这一条不合格，重试时模型知道具体是哪一条。
+
+然后是四类地理检查。这里有个关键的结构化假设：<strong><code>train</code> 条目是一个显式的换区分隔符</strong>。
+<div class="codehilite"><pre><span></span><code><span class="c1">// A train item is an explicit change of area. Stops on either side are checked as separate clusters.</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">areas</span><span class="o">:</span><span class="w"> </span><span class="kt">PlanItem</span><span class="p">[][]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[[]]</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="nx">item</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">day</span><span class="p">.</span><span class="nx">items</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">item</span><span class="p">.</span><span class="kr">type</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;train&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">areas</span><span class="p">[</span><span class="nx">areas</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">1</span><span class="p">].</span><span class="nx">length</span><span class="p">)</span><span class="w"> </span><span class="nx">areas</span><span class="p">.</span><span class="nx">push</span><span class="p">([])</span>
+<span class="w">    </span><span class="k">continue</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="nx">areas</span><span class="p">[</span><span class="nx">areas</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">1</span><span class="p">].</span><span class="nx">push</span><span class="p">(</span><span class="nx">item</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+于是「东京上午 + 京都下午」不会被当成「相距 370 公里的两个景点」。它被切成两个独立的活动区，各自校验。没有这个假设，跨城行程永远无法通过。
+
+四个检查，逐个看实现。
+
+<strong>一、相邻站点不超过 15 公里</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">index</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1</span><span class="p">;</span><span class="w"> </span><span class="nx">index</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">area</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span><span class="w"> </span><span class="nx">index</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">kilometers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">distanceKm</span><span class="p">(</span><span class="nx">area</span><span class="p">[</span><span class="nx">index</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">1</span><span class="p">],</span><span class="w"> </span><span class="nx">area</span><span class="p">[</span><span class="nx">index</span><span class="p">])</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">kilometers</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">kilometers</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="nx">MAX_SAME_AREA_LEG_KM</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">issues</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="sb">`Day </span><span class="si">${</span><span class="nx">day</span><span class="p">.</span><span class="nx">day</span><span class="si">}</span><span class="sb">: adjacent stops are too far apart (</span><span class="si">${</span><span class="nx">describeDistance</span><span class="p">(...)</span><span class="si">}</span><span class="sb">)`</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+距离用 haversine，手写而非依赖库：
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">distanceKm</span><span class="p">(</span><span class="nx">left</span><span class="o">:</span><span class="w"> </span><span class="kt">PlanItem</span><span class="p">,</span><span class="w"> </span><span class="nx">right</span><span class="o">:</span><span class="w"> </span><span class="kt">PlanItem</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">left</span><span class="p">.</span><span class="nx">latitude</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="kc">undefined</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">...)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">radians</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">PI</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">180</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">latitudeDelta</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">right</span><span class="p">.</span><span class="nx">latitude</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">left</span><span class="p">.</span><span class="nx">latitude</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">radians</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">longitudeDelta</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">right</span><span class="p">.</span><span class="nx">longitude</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">left</span><span class="p">.</span><span class="nx">longitude</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">radians</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">sin</span><span class="p">(</span><span class="nx">latitudeDelta</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">2</span><span class="p">)</span><span class="w"> </span><span class="o">**</span><span class="w"> </span><span class="mf">2</span>
+<span class="w">    </span><span class="o">+</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">cos</span><span class="p">(</span><span class="nx">left</span><span class="p">.</span><span class="nx">latitude</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">radians</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">cos</span><span class="p">(</span><span class="nx">right</span><span class="p">.</span><span class="nx">latitude</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">radians</span><span class="p">)</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">sin</span><span class="p">(</span><span class="nx">longitudeDelta</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">2</span><span class="p">)</span><span class="w"> </span><span class="o">**</span><span class="w"> </span><span class="mf">2</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="mf">6371</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">2</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">atan2</span><span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nx">sqrt</span><span class="p">(</span><span class="nx">a</span><span class="p">),</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">sqrt</span><span class="p">(</span><span class="mf">1</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">a</span><span class="p">))</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>二、单个活动区任意两点不超过 22 公里</strong>：双重循环，O(n²)，但 n 是每天 5-6 条，无所谓。
+
+<strong>三、餐点距相邻活动不超过 6 公里</strong>：只看前后邻居，取最近的一个。
+
+<strong>四、回头路检测</strong>——这条最有意思。它比较「实际路线长度」和「这组点的最小生成树长度」：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">traveled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">routeDistance</span><span class="p">(</span><span class="nx">area</span><span class="p">)</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">minimumTree</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">minimumSpanningTreeDistance</span><span class="p">(</span><span class="nx">area</span><span class="p">)</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">traveled</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">minimumTree</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">traveled</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">25</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">traveled</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="nx">minimumTree</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="nx">MAX_ROUTE_TO_MINIMUM_TREE_RATIO</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">issues</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="sb">`Day </span><span class="si">${</span><span class="nx">day</span><span class="p">.</span><span class="nx">day</span><span class="si">}</span><span class="sb">: stop order backtracks excessively (</span><span class="si">${</span><span class="nb">Math</span><span class="p">.</span><span class="nx">round</span><span class="p">(</span><span class="nx">traveled</span><span class="p">)</span><span class="si">}</span><span class="sb"> km route for a roughly </span><span class="si">${</span><span class="nb">Math</span><span class="p">.</span><span class="nx">round</span><span class="p">(</span><span class="nx">minimumTree</span><span class="p">)</span><span class="si">}</span><span class="sb"> km area)`</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+最小生成树回答的是「把这些点都走到，最短需要多长」。实际路线长度除以它，就是「你多绕了几倍」。比 2.2 倍且绝对长度超过 25 公里，判为折返。
+
+最小生成树是 Prim 算法的朴素版：
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">minimumSpanningTreeDistance</span><span class="p">(</span><span class="nx">items</span><span class="o">:</span><span class="w"> </span><span class="kt">PlanItem</span><span class="p">[])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">items</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">2</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="mf">0</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">reached</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Set</span><span class="p">([</span><span class="mf">0</span><span class="p">])</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span>
+<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="nx">reached</span><span class="p">.</span><span class="nx">size</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">items</span><span class="p">.</span><span class="nx">length</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="nx">best</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">index</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="p">;</span><span class="w"> </span><span class="nx">kilometers</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="nx">left</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">reached</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">right</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span><span class="w"> </span><span class="nx">right</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">items</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span><span class="w"> </span><span class="nx">right</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">reached</span><span class="p">.</span><span class="nx">has</span><span class="p">(</span><span class="nx">right</span><span class="p">))</span><span class="w"> </span><span class="k">continue</span>
+<span class="w">        </span><span class="kd">const</span><span class="w"> </span><span class="nx">kilometers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">distanceKm</span><span class="p">(</span><span class="nx">items</span><span class="p">[</span><span class="nx">left</span><span class="p">],</span><span class="w"> </span><span class="nx">items</span><span class="p">[</span><span class="nx">right</span><span class="p">])</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">kilometers</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="kc">null</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">best</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">kilometers</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">best</span><span class="p">.</span><span class="nx">kilometers</span><span class="p">))</span><span class="w"> </span><span class="nx">best</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">index</span><span class="o">:</span><span class="w"> </span><span class="kt">right</span><span class="p">,</span><span class="w"> </span><span class="nx">kilometers</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">best</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span>
+<span class="w">    </span><span class="nx">reached</span><span class="p">.</span><span class="nx">add</span><span class="p">(</span><span class="nx">best</span><span class="p">.</span><span class="nx">index</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">best</span><span class="p">.</span><span class="nx">kilometers</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">total</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这个判据比「单条路线长度上限」聪明得多。它不关心你走了多远，只关心你走的路是不是这个区域本该走的距离的好几倍。一个 30 公里的郊区一日游可以是合理的，一个 20 公里却在城里来回折返的行程就不合理。
+<h2>实测：校验器抓到了什么，漏掉了什么</h2>
+
+这四个检查是纯函数，可以脱离 D1 和模型单独跑。我把 <code>distanceKm</code>、<code>routeDistance</code>、<code>minimumSpanningTreeDistance</code>、<code>geographicIssues</code> 连同常量原样抠出来，做了个基准脚本（<code>tools/bench_routewise_geo.mjs</code>），用六个真实东京坐标的行程测试：
+<div class="codehilite"><pre><span></span><code>  compact (valid)
+    route      3.3 km    mst  3.0 km    ratio 1.08    issues 0
+
+  east-west ping-pong
+    route     23.4 km    mst  9.5 km    ratio 2.47    issues 0
+
+  long ping-pong (fires)
+    route     26.1 km    mst 10.6 km    ratio 2.45    issues 1: stop order backtracks excessively
+
+  train split (valid)
+    route    370.3 km    mst 370.3 km   ratio 1.00    issues 0
+
+  meal detour
+    route     14.1 km    mst  7.4 km    ratio 1.91    issues 1: meal Remote lunch is 7 km from its nearest activity
+
+  missing coords
+    route      0.0 km    mst  0.0 km    ratio n/a     issues 1: Ueno Park is missing a usable coordinate
+</code></pre></div>
+
+
+<code>train split</code> 那条值得单独说：路线 370.3 公里，最小生成树也是 370.3 公里，ratio 1.00。因为 <code>train</code> 把它切成两个区，东京那两点、京都那两点各自校验，跨城那段不参与计算。如果没这个切分，这一条会被判为「相距 370 公里的两个景点」。
+
+现在看那个漏检：<code>east-west ping-pong</code> 的 ratio 是 <strong>2.47</strong>，超过 2.2 的阈值，却没报错。
+
+原因是 <code>traveled &gt; 25</code> 这个绝对长度下限。23.4 公里没到 25，所以虽然比值超标，规则不触发。我把同一形状放大（<code>long ping-pong</code>，26.1 公里）后立刻抓到了。
+
+这是个真实的设计取舍，不是 bug：加绝对下限是为了避免「两个相邻街区走反方向」这种小尺度也被判折返——3 公里的路线用 6 公里的树走完，ratio 也是 2，但完全合理。代价是 22-25 公里这个区间成了规则的盲区。
+
+成本方面，这四条检查便宜到可以忽略：
+<div class="codehilite"><pre><span></span><code>validator cost  (10000 iterations x 6 fixtures)
+  compact (valid)          mean 0.004 ms
+  east-west ping-pong      mean 0.002 ms
+  long ping-pong (fires)   mean 0.002 ms
+  missing coords           mean 0.000 ms
+
+worst case: 16 days x 6 items, one cluster
+  mean 0.078 ms   (16 days x C(6,2)=15 pairs = 240 span checks)
+</code></pre></div>
+
+
+最坏情况（16 天、每天 6 条、全部同区）0.078 毫秒。也就是说，为了挡住一次要花几十秒和 10 积分生成的行程，多花的计算成本是万分之一毫秒级——<strong>校验器永远不该省</strong>。
+
+失败时的处理也很关键。不是直接报错给用户，而是带着具体原因重试一次：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">attempt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span><span class="w"> </span><span class="nx">attempt</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">2</span><span class="p">;</span><span class="w"> </span><span class="nx">attempt</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">1</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="p">...</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">plan</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">normalizePlan</span><span class="p">(</span><span class="nx">parseJsonText</span><span class="p">(</span><span class="nx">output</span><span class="p">),</span><span class="w"> </span><span class="nx">expectedDays</span><span class="p">)</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">issues</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">geographicIssues</span><span class="p">(</span><span class="nx">plan</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">issues</span><span class="p">.</span><span class="nx">length</span><span class="p">)</span><span class="w"> </span><span class="k">throw</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="ne">Error</span><span class="p">(</span><span class="sb">`Geographic validation failed: </span><span class="si">${</span><span class="nx">issues</span><span class="p">.</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39;; &#39;</span><span class="p">)</span><span class="si">}</span><span class="sb">`</span><span class="p">)</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">plan</span>
+<span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">lastError</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">error</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">attempt</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">feedback</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">error</span><span class="w"> </span><span class="ow">instanceof</span><span class="w"> </span><span class="ne">Error</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">error</span><span class="p">.</span><span class="nx">message</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;The previous response was invalid&#39;</span>
+<span class="w">    </span><span class="nx">attemptPrompt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">prompt</span><span class="si">}</span><span class="sb">\n\nThe previous draft was rejected. Return a completely new JSON response that fixes this feedback, especially by using compact same-day areas and correct coordinates:\n</span><span class="si">${</span><span class="nx">feedback</span><span class="si">}</span><span class="sb">`</span>
+<span class="w">    </span><span class="k">await</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Promise</span><span class="p">((</span><span class="nx">resolve</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">setTimeout</span><span class="p">(</span><span class="nx">resolve</span><span class="p">,</span><span class="w"> </span><span class="mf">1200</span><span class="p">))</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+把 <code>Day 1: adjacent stops are too far apart (Ueno Park to Shinjuku Gyoen is 11 km)</code> 这样的原话塞回提示词，模型第二次通常能自己挪对。这是整套设计里最有 leverage 的一处：<strong>校验器的输出直接变成下一轮的输入</strong>。
+
+单块超时 210 秒，重试前等 1.2 秒。等待是为了避免连续两次撞上同一个瞬时故障。
+<h2>积分：扣在生成之后，不是之前</h2>
+
+一次生成 10 积分。扣减的位置很讲究——放在生成成功之后，用条件 UPDATE：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">charge</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s1">&#39;UPDATE users SET credits = credits - ? WHERE id = ? AND credits &gt;= ?&#39;</span><span class="p">)</span>
+<span class="w">  </span><span class="p">.</span><span class="nx">bind</span><span class="p">(</span><span class="nx">costCredits</span><span class="p">,</span><span class="w"> </span><span class="nx">user</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">costCredits</span><span class="p">).</span><span class="nx">run</span><span class="p">()</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">charge</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">changes</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">sendSse</span><span class="p">(</span><span class="nx">writer</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;error&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="kt">locale.credits</span><span class="p">,</span><span class="w"> </span><span class="nx">credits</span><span class="o">:</span><span class="w"> </span><span class="kt">user.credits</span><span class="w"> </span><span class="p">})</span>
+<span class="w">  </span><span class="k">return</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>WHERE credits &gt;= ?</code> 是原子性的余额检查。两个人同时点生成，余额 10 积分，只有一个人的 UPDATE 会命中——另一个 <code>changes</code> 为 0，拿到积分不足的提示。这是一个典型的「把并发控制交给数据库」的写法，比先 SELECT 再 UPDATE 安全。
+
+然后流水和行程在同一个 batch 里写：
+<div class="codehilite"><pre><span></span><code><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">batch</span><span class="p">([</span>
+<span class="w">  </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;INSERT INTO credit_ledger (id, user_id, delta, kind, reference) VALUES (?, ?, ?, &#39;plan_generation&#39;, ?)&quot;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">id</span><span class="p">(),</span><span class="w"> </span><span class="nx">user</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="nx">costCredits</span><span class="p">,</span><span class="w"> </span><span class="nx">planId</span><span class="p">),</span>
+<span class="w">  </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s1">&#39;INSERT INTO plans (id, user_id, request_json, response_json, cost_credits) VALUES (?, ?, ?, ?, ?)&#39;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">planId</span><span class="p">,</span><span class="w"> </span><span class="nx">user</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({...}),</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">plan</span><span class="p">),</span><span class="w"> </span><span class="nx">costCredits</span><span class="p">),</span>
+<span class="p">])</span>
+</code></pre></div>
+
+
+D1 的 <code>batch</code> 是事务性的。所以「扣了积分但没存行程」这种最坏情况不会发生。
+
+进入生成前的余额预检依然保留：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">user</span><span class="p">.</span><span class="nx">credits</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">costCredits</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="kt">locale.credits</span><span class="p">,</span><span class="w"> </span><span class="nx">credits</span><span class="o">:</span><span class="w"> </span><span class="kt">user.credits</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">402</span><span class="p">)</span>
+</code></pre></div>
+
+
+注意这里是 <code>json(...)</code> 而不是 SSE——连流都不开，直接 402。先拦一次省掉一次模型调用，后面那次条件 UPDATE 才是真正的防线。
+
+<code>credit_ledger</code> 的 <code>kind</code> 是白名单约束：
+<div class="codehilite"><pre><span></span><code><span class="n">kind</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">kind</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;signup_bonus&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;plan_generation&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;recharge&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;refund&#39;</span><span class="p">))</span>
+</code></pre></div>
+
+
+后来加邀请奖励时，这张表被重建了一次（<code>credit_ledger_new</code> → rename），因为 SQLite 不支持直接改 CHECK 约束。这个迁移写法值得记一笔：建新表、搬数据、删旧表、改名、重建索引，五步。
+<h2>认证：token 存哈希，IP 只能注册一次</h2>
+
+密码用 PBKDF2，10 万次迭代：
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">hashPassword</span><span class="p">(</span><span class="nx">password</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">salt</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">source</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">crypto</span><span class="p">.</span><span class="nx">subtle</span><span class="p">.</span><span class="nx">importKey</span><span class="p">(</span><span class="s1">&#39;raw&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">encoder</span><span class="p">.</span><span class="nx">encode</span><span class="p">(</span><span class="nx">password</span><span class="p">),</span><span class="w"> </span><span class="s1">&#39;PBKDF2&#39;</span><span class="p">,</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;deriveBits&#39;</span><span class="p">])</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">bits</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">crypto</span><span class="p">.</span><span class="nx">subtle</span><span class="p">.</span><span class="nx">deriveBits</span><span class="p">(</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;PBKDF2&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">salt</span><span class="o">:</span><span class="w"> </span><span class="kt">encoder.encode</span><span class="p">(</span><span class="nx">salt</span><span class="p">),</span><span class="w"> </span><span class="nx">iterations</span><span class="o">:</span><span class="w"> </span><span class="kt">100000</span><span class="p">,</span><span class="w"> </span><span class="nx">hash</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;SHA-256&#39;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="nx">source</span><span class="p">,</span><span class="w"> </span><span class="mf">256</span><span class="p">,</span>
+<span class="w">  </span><span class="p">)</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">toHex</span><span class="p">(</span><span class="nx">bits</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+session token 是两段 UUID 拼起来，但<strong>数据库只存 SHA-256</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">createSession</span><span class="p">(</span><span class="nx">db</span><span class="o">:</span><span class="w"> </span><span class="kt">D1Database</span><span class="p">,</span><span class="w"> </span><span class="nx">userId</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">id</span><span class="p">()</span><span class="si">}${</span><span class="nx">id</span><span class="p">().</span><span class="nx">replaceAll</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="si">}</span><span class="sb">`</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">expiresAt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">(</span><span class="nb">Date</span><span class="p">.</span><span class="nx">now</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1000</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">24</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">30</span><span class="p">).</span><span class="nx">toISOString</span><span class="p">()</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">db</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s1">&#39;INSERT INTO sessions (id, token_hash, user_id, expires_at) VALUES (?, ?, ?, ?)&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="nx">bind</span><span class="p">(</span><span class="nx">id</span><span class="p">(),</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">digest</span><span class="p">(</span><span class="nx">token</span><span class="p">),</span><span class="w"> </span><span class="nx">userId</span><span class="p">,</span><span class="w"> </span><span class="nx">expiresAt</span><span class="p">).</span><span class="nx">run</span><span class="p">()</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">token</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+于是库被拖走也拿不到可用 token。校验时同样先 <code>digest</code> 再查：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">row</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">db</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="sb">`</span>
+<span class="sb">  SELECT users.id, users.email, users.display_name AS displayName, users.credits, users.invite_code AS inviteCode</span>
+<span class="sb">  FROM sessions JOIN users ON users.id = sessions.user_id</span>
+<span class="sb">  WHERE sessions.token_hash = ? AND sessions.expires_at &gt; ?`</span>
+<span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="k">await</span><span class="w"> </span><span class="nx">digest</span><span class="p">(</span><span class="nx">token</span><span class="p">),</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">().</span><span class="nx">toISOString</span><span class="p">()).</span><span class="nx">first</span><span class="o">&lt;</span><span class="nx">User</span><span class="o">&gt;</span><span class="p">()</span>
+</code></pre></div>
+
+
+过期判断放在 SQL 里（<code>expires_at &gt; ?</code>），不是取出来再比。这样索引能用上，也不会返回过期行。
+
+注册有一道很硬的限制——<strong>一个 IP 只能注册一次</strong>：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">ipHash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">ip</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">digest</span><span class="p">(</span><span class="sb">`routewise-registration:</span><span class="si">${</span><span class="nx">ip</span><span class="si">}</span><span class="sb">`</span><span class="p">)</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="kc">null</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">ipHash</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">existingIp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s1">&#39;SELECT id FROM users WHERE registration_ip_hash = ? LIMIT 1&#39;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">ipHash</span><span class="p">).</span><span class="nx">first</span><span class="p">()</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">existingIp</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;当前网络已注册过账户，每个 IP 仅限注册一次&#39;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">409</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>registration_ip_hash</code> 是 sha256，不存明文 IP。<code>digest</code> 里拼了固定前缀 <code>routewise-registration:</code>，避免和别处对同一 IP 的哈希撞上。
+
+唯一索引在数据库层再兜一次：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">idx_users_registration_ip</span>
+<span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">registration_ip_hash</span><span class="p">)</span>
+<span class="w">  </span><span class="k">WHERE</span><span class="w"> </span><span class="n">registration_ip_hash</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+</code></pre></div>
+
+
+<code>WHERE ... IS NOT NULL</code> 这个部分索引很重要。没有它，所有没拿到 IP 的用户（<code>NULL</code>）在唯一索引下会互相冲突——SQLite 里多个 NULL 不冲突，但显式声明更安全。
+
+注册那段的错误映射也值得抄：
+<div class="codehilite"><pre><span></span><code><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">message</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">String</span><span class="p">(</span><span class="nx">error</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s1">&#39;users.email&#39;</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;该邮箱已注册，请直接登录&#39;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">409</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s1">&#39;registration_ip_hash&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">message</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s1">&#39;idx_users_registration_ip&#39;</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;当前网络已注册过账户，每个 IP 仅限注册一次&#39;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">409</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">message</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s1">&#39;idx_referrals_daily_reward_slot&#39;</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;该邀请人今日奖励名额刚刚用完...&#39;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">429</span><span class="p">)</span>
+</code></pre></div>
+
+
+它承认了一件不优雅但真实的事：并发下预检查会漏，最终一致性由唯一约束保证。把约束名映射成用户能看懂的话，比抛一个 500 好。
+<h2>邀请与积分：一张 daily reward slot 的赌桌</h2>
+
+邀请奖励最容易做成刷分漏洞。这里的约束是一个唯一索引：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">idx_referrals_daily_reward_slot</span>
+<span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">referrals</span><span class="p">(</span><span class="n">inviter_user_id</span><span class="p">,</span><span class="w"> </span><span class="n">reward_day</span><span class="p">,</span><span class="w"> </span><span class="n">reward_slot</span><span class="p">);</span>
+</code></pre></div>
+
+
+<code>reward_slot</code> 限定在 1-3：
+<div class="codehilite"><pre><span></span><code><span class="n">reward_slot</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">reward_slot</span><span class="w"> </span><span class="k">BETWEEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span>
+</code></pre></div>
+
+
+于是「同一邀请人、同一天、最多三次奖励」由数据库保证，而不是靠应用层数数：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">dailyRewards</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">inviter</span>
+<span class="w">  </span><span class="o">?</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s1">&#39;SELECT COUNT(*) AS count FROM referrals WHERE inviter_user_id = ? AND reward_day = ?&#39;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">inviter</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">rewardDay</span><span class="p">).</span><span class="nx">first</span><span class="o">&lt;</span><span class="p">{</span><span class="w"> </span><span class="nx">count</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="w"> </span><span class="p">}</span><span class="o">&gt;</span><span class="p">()</span>
+<span class="w">  </span><span class="o">:</span><span class="w"> </span><span class="kc">null</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">rewardSlot</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">dailyRewards</span><span class="o">?</span><span class="p">.</span><span class="nx">count</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">inviter</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">rewardSlot</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">3</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;该邀请人今日奖励已达 3 次上限...&#39;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">429</span><span class="p">)</span>
+</code></pre></div>
+
+
+预检查是为了给出友好提示。真正的护栏是那份唯一索引——两个人同时用同一个邀请码注册、都算出 <code>slot = 3</code>，第二个人的 INSERT 会撞索引，走 catch 分支返回 429。
+
+同一个 batch 里把四件事一起写：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">statements</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+<span class="w">  </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s1">&#39;INSERT INTO users (...) VALUES (?, ?, ?, ?, ?, ?, ?, ?)&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="nx">bind</span><span class="p">(</span><span class="nx">userId</span><span class="p">,</span><span class="w"> </span><span class="nx">email</span><span class="p">,</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">hashPassword</span><span class="p">(</span><span class="nx">password</span><span class="p">,</span><span class="w"> </span><span class="nx">salt</span><span class="p">),</span><span class="w"> </span><span class="nx">salt</span><span class="p">,</span><span class="w"> </span><span class="nx">initialCredits</span><span class="p">,</span><span class="w"> </span><span class="nx">userInviteCode</span><span class="p">,</span><span class="w"> </span><span class="nx">inviter</span><span class="o">?</span><span class="p">.</span><span class="nx">id</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nx">ipHash</span><span class="p">),</span>
+<span class="w">  </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;INSERT INTO credit_ledger (id, user_id, delta, kind, reference) VALUES (?, ?, 10, &#39;signup_bonus&#39;, &#39;signup&#39;)&quot;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">id</span><span class="p">(),</span><span class="w"> </span><span class="nx">userId</span><span class="p">),</span>
+<span class="p">]</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">inviter</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">statements</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span>
+<span class="w">    </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s1">&#39;UPDATE users SET credits = credits + 10 WHERE id = ?&#39;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">inviter</span><span class="p">.</span><span class="nx">id</span><span class="p">),</span>
+<span class="w">    </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;INSERT INTO credit_ledger ... 10, &#39;referral_bonus&#39;, ?&quot;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">id</span><span class="p">(),</span><span class="w"> </span><span class="nx">inviter</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">userId</span><span class="p">),</span>
+<span class="w">    </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;INSERT INTO credit_ledger ... 10, &#39;referral_bonus&#39;, ?&quot;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">id</span><span class="p">(),</span><span class="w"> </span><span class="nx">userId</span><span class="p">,</span><span class="w"> </span><span class="nx">inviter</span><span class="p">.</span><span class="nx">id</span><span class="p">),</span>
+<span class="w">    </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s1">&#39;INSERT INTO referrals (...) VALUES (?, ?, ?, ?, 10, ?, ?)&#39;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">id</span><span class="p">(),</span><span class="w"> </span><span class="nx">inviter</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">userId</span><span class="p">,</span><span class="w"> </span><span class="nx">submittedInviteCode</span><span class="p">,</span><span class="w"> </span><span class="nx">rewardDay</span><span class="p">,</span><span class="w"> </span><span class="nx">rewardSlot</span><span class="p">),</span>
+<span class="w">  </span><span class="p">)</span>
+<span class="p">}</span>
+<span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">batch</span><span class="p">(</span><span class="nx">statements</span><span class="p">)</span>
+</code></pre></div>
+
+
+被邀请人拿 20（10 基础 + 10 奖励），邀请人拿 10。三个 ledger 条目都在同一个事务里，账永远不会出现「加了积分但没有流水」。
+
+积分余额本身有非负约束：
+<div class="codehilite"><pre><span></span><code><span class="n">credits</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">10</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">credits</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span>
+</code></pre></div>
+
+
+这和前面那个 <code>WHERE credits &gt;= ?</code> 是双保险。应用层逻辑错了，约束会直接拒绝。
+<h2>支付：Stripe 签名与 D1 的条件写入</h2>
+
+充值有两个通道：Stripe 和微信。两者都是 webhook 回调。
+
+Stripe 的签名校验是手写的 HMAC-SHA256：
+<div class="codehilite"><pre><span></span><code><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">verifyStripeSignature</span><span class="p">(</span><span class="nx">body</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">signature</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nx">secret</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">signature</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">values</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">signature</span><span class="p">.</span><span class="nx">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">).</span><span class="nx">map</span><span class="p">((</span><span class="nx">part</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">part</span><span class="p">.</span><span class="nx">split</span><span class="p">(</span><span class="s1">&#39;=&#39;</span><span class="p">,</span><span class="w"> </span><span class="mf">2</span><span class="p">))</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">timestamp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">values</span><span class="p">.</span><span class="nx">find</span><span class="p">(([</span><span class="nx">key</span><span class="p">])</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">key</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;t&#39;</span><span class="p">)</span><span class="o">?</span><span class="p">.[</span><span class="mf">1</span><span class="p">]</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">signatures</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">values</span><span class="p">.</span><span class="nx">filter</span><span class="p">(([</span><span class="nx">key</span><span class="p">])</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">key</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;v1&#39;</span><span class="p">).</span><span class="nx">map</span><span class="p">(([,</span><span class="w"> </span><span class="nx">value</span><span class="p">])</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">value</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">timestamp</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">signatures</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">crypto</span><span class="p">.</span><span class="nx">subtle</span><span class="p">.</span><span class="nx">importKey</span><span class="p">(</span><span class="s1">&#39;raw&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">encoder</span><span class="p">.</span><span class="nx">encode</span><span class="p">(</span><span class="nx">secret</span><span class="p">),</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;HMAC&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">hash</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;SHA-256&#39;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;sign&#39;</span><span class="p">])</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">expected</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">toHex</span><span class="p">(</span><span class="k">await</span><span class="w"> </span><span class="nx">crypto</span><span class="p">.</span><span class="nx">subtle</span><span class="p">.</span><span class="nx">sign</span><span class="p">(</span><span class="s1">&#39;HMAC&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">key</span><span class="p">,</span><span class="w"> </span><span class="nx">encoder</span><span class="p">.</span><span class="nx">encode</span><span class="p">(</span><span class="sb">`</span><span class="si">${</span><span class="nx">timestamp</span><span class="si">}</span><span class="sb">.</span><span class="si">${</span><span class="nx">body</span><span class="si">}</span><span class="sb">`</span><span class="p">)))</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">signatures</span><span class="p">.</span><span class="nx">some</span><span class="p">((</span><span class="nx">candidate</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">equal</span><span class="p">(</span><span class="nx">expected</span><span class="p">,</span><span class="w"> </span><span class="nx">candidate</span><span class="p">))</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+签名串里可能有多条 <code>v1</code>（Stripe 在密钥轮换期间会同时签两版），所以是 <code>signatures.some(...)</code>。比较用常数时间的 <code>equal</code>：
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">equal</span><span class="p">(</span><span class="nx">a</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span><span class="w"> </span><span class="nx">b</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">a</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="nx">b</span><span class="p">.</span><span class="nx">length</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">difference</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">index</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span><span class="w"> </span><span class="nx">index</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span><span class="w"> </span><span class="nx">index</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">1</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">difference</span><span class="w"> </span><span class="o">|=</span><span class="w"> </span><span class="nx">a</span><span class="p">.</span><span class="nx">charCodeAt</span><span class="p">(</span><span class="nx">index</span><span class="p">)</span><span class="w"> </span><span class="o">^</span><span class="w"> </span><span class="nx">b</span><span class="p">.</span><span class="nx">charCodeAt</span><span class="p">(</span><span class="nx">index</span><span class="p">)</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">difference</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">0</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+真正的防重复支付在 <code>settleRechargeOrder</code> 里。三条 SQL 全部带 <code>status = 'pending'</code> 条件：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">order</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">order</span><span class="p">.</span><span class="nx">status</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="s1">&#39;pending&#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">order</span><span class="p">.</span><span class="nx">provider</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="nx">provider</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">provider</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;stripe&#39;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">order</span><span class="p">.</span><span class="nx">checkout_reference</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="nx">providerReference</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span>
+
+<span class="c1">// D1 batch is transactional. Every statement is conditional on the order still being pending.</span>
+<span class="k">await</span><span class="w"> </span><span class="nx">db</span><span class="p">.</span><span class="nx">batch</span><span class="p">([</span>
+<span class="w">  </span><span class="nx">db</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;INSERT INTO credit_ledger (id, user_id, delta, kind, amount_cny, reference) SELECT ?, user_id, credits, &#39;recharge&#39;, amount_cny, ? FROM recharge_orders WHERE id = ? AND status = &#39;pending&#39;&quot;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">id</span><span class="p">(),</span><span class="w"> </span><span class="nx">providerReference</span><span class="p">,</span><span class="w"> </span><span class="nx">orderId</span><span class="p">),</span>
+<span class="w">  </span><span class="nx">db</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;UPDATE users SET credits = credits + (SELECT credits FROM recharge_orders WHERE id = ? AND status = &#39;pending&#39;) WHERE id = (SELECT user_id FROM recharge_orders WHERE id = ? AND status = &#39;pending&#39;)&quot;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">orderId</span><span class="p">,</span><span class="w"> </span><span class="nx">orderId</span><span class="p">),</span>
+<span class="w">  </span><span class="nx">db</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;UPDATE recharge_orders SET status = &#39;paid&#39;, provider_reference = ?, paid_at = CURRENT_TIMESTAMP WHERE id = ? AND status = &#39;pending&#39;&quot;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">providerReference</span><span class="p">,</span><span class="w"> </span><span class="nx">orderId</span><span class="p">),</span>
+<span class="p">])</span>
+</code></pre></div>
+
+
+注意第一条 INSERT 用的是 <code>SELECT ... FROM recharge_orders WHERE ... status = 'pending'</code>——如果订单状态已经不是 pending，它 select 出零行，ledger 也就不写。第二条同理，<code>credits + (SELECT ...)</code> 在这种情况下加的是 <code>NULL</code>，UPDATE 影响零行。
+
+<strong>幂等性完全由「每条语句都带 pending 条件」保证</strong>，而不是靠应用层加锁。Stripe 重复投递同一个事件，第二次三条语句全部匹配零行，余额不变。这是 D1/SQLite 这类单机数据库上非常干净的写法。
+<h2>用一份 mock 测出 SSE 最脏的边界</h2>
+
+小程序端的测试比后端更值得抄，因为它盯的是 SSE 最容易被忽略的那一类 bug：<strong>字节流被切在多字节字符中间</strong>。
+
+小程序的 <code>wx.request</code> 在 <code>enableChunked: true</code> 时分块回调，配合 <code>responseType: 'arraybuffer'</code> 就能拿到原始字节：
+<div class="codehilite"><pre><span></span><code><span class="nx">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">wx</span><span class="p">.</span><span class="nx">request</span><span class="p">({</span>
+<span class="w">  </span><span class="nx">url</span><span class="o">:</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">config</span><span class="p">.</span><span class="nx">apiBase</span><span class="si">}</span><span class="sb">/api/plan`</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;POST&#39;</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">data</span><span class="o">:</span><span class="w"> </span><span class="nx">payload</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">responseType</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;arraybuffer&#39;</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">enableChunked</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="c1">// 基础库 2.20.1+ 支持流式接收</span>
+<span class="w">  </span><span class="nx">header</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s1">&#39;content-type&#39;</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;application/json&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">Accept</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;text/event-stream&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="nx">authHeader</span><span class="p">()</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">...</span>
+<span class="p">})</span>
+
+<span class="nx">task</span><span class="p">.</span><span class="nx">onChunkReceived</span><span class="p">(({</span><span class="w"> </span><span class="nx">data</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">settled</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+<span class="w">  </span><span class="nx">parser</span><span class="p">.</span><span class="nx">feed</span><span class="p">(</span><span class="nx">decoder</span><span class="p">.</span><span class="nx">decode</span><span class="p">(</span><span class="nx">data</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">stream</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">}))</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+关键在 <code>stream: true</code>。分块的边界是任意的，一段中文 SSE 可能被切在多字节字符中间；<code>stream: true</code> 让解码器保留不完整序列等下一块补齐。少了这个参数，中文就会零星变成乱码。
+
+测试构造了一个真实的跨边界切割：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">url</span><span class="p">.</span><span class="nx">endsWith</span><span class="p">(</span><span class="s1">&#39;/api/plan&#39;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="c1">// SSE 流式模拟：真实字节分片，跨 UTF-8 字符边界切割</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">encoder</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">TextEncoder</span><span class="p">()</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">full</span><span class="w"> </span><span class="o">=</span>
+<span class="w">    </span><span class="s1">&#39;event: status\ndata: {&quot;message&quot;:&quot;已连接 AI，正在规划详细行程&quot;}\n\n&#39;</span><span class="w"> </span><span class="o">+</span>
+<span class="w">    </span><span class="s1">&#39;event: delta\ndata: {&quot;delta&quot;:&quot;正在生成北京&quot;}\n\n&#39;</span><span class="w"> </span><span class="o">+</span>
+<span class="w">    </span><span class="s1">&#39;event: delta\ndata: {&quot;delta&quot;:&quot;故宫行程&quot;}\n\n&#39;</span><span class="w"> </span><span class="o">+</span>
+<span class="w">    </span><span class="sb">`event: complete\ndata: </span><span class="si">${</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"> </span><span class="nx">plan</span><span class="o">:</span><span class="w"> </span><span class="nx">MOCK_PLAN</span><span class="p">,</span><span class="w"> </span><span class="nx">credits</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">planId</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;mock-plan-1&#39;</span><span class="w"> </span><span class="si">}</span><span class="sb">)}\n\n`</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">bytes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">encoder</span><span class="p">.</span><span class="nx">encode</span><span class="p">(</span><span class="nx">full</span><span class="p">)</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">cut</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">100</span><span class="w"> </span><span class="c1">// 第 100 字节处切割，跨越中文多字节字符</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">chunk1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">bytes</span><span class="p">.</span><span class="nx">slice</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">cut</span><span class="p">)</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">chunk2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">bytes</span><span class="p">.</span><span class="nx">slice</span><span class="p">(</span><span class="nx">cut</span><span class="p">)</span>
+</code></pre></div>
+
+
+第 100 字节这个位置是算过的，注释里明说「跨越中文多字节字符」。然后断言不是「解析成功」，而是解析出的内容必须<strong>逐字相等</strong>：
+<div class="codehilite"><pre><span></span><code><span class="nx">assert</span><span class="p">(</span><span class="nx">deltas</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">10</span><span class="p">,</span><span class="w"> </span><span class="sb">`delta 累计 10 字（正在生成北京 6 + 故宫行程 4），实际 </span><span class="si">${</span><span class="nx">deltas</span><span class="si">}</span><span class="sb">`</span><span class="p">)</span>
+</code></pre></div>
+
+
+10 这个数字是写死的期望值。如果解码器在边界处丢了半个汉字，这里会变成 11 或者 9。一个用来测 UTF-8 边界问题的测试，自己必须不依赖「大概对」。
+
+第二组断言测的是中断：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">stream2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">streamPlan</span><span class="p">({</span><span class="w"> </span><span class="nx">cities</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;北京&#39;</span><span class="p">],</span><span class="w"> </span><span class="nx">days</span><span class="o">:</span><span class="w"> </span><span class="mf">2</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{})</span>
+<span class="nx">stream2</span><span class="p">.</span><span class="nx">abort</span><span class="p">()</span>
+<span class="k">await</span><span class="w"> </span><span class="nx">sleep</span><span class="p">(</span><span class="mf">50</span><span class="p">)</span>
+<span class="nx">assert</span><span class="p">(</span><span class="nx">lastPlanTask</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">lastPlanTask</span><span class="p">.</span><span class="nx">_aborted</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;abort 中断底层请求&#39;</span><span class="p">)</span>
+</code></pre></div>
+
+
+而 mock 循环到 40 毫秒时才调 <code>opts.success(...)</code>，并且先查 <code>if (task._aborted) return</code>。所以这条断言真正验证的是：abort 确实把底层的 request 任务取消了，而不是只置了一个前端标志位。
+
+第三组是回归测试，标题直接写着历史：
+<div class="codehilite"><pre><span></span><code><span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="s1">&#39;\n🧪 T5 SSE 请求 401（回归：streamPlan 也要清会话）&#39;</span><span class="p">)</span>
+<span class="nx">state</span><span class="p">.</span><span class="nx">setSession</span><span class="p">(</span><span class="s1">&#39;stale-token&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;u1&#39;</span><span class="w"> </span><span class="p">})</span>
+<span class="nx">mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;plan-401&#39;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">s401</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">streamPlan</span><span class="p">({</span><span class="w"> </span><span class="nx">cities</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;北京&#39;</span><span class="p">],</span><span class="w"> </span><span class="nx">days</span><span class="o">:</span><span class="w"> </span><span class="mf">2</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{}).</span><span class="nx">promise</span><span class="p">.</span><span class="k">catch</span><span class="p">((</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">e</span><span class="p">)</span>
+<span class="nx">mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;normal&#39;</span>
+<span class="nx">assert</span><span class="p">(</span><span class="nx">s401</span><span class="p">.</span><span class="nx">status</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">401</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;SSE 401 reject 带 status&#39;</span><span class="p">)</span>
+<span class="nx">assert</span><span class="p">(</span><span class="nx">state</span><span class="p">.</span><span class="nx">token</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;SSE 401 后会话被清除&#39;</span><span class="p">)</span>
+<span class="nx">assert</span><span class="p">(</span><span class="nx">unauthorized</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;SSE 401 触发全局回调&#39;</span><span class="p">)</span>
+</code></pre></div>
+
+
+这条测试的存在本身就是结论：<strong>SSE 接口漏了 401 处理，是真实发生过的 bug</strong>。JSON 请求走统一封装早就处理了 401，但 SSE 是另一条代码路径，它自己写了解析，也就自己漏了清理会话。回归测试把这个坑钉死了。
+
+还有一条容易被忽略但很重要的断言：
+<div class="codehilite"><pre><span></span><code><span class="nx">assert</span><span class="p">(</span><span class="nx">lib</span><span class="p">.</span><span class="nx">MAX_CITIES</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">8</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">lib</span><span class="p">.</span><span class="nx">MIN_DAYS</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">2</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">lib</span><span class="p">.</span><span class="nx">MAX_DAYS</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">16</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">lib</span><span class="p">.</span><span class="nx">PLAN_COST_CREDITS</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">10</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;常量与后端约束一致&#39;</span><span class="p">)</span>
+</code></pre></div>
+
+
+它没法真的去比对后端（小程序测试不该联网），但它把数字写死在测试里。于是当有人改后端约束而忘了改前端时，至少测试会提醒一次「这里有一份约定」。这是前面说的那个「一致性靠注释维持」的脆弱点的部分补偿。
+<h2>微信登录：一个必须由数据库解决的竞态</h2>
+
+邮箱注册可以靠「先查再插」，因为用户手输邮箱不会在同一毫秒发生两次。微信登录不行：小程序调用 <code>wx.login</code> 拿 code，后端换 <code>openid</code>，然后「有用户就登录、没有就建号」。同一个用户连续点两次「登录」，两个请求会同时进入这段逻辑，同时发现「没有用户」，同时尝试插入。
+
+代码里把这件事故意留在了 catch 分支：
+<div class="codehilite"><pre><span></span><code><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">batch</span><span class="p">([</span>
+<span class="w">    </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span>
+<span class="w">      </span><span class="s1">&#39;INSERT INTO users (id, email, password_hash, password_salt, credits, invite_code, openid) VALUES (?, ?, ?, ?, 10, ?, ?)&#39;</span><span class="p">,</span>
+<span class="w">    </span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">userId</span><span class="p">,</span><span class="w"> </span><span class="nx">email</span><span class="p">,</span><span class="w"> </span><span class="nx">passwordHash</span><span class="p">,</span><span class="w"> </span><span class="nx">passwordSalt</span><span class="p">,</span><span class="w"> </span><span class="nx">userInviteCode</span><span class="p">,</span><span class="w"> </span><span class="nx">openid</span><span class="p">),</span>
+<span class="w">    </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span>
+<span class="w">      </span><span class="s2">&quot;INSERT INTO credit_ledger (id, user_id, delta, kind, reference) VALUES (?, ?, 10, &#39;signup_bonus&#39;, &#39;wechat_signup&#39;)&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">id</span><span class="p">(),</span><span class="w"> </span><span class="nx">userId</span><span class="p">),</span>
+<span class="w">  </span><span class="p">])</span>
+<span class="w">  </span><span class="nx">user</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="kt">userId</span><span class="p">,</span><span class="w"> </span><span class="nx">email</span><span class="p">,</span><span class="w"> </span><span class="nx">displayName</span><span class="o">:</span><span class="w"> </span><span class="kt">null</span><span class="p">,</span><span class="w"> </span><span class="nx">credits</span><span class="o">:</span><span class="w"> </span><span class="kt">10</span><span class="p">,</span><span class="w"> </span><span class="nx">inviteCode</span><span class="o">:</span><span class="w"> </span><span class="kt">userInviteCode</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="nx">error</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="c1">// The same openid can arrive concurrently. Reuse the row created by the winning request.</span>
+<span class="w">  </span><span class="nx">user</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">findUser</span><span class="p">(</span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">,</span><span class="w"> </span><span class="nx">openid</span><span class="p">)</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">user</span><span class="p">)</span><span class="w"> </span><span class="k">throw</span><span class="w"> </span><span class="nx">error</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注释写得很清楚：<strong>同一个 openid 可能并发到达，复用赢的那个请求建立的行</strong>。第二次插入撞唯一索引失败，不去报错，而是回去读那一行。
+
+这个写法有几个值得学的点。第一，它没有引入分布式锁或幂等键，护栏是 <code>openid</code> 上的唯一索引：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">idx_users_openid</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">users</span><span class="p">(</span><span class="n">openid</span><span class="p">)</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">openid</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+</code></pre></div>
+
+
+第二，它把「并发」当成正常路径而不是异常路径。失败后不重试整个流程，只补读一次。第三，如果补读也拿不到，说明失败原因不是并发（可能是数据库真的挂了），这时才抛出原错误——<code>if (!user) throw error</code> 这一行保留了对真实故障的可见性。
+
+微信场景还有一个绕不过去的事实：用户没有邮箱。所以插入时用基于 openid 的占位邮箱：
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 微信用户没有邮箱，插入时使用基于 openid 的占位邮箱（wx_&lt;hash&gt;@wx.local）。</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">users</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">openid</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">;</span>
+</code></pre></div>
+
+
+占位邮箱走的是同一个 <code>users.email</code> 唯一约束，于是「邮箱用户」和「微信用户」共用一张表、一套积分、一套会话。<code>password_hash</code> 也填了随机值而不是留空：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">passwordHash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">digest</span><span class="p">(</span><span class="sb">`</span><span class="si">${</span><span class="nx">id</span><span class="p">()</span><span class="si">}</span><span class="sb">:</span><span class="si">${</span><span class="nx">openid</span><span class="si">}</span><span class="sb">`</span><span class="p">)</span>
+</code></pre></div>
+
+
+因为 <code>password_hash TEXT NOT NULL</code>。这两处都是同一类决定的体现：<strong>不为微信用户单开一条通道</strong>。代价是表里有一些语义不精确的字段，收益是所有下游逻辑（积分、充值、邀请）完全复用。
+
+微信侧的凭证校验也保留了平台服务不可用和凭证失效两种语义：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">codeSession</span><span class="p">.</span><span class="nx">errcode</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="nx">codeSession</span><span class="p">.</span><span class="nx">openid</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">console</span><span class="p">.</span><span class="nx">warn</span><span class="p">(</span><span class="s1">&#39;WeChat rejected login code&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">codeSession</span><span class="p">.</span><span class="nx">errcode</span><span class="p">,</span><span class="w"> </span><span class="nx">codeSession</span><span class="p">.</span><span class="nx">errmsg</span><span class="p">)</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;微信登录凭证已失效，请重试&#39;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">401</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>errcode</code> 是微信明确拒绝（code 已用过或过期），返回 401 让客户端重新 <code>wx.login</code>；而 fetch 失败返回 502，让客户端稍后再试。两者对用户来说都是「登录失败」，但前端可以据此决定是立刻重试还是提示稍后。把可重试和不可重试分开，是所有对接第三方平台的接口都该做的事。
+<h2>事件契约：四种事件，各自只做一件事</h2>
+
+SSE 的四种事件不是随意定的，它们对应客户端的四个不同反应：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>事件</th>
+<th>触发时机</th>
+<th>客户端反应</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code></td>
+<td>接口通过校验、准备调模型</td>
+<td>显示「已连接 AI」</td>
+</tr>
+<tr>
+<td><code>delta</code></td>
+<td>模型每吐一段文本</td>
+<td>追加到进度区，显示已接收字数</td>
+</tr>
+<tr>
+<td><code>complete</code></td>
+<td>校验通过 + 扣积分 + 落库完成</td>
+<td>用完整 plan 渲染，跳转结果页</td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td>任意环节失败</td>
+<td>展示错误文案，不解锁结果页</td>
+</tr>
+</tbody>
+</table></div>
+
+关键在于 <code>complete</code> 的时机：它不是「模型生成完了」，而是「校验通过、积分扣了、行程落库了」。所以客户端收到 <code>complete</code> 时，数据一定是可复现的——刷新页面还能从 <code>/api/account/plans/:id</code> 拿到同一份。
+
+这也是为什么扣积分放在校验之后。如果先扣积分再校验，一个被地理校验拒绝的行程会让用户付费却拿不到结果；如果扣积分在返回 <code>complete</code> 之前但校验之后，最坏情况是「模型跑完了、校验过了、扣积分时余额不足」，这时客户端收到的仍然是 <code>error</code> 而不是一个假的成功。
+
+<code>delta</code> 的用途也需要克制。它只用来做进度展示，客户端不应该尝试解析中间态的 JSON——因为一份 JSON 被切成十段之后，任何一段单独看都不是合法 JSON。前端展示的是「已接收 N 字」，而不是尝试增量渲染行程卡片。这个约束避免了整整一类「半个 JSON 解析失败」的 bug。
+
+顺带说一个 SSE 的实践细节：每个事件写成 <code>event: X\ndata: {...}\n\n</code>，双换行是事件分隔符。解析器必须按「空行」切事件而不是按行处理，否则 <code>data:</code> 多行续写会被错误合并。后端只有单行 data，但解析器按协议实现，未来加多行也不用改。
+<h2>前端：从 PosterBook 到小程序的两套渲染</h2>
+
+Web 端和小程序共用同一份后端协议，但渲染层是两套。
+
+Web 端的地图海报是 <code>PosterBook.tsx</code>，38 KB，把行程按日着色画成 1800px 宽的海报；打印版是 <code>PrintDoc</code>，靠 <code>window.print()</code> 导出 PDF。
+
+小程序侧则把纯逻辑单独抽出来，让页面和测试共用：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 规划与行程展示的纯逻辑层：payload 构造、天数校验、类型映射、行程拍平、摘要格式化</span>
+<span class="c1">// 从原 canvas 场景中抽出，供页面（form/result）复用，且可被测试直接驱动</span>
+<span class="c1">// 约束与后端一致：days 2-16、最多 8 城</span>
+</code></pre></div>
+
+
+<code>flattenPlan</code> 把嵌套结构拍平成「天头部 + 条目」的混合列表，视图和测试都消费同一个函数。这是小程序里值得坚持的一条：<strong>WXML 不做逻辑</strong>，所有可测的计算放到 <code>js/lib/</code> 里。
+
+网络层统一封装，包括 SSE 解析：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 网络层：wx.request 封装（自动带 token、统一错误处理）+ SSE 流式解析</span>
+<span class="c1">// 后端协议（与原项目 functions 一致）：</span>
+<span class="c1">//   - JSON 接口：Authorization: Bearer &lt;token&gt;</span>
+<span class="c1">//   - /api/plan：POST，SSE 流，事件 status / delta / complete / error（heartbeat 等未知事件忽略）</span>
+</code></pre></div>
+
+
+「heartbeat 等未知事件忽略」这一条与后端的 30 秒心跳对应。两端协议一致，靠的是注释和 <code>miniprogram/test/</code> 下那五个测试文件。
+
+小程序也能真流式——<code>enableChunked</code> + <code>onChunkReceived</code> 逐块喂给解析器，和 Web 端的体验是一致的。差别只在实现：Web 端用 <code>response.body.getReader()</code>，小程序用回调。两套解析器各自手写，各自需要那份跨 UTF-8 边界的测试。
+<h2>成本：一次生成的账能算到分</h2>
+
+一个 AI 功能能不能上线，往往不取决于效果，而取决于「每次调用的成本能不能预测」。这套系统把成本做成了三个可算的数。
+
+第一，积分是硬网关。一次生成 10 积分，注册送 10，邀请送 10-20。也就是说新用户免费额度是一次生成，邀请一个人多一次。
+
+第二，模型调用是可枚举的。一次生成最多几块、每块最多重试一次——这个上界在设计时就定死了：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">chunks</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="p">[][]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">start</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1</span><span class="p">;</span><span class="w"> </span><span class="nx">start</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="nx">input</span><span class="p">.</span><span class="nx">days</span><span class="p">;</span><span class="w"> </span><span class="nx">start</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">chunks</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nb">Array</span><span class="p">.</span><span class="kr">from</span><span class="p">({</span><span class="w"> </span><span class="nx">length</span><span class="o">:</span><span class="w"> </span><span class="kt">Math.min</span><span class="p">(</span><span class="mf">4</span><span class="p">,</span><span class="w"> </span><span class="nx">input</span><span class="p">.</span><span class="nx">days</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">start</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1</span><span class="p">)</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">(</span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">index</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">start</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">index</span><span class="p">))</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+16 天 → 4 块 → 分一组并发 → 最多 4 次模型调用。每块最多 2 次尝试，所以最坏情况 8 次调用。每次 <code>max_output_tokens: 18_000</code>。
+
+把这三个数乘起来，任何一次生成的最坏成本在按下按钮之前就算得出来。这在做 AI 功能时非常关键，因为模型调用是按 token 计费且方差很大的东西。<strong>一个成本不可预测的功能，运营上等于不可用。</strong>
+
+第三，成本超支有硬上限。每块 210 秒超时：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">controller</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">AbortController</span><span class="p">()</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">setTimeout</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">controller</span><span class="p">.</span><span class="nx">abort</span><span class="p">(),</span><span class="w"> </span><span class="mf">210</span><span class="nx">_000</span><span class="p">)</span>
+</code></pre></div>
+
+
+210 秒这个数字不是随手取的。它必须小于 Pages Functions 的执行上限，同时要覆盖最慢的一块（一天五六条、每条带坐标和详细说明）。超时后 <code>AbortController</code> 中断 fetch，进入 catch 分支，走重试或失败路径——不会让一个卡住的连接拖垮整个请求。
+
+这也解释了为什么积分扣在生成成功后：一次因为模型卡住而失败的生成，用户没拿到东西，不该付钱。代价是项目承担了无效调用，所以 210 秒超时和最多 2 次尝试这两道闸必须严格。
+
+充值侧的设计也是同一个思路。订单表同时记 <code>amount_cny</code> 和 <code>credits</code>，而不是「金额 ÷ 单价」在运行时算：
+<div class="codehilite"><pre><span></span><code><span class="n">amount_cny</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">amount_cny</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">),</span>
+<span class="n">credits</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">CHECK</span><span class="w"> </span><span class="p">(</span><span class="n">credits</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">),</span>
+</code></pre></div>
+
+
+原因很实际：价格会变。如果按「1 元 = 10 积分」在运行时换算，涨价那天所有历史订单的积分都会跟着变，账就对不上了。把兑换率冻结在订单行里，是一张账本该有的性质。
+
+后来加的 <code>charged_amount</code> / <code>charged_currency</code> 两列是同一个道理的延伸——Stripe 实际扣的金额和币种可能和订单标价不同（汇率、税、折扣），账本必须记「实际扣了多少」，而不是「我们以为扣了多少」。
+<h2>多语言：三套文案与一个运行时转换器</h2>
+
+界面支持简中、繁中、英文，但它没有做三套静态文案。做法是：只写简中和英文两份，繁中由前端在运行时转换。
+<div class="codehilite"><pre><span></span><code>- 三语界面：简体中文 / 繁體中文 / English，语言偏好存 localStorage（routewise_language）
+- 繁中实时转换：前端懒加载 opencc-js（cn → tw Converter），城市名与界面文案统一转换
+</code></pre></div>
+
+
+这个选择的收益很直接：文案维护量从三份降到两份，而且繁中永远不会出现「某个新文案忘了翻译」的情况——它总是简中的忠实转换。代价是首屏要加载一个转换器，所以是懒加载。
+
+后端的错误文案也是这样组织的，但它选择了另外一条路——三份写全：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">messages</span><span class="o">:</span><span class="w"> </span><span class="kt">Record</span><span class="o">&lt;</span><span class="nx">Language</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">login</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">;</span><span class="w"> </span><span class="nx">invalid</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">;</span><span class="w"> </span><span class="nx">city</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">;</span><span class="w"> </span><span class="nx">credits</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">;</span><span class="w"> </span><span class="nx">unavailable</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">;</span><span class="w"> </span><span class="nx">started</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">}</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="s1">&#39;zh-CN&#39;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">login</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;请先登录后再规划&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">invalid</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;请求格式无效&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">city</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;请至少选择一个城市&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="s1">&#39;zh-TW&#39;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">login</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;請先登入後再規劃&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">invalid</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;請求格式無效&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">city</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;請至少選擇一個城市&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">en</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">login</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;Sign in before creating a plan&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">invalid</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;Invalid request&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">city</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;Choose at least one city&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">},</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+为什么两处不同？因为后端文案会在 SSE 事件里、在 402 响应里、在日志里出现，运行时不方便依赖一个前端库。而且它只有六个字段——三份写全的成本很低。
+
+这里有个细节值得学：繁中和简中的差异不只是字形。<code>請先登入後再規劃</code> 和 <code>请先登录后再规划</code> 是同一句话的不同写法，不是简繁映射能生成的（「登入」vs「登录」是地区用语差异）。所以即使前端有 opencc，后端这几句也必须人手写。
+
+币种跟着语言联动，但单位符号本地化在前端做：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">currency</span><span class="o">:</span><span class="w"> </span><span class="kt">Currency</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">body</span><span class="p">.</span><span class="nx">currency</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;TWD&#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">body</span><span class="p">.</span><span class="nx">currency</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;USD&#39;</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">body</span><span class="p">.</span><span class="nx">currency</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;CNY&#39;</span>
+</code></pre></div>
+
+
+后端只认三个币种代码，其余一律回退 CNY。预算的千分位、符号位置、小数位全部交给前端——因为那是展示层的事，后端只需要在提示词里告诉模型「总预算 8000 CNY」。
+<h2>边界：为什么这些检查不能替代人工</h2>
+
+把地理校验器当成「内容正确性」的证明，是这套设计最容易被误读的地方。它实际能保证的事情很窄。
+
+它能保证的：坐标存在、坐标合法、点与点之间的距离符合四个阈值、路线没有明显折返、跨城有显式的 <code>train</code> 条目。这五件事都是<strong>几何事实</strong>，不依赖任何外部知识。
+
+它不能保证的，恰恰是旅行规划里最要紧的东西：
+<ul>
+<li>浅草寺周二是否开门、是否在修缮。</li>
+<li>那家拉面店还在不在，还是不是同一个地址。</li>
+<li>从 A 到 B 走路 10 分钟在雨季是否现实。</li>
+<li>预算 ¥8000 在樱花季够不够。</li>
+<li>某个活动是否需要提前一个月预约。</li>
+</ul>
+
+所以提示词里那句「Prices, schedules, opening hours and availability are estimates, never live-verified facts」不是免责声明，它是这套系统的性质说明。校验器管形状，模型管内容，事实核对仍然要人来做。
+
+这也是为什么输出里保留了 <code>note</code> 字段，并且要求它写「reservations, opening-hour verification and practical warnings」。模型被要求主动告诉用户「这里需要你自己确认」，而不是给出一个看似确定的答案。
+
+对比一下两种产品定位就很清楚：如果目标是「给用户一份可以照着走的行程」，那这套东西还不够，需要接入真实 POI 数据和营业时间；如果目标是「给用户一份可以改的初稿」，那它已经到位了——40 秒出一份结构严谨、路线合理、覆盖每天五六个节点的草稿，人只需要核对事实和调整偏好。后者才是这个规模的项目该做的事。
+
+认清这个边界，比再堆一层校验更有价值。因为「再多校验一层」会让成本翻倍，而收益可能是零——校验器不知道的，它永远不会知道。
+<h2>定位数据：251 个城市 JSON 与一个边缘搜索代理</h2>
+
+城市选择要快，且要能离线。所以城市数据在构建期就生成成静态 JSON：
+<div class="codehilite"><pre><span></span><code>tools/build-cities.mjs        build-world-cities.mjs
+generate-locations.mjs         cn-city-coords.json
+world-cities.json              world-provinces.json
+</code></pre></div>
+
+
+<code>public/locations/</code> 下 251 个文件，前端按需加载。这样首屏不需要等任何一个 API。
+
+但用户可能想搜一个不在列表里的地方。于是有一个边缘代理，转发到 Open-Meteo 的地理编码：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">upstreamUrl</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">URL</span><span class="p">(</span><span class="s2">&quot;https://geocoding-api.open-meteo.com/v1/search&quot;</span><span class="p">)</span>
+<span class="nx">upstreamUrl</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nx">set</span><span class="p">(</span><span class="s2">&quot;name&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">query</span><span class="p">)</span>
+<span class="nx">upstreamUrl</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nx">set</span><span class="p">(</span><span class="s2">&quot;count&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;20&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+两个细节。第一，输入有严格长度和格式限制，避免变成开放代理：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">query</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">url</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s2">&quot;q&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">).</span><span class="nx">trim</span><span class="p">().</span><span class="nx">slice</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="mf">80</span><span class="p">)</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">requestedCountry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">url</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s2">&quot;country&quot;</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s2">&quot;&quot;</span><span class="p">).</span><span class="nx">toUpperCase</span><span class="p">()</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">country</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sr">/^[A-Z]{2}$/</span><span class="p">.</span><span class="nx">test</span><span class="p">(</span><span class="nx">requestedCountry</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">requestedCountry</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;&quot;</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">query</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">2</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">results</span><span class="o">:</span><span class="w"> </span><span class="p">[]</span><span class="w"> </span><span class="p">})</span>
+</code></pre></div>
+
+
+<code>country</code> 必须匹配两位大写字母，否则丢弃——不把它拼进任意字符串。URL 也是固定 <code>host + 固定 path</code>，不接受外部传入的地址。
+
+第二，为了让繁中/简中界面上的地名也有英文对照，同一份查询请求两次：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">englishRequest</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">language</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;en&#39;</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">null</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="kt">fetch</span><span class="p">(</span><span class="nx">englishUrl</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">Accept</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;application/json&quot;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">})</span>
+<span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">response</span><span class="p">,</span><span class="w"> </span><span class="nx">englishResponse</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nb">Promise</span><span class="p">.</span><span class="nx">all</span><span class="p">([</span><span class="nx">localizedRequest</span><span class="p">,</span><span class="w"> </span><span class="nx">englishRequest</span><span class="p">])</span>
+</code></pre></div>
+
+
+然后按 id 合并：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">englishNames</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Map</span><span class="p">((</span><span class="nx">englishPayload</span><span class="p">.</span><span class="nx">results</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">[]).</span><span class="nx">map</span><span class="p">((</span><span class="nx">place</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="nx">place</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">place</span><span class="p">.</span><span class="nx">name</span><span class="p">]))</span>
+<span class="p">...</span>
+<span class="nx">sourceName</span><span class="o">:</span><span class="w"> </span><span class="kt">englishNames.get</span><span class="p">(</span><span class="nx">place</span><span class="p">.</span><span class="nx">id</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">place</span><span class="p">.</span><span class="nx">name</span><span class="p">,</span>
+</code></pre></div>
+
+
+一次往返拿两种语言，靠 <code>Promise.all</code> 并行。结果缓存一小时：
+<div class="codehilite"><pre><span></span><code><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="s1">&#39;Content-Type&#39;</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;application/json; charset=utf-8&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Cache-Control&#39;</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;public, max-age=3600&#39;</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+
+<h2>仍然存在的边界</h2>
+
+把整条链路摊开后，边界也很清楚：
+<ul>
+<li><strong>校验器只认距离，不认语义</strong>。它不知道「浅草寺周二闭馆」，也不知道「这家店已经倒闭」。它能保证路线不折返，保证不了内容真实。</li>
+<li><strong>22-25 公里是回头路规则的盲区</strong>。上面实测里那条 ratio 2.47 却没报错的行程就是例子。绝对下限是必要的，但边界上的形状会漏。</li>
+<li><strong>坐标与地点名的一致性没有校验</strong>。模型给出「浅草寺」+ 新宿的坐标，两点都能通过所有距离检查——因为校验器只看点之间的距离，不知道名字对不对。</li>
+<li><strong>城市分配是均分</strong>。3 城 7 天必然 3/2/2，不考虑「东京值得多待两天」这种偏好。</li>
+<li><strong>积分扣在生成后</strong>，所以一次耗时的失败生成不扣分。这对用户友好，但模型的无效调用成本全由项目承担。</li>
+<li><strong>前端与后端的参数约束各写一份</strong>。<code>MAX_CITIES</code>、<code>MAX_DAYS</code>、10 积分在 <code>plan.ts</code> 和 <code>miniprogram/js/lib/plan.js</code> 里各有一处，靠注释对齐。</li>
+<li><strong>两套 SSE 解析器</strong>。Web 端用 <code>getReader()</code>，小程序用 <code>enableChunked</code> 回调，各自手写。逻辑等价但代码不共享，UTF-8 边界那类 bug 要在两边分别测。</li>
+<li><strong>重试只有一次</strong>。同一块连续两次失败，整次生成报错，10 积分不扣但用户白等了两分多钟。</li>
+</ul>
+
+这些不是待办列表，是这套实现当前的形状。
+<h2>小结</h2>
+
+如果只记三件事：
+<ol>
+<li><strong>能算的不要问模型</strong>。城市分配、日期、标题全部服务端算好。模型只负责「这三天在东京怎么玩」，其余都是确定性代码。这一条把最大的不确定性来源直接移出了模型。</li>
+<li><strong>把校验规则写进契约</strong>。15 / 22 / 6 公里同时出现在提示词和校验器里，模型提前知道会被怎么量。校验失败时把原话塞回去重试——校验器的输出就是下一轮的输入。</li>
+<li><strong>不用锁的地方就不要锁</strong>。积分扣减靠条件 UPDATE，支付幂等靠每条语句都带 <code>status = 'pending'</code>，邀请上限靠唯一索引。三次都是「把不变量交给数据库」。</li>
+</ol>
+
+至于 SSE 流式、4 天切块、最小生成树折返检测、IP 哈希限流——它们都是同一件事的不同侧面：<strong>让一次几十秒的模型调用变成一个有进度、有验证、有账可查的产品功能</strong>。这类功能的验收标准不是「第一次生成看起来对」，而是「生成一百次，有几次画在地图上是错的，错的那几次用户有没有被告知」。
+
+项目地址：<a href="https://github.com/zhoujungis/trip-planning" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/trip-planning</a>。同周发布的另一篇拆解是 <a href="/article/nanoqa-versioned-quality-loop/">NanoQA：一套测试管理系统的四道硬边界</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/nanoqa-versioned-quality-loop/">NanoQA：一套测试管理系统的四道硬边界</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/shuge-cloudflare-rag/">書閣 ShuGe：在边缘搭一套可引用页码的 RAG</a></li><li><a href="https://blog.zhoujun.dev/article/english-site-without-js/">从 3 秒到毫秒首屏：英文站去 JS 化</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/nanoqa-versioned-quality-loop/">NanoQA：一套测试管理系统的四道硬边界</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+  </body>
+</html>

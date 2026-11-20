@@ -1,0 +1,1113 @@
+<blockquote>
+<p>Who this is for: developers using large models for structured output who have been burned by "the JSON parses but the content does not hold up"; anyone running streaming endpoints on Cloudflare Pages Functions; engineers who want one AI call to be a product feature rather than a demo.</p>
+<p><strong>TL;DR:</strong> Routewise AI makes <code>gpt-5.6-luna</code> emit an itinerary you can plot on a real map. The method is not a better prompt. It is four stacked constraints: the server fixes the city schedule, splits a long trip into four-day chunks and requests them in parallel, forces a JSON shape and validates each day against four geographic rules, and on failure feeds the exact rejection reason back into the prompt for one retry. The whole backend is 1,101 lines of TypeScript with no server. The costs are explicit too: a generation costs 10 credits, the validator only understands distance and not meaning, and the four layers still cannot stop "right place name, coordinate off by three kilometres".</p>
+<p>Reading time around 34 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>Why trip planning is the hardest structured output</h2>
+
+<p>Asking a model to write an itinerary is the easiest thing to demo and the easiest thing to get wrong.</p>
+
+<p>The demo version usually goes like this: give it "Tokyo, 3 days", it returns Markdown with Day 1, Day 2, Senso-ji, Skytree, Ichiran ramen. It looks very convincing.</p>
+
+<p>Then you connect it to a map. Problems appear immediately:</p>
+
+<ul>
+<li>Morning in Asakusa (139.79 E), afternoon in Shinjuku (139.70), evening back in Ginza (139.76). The text reads fine; on the map it is a line that folds back on itself.</li>
+<li>Coordinates are <code>35.68, 139.76</code>, the centre of Tokyo. Five attractions all land on the same point, because the model has no memory of specific venue coordinates.</li>
+<li>The itinerary says take the Shinkansen to Kyoto, but Day 2 and Day 3 are still Tokyo, and Day 4 suddenly becomes Kyoto. The transfer vanished.</li>
+<li>Budget says "about ¥8,000 total", but per-day totals add to ¥23,000.</li>
+</ul>
+
+<p>All four share one essence: <strong>the output is syntactically correct and semantically impossible</strong>. The JSON parses, the fields are complete, and it cannot be used.</p>
+
+<p>All of Routewise AI's engineering complexity is aimed at this. The project is not large:</p>
+
+<pre><code>functions   18 files   1,101 lines TypeScript   Cloudflare Pages Functions
+src         15 files   2,283 lines TS/TSX      Web client (React)
+miniprogram 28 files                           WeChat mini program (native WXML/JS)
+public/locations 251 city JSON files           offline location data
+migrations  5 SQL files                        D1 database
+</code></pre>
+
+<p>Of those 1,101 lines, <code>functions/api/plan.ts</code> alone is 491 — it is the "make output verifiable" chain.</p>
+
+<h2>Architecture: five parts, one edge pipeline</h2>
+
+<pre><code> Web (React)  ─┐
+               ├─▶ /api/plan (SSE) ─▶ ModelFlare gpt-5.6-luna
+ mini program ─┘         │
+                         ├─▶ D1: users / sessions / plans / credit_ledger
+                         │
+ public/locations/*.json ┘        offline city data (lazy-loaded by the client)
+</code></pre>
+
+<p>There are only two cloud resources: Pages Functions and D1 (SQLite). No long-running process, no object storage, no message queue.</p>
+
+<p>A request passes four gates before the model is even discussed:</p>
+
+<pre><code>const language: Language = body.language === 'zh-TW' || body.language === 'en' ? body.language : 'zh-CN'
+const cities = Array.isArray(body.cities) ? body.cities.filter(...).slice(0, 8) : []
+const days = Math.min(16, Math.max(2, Number(body.days) || 5))
+const travelDate = /^\d{4}-\d{2}-\d{2}$/.test(body.travelDate || '') ? body.travelDate as string : new Date().toISOString().slice(0, 10)
+const budget = Math.max(0, Number(body.budget) || 8000)
+</code></pre>
+
+<p>Eight cities, sixteen days, date format, budget floor. Those numbers also exist on the frontend, in the mini program's <code>miniprogram/js/lib/plan.js</code>:</p>
+
+<pre><code>export const MAX_CITIES = 8
+export const MIN_DAYS = 2
+export const MAX_DAYS = 16
+export const PLAN_COST_CREDITS = 10 // matches the backend, display only
+</code></pre>
+
+<p>Both places say "matches the backend". That consistency is maintained by comment, which is a known weak point of this system; we will come back to it.</p>
+
+<h2>Fix the city schedule, then let the model fill in</h2>
+
+<p>The thing a model most easily scrambles in a multi-city trip is not the content, it is the <strong>allocation</strong>. Give it "Tokyo, Kyoto, Osaka, 7 days" and it might allocate 2/3/2, or 3/2/2, or put Day 1 in Tokyo, Day 2 in Osaka, and Day 3 back in Tokyo.</p>
+
+<p>So this is not left to the model. The server computes a complete day-by-day city table first:</p>
+
+<pre><code>function buildCitySchedule(cities: string[], days: number) {
+  const baseDays = Math.floor(days / cities.length)
+  let remaining = days % cities.length
+  const schedule: string[] = []
+  for (const city of cities) {
+    const cityDays = baseDays + (remaining &gt; 0 ? 1 : 0)
+    if (remaining &gt; 0) remaining -= 1
+    for (let index = 0; index &lt; cityDays; index += 1) schedule.push(city)
+  }
+  while (schedule.length &lt; days) schedule.push(cities[cities.length - 1])
+  return schedule.slice(0, days)
+}
+</code></pre>
+
+<p>7 days across 3 cities → <code>baseDays = 2, remaining = 1</code> → Tokyo 3 days, Kyoto 2, Osaka 2. The remainder goes to the earlier cities.</p>
+
+<p>That schedule is pasted verbatim into every chunk's prompt:</p>
+
+<pre><code>The city allocation for the complete trip is fixed. Follow it exactly:
+- Day 1 (2026-12-20): Tokyo
+- Day 2 (2026-12-21): Tokyo
+- Day 3 (2026-12-22): Tokyo
+- Day 4 (2026-12-23): Kyoto
+...
+</code></pre>
+
+<p>The value of this step is <strong>removing uncertainty from the model</strong>. City allocation is a deterministic algorithm; the model only handles "what to do during these three Tokyo days". It does not need to remember, while generating Day 4, that three Tokyo days already passed — the table tells it.</p>
+
+<p>Dates follow the same logic, derived from the departure date by <code>dateIso</code> rather than computed by the model:</p>
+
+<pre><code>function dateIso(travelDate: string, offset: number) {
+  const date = new Date(`${travelDate}T12:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + offset)
+  return date.toISOString().slice(0, 10)
+}
+</code></pre>
+
+<p>Using <code>T12:00:00Z</code> instead of <code>T00:00:00Z</code> is deliberate: it avoids <code>setUTCDate</code> crossing a day boundary because of time zones. Noon plus any offset never falls into the previous day.</p>
+
+<h2>Four-day chunks: turning sequential into parallel</h2>
+
+<p>A 16-day trip generated in one shot has two problems: the output is long enough to truncate, and the wait is long. So it is chunked at four days:</p>
+
+<pre><code>const chunks: number[][] = []
+for (let start = 1; start &lt;= input.days; start += 4) {
+  chunks.push(Array.from({ length: Math.min(4, input.days - start + 1) }, (_, index) =&gt; start + index))
+}
+</code></pre>
+
+<p>16 days → 4 chunks. Then groups of four run concurrently:</p>
+
+<pre><code>const results: Plan[] = []
+for (let offset = 0; offset &lt; chunks.length; offset += 4) {
+  const group = chunks.slice(offset, offset + 4)
+  const generated = await Promise.all(group.map((expectedDays) =&gt;
+    generateChunk(env, buildPrompt(input, expectedDays, citySchedule), expectedDays, onDelta),
+  ))
+  results.push(...generated)
+}
+
+results.sort((left, right) =&gt; left.days[0].day - right.days[0].day)
+</code></pre>
+
+<p>Note the concurrency limit is also four. That is not arbitrary — Pages Functions has a subrequest limit, and firing sixteen fetches at once is gambling with the platform quota. Four chunks per group, at most four concurrent, is the compromise that works without crossing the line.</p>
+
+<p>Each chunk may only emit its own days:</p>
+
+<pre><code>Generate ONLY Day ${firstDay} through Day ${lastDay} in this response.
+Other chunks are generated separately. Keep transfers consistent with the fixed full-trip schedule.
+</code></pre>
+
+<p>"Keep transfers consistent" is the safety net for cross-chunk coherence. Because the Day 5 chunk and the Day 9 chunk run concurrently and cannot see each other's output, the only shared context is that full schedule table.</p>
+
+<p>On merge, days are sorted and title-level fields come from the first chunk:</p>
+
+<pre><code>return {
+  title: input.language === 'en' ? `${routeName} · ${input.days}-day trip` : `${routeName} · ${input.days}天${input.style}之旅`,
+  subtitle: first.subtitle,
+  totalEstimate: first.totalEstimate,
+  pace: first.pace,
+  seasonalNote: first.seasonalNote,
+  days: results.flatMap((result) =&gt; result.days).sort((left, right) =&gt; left.day - right.day),
+}
+</code></pre>
+
+<p>The title is no longer asked of the model; it is assembled from parameters. That is the same idea continued: anything code can determine, do not leave to the model.</p>
+
+<h2>The prompt: writing validation rules into a contract the model must honour</h2>
+
+<p><code>buildPrompt</code> is over sixty lines, but it is really a <strong>machine-checkable contract</strong>, not just a description of intent. It has three parts.</p>
+
+<p>Part one is fixed input:</p>
+
+<pre><code>Trip requirements:
+- Destinations, in preferred order: ${input.cities.join(' → ')}
+- Number of days: ${input.days}
+- Departure date: ${input.travelDate}
+- Total budget: ${input.currency} ${input.budget}
+- Travel pace: ${input.style}
+</code></pre>
+
+<p>Part two is the output shape. Note it is a complete JSON skeleton, including one sample item:</p>
+
+<pre><code>Return ONLY valid JSON without markdown, using exactly this structure:
+{
+  "title": "short trip title",
+  ...
+  "days": [{
+    "day": 1,
+    "items": [{
+      "time": "08:00",
+      "endTime": "09:00",
+      "title": "specific activity, restaurant, train or hotel action",
+      "latitude": 35.6812,
+      "longitude": 139.7671,
+      "type": "sight"
+    }]
+  }]
+}
+</code></pre>
+
+<p>Part three is the mandatory rules, and every line maps to a validator or a field consumer downstream:</p>
+
+<pre><code>- Return exactly ${expectedDays.length} day objects, numbered ${expectedDays.join(', ')}.
+- Give each day 5 or 6 chronological items covering breakfast or morning setup, ...
+- Every item must include numeric WGS84 latitude and longitude for its named venue ...
+- For intercity travel, name departure and arrival stations/airports, ...
+- Plan geography before writing the itinerary: first group each day into one nearby district ...
+- Within one local-area segment, keep consecutive stops within about 15 km, keep the whole segment within about 22 km, and keep meal stops within about 6 km of an adjacent activity.
+- A distant day trip or a move to another city is allowed only when it is represented by a separate train item between the two areas. ...
+</code></pre>
+
+<p>The last two lines are the validator's literal parameters. There is an important design point here: <strong>15 / 22 / 6 appear both in the prompt and in <code>geographicIssues</code></strong>. The model knows in advance how it will be measured, and the validator never encounters "a rule that was never stated but now disqualifies me".</p>
+
+<p>The prompt also asks the model to be honest:</p>
+
+<pre><code>- Prices, schedules, opening hours and availability are estimates, never live-verified facts.
+- For meals, ... Tell the user to verify current opening hours instead of claiming live availability.
+</code></pre>
+
+<p>That line solves a different layer of trustworthiness: rather than having the model claim "open now", have it admit it is an estimate.</p>
+
+<h2>SSE: one stream, four events, one heartbeat</h2>
+
+<p>The whole endpoint is an SSE stream, because a generation can take over a minute. The client needs to see progress rather than a spinner.</p>
+
+<p>The server emits only four event types:</p>
+
+<pre><code>async function sendSse(writer, event: string, data: unknown) {
+  await writer.write(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`))
+}
+</code></pre>
+
+<ul>
+<li><code>status</code>: generation is starting</li>
+<li><code>delta</code>: each text increment from the model</li>
+<li><code>complete</code>: validation passed, credits charged, row persisted — the final result</li>
+<li><code>error</code>: anything failed</li>
+</ul>
+
+<p>The heartbeat is a comment frame every 30 seconds:</p>
+
+<pre><code>const heartbeat = setInterval(() =&gt; {
+  void writer.write(encoder.encode(':keep-alive\n\n')).catch(() =&gt; undefined)
+}, 30_000)
+</code></pre>
+
+<p>SSE comment frames (starting with <code>:</code>) are ignored by clients but sufficient to stop intermediaries from declaring the connection dead.</p>
+
+<p>The real work runs inside <code>waitUntil</code>:</p>
+
+<pre><code>const task = (async () =&gt; {
+  try {
+    await sendSse(writer, 'status', { message: locale.started })
+    const plan = await generatePlan(env, {...}, (delta) =&gt; sendSse(writer, 'delta', { delta }))
+    ...
+    await sendSse(writer, 'complete', { plan, credits: user.credits - costCredits, planId })
+  } catch (error) {
+    try { await sendSse(writer, 'error', { error: locale.unavailable }) } catch { /* client disconnected */ }
+  } finally {
+    clearInterval(heartbeat)
+    try { await writer.close() } catch { /* client disconnected */ }
+  }
+})()
+context.waitUntil(task)
+</code></pre>
+
+<p><code>context.waitUntil</code> is the key. Once the response is returned, the runtime still allows that Promise to keep running — otherwise the stream would be reclaimed the moment it is handed off.</p>
+
+<p>The response headers must cooperate too, or an intermediary will buffer the stream:</p>
+
+<pre><code>headers: {
+  'content-type': 'text/event-stream; charset=utf-8',
+  'cache-control': 'no-cache, no-store',
+  connection: 'keep-alive',
+  'x-accel-buffering': 'no',
+}
+</code></pre>
+
+<p><code>x-accel-buffering: no</code> is specifically for nginx-style reverse proxies. Without it, the client receives one block at the end and streaming degrades into batching.</p>
+
+<p>The model-side SSE parser is handwritten too, because it has to handle line boundaries across chunks:</p>
+
+<pre><code>while (true) {
+  const { done, value } = await reader.read()
+  lineBuffer += decoder.decode(value, { stream: !done })
+  let newline = lineBuffer.indexOf('\n')
+  while (newline &gt;= 0) {
+    const line = lineBuffer.slice(0, newline).replace(/\r$/, '')
+    lineBuffer = lineBuffer.slice(newline + 1)
+    if (!line) await dispatch()
+    else if (line.startsWith('data:')) eventData.push(line.slice(5).trimStart())
+    newline = lineBuffer.indexOf('\n')
+  }
+  if (done) break
+}
+</code></pre>
+
+<p>The second argument to <code>decoder.decode(value, { stream: !done })</code> matters: in streaming mode a multi-byte character can be split, and <code>stream: true</code> makes TextDecoder retain the incomplete byte sequence until the next chunk. Skip it in a Chinese context and you get intermittent mojibake.</p>
+
+<h2>The geo validator: four checks and a minimum spanning tree</h2>
+
+<p>Once the model returns, the server does not simply trust it. First it normalises structure, then it validates geography.</p>
+
+<p>Normalisation turns "looks like" into "definitely is": the type must be one of three values, coordinates must be in range, missing fields get defaults, and a day with fewer than four items is a hard error:</p>
+
+<pre><code>const itemType = itemValue.type === 'food' || itemValue.type === 'train' ? itemValue.type : 'sight'
+const title = text(itemValue.title)
+if (!title) throw new Error('Missing item title')
+...
+latitude: typeof itemValue.latitude === 'number' &amp;&amp; itemValue.latitude &gt;= -90 &amp;&amp; itemValue.latitude &lt;= 90 ? itemValue.latitude : undefined,
+</code></pre>
+
+<p>An out-of-range coordinate becomes <code>undefined</code>, which the "missing coordinate" rule then catches. That is better than throwing: throwing fails the whole chunk, while <code>undefined</code> only disqualifies this one item, and on retry the model knows exactly which one.</p>
+
+<p>Then four geographic checks. There is a key structural assumption: <strong>a <code>train</code> item is an explicit area separator</strong>.</p>
+
+<pre><code>// A train item is an explicit change of area. Stops on either side are checked as separate clusters.
+const areas: PlanItem[][] = [[]]
+for (const item of day.items) {
+  if (item.type === 'train') {
+    if (areas[areas.length - 1].length) areas.push([])
+    continue
+  }
+  areas[areas.length - 1].push(item)
+}
+</code></pre>
+
+<p>So "Tokyo morning + Kyoto afternoon" is not treated as "two attractions 370 km apart". It is split into two independent activity areas, each validated on its own. Without this assumption, a cross-city itinerary could never pass.</p>
+
+<p>Check one: consecutive stops no more than 15 km apart.</p>
+
+<pre><code>for (let index = 1; index &lt; area.length; index += 1) {
+  const kilometers = distanceKm(area[index - 1], area[index])
+  if (kilometers !== null &amp;&amp; kilometers &gt; MAX_SAME_AREA_LEG_KM) {
+    issues.push(`Day ${day.day}: adjacent stops are too far apart (${describeDistance(...)})`)
+  }
+}
+</code></pre>
+
+<p>Distance is haversine, handwritten rather than a dependency:</p>
+
+<pre><code>function distanceKm(left: PlanItem, right: PlanItem) {
+  if (left.latitude === undefined || ...) return null
+  const radians = Math.PI / 180
+  const latitudeDelta = (right.latitude - left.latitude) * radians
+  const longitudeDelta = (right.longitude - left.longitude) * radians
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(left.latitude * radians) * Math.cos(right.latitude * radians) * Math.sin(longitudeDelta / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+</code></pre>
+
+<p>Check two: any two points inside one activity area no more than 22 km apart. A double loop, O(n²), but n is five or six per day, so it does not matter.</p>
+
+<p>Check three: a meal stop no more than 6 km from its adjacent activity. It only looks at the neighbours and takes the nearer one.</p>
+
+<p>Check four — backtrack detection — is the interesting one. It compares "actual route length" against "the minimum spanning tree of these points":</p>
+
+<pre><code>const traveled = routeDistance(area)
+const minimumTree = minimumSpanningTreeDistance(area)
+if (traveled !== null &amp;&amp; minimumTree !== null &amp;&amp; traveled &gt; 25 &amp;&amp; traveled &gt; minimumTree * MAX_ROUTE_TO_MINIMUM_TREE_RATIO) {
+  issues.push(`Day ${day.day}: stop order backtracks excessively (${Math.round(traveled)} km route for a roughly ${Math.round(minimumTree)} km area)`)
+}
+</code></pre>
+
+<p>A minimum spanning tree answers "what is the shortest path that visits all these points". Dividing actual route length by it gives "how many times over did you zigzag". Above 2.2x and above 25 km absolute, it is declared backtracking.</p>
+
+<p>The MST is a naive Prim:</p>
+
+<pre><code>function minimumSpanningTreeDistance(items: PlanItem[]) {
+  if (items.length &lt; 2) return 0
+  const reached = new Set([0])
+  let total = 0
+  while (reached.size &lt; items.length) {
+    let best: { index: number; kilometers: number } | null = null
+    for (const left of reached) {
+      for (let right = 0; right &lt; items.length; right += 1) {
+        if (reached.has(right)) continue
+        const kilometers = distanceKm(items[left], items[right])
+        if (kilometers !== null &amp;&amp; (!best || kilometers &lt; best.kilometers)) best = { index: right, kilometers }
+      }
+    }
+    if (!best) return null
+    reached.add(best.index)
+    total += best.kilometers
+  }
+  return total
+}
+</code></pre>
+
+<p>This criterion is much smarter than "a cap on total route length". It does not care how far you travelled; it cares whether the path you took is several times the distance this area inherently requires. A 30 km suburban day trip can be reasonable; a 20 km day that zigzags across town is not.</p>
+
+<h2>Measured: what the validator catches and what it misses</h2>
+
+<p>These four checks are pure functions, so they can run without D1 or the model. I lifted <code>distanceKm</code>, <code>routeDistance</code>, <code>minimumSpanningTreeDistance</code> and <code>geographicIssues</code> verbatim with their constants into a bench (<code>tools/bench_routewise_geo.mjs</code>) and tested six itineraries built from real Tokyo coordinates:</p>
+
+<pre><code>  compact (valid)
+    route      3.3 km    mst  3.0 km    ratio 1.08    issues 0
+
+  east-west ping-pong
+    route     23.4 km    mst  9.5 km    ratio 2.47    issues 0
+
+  long ping-pong (fires)
+    route     26.1 km    mst 10.6 km    ratio 2.45    issues 1: stop order backtracks excessively
+
+  train split (valid)
+    route    370.3 km    mst 370.3 km   ratio 1.00    issues 0
+
+  meal detour
+    route     14.1 km    mst  7.4 km    ratio 1.91    issues 1: meal Remote lunch is 7 km from its nearest activity
+
+  missing coords
+    route      0.0 km    mst  0.0 km    ratio n/a     issues 1: Ueno Park is missing a usable coordinate
+</code></pre>
+
+<p>The <code>train split</code> row deserves its own note: route 370.3 km, MST also 370.3 km, ratio 1.00. Because <code>train</code> splits it into two areas, the two Tokyo points and the two Kyoto points are validated independently, and the intercity leg does not participate. Without the split, that row would be flagged as "two attractions 370 km apart".</p>
+
+<p>Now the miss: <code>east-west ping-pong</code> has a ratio of <strong>2.47</strong>, above the 2.2 threshold, and reports nothing.</p>
+
+<p>The reason is the <code>traveled &gt; 25</code> absolute-length floor. 23.4 km does not reach 25, so even though the ratio is over, the rule does not fire. I scaled the same shape up (<code>long ping-pong</code>, 26.1 km) and it fired immediately.</p>
+
+<p>That is a real design trade-off, not a bug: the absolute floor exists to stop small-scale reversals from being flagged — a 3 km route completed on a 6 km tree also has ratio 2 and is entirely reasonable. The cost is that 22–25 km is a blind spot.</p>
+
+<p>Cost-wise the four checks are free enough to ignore:</p>
+
+<pre><code>validator cost  (10000 iterations x 6 fixtures)
+  compact (valid)          mean 0.004 ms
+  east-west ping-pong      mean 0.002 ms
+  long ping-pong (fires)   mean 0.002 ms
+  missing coords           mean 0.000 ms
+
+worst case: 16 days x 6 items, one cluster
+  mean 0.078 ms   (16 days x C(6,2)=15 pairs = 240 span checks)
+</code></pre>
+
+<p>The worst case — 16 days, six items each, all in one cluster — is 0.078 ms. To block an itinerary that took tens of seconds and 10 credits to generate, the extra compute is on the order of ten-thousandths of a millisecond. <strong>The validator should never be the thing you skip.</strong></p>
+
+<p>Failure handling matters too. It does not report an error to the user directly; it retries once with the specific reason:</p>
+
+<pre><code>for (let attempt = 0; attempt &lt; 2; attempt += 1) {
+  ...
+  const plan = normalizePlan(parseJsonText(output), expectedDays)
+  const issues = geographicIssues(plan)
+  if (issues.length) throw new Error(`Geographic validation failed: ${issues.join('; ')}`)
+  return plan
+} catch (error) {
+  lastError = error
+  if (attempt === 0) {
+    const feedback = error instanceof Error ? error.message : 'The previous response was invalid'
+    attemptPrompt = `${prompt}\n\nThe previous draft was rejected. Return a completely new JSON response that fixes this feedback, especially by using compact same-day areas and correct coordinates:\n${feedback}`
+    await new Promise((resolve) =&gt; setTimeout(resolve, 1200))
+  }
+}
+</code></pre>
+
+<p>Feeding back the exact text of <code>Day 1: adjacent stops are too far apart (Ueno Park to Shinjuku Gyoen is 11 km)</code> usually lets the model move things correctly on the second try. This is the highest-leverage part of the whole design: <strong>the validator's output becomes the next round's input</strong>.</p>
+
+<p>Each chunk times out at 210 seconds, with a 1.2-second wait before retrying. The wait avoids hitting the same transient failure twice in a row.</p>
+
+<h2>Credits: charge after generation, not before</h2>
+
+<p>A generation costs 10 credits. Where the deduction happens matters: it sits after successful generation, as a conditional UPDATE:</p>
+
+<pre><code>const charge = await env.DB.prepare('UPDATE users SET credits = credits - ? WHERE id = ? AND credits &gt;= ?')
+  .bind(costCredits, user.id, costCredits).run()
+if (!charge.meta.changes) {
+  await sendSse(writer, 'error', { error: locale.credits, credits: user.credits })
+  return
+}
+</code></pre>
+
+<p><code>WHERE credits &gt;= ?</code> is an atomic balance check. Two people clicking generate at once with a 10-credit balance, and only one UPDATE matches — the other gets <code>changes === 0</code> and an insufficient-credits message. This is the classic "hand concurrency control to the database", safer than SELECT-then-UPDATE.</p>
+
+<p>The ledger and the plan are then written in one batch:</p>
+
+<pre><code>await env.DB.batch([
+  env.DB.prepare("INSERT INTO credit_ledger (id, user_id, delta, kind, reference) VALUES (?, ?, ?, 'plan_generation', ?)").bind(id(), user.id, -costCredits, planId),
+  env.DB.prepare('INSERT INTO plans (id, user_id, request_json, response_json, cost_credits) VALUES (?, ?, ?, ?, ?)').bind(planId, user.id, JSON.stringify({...}), JSON.stringify(plan), costCredits),
+])
+</code></pre>
+
+<p>D1's <code>batch</code> is transactional, so the worst case — credits charged but no plan stored — cannot happen.</p>
+
+<p>The pre-check before generation remains:</p>
+
+<pre><code>if (user.credits &lt; costCredits) return json({ error: locale.credits, credits: user.credits }, 402)
+</code></pre>
+
+<p>Note this returns <code>json(...)</code> rather than opening a stream — a plain 402. Blocking once up front saves a model call; the conditional UPDATE afterwards is the real line of defence.</p>
+
+<p><code>credit_ledger.kind</code> is a constrained whitelist:</p>
+
+<pre><code>kind TEXT NOT NULL CHECK (kind IN ('signup_bonus', 'plan_generation', 'recharge', 'refund'))
+</code></pre>
+
+<p>When referral bonuses were added later, this table was rebuilt (<code>credit_ledger_new</code> → rename) because SQLite cannot alter a CHECK constraint in place. That migration pattern is worth remembering: create new, copy rows, drop old, rename, rebuild indexes — five steps.</p>
+
+<h2>Auth: tokens stored as hashes, one account per IP</h2>
+
+<p>Passwords use PBKDF2 with 100,000 iterations:</p>
+
+<pre><code>export async function hashPassword(password: string, salt: string) {
+  const source = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits'])
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: encoder.encode(salt), iterations: 100000, hash: 'SHA-256' },
+    source, 256,
+  )
+  return toHex(bits)
+}
+</code></pre>
+
+<p>A session token is two UUIDs concatenated, but <strong>the database stores only its SHA-256</strong>:</p>
+
+<pre><code>export async function createSession(db: D1Database, userId: string) {
+  const token = `${id()}${id().replaceAll('-', '')}`
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString()
+  await db.prepare('INSERT INTO sessions (id, token_hash, user_id, expires_at) VALUES (?, ?, ?, ?)')
+    .bind(id(), await digest(token), userId, expiresAt).run()
+  return token
+}
+</code></pre>
+
+<p>So even if the database is exfiltrated, no usable token comes with it. Verification digests first too:</p>
+
+<pre><code>const row = await db.prepare(`
+  SELECT users.id, users.email, users.display_name AS displayName, users.credits, users.invite_code AS inviteCode
+  FROM sessions JOIN users ON users.id = sessions.user_id
+  WHERE sessions.token_hash = ? AND sessions.expires_at &gt; ?`
+).bind(await digest(token), new Date().toISOString()).first&lt;User&gt;()
+</code></pre>
+
+<p>The expiry check lives in SQL (<code>expires_at &gt; ?</code>), not fetched then compared. That keeps the index usable and avoids returning expired rows.</p>
+
+<p>Registration has a hard limit — <strong>one account per IP</strong>:</p>
+
+<pre><code>const ipHash = ip ? await digest(`routewise-registration:${ip}`) : null
+if (ipHash) {
+  const existingIp = await env.DB.prepare('SELECT id FROM users WHERE registration_ip_hash = ? LIMIT 1').bind(ipHash).first()
+  if (existingIp) return json({ error: 'this network already registered an account; one per IP' }, 409)
+}
+</code></pre>
+
+<p><code>registration_ip_hash</code> is a sha256; plain IPs are never stored. The <code>digest</code> input is prefixed with <code>routewise-registration:</code> so it cannot collide with the same IP hashed elsewhere.</p>
+
+<p>A unique index backs it up at the database level:</p>
+
+<pre><code>CREATE UNIQUE INDEX IF NOT EXISTS idx_users_registration_ip
+  ON users(registration_ip_hash)
+  WHERE registration_ip_hash IS NOT NULL;
+</code></pre>
+
+<p>The <code>WHERE ... IS NOT NULL</code> partial index matters. Without it, every user with no IP (<code>NULL</code>) would conflict under a unique index — multiple NULLs do not conflict in SQLite, but declaring it explicitly is safer.</p>
+
+<p>The error mapping at registration is worth copying:</p>
+
+<pre><code>} catch (error) {
+  const message = String(error)
+  if (message.includes('users.email')) return json({ error: 'email already registered, please sign in' }, 409)
+  if (message.includes('registration_ip_hash') || message.includes('idx_users_registration_ip')) return json({ error: 'this network already registered an account; one per IP' }, 409)
+  if (message.includes('idx_referrals_daily_reward_slot')) return json({ error: 'this inviter has used today\'s three rewards...' }, 429)
+</code></pre>
+
+<p>It admits something inelegant but true: under concurrency the pre-check can miss, and final consistency is guaranteed by unique constraints. Mapping constraint names to sentences a user can understand beats a bare 500.</p>
+
+<h2>Invites and credits: a daily reward slot table</h2>
+
+<p>Referral rewards are the easiest thing to turn into a points-farming hole. The constraint here is one unique index:</p>
+
+<pre><code>CREATE UNIQUE INDEX IF NOT EXISTS idx_referrals_daily_reward_slot
+  ON referrals(inviter_user_id, reward_day, reward_slot);
+</code></pre>
+
+<p><code>reward_slot</code> is limited to 1–3:</p>
+
+<pre><code>reward_slot INTEGER NOT NULL CHECK (reward_slot BETWEEN 1 AND 3)
+</code></pre>
+
+<p>So "same inviter, same day, at most three rewards" is guaranteed by the database rather than by application counting:</p>
+
+<pre><code>const dailyRewards = inviter
+  ? await env.DB.prepare('SELECT COUNT(*) AS count FROM referrals WHERE inviter_user_id = ? AND reward_day = ?').bind(inviter.id, rewardDay).first&lt;{ count: number }&gt;()
+  : null
+const rewardSlot = (dailyRewards?.count || 0) + 1
+if (inviter &amp;&amp; rewardSlot &gt; 3) return json({ error: 'this inviter has used today\'s three rewards...' }, 429)
+</code></pre>
+
+<p>The pre-check exists to give a friendly message. The real guard is that unique index — two people registering with the same invite code concurrently, both computing <code>slot = 3</code>, and the second INSERT hits the index and takes the catch branch with a 429.</p>
+
+<p>Four things are written in one batch:</p>
+
+<pre><code>const statements = [
+  env.DB.prepare('INSERT INTO users (...) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(userId, email, await hashPassword(password, salt), salt, initialCredits, userInviteCode, inviter?.id || null, ipHash),
+  env.DB.prepare("INSERT INTO credit_ledger (id, user_id, delta, kind, reference) VALUES (?, ?, 10, 'signup_bonus', 'signup')").bind(id(), userId),
+]
+if (inviter) {
+  statements.push(
+    env.DB.prepare('UPDATE users SET credits = credits + 10 WHERE id = ?').bind(inviter.id),
+    env.DB.prepare("INSERT INTO credit_ledger ... 10, 'referral_bonus', ?").bind(id(), inviter.id, userId),
+    env.DB.prepare("INSERT INTO credit_ledger ... 10, 'referral_bonus', ?").bind(id(), userId, inviter.id),
+    env.DB.prepare('INSERT INTO referrals (...) VALUES (?, ?, ?, ?, 10, ?, ?)').bind(id(), inviter.id, userId, submittedInviteCode, rewardDay, rewardSlot),
+  )
+}
+await env.DB.batch(statements)
+</code></pre>
+
+<p>The invitee gets 20 (10 base + 10 bonus), the inviter gets 10. All three ledger entries are in the same transaction, so "credits added with no ledger row" can never happen.</p>
+
+<p>The balance itself has a non-negative constraint:</p>
+
+<pre><code>credits INTEGER NOT NULL DEFAULT 10 CHECK (credits &gt;= 0)
+</code></pre>
+
+<p>That plus the <code>WHERE credits &gt;= ?</code> above is double insurance. If application logic is wrong, the constraint rejects it outright.</p>
+
+<h2>Payments: Stripe signatures and conditional D1 writes</h2>
+
+<p>Top-ups have two channels: Stripe and WeChat. Both are webhook callbacks.</p>
+
+<p>Stripe signature verification is a handwritten HMAC-SHA256:</p>
+
+<pre><code>async function verifyStripeSignature(body: string, signature: string | null, secret: string) {
+  if (!signature) return false
+  const values = signature.split(',').map((part) =&gt; part.split('=', 2))
+  const timestamp = values.find(([key]) =&gt; key === 't')?.[1]
+  const signatures = values.filter(([key]) =&gt; key === 'v1').map(([, value]) =&gt; value)
+  if (!timestamp || signatures.length === 0) return false
+  const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const expected = toHex(await crypto.subtle.sign('HMAC', key, encoder.encode(`${timestamp}.${body}`)))
+  return signatures.some((candidate) =&gt; equal(expected, candidate))
+}
+</code></pre>
+
+<p>The signature string can contain multiple <code>v1</code> entries (Stripe signs with both during key rotation), hence <code>signatures.some(...)</code>. Comparison uses a constant-time <code>equal</code>:</p>
+
+<pre><code>function equal(a: string, b: string) {
+  if (a.length !== b.length) return false
+  let difference = 0
+  for (let index = 0; index &lt; a.length; index += 1)
+    difference |= a.charCodeAt(index) ^ b.charCodeAt(index)
+  return difference === 0
+}
+</code></pre>
+
+<p>Real duplicate-payment protection lives in <code>settleRechargeOrder</code>. All three statements carry a <code>status = 'pending'</code> condition:</p>
+
+<pre><code>if (!order || order.status !== 'pending' || order.provider !== provider) return false
+if (provider === 'stripe' &amp;&amp; order.checkout_reference !== providerReference) return false
+
+// D1 batch is transactional. Every statement is conditional on the order still being pending.
+await db.batch([
+  db.prepare("INSERT INTO credit_ledger (id, user_id, delta, kind, amount_cny, reference) SELECT ?, user_id, credits, 'recharge', amount_cny, ? FROM recharge_orders WHERE id = ? AND status = 'pending'").bind(id(), providerReference, orderId),
+  db.prepare("UPDATE users SET credits = credits + (SELECT credits FROM recharge_orders WHERE id = ? AND status = 'pending') WHERE id = (SELECT user_id FROM recharge_orders WHERE id = ? AND status = 'pending')").bind(orderId, orderId),
+  db.prepare("UPDATE recharge_orders SET status = 'paid', provider_reference = ?, paid_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'").bind(providerReference, orderId),
+])
+</code></pre>
+
+<p>Note the first INSERT uses <code>SELECT ... FROM recharge_orders WHERE ... status = 'pending'</code>. If the order is no longer pending, it selects zero rows and no ledger row is written. The second is the same: <code>credits + (SELECT ...)</code> adds <code>NULL</code> in that case, and the UPDATE affects zero rows.</p>
+
+<p><strong>Idempotency is guaranteed entirely by "every statement carries the pending condition"</strong>, not by application-level locking. When Stripe redelivers the same event, the second attempt matches zero rows everywhere and the balance stays put. On a single-node database like D1/SQLite, this is a very clean pattern.</p>
+
+<h2>Testing SSE's dirtiest edge with one mock</h2>
+
+<p>The mini-program's tests are more worth copying than the backend's, because they target the most easily missed class of SSE bug: <strong>a byte stream cut in the middle of a multi-byte character</strong>.</p>
+
+<p>The mini-program's <code>wx.request</code> calls back in chunks when <code>enableChunked: true</code>, and with <code>responseType: 'arraybuffer'</code> you get raw bytes:</p>
+
+<pre><code>task = wx.request({
+  url: `${config.apiBase}/api/plan`,
+  method: 'POST',
+  data: payload,
+  responseType: 'arraybuffer',
+  enableChunked: true, // base library 2.20.1+
+  header: { 'content-type': 'application/json', Accept: 'text/event-stream', ...authHeader() },
+  ...
+})
+
+task.onChunkReceived(({ data }) =&gt; {
+  if (settled) return
+  parser.feed(decoder.decode(data, { stream: true }))
+})
+</code></pre>
+
+<p>The key is <code>stream: true</code>. Chunk boundaries are arbitrary, and a Chinese SSE stream can be cut mid-character; <code>stream: true</code> makes the decoder retain the incomplete sequence until the next chunk. Without it, Chinese text becomes intermittent mojibake.</p>
+
+<p>The test constructs a real cross-boundary cut:</p>
+
+<pre><code>if (url.endsWith('/api/plan')) {
+  // SSE stream simulation: real byte chunks, cut across a UTF-8 character boundary
+  const encoder = new TextEncoder()
+  const full =
+    'event: status\ndata: {"message":"..."}\n\n' +
+    'event: delta\ndata: {"delta":"..."}\n\n' +
+    `event: complete\ndata: ${JSON.stringify({ plan: MOCK_PLAN, credits: 0, planId: 'mock-plan-1' })}\n\n`
+  const bytes = encoder.encode(full)
+  const cut = 100 // cut at byte 100, across a multi-byte Chinese character
+  const chunk1 = bytes.slice(0, cut)
+  const chunk2 = bytes.slice(cut)
+</code></pre>
+
+<p>Byte 100 is computed, and the comment says so: "cut across a multi-byte Chinese character". The assertion is not "parsing succeeded" but that the content is <strong>character-for-character equal</strong>:</p>
+
+<pre><code>assert(deltas === 10, `delta total 10 chars (6 + 4), actual ${deltas}`)
+</code></pre>
+
+<p>10 is a hard-coded expectation. If the decoder drops half a character at the boundary, this becomes 11 or 9. A test designed to catch UTF-8 boundary bugs must not itself accept "approximately right".</p>
+
+<p>The second group asserts cancellation:</p>
+
+<pre><code>const stream2 = streamPlan({ cities: ['Beijing'], days: 2 }, {})
+stream2.abort()
+await sleep(50)
+assert(lastPlanTask &amp;&amp; lastPlanTask._aborted === true, 'abort cancels the underlying request')
+</code></pre>
+
+<p>The mock only calls <code>opts.success(...)</code> at 40 ms and first checks <code>if (task._aborted) return</code>. So this assertion verifies that abort actually cancelled the underlying request task, not merely flipped a frontend flag.</p>
+
+<p>The third group is a regression test, and its title records history:</p>
+
+<pre><code>console.log('\n🧪 T5 SSE request 401 (regression: streamPlan must also clear the session)')
+state.setSession('stale-token', { id: 'u1' })
+mode = 'plan-401'
+const s401 = await streamPlan({ cities: ['Beijing'], days: 2 }, {}).promise.catch((e) =&gt; e)
+mode = 'normal'
+assert(s401.status === 401, 'SSE 401 rejects with status')
+assert(state.token === null, 'session cleared after SSE 401')
+assert(unauthorized === 2, 'SSE 401 triggers the global callback')
+</code></pre>
+
+<p>The existence of this test is itself the conclusion: <strong>the SSE endpoint missing 401 handling was a real bug</strong>. JSON requests go through a shared wrapper that handled 401 long ago, but SSE is a separate code path with its own parser, and it missed the session clear. The regression test nails that hole shut.</p>
+
+<p>One more assertion is easy to overlook but important:</p>
+
+<pre><code>assert(lib.MAX_CITIES === 8 &amp;&amp; lib.MIN_DAYS === 2 &amp;&amp; lib.MAX_DAYS === 16 &amp;&amp; lib.PLAN_COST_CREDITS === 10, 'constants match backend constraints')
+</code></pre>
+
+<p>It cannot actually compare against the backend (mini-program tests should not hit the network), but it pins the numbers in the test. So when someone changes a backend constraint and forgets the frontend, at least the test reminds them "there is an agreement here". That is partial compensation for the fragility noted earlier about consistency being maintained by comments.</p>
+
+<h2>Event contract: four events, each doing one job</h2>
+
+<p>The four SSE event types are not arbitrary; they map to four distinct client reactions:</p>
+
+<table>
+<thead><tr><th>Event</th><th>When it fires</th><th>Client reaction</th></tr></thead>
+<tbody>
+<tr><td><code>status</code></td><td>request validated, about to call the model</td><td>show "AI connected"</td></tr>
+<tr><td><code>delta</code></td><td>model emits a text increment</td><td>append to progress area, show received-character count</td></tr>
+<tr><td><code>complete</code></td><td>validated + credits charged + persisted</td><td>render the full plan, navigate to results</td></tr>
+<tr><td><code>error</code></td><td>anything failed</td><td>show the message, do not unlock results</td></tr>
+</tbody>
+</table>
+
+<p>The important part is when <code>complete</code> fires: not "the model finished", but "validation passed, credits charged, itinerary persisted". So when the client receives <code>complete</code>, the data is guaranteed reproducible — refresh the page and <code>/api/account/plans/:id</code> returns the same thing.</p>
+
+<p>That is also why charging happens after validation. Charge first and a geographically-rejected itinerary makes the user pay without a result; charge after validation but before <code>complete</code>, and the worst case is "model finished, validation passed, but the balance check failed during charging" — the client still receives <code>error</code> rather than a fake success.</p>
+
+<p><code>delta</code> usage must also be restrained. It is only for progress display; the client should not try to parse the intermediate JSON — a JSON document cut into ten pieces is not valid JSON in any one piece. The frontend shows "received N characters" rather than attempting incremental rendering of itinerary cards. That constraint avoids an entire class of "half a JSON document failed to parse" bugs.</p>
+
+<p>One practical SSE detail: each event is written as <code>event: X\ndata: {...}\n\n</code>, with the double newline as the event separator. A parser must split on blank lines rather than process line by line, otherwise multi-line <code>data:</code> continuation would be merged incorrectly. The backend only emits single-line data, but the parser follows the protocol, so multi-line support costs nothing later.</p>
+
+<h2>Frontend: two renderers, from PosterBook to the mini program</h2>
+
+<p>The web and mini program share the same backend protocol but have two rendering layers.</p>
+
+<p>The web map poster is <code>PosterBook.tsx</code>, 38 KB, drawing the itinerary as an 1800px-wide poster coloured by day; the print version is <code>PrintDoc</code>, exporting PDF via <code>window.print()</code>.</p>
+
+<p>The mini program pulls pure logic out into its own module so pages and tests share it:</p>
+
+<pre><code>// Pure logic layer for planning and itinerary display: payload construction, day
+// validation, type mapping, itinerary flattening, summary formatting.
+// Extracted from the original canvas scene so pages (form/result) reuse it and tests
+// can drive it directly. Constraints match the backend: days 2-16, at most 8 cities.
+</code></pre>
+
+<p><code>flattenPlan</code> flattens the nested structure into a mixed "day header + items" list, consumed by both views and tests. That is the rule worth keeping in a mini program: <strong>WXML does no logic</strong>; every testable computation goes into <code>js/lib/</code>.</p>
+
+<p>The network layer wraps everything, including SSE parsing:</p>
+
+<pre><code>// Network layer: wx.request wrapper (auto token, unified error handling) + SSE parsing.
+// Backend protocol (same as the original functions):
+//   - JSON endpoints: Authorization: Bearer &lt;token&gt;
+//   - /api/plan: POST, SSE stream, events status / delta / complete / error
+//     (heartbeat and unknown events ignored)
+</code></pre>
+
+<p>"heartbeat and unknown events ignored" corresponds to the backend's 30-second heartbeat. Both ends stay in agreement through comments and the five test files under <code>miniprogram/test/</code>.</p>
+
+<p>The mini program can stream for real too — <code>enableChunked</code> plus <code>onChunkReceived</code> feeds the parser chunk by chunk, matching the web experience. The difference is implementation only: the web uses <code>response.body.getReader()</code>, the mini program uses callbacks. Two handwritten parsers, each needing that UTF-8 boundary test.</p>
+
+<h2>Cost: the books for one generation</h2>
+
+<p>Whether an AI feature can ship often depends not on quality but on whether per-call cost is predictable. This system turns cost into three computable numbers.</p>
+
+<p>First, credits are a hard gate. A generation costs 10; signing up grants 10; an invite grants 10–20. So a new user's free allowance is one generation, and inviting one person buys another.</p>
+
+<p>Second, model calls are enumerable. The upper bound on chunks, and one retry per chunk, is fixed at design time:</p>
+
+<pre><code>const chunks: number[][] = []
+for (let start = 1; start &lt;= input.days; start += 4) {
+  chunks.push(Array.from({ length: Math.min(4, input.days - start + 1) }, (_, index) =&gt; start + index))
+}
+</code></pre>
+
+<p>16 days → 4 chunks → one concurrent group → at most 4 model calls. Each chunk tries at most twice, so the worst case is 8 calls. Each with <code>max_output_tokens: 18_000</code>.</p>
+
+<p>Multiply those three numbers and the worst-case cost of any generation is known before the button is pressed. That matters enormously for AI features, because model calls are billed per token and have high variance. <strong>A feature with unpredictable cost is, operationally, unusable.</strong></p>
+
+<p>Third, overruns have a hard ceiling. Each chunk times out at 210 seconds:</p>
+
+<pre><code>const controller = new AbortController()
+const timeout = setTimeout(() =&gt; controller.abort(), 210_000)
+</code></pre>
+
+<p>210 is not arbitrary. It must stay under the Pages Functions execution limit while covering the slowest chunk (five or six items per day, each with coordinates and detailed instructions). On timeout, <code>AbortController</code> cancels the fetch, the catch branch runs, and it either retries or fails — a stuck connection cannot drag the whole request down.</p>
+
+<p>That also explains charging after success: a generation that failed because the model hung gives the user nothing, so they should not pay. The cost is that the project absorbs invalid calls, which is exactly why the 210-second timeout and two-attempt cap must be strict.</p>
+
+<p>The top-up side follows the same idea. The order table stores both <code>amount_cny</code> and <code>credits</code> rather than computing "amount ÷ unit price" at runtime:</p>
+
+<pre><code>amount_cny INTEGER NOT NULL CHECK (amount_cny &gt; 0),
+credits INTEGER NOT NULL CHECK (credits &gt; 0),
+</code></pre>
+
+<p>The reason is practical: prices change. If conversion were computed at runtime as "1 CNY = 10 credits", a price increase would retroactively change every historical order's credit value and the books would stop balancing. Freezing the exchange rate into the order row is a property a ledger should have.</p>
+
+<p>The later <code>charged_amount</code> / <code>charged_currency</code> columns extend the same principle — what Stripe actually charged may differ from the listed price (FX, tax, discounts), and the ledger must record "what was actually charged", not "what we assumed".</p>
+
+<h2>Multilingual: three locales and a runtime converter</h2>
+
+<p>The UI supports Simplified Chinese, Traditional Chinese and English, but it does not ship three static string sets. It writes Simplified Chinese and English, and converts Traditional Chinese at runtime:</p>
+
+<pre><code>- Three-language UI: Simplified Chinese / Traditional Chinese / English, preference in
+  localStorage (routewise_language)
+- Live Traditional conversion: lazily loaded opencc-js (cn -&gt; tw Converter); city names
+  and UI copy convert uniformly
+</code></pre>
+
+<p>The benefit is direct: copy maintenance drops from three sets to two, and Traditional Chinese can never miss "a new string someone forgot to translate" because it is always a faithful conversion of Simplified. The cost is loading a converter on first paint, hence lazy loading.</p>
+
+<p>Backend error strings take the other route — all three written out:</p>
+
+<pre><code>const messages: Record&lt;Language, { login: string; invalid: string; city: string; credits: string; unavailable: string; started: string }&gt; = {
+  'zh-CN': { login: '请先登录后再规划', invalid: '请求格式无效', city: '请至少选择一个城市', ... },
+  'zh-TW': { login: '請先登入後再規劃', invalid: '請求格式無效', city: '請至少選擇一個城市', ... },
+  en: { login: 'Sign in before creating a plan', invalid: 'Invalid request', city: 'Choose at least one city', ... },
+}
+</code></pre>
+
+<p>Why the difference? Backend strings appear inside SSE events, in 402 responses and in logs, where depending on a frontend library at runtime is awkward. And there are only six fields — writing all three is cheap.</p>
+
+<p>There is a detail worth learning here: Traditional and Simplified differ by more than glyphs. <code>請先登入後再規劃</code> and <code>请先登录后再规划</code> are the same sentence written differently; a Simplified-to-Traditional mapping cannot produce it ("登入" vs "登录" is a regional usage difference). So even with opencc on the frontend, these backend strings must be written by hand.</p>
+
+<p>Currency follows language, but symbol localisation happens on the frontend:</p>
+
+<pre><code>const currency: Currency = body.currency === 'TWD' || body.currency === 'USD' ? body.currency : 'CNY'
+</code></pre>
+
+<p>The backend accepts only three currency codes and falls back to CNY for anything else. Thousands separators, symbol placement and decimal places belong to the presentation layer — the backend only needs to tell the model "total budget 8000 CNY" in the prompt.</p>
+
+<h2>How the prompt got here</h2>
+
+<p>The final prompt reads like something written deliberately. It was not. It is the residue of a specific failure sequence, and that sequence explains why each rule is phrased the way it is.</p>
+
+<p><strong>Attempt one</strong> was a polite request: "plan a 5-day Tokyo trip with specific times and locations". The output was beautiful prose and useless data. No coordinates, so it could not be plotted; no per-item cost, so the budget could not be checked.</p>
+
+<p><strong>Attempt two</strong> added a JSON schema. Now the output parsed, and the map showed five pins on top of each other, because the model was emitting the city centroid for every venue. The fix was not "ask for coordinates" — it already did. The fix was telling the model <em>why</em>: coordinates will be plotted on a real city map, so they must closely match the named venue. Models respond to consequences better than to adjectives.</p>
+
+<p><strong>Attempt three</strong> fixed coordinates and broke geography. With real coordinates, the itinerary became a pinball route: north, south, north, south. This is where the district-first instruction came from — "plan geography before writing the itinerary, group each day into one nearby district, then order stops in a continuous direction". Note the ordering: decide the area, then order within it. Models that write items first will rationalise any order afterwards.</p>
+
+<p><strong>Attempt four</strong> made the day trips break. A legitimate day trip to Kamakura from Tokyo produces a 60 km leg, which the same-area rules reject. The answer was to make the transfer explicit: distance is only allowed when represented by a separate <code>train</code> item, which acts as an area separator for the validator. That single type value resolved both the modelling question and the validation question at once.</p>
+
+<p><strong>Attempt five</strong> added the numeric thresholds the validator was already using, so that the model could self-correct before ever being measured. Every rule after that is a bug that was observed once and then encoded.</p>
+
+<p>That is the honest history of most production prompts: not a specification, but a sediment layer. The discipline that makes it maintainable is the rule that each sentence must correspond to something the code checks or something the client renders. Anything else is decoration and belongs out.</p>
+
+<h2>Failure taxonomy</h2>
+
+<p>Once the pipeline is layered, failures become classifiable, and each class has a different correct response. Getting this mapping wrong is how systems end up either retrying things that cannot succeed or giving up on things that would have.</p>
+
+<table>
+<thead><tr><th>Failure</th><th>Detection</th><th>Correct response</th></tr></thead>
+<tbody>
+<tr><td>Model returns prose, not JSON</td><td><code>parseJsonText</code> throws</td><td>Retry with the parse error as feedback</td></tr>
+<tr><td>Wrong number of days</td><td><code>normalizePlan</code> length check</td><td>Retry, quoting the exact expected range</td></tr>
+<tr><td>Missing or out-of-range coordinates</td><td>normalize sets <code>undefined</code></td><td>Retry; the geo check names the item</td></tr>
+<tr><td>Stops too far apart / backtracking</td><td><code>geographicIssues</code></td><td>Retry with the specific pair and distance</td></tr>
+<tr><td>Model times out at 210s</td><td><code>AbortController</code></td><td>One retry after 1.2s; then fail</td></tr>
+<tr><td>Model provider down</td><td>fetch rejects or 5xx</td><td>Retry once, then SSE <code>error</code></td></tr>
+<tr><td>Balance changed mid-generation</td><td>conditional UPDATE returns 0 rows</td><td>No retry: <code>error</code> with credits</td></tr>
+<tr><td>Client disconnects</td><td>writer throws</td><td>Swallow, clear heartbeat, close</td></tr>
+</tbody>
+</table>
+
+<p>Three distinctions in that table carry real weight.</p>
+
+<p><strong>Content failures retry; infrastructure failures retry once; state failures do not retry at all.</strong> A balance problem will not fix itself by asking the model again, and retrying there would waste another two minutes to arrive at the same 402.</p>
+
+<p><strong>Feedback must be specific enough to act on.</strong> "The previous response was invalid" produces another invalid response. "Day 1: adjacent stops are too far apart (Ueno Park to Shinjuku Gyoen is 11 km)" produces a fixed day, because it names the day, the two items, and the excess.</p>
+
+<p><strong>Client disconnects are normal, not errors.</strong> A user closing the tab mid-generation is expected behaviour. The writer throws, the catch swallows, the heartbeat is cleared, and the stream closes. Logging that as a failure would drown the real ones.</p>
+
+<p>The last row is worth extending: because generation runs in <code>waitUntil</code>, a disconnect does not stop the model call. The work finishes, the credits are charged, and the plan is stored — the user simply is not there to see it, and can find it in history later. That is the right behaviour for a paid generation, and it only works because persistence does not depend on the client connection.</p>
+
+<h2>The poster: Web Mercator, tiles, and 1800 pixels</h2>
+
+<p>The itinerary is not only text. The client renders a shareable poster on a canvas, and the drawing code is where "works on a map" becomes literal.</p>
+
+<p>The canvas is a fixed 1800 pixels wide:</p>
+
+<pre><code>const WIDTH = 1800;
+</code></pre>
+
+<p>Fixed width rather than responsive, because the output is an image. It will be saved, posted, and printed, so a predictable pixel budget beats fitting a container.</p>
+
+<p>Base map tiles come from a standard slippy-map scheme, with the Web Mercator projection written out explicitly:</p>
+
+<pre><code>const scale = 256 * 2 ** zoom;
+x: (longitude + 180) / 360 * scale,
+y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale,
+</code></pre>
+
+<p>Zoom is chosen to fit the itinerary's bounding box rather than fixed:</p>
+
+<pre><code>const sourceScale = Math.min(width * 0.82 / spanX, height * 0.72 / spanY);
+const exactZoom = Math.max(3, Math.min(18, sourceZoom + Math.log2(sourceScale)));
+</code></pre>
+
+<p>The 0.82 and 0.72 leave margin for pins and labels near the edges; without them, a marker on the bounding-box corner gets clipped. Clamping to 3 through 18 keeps the tile math valid at both extremes.</p>
+
+<p>Tile X wraps around the antimeridian:</p>
+
+<pre><code>const wrappedX = ((tileX % maxTile) + maxTile) % maxTile;
+</code></pre>
+
+<p>That double modulo is the standard trick for negative operands: JavaScript's <code>%</code> keeps the sign, so a plain modulo produces negative tile indices for longitudes left of the prime meridian.</p>
+
+<p>Tiles are drawn with a one-pixel overshoot:</p>
+
+<pre><code>if (image) ctx.drawImage(image, x + tileX * tileSize - view.left, y + tileY * tileSize - view.top, tileSize + 1, tileSize + 1);
+</code></pre>
+
+<p>The <code>+ 1</code> hides hairline seams between adjacent tiles caused by fractional positioning. It is the kind of detail nobody notices when present and everybody notices when missing.</p>
+
+<p>When a tile cannot be fetched — offline, rate-limited, or simply outside the available zoom range — the renderer falls back to a sketch map: <code>drawSketchMap</code> draws an abstract layout from the coordinates instead of degrading to a blank rectangle. A poster that still communicates the route beats a poster with a grey hole.</p>
+
+<p>Print export is a separate component (<code>PrintDoc</code>) and a single call:</p>
+
+<pre><code>&lt;button className="ghost-btn" onClick={() =&gt; window.print()}&gt;...&lt;/button&gt;
+</code></pre>
+
+<p>Browser print-to-PDF is the pragmatic choice here. A server-side PDF pipeline would mean a headless browser, a queue, and font shipping — three moving parts to produce something the browser already does well with a print stylesheet.</p>
+
+<h2>At ten times the traffic</h2>
+
+<p>Extrapolating this design to a much larger user base, the constraints shift in a predictable order.</p>
+
+<p><strong>The 4-way concurrency cap becomes the bottleneck before the model does.</strong> Pages Functions has per-request subrequest limits, and grouping in fours means a 16-day trip occupies one invocation for the duration of its slowest group. At scale the right move is a queue: enqueue chunk jobs, let them run as separate invocations, and stream results to the client from D1 or a Durable Object rather than from the same call stack.</p>
+
+<p><strong>Credits move from a column to a ledger-first design.</strong> Right now <code>users.credits</code> is authoritative and the ledger is the audit trail. That is fine at low volume. Under contention, the right model is to append to the ledger and derive the balance, or keep the column but treat it strictly as a cache of the ledger sum with periodic reconciliation. The current conditional UPDATE already prevents overdraft, so this is a scaling change, not a correctness fix.</p>
+
+<p><strong>The geo validator stays as-is, and that is the point.</strong> At 0.078 ms worst case it is three orders of magnitude cheaper than a single model call. Even a hundredfold increase in itinerary size would leave it negligible. This is what "keep validation cheap enough that you never skip it" buys you.</p>
+
+<p><strong>The prompt becomes a versioned artifact.</strong> Once multiple engineers iterate on it, "the prompt" needs a version number, an evaluation set, and a diff. The current single string in <code>plan.ts</code> is honest for one author; it is not survivable by a team without a way to answer "did this change make it better".</p>
+
+<p>Notice that none of these are architectural rewrites. They are all "extract the part that already exists into the layer that needs it". That is usually the sign that the original boundaries were drawn in roughly the right places.</p>
+
+<h2>What streaming actually buys you</h2>
+
+<p>It is worth being precise about why this endpoint streams at all, because "streaming" is often added as a flourish and then paid for in complexity forever.</p>
+
+<p>The generation takes roughly forty seconds for a five-day trip and proportionally longer for sixteen days, because chunks are requested in groups. A synchronous request of that length has three problems: users cannot tell whether it is working, intermediaries time out, and a failure at second thirty-nine returns nothing useful.</p>
+
+<p>Streaming addresses all three differently.</p>
+
+<p><strong>Perceived latency.</strong> The first <code>status</code> event arrives in milliseconds, the first <code>delta</code> shortly after. The user is watching text accumulate rather than a spinner. This is a real product gain even though the total time is unchanged.</p>
+
+<p><strong>Connection lifetime.</strong> The 30-second heartbeat comment frame keeps the connection alive through proxies that would otherwise close an idle socket. Without it, a slow chunk looks like a dead connection and gets killed by the network before the model finishes.</p>
+
+<p><strong>Partial failure visibility.</strong> The <code>error</code> event carries a message and arrives immediately, rather than being inferred from a connection drop. A user who hit a 402 three seconds in gets that answer in three seconds, not after a timeout.</p>
+
+<p>What streaming does <em>not</em> buy is incremental rendering of the itinerary. The client cannot draw day 2 while day 3 is still being generated, because the JSON for a chunk only becomes parseable when the chunk completes, and cross-chunk ordering is only settled at merge. So the UI has two states: a progress view driven by <code>delta</code> character counts, and a result view driven by <code>complete</code>. Trying to merge them produces a flickering half-rendered itinerary and a class of parse bugs that never fully go away.</p>
+
+<p>That constraint is worth stating explicitly because it is counter-intuitive: more streaming does not mean a smoother UI. The right split is "stream progress, not content".</p>
+
+<p>There is one more consequence. Because generation runs under <code>waitUntil</code>, the work continues if the client disconnects. So closing the tab does not cancel a generation, does not refund the credits, and does not lose the plan. The plan is in history when the user comes back. For a paid operation this is the correct semantics — the alternative, where a network blip silently burns ten credits and returns nothing, is much worse. If cancellation is genuinely desired, it has to be an explicit action with its own endpoint and its own refund rule, not an implicit side effect of a dropped socket.</p>
+
+<h2>D1 as a product database</h2>
+
+<p>Using D1 for accounts, credits, orders and plans rather than only for a cache is the decision most worth examining, because SQLite at the edge has real constraints and the design leans into them rather than fighting them.</p>
+
+<p>What D1 gives you here is transactional batches. <code>db.batch([...])</code> executes a list of statements atomically, which is what makes the credit ledger, the referral bonus, the WeChat account creation and the payment settlement all correct without a distributed transaction. Every one of those flows needs "all or nothing" across three or four tables, and every one of them gets it from a single primitive.</p>
+
+<p>What D1 does not give you is row-level locking or an interactive transaction you can hold open across application logic. That absence shapes the code in a specific way: instead of "read, decide, write", the pattern becomes "write conditionally and inspect the change count".</p>
+
+<pre><code>UPDATE users SET credits = credits - ? WHERE id = ? AND credits &gt;= ?
+</code></pre>
+
+<p>That single statement replaces a lock, a check and an update. It is also more robust than the equivalent application code, because the check and the write are the same operation, so there is no window between them.</p>
+
+<p>The same shape appears in payment settlement, where all three statements carry <code>status = 'pending'</code>. The condition is not defensive programming; it is the concurrency control. A duplicate webhook finds zero pending rows and does nothing, which is exactly the idempotency a payment callback needs.</p>
+
+<p>The consequence for schema design is that constraints carry more weight than they would in a system with rich locking. The <code>CHECK (credits &gt;= 0)</code>, the partial unique index on <code>registration_ip_hash</code>, the <code>(inviter_user_id, reward_day, reward_slot)</code> unique index — each one is a rule that would otherwise need application code plus a lock, and each one is enforced even if the application has a bug.</p>
+
+<p>The trade-off is migration friction. SQLite cannot alter a CHECK constraint in place, so adding the referral bonus kind meant creating a new ledger table, copying rows, dropping the old one and renaming — with index recreation as a separate step. That is a real cost. It is still cheaper than running a relational server for a project of this size, but it is not zero, and it is the kind of thing you only learn by hitting it once.</p>
+
+<p>Read-heavy paths are the other soft spot. Plans are stored as JSON blobs keyed by user, which is ideal for "show my last eight itineraries" and useless for "how many people planned Kyoto last month". If analytics becomes a requirement, that is a schema change, not a query change. Naming that boundary now is better than discovering it after the first product question that cannot be answered.</p>
+
+<h2>What a smaller version would look like</h2>
+
+<p>Most of this article describes four layers of defence. It is worth asking what would remain if the project had to be half its size, because that answer reveals which parts are load-bearing and which are polish.</p>
+
+<p><strong>Keep the schedule, drop the chunking.</strong> Fixing the city allocation server-side removes the largest single source of nonsense. Chunking exists because sixteen-day itineraries truncate; if the product only supported short trips, a single call would do, and the merge logic, the concurrency cap and the cross-chunk consistency instruction all disappear with it.</p>
+
+<p><strong>Keep the geo validator, drop the retry.</strong> The validator costs 0.078 ms at worst and stops an entire class of impossible output. The retry costs an extra model call and a 1.2-second delay. If budget mattered more than success rate, you would show the failure and let the user decide — but you would never remove the validator, because returning an unroutable itinerary is worse than returning an error.</p>
+
+<p><strong>Keep the versioned snapshot equivalent — the prompt contract — and drop the poster.</strong> The structured output contract is what makes the result usable at all. The canvas poster is a delight feature; it is the difference between a good product and a memorable one, but it is not what makes the data correct.</p>
+
+<p><strong>Keep the conditional writes, drop the referral system.</strong> Idempotent settlement and atomic credit deduction are correctness properties. The invite mechanic is growth. One of those can be deleted on a bad day; the other cannot.</p>
+
+<p>That ordering is also a reasonable roadmap in reverse. When the system has to grow, the first things to add are the ones that were cut for scope, not the ones that were cut for size — and the distinction between those two categories is exactly what a design document is for.</p>
+
+<h2>Boundary: why these checks cannot replace a human</h2>
+
+<p>Treating the geo validator as proof of content correctness is the most likely misreading of this design. What it actually guarantees is narrow.</p>
+
+<p>What it guarantees: coordinates exist and are in range; distances between points satisfy four thresholds; the route does not obviously backtrack; intercity legs have an explicit <code>train</code> item. All five are <strong>geometric facts</strong> that need no external knowledge.</p>
+
+<p>What it cannot guarantee is precisely what matters most in trip planning:</p>
+
+<ul>
+<li>Whether Senso-ji is open on Tuesday, or under renovation.</li>
+<li>Whether that ramen shop still exists at the same address.</li>
+<li>Whether a 10-minute walk from A to B is realistic in rainy season.</li>
+<li>Whether ¥8,000 is enough during cherry blossom season.</li>
+<li>Whether an activity needs a reservation a month in advance.</li>
+</ul>
+
+<p>So the prompt line "Prices, schedules, opening hours and availability are estimates, never live-verified facts" is not a disclaimer, it is a statement of what this system is. The validator handles shape, the model handles content, and fact-checking still needs a person.</p>
+
+<p>That is also why the output keeps a <code>note</code> field and requires it to contain "reservations, opening-hour verification and practical warnings". The model is instructed to tell the user "you need to confirm this yourself" rather than giving a confident-looking answer.</p>
+
+<p>Comparing two product positions makes it clear. If the goal is "hand the user an itinerary they can follow exactly", this is not enough — it needs real POI data and opening hours. If the goal is "hand the user a draft they can edit", it is already there: 40 seconds produces a structurally rigorous, geographically sensible draft covering five or six stops a day, and a human only needs to verify facts and adjust preferences. The latter is what a project this size should be doing.</p>
+
+<p>Recognising that boundary is worth more than adding another validation layer. Another layer doubles the cost, and the gain may be zero: what the validator does not know, it will never know.</p>
+
+<h2>Location data: 251 city JSON files and an edge search proxy</h2>
+
+<p>City selection must be fast and work offline. So city data is generated as static JSON at build time:</p>
+
+<pre><code>tools/build-cities.mjs        build-world-cities.mjs
+generate-locations.mjs         cn-city-coords.json
+world-cities.json              world-provinces.json
+</code></pre>
+
+<p>251 files under <code>public/locations/</code>, lazy-loaded by the client. That way first paint waits on no API at all.</p>
+
+<p>But users may want to search for a place not in the list. So there is an edge proxy forwarding to Open-Meteo geocoding:</p>
+
+<pre><code>const upstreamUrl = new URL("https://geocoding-api.open-meteo.com/v1/search")
+upstreamUrl.searchParams.set("name", query)
+upstreamUrl.searchParams.set("count", "20")
+</code></pre>
+
+<p>Two details. First, input is strictly bounded so it cannot become an open proxy:</p>
+
+<pre><code>const query = (url.searchParams.get("q") || "").trim().slice(0, 80)
+const requestedCountry = (url.searchParams.get("country") || "").toUpperCase()
+const country = /^[A-Z]{2}$/.test(requestedCountry) ? requestedCountry : ""
+if (query.length &lt; 2) return json({ results: [] })
+</code></pre>
+
+<p><code>country</code> must match two uppercase letters or it is discarded — never interpolated into an arbitrary string. The URL is also a fixed host plus a fixed path, accepting no caller-supplied address.</p>
+
+<p>Second, so that place names have English equivalents on Traditional/Simplified UIs, the same query is issued twice:</p>
+
+<pre><code>const englishRequest = language === 'en' ? null : fetch(englishUrl, { headers: { Accept: "application/json" } })
+const [response, englishResponse] = await Promise.all([localizedRequest, englishRequest])
+</code></pre>
+
+<p>Then merged by id:</p>
+
+<pre><code>const englishNames = new Map((englishPayload.results || []).map((place) =&gt; [place.id, place.name]))
+...
+sourceName: englishNames.get(place.id) || place.name,
+</code></pre>
+
+<p>One round trip, two languages, in parallel via <code>Promise.all</code>. The result is cached for an hour:</p>
+
+<pre><code>headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }
+</code></pre>
+
+<h2>Boundaries that still exist</h2>
+
+<p>With the whole chain laid out, the boundaries are clear:</p>
+
+<ul>
+<li><strong>The validator understands distance, not meaning.</strong> It does not know Senso-ji is closed on Tuesdays, or that a shop has gone out of business. It can guarantee the route does not backtrack; it cannot guarantee the content is true.</li>
+<li><strong>22–25 km is a blind spot for the backtrack rule.</strong> The measured ratio-2.47 itinerary that reported nothing is the example. An absolute floor is necessary, but shapes near the boundary slip through.</li>
+<li><strong>Coordinate and place-name consistency is unchecked.</strong> A model can give "Senso-ji" with Shinjuku coordinates and pass every distance check, because the validator only compares points, not names.</li>
+<li><strong>City allocation is even splitting.</strong> 3 cities over 7 days is always 3/2/2, with no notion of "Tokyo deserves an extra day".</li>
+<li><strong>Credits are charged after generation</strong>, so a slow failed generation is free. Friendly to users, but the project absorbs the cost of invalid model calls.</li>
+<li><strong>Frontend and backend each declare the constraints.</strong> <code>MAX_CITIES</code>, <code>MAX_DAYS</code> and the 10 credits exist in both <code>plan.ts</code> and <code>miniprogram/js/lib/plan.js</code>, aligned by comment.</li>
+<li><strong>Two SSE parsers.</strong> The web uses <code>getReader()</code>, the mini program uses <code>enableChunked</code> callbacks, both handwritten. Logically equivalent, code not shared, so UTF-8 boundary bugs must be tested on both sides.</li>
+<li><strong>Only one retry.</strong> A chunk failing twice fails the whole generation: no credits charged, but the user waited over two minutes for nothing.</li>
+</ul>
+
+<p>These are not a TODO list. They are the current shape of this implementation.</p>
+
+<h2>Closing</h2>
+
+<p>If you only remember three things:</p>
+
+<ol>
+<li><strong>Do not ask the model what you can compute.</strong> City allocation, dates and titles are all computed server-side. The model only handles "what to do during these three Tokyo days". That single rule removes the largest source of uncertainty from the model.</li>
+<li><strong>Write validation rules into the contract.</strong> 15 / 22 / 6 km appear in both the prompt and the validator, so the model knows in advance how it will be measured. On failure, feed the exact reason back and retry — the validator's output is the next round's input.</li>
+<li><strong>Where you do not need a lock, do not add one.</strong> Credit deduction uses a conditional UPDATE, payment idempotency uses a <code>status = 'pending'</code> condition on every statement, and invite limits use a unique index. All three hand the invariant to the database.</li>
+</ol>
+
+<p>SSE streaming, four-day chunking, minimum-spanning-tree backtrack detection, IP-hash rate limiting — they are all sides of one thing: <strong>turning a model call that takes tens of seconds into a product feature with progress, verification and auditable books</strong>. The acceptance criterion for this kind of feature is not "the first generation looks right". It is "out of a hundred generations, how many are wrong on a map, and were users told about the ones that were".</p>
+
+<p>Source: <a href="https://github.com/zhoujungis/trip-planning" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/trip-planning</a>. The other teardown published this week is <a href="/en/article/nanoqa-versioned-quality-loop/">NanoQA: four hard boundaries in a test management system</a>.</p>

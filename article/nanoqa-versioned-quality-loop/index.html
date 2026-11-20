@@ -1,0 +1,1172 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：正在造内部工具的全栈工程师；被「测试用例改了但历史报告对不上」坑过的人；想知道乐观锁、状态机、审计 diff 这些词怎么落到真实代码里的开发者 结论先行：NanoQA…" />
+<!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/nanoqa-versioned-quality-loop/" />
+    <meta property="og:title" content="NanoQA：一套测试管理系统的四道硬边界" />
+    <meta property="og:description" content="适用读者：正在造内部工具的全栈工程师；被「测试用例改了但历史报告对不上」坑过的人；想知道乐观锁、状态机、审计 diff 这些词怎么落到真实代码里的开发者 结论先行：NanoQA…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/nanoqa-versioned-quality-loop/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/nanoqa-versioned-quality-loop-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/nanoqa-versioned-quality-loop-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="NanoQA：一套测试管理系统的四道硬边界 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NanoQA：一套测试管理系统的四道硬边界" />
+    <meta name="twitter:description" content="适用读者：正在造内部工具的全栈工程师；被「测试用例改了但历史报告对不上」坑过的人；想知道乐观锁、状态机、审计 diff 这些词怎么落到真实代码里的开发者 结论先行：NanoQA…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/nanoqa-versioned-quality-loop-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>NanoQA：一套测试管理系统的四道硬边界 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-DH26415p.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+      <meta property="article:section" content="项目实战" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/nanoqa-versioned-quality-loop/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/nanoqa-versioned-quality-loop/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/nanoqa-versioned-quality-loop/" />
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-20T10:39:19.631332+08:00" />
+        <meta property="article:modified_time" content="2026-11-20T10:39:19.631332+08:00" />
+        <meta property="article:tag" content="DRF" />
+    <meta property="article:tag" content="Django" />
+    <meta property="article:tag" content="Vue" />
+    <meta property="article:tag" content="数据库" />
+    <meta property="article:tag" content="架构设计" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/nanoqa-versioned-quality-loop/#article","url":"https://blog.zhoujun.dev/article/nanoqa-versioned-quality-loop/","headline":"NanoQA：一套测试管理系统的四道硬边界","description":"适用读者：正在造内部工具的全栈工程师；被「测试用例改了但历史报告对不上」坑过的人；想知道乐观锁、状态机、审计 diff 这些词怎么落到真实代码里的开发者 结论先行：NanoQA…","image":"https://blog.zhoujun.dev/photos/nanoqa-versioned-quality-loop-cover.png","datePublished":"2026-11-20T10:39:19.631332+08:00","dateModified":"2026-11-20T10:39:19.631332+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/nanoqa-versioned-quality-loop/"},"articleSection":"项目实战","keywords":"DRF, Django, Vue, 数据库, 架构设计","inLanguage":"zh-CN","wordCount":11358},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/nanoqa-versioned-quality-loop/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"NanoQA：一套测试管理系统的四道硬边界","item":"https://blog.zhoujun.dev/article/nanoqa-versioned-quality-loop/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"nanoqa-versioned-quality-loop","title":"NanoQA：一套测试管理系统的四道硬边界","created_at":"2026-11-20T10:39:19.631332+08:00","updated_at":"2026-11-20T10:39:19.631370+08:00","author":null,"category":{"id":14,"name":"项目实战","slug":"projects"},"tags":[{"id":17,"name":"DRF","slug":"drf"},{"id":2,"name":"Django","slug":"django"},{"id":227,"name":"Vue","slug":"vue"},{"id":110,"name":"数据库","slug":"database"},{"id":122,"name":"架构设计","slug":"architecture"}],"cover_image":"/photos/nanoqa-versioned-quality-loop-cover.png","excerpt":"适用读者：正在造内部工具的全栈工程师；被「测试用例改了但历史报告对不上」坑过的人；想知道乐观锁、状态机、审计 diff 这些词怎么落到真实代码里的开发者 结论先行：NanoQA 有 26 个模型、67 条路由、73 个视图类、232 条后端测试。它真正难的不是「把 Excel 搬进网页」，而是四条约束：用例必须版本化、","reading_time":45,"views_count":0,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>NanoQA：一套测试管理系统的四道硬边界</span></nav><h1>NanoQA：一套测试管理系统的四道硬边界</h1><div class="ns-meta">2026/11/20 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/projects/">项目实战</a> · 标签：<a href="https://blog.zhoujun.dev/tags/drf/">DRF</a> <a href="https://blog.zhoujun.dev/tags/django/">Django</a> Vue <a href="https://blog.zhoujun.dev/tags/database/">数据库</a> <a href="https://blog.zhoujun.dev/tags/architecture/">架构设计</a></p><nav class="ns-series"><p><strong>本系列 · 项目实战</strong>（11 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li><a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/aidevops-terminal-client/">【开源】aidevops 技术拆解：研发数据关联与可解释风险</a></li><li><a href="https://blog.zhoujun.dev/article/halo-music-square-architecture/">Halo 音乐广场技术拆解：多音源在线音乐应用</a></li><li><a href="https://blog.zhoujun.dev/article/happy-games-24-games-zero-framework-guide/">快乐小游戏：24 款零框架小游戏的全栈实践</a></li><li><a href="https://blog.zhoujun.dev/article/google-matter-smart-home-dev-guide/">谷歌 Matter 智能家居开发完全指南：从入门到认证</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/projects/">查看项目实战专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：正在造内部工具的全栈工程师；被「测试用例改了但历史报告对不上」坑过的人；想知道乐观锁、状态机、审计 diff 这些词怎么落到真实代码里的开发者
+结论先行：NanoQA 有 26 个模型、67 条路由、73 个视图类、232 条后端测试。它真正难的不是「把 Excel 搬进网页」，而是四条约束：用例必须版本化、执行结果必须绑定版本快照、并发编辑必须能检测冲突、每一次变更必须和业务写入落进同一个事务。这四条约束决定了这份数据五年后还能不能当证据用。代价也很清楚：权限不做缓存所以每次请求都要算一遍，重复检测是 O(n²) 的 800 条要跑 55 秒，AI 目前只有离线 Mock
+阅读时间：约 36 分钟 | 难度：进阶 | 收获：一套质量闭环的数据模型 + 版本快照/乐观锁/状态机/审计的具体实现 + 两条真实基准数据（性能基线、重复检测的二次增长曲线）
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>这不是又一个 CRUD</li>
+<li>数据模型：一条闭环，不是六张孤岛</li>
+<li>用例必须版本化</li>
+<li>执行绑定快照：让历史报告不会说谎</li>
+<li>乐观锁：两个人同时改一条用例</li>
+<li>状态机：把「谁能变成谁」写成一张表</li>
+<li>编号生成：select_for_update 的单调递增</li>
+<li>软删除：质量资产不做物理删除</li>
+<li>RBAC：27 个权限与两处角色并集</li>
+<li>审计：和业务写入同一个事务</li>
+<li>失败即缺陷：一个事务里的四张表</li>
+<li>导入导出：先 dry_run 再落库</li>
+<li>搜索：把 q 语法当查询语言</li>
+<li>路由表：项目上下文如何贯穿每一页</li>
+<li>232 条测试是怎么组织的</li>
+<li>为什么导出会带上模块路径</li>
+<li>命令面板：一个跨模块的搜索入口</li>
+<li>响应信封：一个 code 字段承担的四种语义</li>
+<li>界面与后端的契约：版本快照组件</li>
+<li>AI：离线 Mock 也是一种可验收</li>
+<li>实测：232 条测试与性能基线</li>
+<li>重复检测的 O(n²) 真相</li>
+<li>仍然存在的边界</li>
+<li>小结</li>
+</ul>
+<hr>
+<h2>这不是又一个 CRUD</h2>
+
+测试管理系统这个品类，看起来是最容易做成 CRUD 的那一类：用例增删改查、计划增删改查、缺陷增删改查。任何一个后端练手项目都能在一周内堆出界面。
+
+但真实 QA 团队用起来，最先崩的从来不是界面，而是<strong>可信度</strong>。三个具体的崩溃现场：
+<ul>
+<li>用例昨天改了第三步，今天翻三个月前的测试报告，失败标题变了。到底是当时就错了，还是后来改的？</li>
+<li>两个测试工程师同时打开同一条用例，A 改了优先级，B 改了步骤，谁覆盖了谁？</li>
+<li>缺陷从「Open」直接被改成「Closed」，跳过了「Resolved」，统计里的修复时长就永远是 0。</li>
+</ul>
+
+这三件事的共同点：它们都不是 UI 问题，是<strong>数据模型把可追溯性丢掉</strong>了。NanoQA 的全部后端复杂度，本质上都在回答这三个问题。
+
+先给规模。这不是一个演示仓库：
+<div class="codehilite"><pre><span></span><code>backend  211 个 py 文件   12,132 行
+frontend 36 个视图        17,395 行 (vue + ts)
+模型 26 个   路由 67 条   视图类 73 个   序列化器 55 个   service 文件 39 个
+迁移 19 个   后端测试 232 条
+</code></pre></div>
+
+
+232 这个数字后面还会用到——它不是估算，是 <code>def test_</code> 的真实计数。
+<h2>数据模型：一条闭环，不是六张孤岛</h2>
+
+README 里写的是「需求 → 用例 → 计划 → 执行 → 缺陷 → 报告」。落到表结构上，它是一条有方向的链，而不是六个平行模块：
+<div class="codehilite"><pre><span></span><code>Requirement ──测试覆盖──▶ TestCase ──选入──▶ TestPlan ──开轮次──▶ TestRun
+     │                       │                                      │
+     │                       │                                      ▼
+     │                       │                                  TestResult
+     │                       │                                      │
+     │                       └──── TestCaseVersion ◀──绑定──────────┘
+     │                                                              │
+     └────────── RequirementDefect ◀── Defect ──▶ TestResultDefect ──┘
+                                       │
+                                       └──▶ TestCaseDefect
+</code></pre></div>
+
+
+关键在中间那一行：<code>TestResult</code> 同时指向 <code>TestCase</code> 和 <code>TestCaseVersion</code>。这一个设计决定了后面所有可追溯性，也是全项目注释里出现次数最多的一句话——「坑 4」。
+<h2>用例必须版本化</h2>
+
+先看主表。<code>TestCase</code> 本身只存「当前状态」，内容进版本表：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TestCase</span><span class="p">(</span><span class="n">SoftDeleteModel</span><span class="p">):</span>
+    <span class="n">case_key</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">255</span><span class="p">)</span>
+    <span class="n">precondition</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+    <span class="n">priority</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">PRIORITY_CHOICES</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;P1&quot;</span><span class="p">)</span>
+    <span class="n">case_type</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">TYPE_CHOICES</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;functional&quot;</span><span class="p">)</span>
+    <span class="n">automation_status</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">AUTOMATION_CHOICES</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;manual&quot;</span><span class="p">)</span>
+    <span class="n">status</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">choices</span><span class="o">=</span><span class="n">STATUS_CHOICES</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;draft&quot;</span><span class="p">)</span>
+    <span class="n">current_version</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">PositiveIntegerField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">validators</span><span class="o">=</span><span class="p">[</span><span class="n">MinValueValidator</span><span class="p">(</span><span class="mi">1</span><span class="p">)])</span>
+</code></pre></div>
+
+
+<code>current_version</code> 是个游标，指向 <code>TestCaseVersion</code> 里哪一行是当前生效版本。版本表才是内容真相：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TestCaseVersion</span><span class="p">(</span><span class="n">models</span><span class="o">.</span><span class="n">Model</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;用例版本快照：历史执行结果必须绑定版本（坑 4）。</span>
+<span class="sd">    steps 为 JSONB：[{order,action,expected}]。&quot;&quot;&quot;</span>
+
+    <span class="n">test_case</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">ForeignKey</span><span class="p">(</span><span class="n">TestCase</span><span class="p">,</span> <span class="n">on_delete</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">CASCADE</span><span class="p">,</span> <span class="n">related_name</span><span class="o">=</span><span class="s2">&quot;versions&quot;</span><span class="p">)</span>
+    <span class="n">version</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">PositiveIntegerField</span><span class="p">()</span>
+    <span class="n">title</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">255</span><span class="p">)</span>
+    <span class="n">steps</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">JSONField</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">expected_result</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">TextField</span><span class="p">(</span><span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+    <span class="n">change_summary</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">CharField</span><span class="p">(</span><span class="n">max_length</span><span class="o">=</span><span class="mi">255</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+版本不是「每次保存都 +1」。只有内容字段真的变了才建新版本，改优先级、改负责人、改标签都不算：
+<div class="codehilite"><pre><span></span><code><span class="n">content_changed</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">new_title</span> <span class="o">!=</span> <span class="n">case</span><span class="o">.</span><span class="n">title</span>
+    <span class="ow">or</span> <span class="n">new_precondition</span> <span class="o">!=</span> <span class="n">case</span><span class="o">.</span><span class="n">precondition</span>
+    <span class="ow">or</span> <span class="n">new_description</span> <span class="o">!=</span> <span class="n">case</span><span class="o">.</span><span class="n">description</span>
+    <span class="ow">or</span> <span class="n">new_steps</span> <span class="o">!=</span> <span class="n">version</span><span class="o">.</span><span class="n">steps</span>
+    <span class="ow">or</span> <span class="n">new_expected</span> <span class="o">!=</span> <span class="n">version</span><span class="o">.</span><span class="n">expected_result</span>
+<span class="p">)</span>
+</code></pre></div>
+
+
+这个区分很重要。否则一个人把优先级从 P1 调到 P0，也会在版本历史里留下一条「内容变更」，版本号很快失去意义。触发新版本的内容字段被单独列成常量：
+<div class="codehilite"><pre><span></span><code><span class="n">CONTENT_FIELDS</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;precondition&quot;</span><span class="p">,</span> <span class="s2">&quot;steps&quot;</span><span class="p">,</span> <span class="s2">&quot;expected_result&quot;</span><span class="p">,</span> <span class="s2">&quot;description&quot;</span><span class="p">]</span>
+</code></pre></div>
+
+
+于是「这条用例改过几次」这个问题有了唯一正确答案：<code>current_version</code> 减去 1。而不是去数审计日志。
+<h2>执行绑定快照：让历史报告不会说谎</h2>
+
+现在回到那三个崩溃现场的第一个。如果 <code>TestResult</code> 只存 <code>test_case_id</code>，那么报告渲染失败用例标题时，读的是<strong>现在</strong>的用例标题。三个月后有人改了标题，历史报告就跟着变了——而且是静默地变。
+
+所以开轮次时，为每个计划内用例预建一条 <code>not_run</code> 结果，并当场锁定当时的当前版本对象：
+<div class="codehilite"><pre><span></span><code><span class="n">version_map</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="n">version</span><span class="o">.</span><span class="n">test_case_id</span><span class="p">:</span> <span class="n">version</span>
+    <span class="k">for</span> <span class="n">version</span> <span class="ow">in</span> <span class="n">TestCaseVersion</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+        <span class="n">test_case_id__in</span><span class="o">=</span><span class="n">case_ids</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">F</span><span class="p">(</span><span class="s2">&quot;test_case__current_version&quot;</span><span class="p">)</span>
+    <span class="p">)</span>
+<span class="p">}</span>
+<span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">pk</span> <span class="k">for</span> <span class="n">pk</span> <span class="ow">in</span> <span class="n">case_ids</span> <span class="k">if</span> <span class="n">pk</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">version_map</span><span class="p">]</span>
+<span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="n">BusinessConflictError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;用例缺少版本快照，无法执行: </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+然后批量预建：
+<div class="codehilite"><pre><span></span><code><span class="n">TestResult</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">bulk_create</span><span class="p">([</span>
+    <span class="n">TestResult</span><span class="p">(</span>
+        <span class="n">test_run</span><span class="o">=</span><span class="n">run</span><span class="p">,</span>
+        <span class="n">test_case_id</span><span class="o">=</span><span class="n">pk</span><span class="p">,</span>
+        <span class="n">test_case_version</span><span class="o">=</span><span class="n">version_map</span><span class="p">[</span><span class="n">pk</span><span class="p">],</span>
+        <span class="n">status</span><span class="o">=</span><span class="s2">&quot;not_run&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">for</span> <span class="n">pk</span> <span class="ow">in</span> <span class="n">case_ids</span>
+<span class="p">])</span>
+</code></pre></div>
+
+
+注意 <code>version_map</code> 的过滤条件用的是 <code>version=F("test_case__current_version")</code>——一个跨表比较，只在查询里成立，不需要 Python 侧再筛一遍。
+
+这里有一个容易被忽略的选择：预建 <code>not_run</code> 结果，而不是等执行时才 insert。好处是三重的——轮次一创建，分母就确定了；「未执行」和「执行了但没提交」不再混淆；批量提交时可以直接 <code>filter(test_run=run, test_case_id=...)</code> 命中已存在的行，不需要 upsert。
+
+报告侧严格遵守这个契约：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_failed_cases</span><span class="p">(</span><span class="n">results</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+    <span class="n">failed</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">results</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">&quot;failed&quot;</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;test_case&quot;</span><span class="p">,</span> <span class="s2">&quot;test_case_version&quot;</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">&quot;result_id&quot;</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">id</span><span class="p">,</span>
+            <span class="s2">&quot;case_key&quot;</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">test_case</span><span class="o">.</span><span class="n">case_key</span><span class="p">,</span>
+            <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">test_case_version</span><span class="o">.</span><span class="n">title</span><span class="p">,</span>   <span class="c1"># 快照，不是现值</span>
+            <span class="o">...</span>
+        <span class="p">}</span>
+        <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">failed</span>
+    <span class="p">]</span>
+</code></pre></div>
+
+
+<code>result.test_case_version.title</code> 和 <code>result.test_case.title</code> 只差一个下划线，但它们读的是两张表。前者永远不会变。
+<h2>乐观锁：两个人同时改一条用例</h2>
+
+第二个崩溃现场。这个问题最朴素的解法是「后写覆盖先写」，代价是有人在不知情的情况下丢掉工作。NanoQA 选了显式冲突。
+
+客户端拿到数据时同时拿到 <code>updated_at</code>，提交时原样回传。服务端把它塞进 WHERE：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">save_with_lock</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">expected_updated_at</span><span class="p">,</span> <span class="n">update_fields</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;带乐观锁的更新：WHERE id=%s AND updated_at=%s，0 行 → 冲突。&quot;&quot;&quot;</span>
+    <span class="n">expected</span> <span class="o">=</span> <span class="n">parse_updated_at</span><span class="p">(</span><span class="n">expected_updated_at</span><span class="p">)</span>
+    <span class="n">new_updated_at</span> <span class="o">=</span> <span class="n">timezone</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="p">{</span><span class="n">field</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">field</span><span class="p">)</span> <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">update_fields</span><span class="p">}</span>
+    <span class="n">values</span><span class="p">[</span><span class="s2">&quot;updated_at&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_updated_at</span>
+
+    <span class="n">rows</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">pk</span><span class="p">,</span> <span class="n">updated_at</span><span class="o">=</span><span class="n">expected</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="o">**</span><span class="n">values</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">rows</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">exists</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span><span class="o">.</span><span class="n">all_objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pk</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="o">...</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">exists</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NotFoundError</span><span class="p">(</span><span class="s2">&quot;资源不存在&quot;</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">OptimisticLockError</span><span class="p">(</span><span class="s2">&quot;该记录已被其他用户修改，请刷新后重新编辑&quot;</span><span class="p">)</span>
+    <span class="n">obj</span><span class="o">.</span><span class="n">updated_at</span> <span class="o">=</span> <span class="n">new_updated_at</span>
+    <span class="k">return</span> <span class="n">obj</span>
+</code></pre></div>
+
+
+三个细节值得说。
+
+第一，<code>0 行</code> 有两种可能：并发冲突，或者这条记录根本没了。前者该提示刷新重试，后者该提示不存在。所以 <code>rows == 0</code> 之后要再探一次 <code>exists()</code>，把 404 和 409 分开。用 <code>all_objects</code> 是因为软删除后 <code>objects</code> 看不到，但「存在但被删了」和「从来没存在过」都需要正确归类。
+
+第二，时间戳必须原样回传，不允许前端格式化。<code>parse_updated_at</code> 的注释写得很直白：
+<div class="codehilite"><pre><span></span><code><span class="sd">&quot;&quot;&quot;解析客户端回传的 updated_at（ISO 微秒字符串原样回传，禁止前端格式化）。&quot;&quot;&quot;</span>
+</code></pre></div>
+
+
+原因很实际：前端只要做过一次 <code>toLocaleString</code>，微秒就没了，锁粒度直接退化到毫秒，同一毫秒内的两次写入又会互相覆盖。
+
+第三，用 <code>.update()</code> 而不是 <code>save()</code>。Django 的 <code>save()</code> 会自己写 <code>updated_at</code>，那就没有 WHERE 条件可言了。必须绕过 ORM 的时间戳行为，让 <code>updated_at</code> 成为条件而不是结果。
+
+这条锁不只用在用例上，缺陷更新也复用同一套：先比对，再落库，最后把 diff 写进审计。
+<h2>状态机：把「谁能变成谁」写成一张表</h2>
+
+第三个崩溃现场：缺陷从 Open 直接跳到 Closed。修法不是在前端藏掉那个按钮——前端守卫只能防误操作，防不了直接调 API。修法是在 service 层把合法转移写成显式表：
+<div class="codehilite"><pre><span></span><code><span class="n">DEFECT_TRANSITIONS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;Open&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;In Progress&quot;</span><span class="p">,</span> <span class="s2">&quot;Rejected&quot;</span><span class="p">,</span> <span class="s2">&quot;Duplicate&quot;</span><span class="p">,</span> <span class="s2">&quot;Closed&quot;</span><span class="p">},</span>
+    <span class="s2">&quot;In Progress&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;Resolved&quot;</span><span class="p">,</span> <span class="s2">&quot;Open&quot;</span><span class="p">,</span> <span class="s2">&quot;Rejected&quot;</span><span class="p">,</span> <span class="s2">&quot;Duplicate&quot;</span><span class="p">},</span>
+    <span class="s2">&quot;Resolved&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;Closed&quot;</span><span class="p">,</span> <span class="s2">&quot;Reopened&quot;</span><span class="p">,</span> <span class="s2">&quot;In Progress&quot;</span><span class="p">},</span>
+    <span class="s2">&quot;Reopened&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;In Progress&quot;</span><span class="p">,</span> <span class="s2">&quot;Resolved&quot;</span><span class="p">,</span> <span class="s2">&quot;Open&quot;</span><span class="p">},</span>
+    <span class="s2">&quot;Closed&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;Reopened&quot;</span><span class="p">},</span>
+    <span class="s2">&quot;Rejected&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;Open&quot;</span><span class="p">},</span>
+    <span class="s2">&quot;Duplicate&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;Open&quot;</span><span class="p">},</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+四张表：testcase、testplan、defect、requirement。校验函数只有一处：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">validate_transition</span><span class="p">(</span><span class="n">entity</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">from_status</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">to_status</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">from_status</span> <span class="o">==</span> <span class="n">to_status</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="n">TABLES</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">entity</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">table</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">InvalidTransitionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;未知状态机: </span><span class="si">{</span><span class="n">entity</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">allowed</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">from_status</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">allowed</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">InvalidTransitionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;未知状态: </span><span class="si">{</span><span class="n">from_status</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">to_status</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">allowed</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">InvalidTransitionError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;状态不能从 </span><span class="si">{</span><span class="n">from_status</span><span class="si">}</span><span class="s2"> 变更为 </span><span class="si">{</span><span class="n">to_status</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+源码注释里留着一条设计决策，我觉得比代码本身更值得抄：
+<div class="codehilite"><pre><span></span><code>D5 决策：在文档链式转移基础上允许必要的回退转移（Deprecated→Active、
+Closed→Reopened、Rejected→Open），贴合真实 QA 流程。
+</code></pre></div>
+
+
+纯链式状态机在教科书里很漂亮，在真实流程里会把人逼疯。用例被误标废弃要能恢复，缺陷关了又复发要能重开，需求被拒了改了又可以再来。这些回退边是产品需求的直接映射，写进表里比散落在十几个 <code>if</code> 里可读得多。
+
+配套的是时间戳维护。状态变更时 <code>resolved_at</code> 和 <code>closed_at</code> 自动打点，但只在「第一次」进入时打：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="n">status_changed</span><span class="p">:</span>
+    <span class="n">now</span> <span class="o">=</span> <span class="n">timezone</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">new_status</span> <span class="o">==</span> <span class="n">Defect</span><span class="o">.</span><span class="n">STATUS_RESOLVED</span> <span class="ow">and</span> <span class="n">defect</span><span class="o">.</span><span class="n">resolved_at</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">defect</span><span class="o">.</span><span class="n">resolved_at</span> <span class="o">=</span> <span class="n">now</span>
+    <span class="k">if</span> <span class="n">new_status</span> <span class="o">==</span> <span class="n">Defect</span><span class="o">.</span><span class="n">STATUS_CLOSED</span><span class="p">:</span>
+        <span class="n">defect</span><span class="o">.</span><span class="n">closed_at</span> <span class="o">=</span> <span class="n">now</span>
+    <span class="k">if</span> <span class="n">new_status</span> <span class="ow">in</span> <span class="n">REOPEN_STATUSES</span><span class="p">:</span>
+        <span class="n">defect</span><span class="o">.</span><span class="n">closed_at</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+
+
+<code>defect.resolved_at is None</code> 这个判断让 Resolved → Closed → Reopened → Resolved 不会把首次修复时间刷成最后一次。统计口径经常就栽在这种地方。
+<h2>编号生成：select_for_update 的单调递增</h2>
+
+<code>SHOP-TC-000001</code> 这种业务编号有个隐性要求：不能重复，不能跳号，不能因为并发而回退。三个要求叠起来就排除了「查最大 ID 再 +1」——两个请求会拿到同一个值。
+
+实现是行锁：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">next_key</span><span class="p">(</span><span class="n">project</span><span class="p">:</span> <span class="n">Project</span><span class="p">,</span> <span class="n">entity</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">width</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;生成下一个业务编号，如 SHOP-TC-000001。必须在调用方事务内使用。&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">entity</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">NumberSequence</span><span class="o">.</span><span class="n">ENTITY_CHOICES</span><span class="p">}:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unknown entity: </span><span class="si">{</span><span class="n">entity</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+        <span class="n">seq</span><span class="p">,</span> <span class="n">_created</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">NumberSequence</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">select_for_update</span><span class="p">()</span>
+            <span class="o">.</span><span class="n">get_or_create</span><span class="p">(</span><span class="n">project</span><span class="o">=</span><span class="n">project</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="n">entity</span><span class="p">,</span> <span class="n">defaults</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;next_value&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+        <span class="p">)</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">seq</span><span class="o">.</span><span class="n">next_value</span>
+        <span class="n">seq</span><span class="o">.</span><span class="n">next_value</span> <span class="o">=</span> <span class="n">value</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">seq</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;next_value&quot;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">format_key</span><span class="p">(</span><span class="n">project</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="n">entity</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="n">width</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>select_for_update()</code> 在 PostgreSQL 上是 <code>SELECT ... FOR UPDATE</code>，把这一行锁到事务结束。<code>get_or_create</code> 里带 <code>select_for_update</code> 有点微妙——它只锁已存在的情况，新建那一路靠唯一约束兜底。所以并发取号测试必须单独跑，而且要做成事务级用例：
+<div class="codehilite"><pre><span></span><code>测试隔离：每个测试库独立命名；TransactionTestCase 的 flush 会截断数据迁移种子
+（Role/Permission），测试基座已内置自愈（ensure_rbac_seed），并发取号测试已开启
+serialized_rollback。
+</code></pre></div>
+
+
+<code>serialized_rollback</code> 这一点值得单独讲。Django 的 <code>TransactionTestCase</code> 默认会 <code>flush()</code> 整个库——如果种子数据（27 个权限、5 个系统角色）是数据迁移灌进去的，flush 之后它们就没了，后续所有权限测试会报 <code>Role.DoesNotExist</code>。README 的 FAQ 里专门留了这条排查记录，说明它真的坑过人。
+<h2>软删除：质量资产不做物理删除</h2>
+
+<code>TestCase</code> 继承的是 <code>SoftDeleteModel</code>，不是 <code>TimestampedModel</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">SoftDeleteModel</span><span class="p">(</span><span class="n">TimestampedModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;软删除基类：测试数据是质量资产，不做物理删除（§48）。&quot;&quot;&quot;</span>
+
+    <span class="n">deleted_at</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">DateTimeField</span><span class="p">(</span><span class="n">null</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">db_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">objects</span> <span class="o">=</span> <span class="n">SoftDeleteManager</span><span class="p">()</span>
+    <span class="n">all_objects</span> <span class="o">=</span> <span class="n">AllObjectsManager</span><span class="p">()</span>
+</code></pre></div>
+
+
+两个 manager 的分工是关键：<code>objects</code> 默认只看活的，<code>all_objects</code> 能看到已删的。删除和恢复都是一次 <code>update_fields</code> 写入：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">soft_delete</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">deleted_at</span> <span class="o">=</span> <span class="n">timezone</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;deleted_at&quot;</span><span class="p">,</span> <span class="s2">&quot;updated_at&quot;</span><span class="p">])</span>
+</code></pre></div>
+
+
+为什么测试数据不该物理删？因为它同时是三个东西的证据：某个用例曾经存在过（覆盖率分母）、某次失败对应的是哪条用例（报告上下文）、以及某个需求当时被哪些用例覆盖过（评审依据）。删掉任何一条，历史报告就会出现空洞。
+
+配套代价是查询必须小心。<code>TestResult</code> 指向的用例如果被软删，<code>select_related("test_case")</code> 会拿不到（默认 manager 过滤掉了）。这类问题只能在测试里暴露，所以 <code>executions</code> 目录下有专门的 <code>test_results.py</code>。
+<h2>RBAC：27 个权限与两处角色并集</h2>
+
+权限全集写成一个列表，作为种子数据来源和校验白名单：
+<div class="codehilite"><pre><span></span><code><span class="n">PERMISSION_CODENAMES</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;project.read&quot;</span><span class="p">,</span> <span class="s2">&quot;project.create&quot;</span><span class="p">,</span> <span class="s2">&quot;project.update&quot;</span><span class="p">,</span> <span class="s2">&quot;project.delete&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;requirement.read&quot;</span><span class="p">,</span> <span class="s2">&quot;requirement.create&quot;</span><span class="p">,</span> <span class="s2">&quot;requirement.update&quot;</span><span class="p">,</span> <span class="s2">&quot;requirement.delete&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;testcase.read&quot;</span><span class="p">,</span> <span class="s2">&quot;testcase.create&quot;</span><span class="p">,</span> <span class="s2">&quot;testcase.update&quot;</span><span class="p">,</span> <span class="s2">&quot;testcase.delete&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;testcase.execute&quot;</span><span class="p">,</span> <span class="s2">&quot;testcase.review&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;testplan.read&quot;</span><span class="p">,</span> <span class="s2">&quot;testplan.create&quot;</span><span class="p">,</span> <span class="s2">&quot;testplan.update&quot;</span><span class="p">,</span> <span class="s2">&quot;testplan.delete&quot;</span><span class="p">,</span> <span class="s2">&quot;testplan.execute&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;defect.read&quot;</span><span class="p">,</span> <span class="s2">&quot;defect.create&quot;</span><span class="p">,</span> <span class="s2">&quot;defect.update&quot;</span><span class="p">,</span> <span class="s2">&quot;defect.delete&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;report.read&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;user.manage&quot;</span><span class="p">,</span> <span class="s2">&quot;role.manage&quot;</span><span class="p">,</span> <span class="s2">&quot;audit.read&quot;</span><span class="p">,</span>
+<span class="p">]</span>
+</code></pre></div>
+
+
+数一下是 27 个。五个系统角色（admin / pm / qa / dev / viewer）是这些权限的不同子集。
+
+真正值得讲的是解析逻辑。用户在项目下的权限 = 项目角色权限 ∪ 组织角色权限：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">permissions_for_user</span><span class="p">(</span><span class="n">user</span><span class="p">,</span> <span class="n">project</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;用户在项目下的权限 = 项目角色权限 ∪ 组织角色权限。</span>
+
+<span class="sd">    v0.1 不做缓存：成员/角色变更需要即时生效（无失效机制的缓存会造成 60s 权限滞后）。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="o">...</span>
+    <span class="n">role_ids</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">project</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">role_ids</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">project</span><span class="o">.</span><span class="n">members</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">)</span><span class="o">.</span><span class="n">values_list</span><span class="p">(</span><span class="s2">&quot;role_id&quot;</span><span class="p">,</span> <span class="n">flat</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+        <span class="n">role_ids</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">project</span><span class="o">.</span><span class="n">organization</span><span class="o">.</span><span class="n">members</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">)</span><span class="o">.</span><span class="n">values_list</span><span class="p">(</span><span class="s2">&quot;role_id&quot;</span><span class="p">,</span> <span class="n">flat</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">_role_permissions</span><span class="p">(</span><span class="n">role_ids</span><span class="p">)</span>
+</code></pre></div>
+
+
+这段注释里的取舍很有代表性：<strong>没有失效机制的缓存会造成 60 秒权限滞后</strong>。一个被撤销的测试工程师，在被撤销后的一分钟内还能删用例——这在审计上是不接受的。所以宁可每次请求多两条查询。
+
+权限判定挂在视图基类上，按 HTTP 方法映射权限码，而不是每个视图写一遍 <code>if</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ProjectApiView</span><span class="p">(</span><span class="n">APIView</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;按 HTTP 方法映射权限码的项目级视图基类。&quot;&quot;&quot;</span>
+
+    <span class="n">permission_classes</span> <span class="o">=</span> <span class="p">[</span><span class="n">IsAuthenticated</span><span class="p">,</span> <span class="n">HasProjectPermission</span><span class="p">]</span>
+    <span class="n">method_permissions</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">permission_codename</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">method_permissions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">method</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+于是视图声明退化成一行字典：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">TestRunResultListCreateView</span><span class="p">(</span><span class="n">RunObjectMixin</span><span class="p">,</span> <span class="n">ProjectApiView</span><span class="p">):</span>
+    <span class="n">method_permissions</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;GET&quot;</span><span class="p">:</span> <span class="s2">&quot;testplan.read&quot;</span><span class="p">,</span> <span class="s2">&quot;POST&quot;</span><span class="p">:</span> <span class="s2">&quot;testcase.execute&quot;</span><span class="p">}</span>
+</code></pre></div>
+
+
+GET 要计划读权限、POST 要用例执行权限——同一个 URL 两种方法两种权限，不用写两个类。
+
+还有一个容易漏的点：<code>resolve_project</code> 的解析顺序。有的视图从 URL 拿 <code>project_id</code>，有的从对象反查（<code>result.test_run.project</code>），有的在 <code>get_project()</code> 里自定义。基类用缓存 + 三种兜底统一掉：
+<div class="codehilite"><pre><span></span><code><span class="n">cached</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="s2">&quot;_nano_project&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">cached</span>
+<span class="o">...</span>
+<span class="n">request</span><span class="o">.</span><span class="n">_nano_project</span> <span class="o">=</span> <span class="n">project</span>
+</code></pre></div>
+
+
+不缓存的话，权限校验一次、业务逻辑一次、审计又一次，同一个项目要查三遍。
+<h2>审计：和业务写入同一个事务</h2>
+
+审计最容易做错的地方是「异步记录」。业务写成功了，审计写失败了，于是数据库里有一条没有证据的变更。
+
+所以约定是：审计调用必须落在与业务相同的 <code>transaction.atomic()</code> 里。创建用例是这么写的：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_case</span><span class="p">(</span><span class="n">project</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">user</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TestCase</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;创建用例：编号 + 用例 + v1 版本 + 审计 同事务。&quot;&quot;&quot;</span>
+    <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+        <span class="n">case</span> <span class="o">=</span> <span class="n">TestCase</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="o">...</span><span class="p">)</span>
+        <span class="n">create_version</span><span class="p">(</span><span class="n">case</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+        <span class="n">set_tags</span><span class="p">(</span><span class="n">case</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;tag_ids&quot;</span><span class="p">))</span>
+        <span class="n">AuditService</span><span class="o">.</span><span class="n">record</span><span class="p">(</span>
+            <span class="s2">&quot;create&quot;</span><span class="p">,</span> <span class="n">case</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span>
+            <span class="n">new_data</span><span class="o">=</span><span class="n">_audit_snapshot</span><span class="p">(</span><span class="n">case</span><span class="p">,</span> <span class="p">[</span><span class="o">...</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;steps&quot;</span><span class="p">],</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;expected_result&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">case</span>
+</code></pre></div>
+
+
+审计存的是<strong>字段级 diff</strong>，不是整条记录快照。更新时先拍旧快照，改完拍新快照，然后只保留差异：
+<div class="codehilite"><pre><span></span><code><span class="n">old_diff</span><span class="p">,</span> <span class="n">new_diff</span> <span class="o">=</span> <span class="n">model_diff</span><span class="p">(</span><span class="n">old_snapshot</span><span class="p">,</span> <span class="n">new_snapshot</span><span class="p">)</span>
+<span class="n">AuditService</span><span class="o">.</span><span class="n">record</span><span class="p">(</span>
+    <span class="s2">&quot;update&quot;</span><span class="p">,</span> <span class="n">case</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span> <span class="n">user</span><span class="o">=</span><span class="n">user</span><span class="p">,</span>
+    <span class="n">old_data</span><span class="o">=</span><span class="n">old_diff</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span> <span class="n">new_data</span><span class="o">=</span><span class="n">new_diff</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+
+<code>old_data or None</code> 也有用意：没有差异就存 <code>null</code>，而不是存空字典。否则「改了但没变内容」和「只是点了一下保存」在查询时无法区分。
+
+审计行本身记录十来个字段：<code>organization / project / user / action / object_type / object_id / object_ref / old_data / new_data / ip_address / user_agent / request_id</code>。另外留了一个适配器兜种脏数据：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">record_audit</span><span class="p">(</span><span class="n">action</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;审计适配：请求缺 User-Agent 头时补空串（common/utils.user_agent 会返回 None，</span>
+<span class="sd">    而 AuditLog.user_agent 非空）。建议后续在 common/utils.py 修复。&quot;&quot;&quot;</span>
+</code></pre></div>
+
+
+这种「在调用点打补丁并写明后续该在哪修」的注释，比悄悄 <code>or ""</code> 好得多。
+
+缺陷的状态时间线直接由审计日志反推，不需要单独建事件表：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">defect_timeline</span><span class="p">(</span><span class="n">defect</span><span class="p">:</span> <span class="n">Defect</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;状态时间线：来自 AuditLog(object_type=&quot;defect&quot;)，按时间升序。&quot;&quot;&quot;</span>
+    <span class="n">logs</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">AuditLog</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">object_type</span><span class="o">=</span><span class="s2">&quot;defect&quot;</span><span class="p">,</span> <span class="n">object_id</span><span class="o">=</span><span class="n">defect</span><span class="o">.</span><span class="n">pk</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">select_related</span><span class="p">(</span><span class="s2">&quot;user&quot;</span><span class="p">)</span>
+        <span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">&quot;created_at&quot;</span><span class="p">,</span> <span class="s2">&quot;id&quot;</span><span class="p">)</span>
+    <span class="p">)</span>
+</code></pre></div>
+
+
+<code>order_by("created_at", "id")</code> 里的第二个字段不是装饰。同一毫秒可能产生两条审计，只按时间排序结果不稳定，加上自增主键才能保证时间线严格单调。
+<h2>失败即缺陷：一个事务里的四张表</h2>
+
+从执行结果直接建缺陷，是质量闭环上最紧的一段。它一次要写四张表：缺陷本体、结果↔缺陷、用例↔缺陷、审计。四张表必须同生共死：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">create_defect_from_result</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">TestResult</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Defect</span><span class="p">:</span>
+    <span class="n">run</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">test_run</span>
+    <span class="n">case</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">test_case</span>
+    <span class="n">description</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;description&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">_default_description</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+    <span class="o">...</span>
+    <span class="k">with</span> <span class="n">transaction</span><span class="o">.</span><span class="n">atomic</span><span class="p">():</span>
+        <span class="n">defect</span> <span class="o">=</span> <span class="n">Defect</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">organization</span><span class="o">=</span><span class="n">run</span><span class="o">.</span><span class="n">organization</span><span class="p">,</span>
+            <span class="n">project</span><span class="o">=</span><span class="n">run</span><span class="o">.</span><span class="n">project</span><span class="p">,</span>
+            <span class="n">key</span><span class="o">=</span><span class="n">next_key</span><span class="p">(</span><span class="n">run</span><span class="o">.</span><span class="n">project</span><span class="p">,</span> <span class="s2">&quot;BUG&quot;</span><span class="p">),</span>
+            <span class="n">title</span><span class="o">=</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;title&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;[失败] </span><span class="si">{</span><span class="n">case</span><span class="o">.</span><span class="n">case_key</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">case</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)[:</span><span class="mi">255</span><span class="p">],</span>
+            <span class="o">...</span>
+        <span class="p">)</span>
+        <span class="n">TestResultDefect</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">test_result</span><span class="o">=</span><span class="n">result</span><span class="p">,</span> <span class="n">defect</span><span class="o">=</span><span class="n">defect</span><span class="p">)</span>
+        <span class="n">TestCaseDefect</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">test_case</span><span class="o">=</span><span class="n">case</span><span class="p">,</span> <span class="n">defect</span><span class="o">=</span><span class="n">defect</span><span class="p">)</span>
+        <span class="n">AuditService</span><span class="o">.</span><span class="n">record</span><span class="p">(</span><span class="s2">&quot;create&quot;</span><span class="p">,</span> <span class="n">defect</span><span class="p">,</span> <span class="n">request</span><span class="o">=</span><span class="n">request</span><span class="p">,</span> <span class="n">old_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">new_data</span><span class="o">=</span><span class="p">{</span><span class="o">...</span><span class="p">})</span>
+    <span class="k">return</span> <span class="n">defect</span>
+</code></pre></div>
+
+
+注意 <code>next_key(run.project, "BUG")</code> 在事务里取号——和上面行锁那一节对上。如果取号在事务外，回滚时会留下一个空洞编号。
+
+默认描述是从版本快照拼出来的，而不是从当前用例：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_default_description</span><span class="p">(</span><span class="n">result</span><span class="p">:</span> <span class="n">TestResult</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">run</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">test_run</span>
+    <span class="n">version</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">test_case_version</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="sa">f</span><span class="s2">&quot;用例：</span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">test_case</span><span class="o">.</span><span class="n">case_key</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">version</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="sa">f</span><span class="s2">&quot;执行轮次：</span><span class="si">{</span><span class="n">run</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">（环境 </span><span class="si">{</span><span class="n">run</span><span class="o">.</span><span class="n">environment</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;-&#39;</span><span class="si">}</span><span class="s2"> / 版本 </span><span class="si">{</span><span class="n">run</span><span class="o">.</span><span class="n">build_version</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">&#39;-&#39;</span><span class="si">}</span><span class="s2">）&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;&quot;</span><span class="p">,</span>
+    <span class="p">]</span>
+    <span class="k">if</span> <span class="n">version</span><span class="o">.</span><span class="n">precondition</span><span class="p">:</span>
+        <span class="n">lines</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">&quot;前置条件：&quot;</span><span class="p">,</span> <span class="n">version</span><span class="o">.</span><span class="n">precondition</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">]</span>
+    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;步骤：&quot;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">version</span><span class="o">.</span><span class="n">steps</span> <span class="ow">or</span> <span class="p">[],</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">item</span><span class="p">:</span> <span class="n">item</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;order&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)):</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">step</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;order&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">. </span><span class="si">{</span><span class="n">step</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;action&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">step</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;expected&quot;</span><span class="p">):</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;   预期结果：</span><span class="si">{</span><span class="n">step</span><span class="p">[</span><span class="s1">&#39;expected&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+于是缺陷报告自带「当时的步骤」，开发拿着单子就能复现，不用去系统里翻历史版本。<code>sorted(..., key=order)</code> 是因为 <code>steps</code> 是 JSONB 数组，顺序没有数据库层保证。
+
+接口层还留了一个温和的提醒：非失败结果也能建缺陷，但返回 warning：
+<div class="codehilite"><pre><span></span><code><span class="n">warning</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">status</span> <span class="o">!=</span> <span class="s2">&quot;failed&quot;</span><span class="p">:</span>
+    <span class="n">warning</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;当前执行结果状态为 </span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">status</span><span class="si">}</span><span class="s2">，非失败结果，缺陷仍已创建并关联&quot;</span>
+</code></pre></div>
+
+
+这里没有硬拦。真实场景里确实存在「执行标了通过，但人工发现了问题」——拦掉反而逼人去绕过流程。
+<h2>导入导出：先 dry_run 再落库</h2>
+
+从 Excel 迁移是这类系统的必经关口，也是最容易做坏的地方：用户传了 500 行，导入到第 300 行报错，前 299 行已经落库了。
+
+NanoQA 的做法是同一套校验代码跑两遍，<code>dry_run</code> 决定落不落库：
+<div class="codehilite"><pre><span></span><code>导入流程严格按 §61：上传 → 字段映射 → 数据预览 → 错误检查 → 确认导入，
+预览（dry_run=True）只解析校验不落库；确认（dry_run=False）复用同一套校验，
+合法行批量入库（用例 + 版本 1 快照 + 编号递增），非法行跳过并逐行回报。
+</code></pre></div>
+
+
+「复用同一套校验」是重点。如果预览用一套宽松校验、导入用一套严格校验，用户会看到「预览全绿、导入全红」。同一份代码意味着预览结果就是承诺。
+
+导出的列定义是数据而非代码，顺序即表头顺序：
+<div class="codehilite"><pre><span></span><code><span class="n">EXPORT_COLUMNS</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="s2">&quot;case_key&quot;</span><span class="p">,</span> <span class="s2">&quot;用例编号&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;标题&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;module_path&quot;</span><span class="p">,</span> <span class="s2">&quot;模块路径&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;priority&quot;</span><span class="p">,</span> <span class="s2">&quot;优先级&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;case_type&quot;</span><span class="p">,</span> <span class="s2">&quot;类型&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;status&quot;</span><span class="p">,</span> <span class="s2">&quot;状态&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;precondition&quot;</span><span class="p">,</span> <span class="s2">&quot;前置条件&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;steps&quot;</span><span class="p">,</span> <span class="s2">&quot;步骤&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;expected_result&quot;</span><span class="p">,</span> <span class="s2">&quot;预期结果&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;tags&quot;</span><span class="p">,</span> <span class="s2">&quot;标签&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;owner&quot;</span><span class="p">,</span> <span class="s2">&quot;负责人&quot;</span><span class="p">),</span>
+<span class="p">]</span>
+</code></pre></div>
+
+
+步骤导出成可读文本，回导时能被 <code>parse_steps</code> 解析——于是导出的文件本身就是一个合法的导入模板。这一条让「导出→改→导入」成为可用的批量编辑路径。
+
+限制也写死在服务层，而不是只在前端提示：<code>MAX_FILE_SIZE = 10 * 1024 * 1024</code>，<code>ALLOWED_EXTENSIONS = {"csv", "xlsx"}</code>。前端限制是体验，后端限制是边界。
+<h2>搜索：把 q 语法当查询语言</h2>
+
+列表页给了一个 <code>q</code> 参数，支持键值对：
+<div class="codehilite"><pre><span></span><code>q 语法：`priority:P0 status:active module:login tag:smoke automation:automated`，
+token 之间 AND；非法 token（未知 key / 非法值 / 空值）退化为普通文本。
+</code></pre></div>
+
+
+「非法 token 退化为普通文本」这个决定很实用。用户输入 <code>login:超时</code>，本意可能是搜索包含这两个词的内容，而不是被一个错误弹窗打断。宽松解析比严格报错更适合搜索框。
+
+实现上，值域用白名单，命中才转成过滤条件：
+<div class="codehilite"><pre><span></span><code><span class="n">PRIORITY_VALUES</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;p0&quot;</span><span class="p">:</span> <span class="s2">&quot;P0&quot;</span><span class="p">,</span> <span class="s2">&quot;p1&quot;</span><span class="p">:</span> <span class="s2">&quot;P1&quot;</span><span class="p">,</span> <span class="s2">&quot;p2&quot;</span><span class="p">:</span> <span class="s2">&quot;P2&quot;</span><span class="p">,</span> <span class="s2">&quot;p3&quot;</span><span class="p">:</span> <span class="s2">&quot;P3&quot;</span><span class="p">}</span>
+<span class="n">STATUS_VALUES</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;draft&quot;</span><span class="p">,</span> <span class="s2">&quot;active&quot;</span><span class="p">,</span> <span class="s2">&quot;deprecated&quot;</span><span class="p">,</span> <span class="s2">&quot;archived&quot;</span><span class="p">}</span>
+<span class="o">...</span>
+<span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;priority&quot;</span> <span class="ow">and</span> <span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">PRIORITY_VALUES</span><span class="p">:</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">priority</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">PRIORITY_VALUES</span><span class="p">[</span><span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">()])</span>
+<span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">&quot;status&quot;</span> <span class="ow">and</span> <span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">STATUS_VALUES</span><span class="p">:</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">status</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
+<span class="o">...</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+</code></pre></div>
+
+
+文本搜索要能搜到「当前版本的预期结果」，但预期结果不在主表里。用子查询而不是 JOIN，避免一对多把结果行数放大：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_text_q</span><span class="p">(</span><span class="n">term</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Q</span><span class="p">:</span>
+    <span class="n">matched</span> <span class="o">=</span> <span class="n">TestCaseVersion</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span>
+        <span class="n">test_case</span><span class="o">=</span><span class="n">OuterRef</span><span class="p">(</span><span class="s2">&quot;pk&quot;</span><span class="p">),</span>
+        <span class="n">version</span><span class="o">=</span><span class="n">OuterRef</span><span class="p">(</span><span class="s2">&quot;current_version&quot;</span><span class="p">),</span>
+        <span class="n">expected_result__icontains</span><span class="o">=</span><span class="n">term</span><span class="p">,</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="s2">&quot;test_case_id&quot;</span><span class="p">)</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">Q</span><span class="p">(</span><span class="n">pk__in</span><span class="o">=</span><span class="n">Subquery</span><span class="p">(</span><span class="n">matched</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">TEXT_FIELDS</span><span class="p">:</span>
+        <span class="n">q</span> <span class="o">|=</span> <span class="n">Q</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">__icontains&quot;</span><span class="p">:</span> <span class="n">term</span><span class="p">})</span>
+    <span class="k">return</span> <span class="n">q</span>
+</code></pre></div>
+
+
+最后 <code>queryset.distinct()</code> 兜掉 <code>tags__name__icontains</code> 这类多对多筛选产生的重复行。
+
+模块树还有一层：勾选「包含子模块」时要递归取所有后代。用的是广度遍历而不是递归函数，避免深层树爆栈：
+<div class="codehilite"><pre><span></span><code><span class="n">ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">module_id</span><span class="p">]</span>
+<span class="k">if</span> <span class="n">include_descendants</span><span class="p">:</span>
+    <span class="n">frontier</span> <span class="o">=</span> <span class="p">[</span><span class="n">module_id</span><span class="p">]</span>
+    <span class="k">while</span> <span class="n">frontier</span><span class="p">:</span>
+        <span class="n">children</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">Module</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">project</span><span class="o">=</span><span class="n">project</span><span class="p">,</span> <span class="n">parent_id__in</span><span class="o">=</span><span class="n">frontier</span><span class="p">)</span><span class="o">.</span><span class="n">values_list</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="n">flat</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+        <span class="n">new_ids</span> <span class="o">=</span> <span class="p">[</span><span class="n">child_id</span> <span class="k">for</span> <span class="n">child_id</span> <span class="ow">in</span> <span class="n">children</span> <span class="k">if</span> <span class="n">child_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ids</span><span class="p">]</span>
+        <span class="n">ids</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">new_ids</span><span class="p">)</span>
+        <span class="n">frontier</span> <span class="o">=</span> <span class="n">new_ids</span>
+</code></pre></div>
+
+
+<code>child_id not in ids</code> 用列表做成员判断，复杂度是 O(n)，理论上该用 set。但这个循环每层只有几个元素，实测里从没成为瓶颈——留一个知道但不改的取舍，比假装没看见好。
+<h2>路由表：项目上下文如何贯穿每一页</h2>
+
+一个多项目系统最容易做坏的地方是 URL。如果路由写成 <code>/testcases</code>，那么「我现在在哪个项目下」这件事就只能靠 store 里的全局状态维持，刷新页面就丢，分享链接就错。
+
+NanoQA 的路由表把项目放进路径第二段：
+<div class="codehilite"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;/p/:projectId&#39;</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">component</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="k">import</span><span class="p">(</span><span class="s1">&#39;@/layouts/AppLayout.vue&#39;</span><span class="p">),</span>
+<span class="w">  </span><span class="nx">children</span><span class="o">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">redirect</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;project-overview&#39;</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;overview&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;project-overview&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;testcases&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;testcases&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;testcases/:caseId&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;testcase-detail&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="p">...</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+于是 <code>/p/7/testcases/42</code> 本身就是一份完整的上下文：项目 7 的用例 42。刷新不丢，分享可用，浏览器前进后退正确。这一条看起来是路由技巧，实际上决定了后端权限校验怎么写——<code>resolve_project</code> 可以直接从 <code>view.kwargs["project_id"]</code> 拿到项目，不需要信任任何客户端传来的项目 ID 头。
+
+路由文件的开头有一句注释，说明它是提前定型的：
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * 路由表（预先定型）：后续阶段只实现视图，不再改动本文件结构。</span>
+<span class="cm"> */</span>
+</code></pre></div>
+
+
+这个决定在多人协作里很有价值。路由结构是所有人共享的骨架，一旦中途改动，所有正在开发中的分支都要跟着变。先把它钉死，各个页面按名字并行开发，冲突面从「路由文件」缩小到「各自的视图」。
+
+守卫只做两件事：没 token 就跳登录，有 token 但没加载用户就先拉一次：
+<div class="codehilite"><pre><span></span><code><span class="nx">router</span><span class="p">.</span><span class="nx">beforeEach</span><span class="p">(</span><span class="k">async</span><span class="w"> </span><span class="p">(</span><span class="nx">to</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">to</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="k">public</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">auth</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">useAuthStore</span><span class="p">()</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">tokenStore</span><span class="p">.</span><span class="nx">access</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;login&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">query</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">redirect</span><span class="o">:</span><span class="w"> </span><span class="kt">to.fullPath</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">auth</span><span class="p">.</span><span class="nx">loaded</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">await</span><span class="w"> </span><span class="nx">auth</span><span class="p">.</span><span class="nx">fetchMe</span><span class="p">()</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">tokenStore</span><span class="p">.</span><span class="nx">clear</span><span class="p">()</span>
+<span class="w">      </span><span class="k">return</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;login&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">query</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">redirect</span><span class="o">:</span><span class="w"> </span><span class="kt">to.fullPath</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="kc">true</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+注意 <code>!auth.loaded</code> 这个前缀判断。用户在一个项目里连续点十个页面，<code>fetchMe</code> 只会发生一次；但换标签页回来、store 被重建时，它会重新拉一次——这是唯一能确认 token 仍然有效的地方。
+
+<code>redirect</code> 参数也处理得对：登录后回到原来那页，而不是永远跳首页。细节小，但少了它，所有深链接都变成了「点一下、被踢去登录、登录完到首页、再自己找回去」。
+
+守卫<strong>不做</strong>权限判断。这一点是刻意的，前面 RBAC 那节说过：前端守卫只能防误操作，防不了直接调 API。所以前端只判断「有没有登录」，具体某个按钮能不能点，来自 <code>/auth/me</code> 返回的权限集合——而那只是展示层，真正的判定在后端 <code>HasProjectPermission</code>。
+
+页面标题在 <code>afterEach</code> 里统一设置：
+<div class="codehilite"><pre><span></span><code><span class="nx">router</span><span class="p">.</span><span class="nx">afterEach</span><span class="p">((</span><span class="nx">to</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">to</span><span class="p">.</span><span class="nx">meta</span><span class="p">.</span><span class="nx">title</span><span class="w"> </span><span class="kr">as</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kc">undefined</span>
+<span class="w">  </span><span class="nb">document</span><span class="p">.</span><span class="nx">title</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">title</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">title</span><span class="si">}</span><span class="sb"> · NanoQA`</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;NanoQA&#39;</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+用 <code>meta.title</code> 而不是在组件里 <code>document.title = ...</code>，好处是路由切换的同一帧内标题就变了，浏览器历史里的条目也正确。
+<h2>232 条测试是怎么组织的</h2>
+
+前面反复提到 232 这个数字。它不是一个跑起来很热闹的集成测试，而是按域拆开的、每个域测自己那件事。
+
+目录结构就是测试策略：
+<div class="codehilite"><pre><span></span><code>backend/apps/testcases/tests/
+  test_create.py        创建：编号 + v1 版本 + 审计 同事务
+  test_update.py        更新：乐观锁 / 内容变更才升版本
+  test_search.py        q 语法解析、非法 token 降级、模块递归
+  test_import_export.py 预览与导入复用同一套校验
+backend/apps/executions/tests/
+  test_results.py       预建 not_run、覆盖式提交、版本绑定
+backend/apps/defects/tests/
+  test_api.py           状态机、时间戳、归档权限
+  test_links.py         关联/解除关联与审计
+backend/apps/testplans/tests/test_plans.py
+backend/apps/requirements/tests/test_api.py
+backend/apps/attachments/tests/test_attachments.py
+backend/apps/reports/tests/test_run_report.py
+</code></pre></div>
+
+
+有两处值得单独说，因为它们测的是「容易被做对但很难看出做错了」的东西。
+
+第一处是更新用例。它要同时验证四件事：乐观锁在旧 <code>updated_at</code> 下失败；内容不变时不升版本；内容变了才升版本；全文和 diff 都进了审计。如果只测「改完能读出来」，这四条里能过三条，而错的那条（比如无条件升版本）会在上线三个月后表现为「版本号莫名其妙涨到 40」。
+
+第二处是并发取号。这一条必须用 <code>TransactionTestCase</code>，因为要真正提交事务看行锁行为。而它正是那个会踩到 <code>flush()</code> 截断种子数据坑的地方——所以 README 里专门留了排查记录，测试基座里也内置了自愈。这类「测试框架本身的行为污染了测试」的问题，比业务 bug 更难查，因为报错信息指向的是 <code>Role.DoesNotExist</code>，和取号毫无关系。
+
+测试里还有一个细节：<code>serialized_rollback</code>。它让 <code>TransactionTestCase</code> 在 flush 后恢复初始数据，代价是慢一些，但换来了「并发测试不依赖执行顺序」。在测试套件里，顺序依赖是最贵的债务——它让一条无关的改动引发一串随机失败。
+<h2>为什么导出会带上模块路径</h2>
+
+导入导出最容易做成「列名对得上就能用」。但真实迁移里，用户的 Excel 通常长这样：
+<div class="codehilite"><pre><span></span><code>用例编号 | 标题 | 模块路径 | 优先级 | 步骤 | 预期结果 | 标签 | 负责人
+</code></pre></div>
+
+
+注意是<strong>模块路径</strong>，不是模块 ID。因为人在 Excel 里写的是「登录 / 验证码 / 短信」，而不是 <code>module_id=17</code>。所以导入服务必须把路径还原成树节点，路径不存在时还要决定是自动创建还是报错。
+
+这件事决定了导入不能只做字段映射，还要做一次树的解析。而导出必须输出同样的路径格式，否则「导出改一改再导入」这条路走不通。于是导出的 <code>module_path</code> 列不是便利字段，而是往返契约的一部分。
+
+<code>EXPORT_COLUMNS</code> 的顺序即表头顺序，列宽单独给一份：
+<div class="codehilite"><pre><span></span><code><span class="n">COLUMN_WIDTHS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;用例编号&quot;</span><span class="p">:</span> <span class="mi">18</span><span class="p">,</span> <span class="s2">&quot;标题&quot;</span><span class="p">:</span> <span class="mi">40</span><span class="p">,</span> <span class="s2">&quot;模块路径&quot;</span><span class="p">:</span> <span class="mi">28</span><span class="p">,</span> <span class="s2">&quot;优先级&quot;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s2">&quot;类型&quot;</span><span class="p">:</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;状态&quot;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span>
+    <span class="s2">&quot;前置条件&quot;</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">&quot;步骤&quot;</span><span class="p">:</span> <span class="mi">60</span><span class="p">,</span> <span class="s2">&quot;预期结果&quot;</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">&quot;标签&quot;</span><span class="p">:</span> <span class="mi">22</span><span class="p">,</span> <span class="s2">&quot;负责人&quot;</span><span class="p">:</span> <span class="mi">12</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+列宽这种「纯装饰」的东西为什么要写在后端而不是前端？因为 XLSX 是后端生成的。如果让前端算列宽，导出逻辑就得复制一份到浏览器里，而浏览器的 XLSX 库和 Python 的 <code>openpyxl</code> 行为不完全一致。<strong>谁生成文件，谁负责让文件好读。</strong>
+
+步骤的编码也值得一说。它导出成可读文本，回导时能被 <code>parse_steps</code> 解析。这一步看起来是双向适配，实际上是在定义一种微型格式：既要人能看懂、能在 Excel 里手改，又要机器能无歧义还原。这类格式一旦定下来就很难改，因为用户手里已经有一堆导出的文件了。
+
+最后是那两条限制：
+<div class="codehilite"><pre><span></span><code><span class="n">MAX_FILE_SIZE</span> <span class="o">=</span> <span class="mi">10</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span>  <span class="c1"># 与前端一致：10MB</span>
+<span class="n">ALLOWED_EXTENSIONS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;csv&quot;</span><span class="p">,</span> <span class="s2">&quot;xlsx&quot;</span><span class="p">}</span>
+</code></pre></div>
+
+
+注释里那句「与前端一致」是唯一的同步机制。如果哪天后端改成 20MB 而前端还是 10MB，用户会看到一个前端拦截、后端能收的怪现象。这类不一致不会报错，只会慢慢侵蚀信任。
+<h2>命令面板：一个跨模块的搜索入口</h2>
+
+<code>Ctrl+K</code> 打开的命令面板要同时搜四类对象：页面、项目、用例、缺陷。它看起来是前端功能，难点其实在后端：<strong>四类东西的搜索代价差两个数量级</strong>。
+<ul>
+<li>页面：纯前端静态列表，零请求。</li>
+<li>项目：一次轻查询，几十行。</li>
+<li>缺陷：按项目过滤，通常几百行。</li>
+<li>用例：可能上千行，且要搜标题和编号。</li>
+</ul>
+
+如果四类都用同一个「输入即请求」策略，每敲一个字就发四个请求，其中一个是重查询。所以前端做防抖，后端给每类单独的轻量端点——而不是做一个「万能搜索」接口。
+
+这个决定和前面搜索那节的 <code>q</code> 语法是两种不同取舍。列表页的 <code>q</code> 是完整的筛选语言，适合「我要找所有 P0 且自动化状态为 partial 的用例」；命令面板是模糊跳转，适合「我记得那条用例标题里有个退款」。前者允许复杂但不该每敲一个字跑一次，后者简单但必须快。
+
+界面上这两个入口共用同一个查询服务，只是参数不同。这种「同一个后端能力，两个前端入口」的结构，比给命令面板单独写一套查询逻辑要好维护得多——因为修 bug 时只需要修一处。
+<h2>响应信封：一个 code 字段承担的四种语义</h2>
+
+后端所有接口返回同一个信封，而不是裸数据：
+<div class="codehilite"><pre><span></span><code><span class="cm">/**</span>
+<span class="cm"> * NanoQA API 客户端</span>
+<span class="cm"> * - 统一信封解包：{ code, message, data }，code === 0 才视为成功</span>
+<span class="cm"> * - 401/40002 单飞刷新 token 后重放原请求（并发只发一次刷新）</span>
+<span class="cm"> * - 40003 乐观锁冲突弹统一确认框</span>
+<span class="cm"> */</span>
+<span class="k">export</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="nx">ApiEnvelope</span><span class="o">&lt;</span><span class="nx">T</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">unknown</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">code</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span>
+<span class="w">  </span><span class="nx">message</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span>
+<span class="w">  </span><span class="nx">data</span><span class="o">:</span><span class="w"> </span><span class="kt">T</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>code === 0</code> 才算成功。这看起来和 HTTP 状态码重复了，但两者职责不同：HTTP 状态码给中间层看（缓存、重试、监控），<code>code</code> 给业务看（哪一类错误、要不要弹框、要不要刷新 token）。
+
+后端异常类里定义了一张完整的业务码表：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 业务错误码</span>
+<span class="n">CODE_SUCCESS</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">CODE_PERMISSION_DENIED</span> <span class="o">=</span> <span class="mi">40001</span>
+<span class="n">CODE_UNAUTHENTICATED</span> <span class="o">=</span> <span class="mi">40002</span>
+<span class="n">CODE_CONFLICT</span> <span class="o">=</span> <span class="mi">40003</span>          <span class="c1"># 乐观锁冲突</span>
+<span class="n">CODE_INVALID_TRANSITION</span> <span class="o">=</span> <span class="mi">40004</span>  <span class="c1"># 状态机非法转移</span>
+<span class="n">CODE_NOT_FOUND</span> <span class="o">=</span> <span class="mi">40005</span>
+<span class="n">CODE_VALIDATION_ERROR</span> <span class="o">=</span> <span class="mi">40006</span>
+<span class="n">CODE_BUSINESS_CONFLICT</span> <span class="o">=</span> <span class="mi">40007</span>  <span class="c1"># 业务规则冲突（如模块仍有用例）</span>
+<span class="n">CODE_SERVER_ERROR</span> <span class="o">=</span> <span class="mi">50000</span>
+</code></pre></div>
+
+
+前端对这几类的反应完全不同。<code>40002</code> 要先刷新 token 再重放原请求，而且必须保证并发只刷新一次：
+<div class="codehilite"><pre><span></span><code><span class="cm">/** 不参与自动刷新的端点（否则会死循环） */</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">NO_REFRESH_PATHS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;/auth/login/&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;/auth/refresh/&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;/auth/logout/&#39;</span><span class="p">]</span>
+</code></pre></div>
+
+
+这一行防的是最经典的死循环：刷新 token 的请求自己返回 40002，于是又触发一次刷新，无限递归。黑名单是必要的，不是洁癖。
+
+<code>40003</code> 则是弹一个统一确认框，让用户选「刷新看最新」还是「放弃我的修改」。这个交互细节很重要——乐观锁的价值有一半在这里。如果服务端检测到冲突、前端只弹一句「保存失败」，那和直接覆盖体验上没区别。
+
+<code>40004</code>、<code>40007</code> 直接展示后端文案，因为它们已经写清楚了具体原因——「状态不能从 draft 变更为 archived」或者「模块下仍有用例，无法删除」。这类信息在前端重新拼一遍只会更差。
+
+异常层还顺带做了 DRF 标准异常到业务码的翻译，让前端只需要认一套码：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="p">(</span><span class="n">NotAuthenticated</span><span class="p">,</span> <span class="n">AuthenticationFailed</span><span class="p">)):</span>
+    <span class="n">code</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="n">CODE_UNAUTHENTICATED</span><span class="p">,</span> <span class="s2">&quot;未认证或登录已过期&quot;</span>
+<span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="n">PermissionDenied</span><span class="p">):</span>
+    <span class="n">code</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="n">CODE_PERMISSION_DENIED</span><span class="p">,</span> <span class="s2">&quot;权限不足&quot;</span>
+<span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="n">NotFound</span><span class="p">):</span>
+    <span class="n">code</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="n">CODE_NOT_FOUND</span><span class="p">,</span> <span class="s2">&quot;资源不存在&quot;</span>
+<span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="n">ValidationError</span><span class="p">):</span>
+    <span class="n">code</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="n">CODE_VALIDATION_ERROR</span><span class="p">,</span> <span class="n">_format_validation_error</span><span class="p">(</span><span class="n">response</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>_format_validation_error</code> 也值得看一眼，它把 DRF 那种嵌套字典的校验错误压成一句人话：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_format_validation_error</span><span class="p">(</span><span class="n">data</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s2">&quot;detail&quot;</span> <span class="ow">in</span> <span class="n">data</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">&quot;detail&quot;</span><span class="p">],</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">data</span><span class="p">[</span><span class="s2">&quot;detail&quot;</span><span class="p">]</span>
+        <span class="n">parts</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span><span class="w"> </span><span class="nb">list</span><span class="p">)</span><span class="w"> </span><span class="ow">and</span><span class="w"> </span><span class="n">value</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="n">value</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">&quot;；&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="k">if</span> <span class="n">parts</span> <span class="k">else</span> <span class="s2">&quot;参数校验失败&quot;</span>
+</code></pre></div>
+
+
+于是前端不需要写「从 <code>{'title': [ErrorDetail(...)]}</code> 里取第一条」这种代码。所有信封里的 <code>message</code> 都是可以直接展示的句子。未捕获的异常也带上了 <code>request_id</code>：
+<div class="codehilite"><pre><span></span><code><span class="n">logger</span><span class="o">.</span><span class="n">exception</span><span class="p">(</span><span class="s2">&quot;unhandled error, request_id=</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">request_id</span><span class="p">)</span>
+<span class="k">return</span> <span class="n">Response</span><span class="p">(</span>
+    <span class="n">envelope</span><span class="p">(</span><span class="n">CODE_SERVER_ERROR</span><span class="p">,</span> <span class="s2">&quot;服务器内部错误&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;request_id&quot;</span><span class="p">:</span> <span class="n">request_id</span><span class="p">}),</span>
+    <span class="n">status</span><span class="o">=</span><span class="n">status</span><span class="o">.</span><span class="n">HTTP_500_INTERNAL_SERVER_ERROR</span><span class="p">,</span>
+<span class="p">)</span>
+</code></pre></div>
+
+
+用户看到「服务器内部错误」时，屏幕上那句话里的 <code>request_id</code> 就是唯一的排查线索。把它放进响应体，比只写进日志有用得多——否则用户截图过来，你还是找不到那次请求。
+
+请求拦截器统一带 token：
+<div class="codehilite"><pre><span></span><code><span class="nx">client</span><span class="p">.</span><span class="nx">interceptors</span><span class="p">.</span><span class="nx">request</span><span class="p">.</span><span class="nx">use</span><span class="p">((</span><span class="nx">config</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">tokenStore</span><span class="p">.</span><span class="nx">access</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">token</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">config</span><span class="p">.</span><span class="nx">headers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">config</span><span class="p">.</span><span class="nx">headers</span><span class="w"> </span><span class="o">??</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">    </span><span class="nx">config</span><span class="p">.</span><span class="nx">headers</span><span class="p">.</span><span class="nx">Authorization</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`Bearer </span><span class="si">${</span><span class="nx">token</span><span class="si">}</span><span class="sb">`</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">config</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+前端超时设成 30 秒。这个值和后端性能基线（P95 都在 200 ms 以内）差了两个数量级，是刻意留的余量——避免网络抖动时一个 5 秒的慢请求被判超时而重复操作。
+<h2>界面与后端的契约：版本快照组件</h2>
+
+后端把「历史结果绑版本」这件事钉死了，前端也必须显式呈现，否则用户不知道为什么报告里的标题和自己刚看到的不一样。
+
+<code>CaseSnapshot.vue</code> 就是这份契约的界面化。它的第一行注释就是结论：
+<div class="codehilite"><pre><span></span><code><span class="cm">&lt;!-- 版本快照标识：结果固定绑定执行时的用例版本 --&gt;</span>
+<span class="p">&lt;</span><span class="nt">div</span> <span class="na">class</span><span class="o">=</span><span class="s">&quot;snapshot-head&quot;</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">span</span> <span class="na">class</span><span class="o">=</span><span class="s">&quot;version-badge&quot;</span><span class="p">&gt;</span>版本快照 v<span class="cp">{{</span><span class="w"> </span><span class="nx">snapshot</span><span class="o">?</span><span class="p">.</span><span class="nx">version</span><span class="w"> </span><span class="o">??</span><span class="w"> </span><span class="s1">&#39;—&#39;</span><span class="w"> </span><span class="cp">}}</span><span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">span</span> <span class="na">v-if</span><span class="o">=</span><span class="s">&quot;</span><span class="nx">snapshot</span><span class="o">?</span><span class="p">.</span><span class="nx">change_summary</span><span class="s">&quot;</span> <span class="na">class</span><span class="o">=</span><span class="s">&quot;change-summary&quot;</span><span class="p">&gt;</span><span class="cp">{{</span><span class="w"> </span><span class="nx">snapshot</span><span class="p">.</span><span class="nx">change_summary</span><span class="w"> </span><span class="cp">}}</span><span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+</code></pre></div>
+
+
+组件只接受三个 props，其中两个都可能为 <code>null</code>：
+<div class="codehilite"><pre><span></span><code><span class="nx">defineProps</span><span class="o">&lt;</span><span class="p">{</span>
+<span class="w">  </span><span class="nx">snapshot</span><span class="o">:</span><span class="w"> </span><span class="kt">VersionSnapshot</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kc">null</span>
+<span class="w">  </span><span class="nx">loading</span><span class="o">:</span><span class="w"> </span><span class="kt">boolean</span>
+<span class="w">  </span><span class="cm">/** 当前结果（展示上次执行结果与备注） */</span>
+<span class="w">  </span><span class="nx">result</span><span class="o">:</span><span class="w"> </span><span class="kt">RunResult</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kc">null</span>
+<span class="p">}</span><span class="o">&gt;</span><span class="p">()</span>
+</code></pre></div>
+
+
+<code>result: RunResult | null</code> 这个类型不是随手写的。它对应「这一轮的执行结果」——可能还没执行，所以必须是可空的。而 <code>snapshot</code> 可空对应的是另一个现实：版本被归档、或接口暂时失败时，界面要能退化成一个明确的空态，而不是白屏：
+<div class="codehilite"><pre><span></span><code><span class="p">&lt;</span><span class="nt">div</span> <span class="na">v-else-if</span><span class="o">=</span><span class="s">&quot;</span><span class="o">!</span><span class="nx">snapshot</span><span class="s">&quot;</span> <span class="na">class</span><span class="o">=</span><span class="s">&quot;state-line&quot;</span><span class="p">&gt;</span>版本快照不可用，请刷新重试<span class="p">&lt;/</span><span class="nt">div</span><span class="p">&gt;</span>
+</code></pre></div>
+
+
+三个区域的分层也对应数据来源：版本快照区（来自 <code>TestCaseVersion</code>）、步骤表格（<code>snapshot.steps</code>）、上次结果区（来自 <code>TestResult</code>）。前两块永远不变，第三块每次执行后更新。同一个页面同时展示「当时的用例」和「这次的执行」，是这套系统最重要的一个界面约定。
+
+步骤表格直接展示 <code>order / action / expected</code>：
+<div class="codehilite"><pre><span></span><code><span class="p">&lt;</span><span class="nt">el-table</span> <span class="p">:</span><span class="na">data</span><span class="o">=</span><span class="s">&quot;</span><span class="nx">snapshot</span><span class="p">.</span><span class="nx">steps</span><span class="s">&quot;</span> <span class="na">size</span><span class="o">=</span><span class="s">&quot;small&quot;</span> <span class="na">class</span><span class="o">=</span><span class="s">&quot;steps-table&quot;</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">el-table-column</span> <span class="na">label</span><span class="o">=</span><span class="s">&quot;序号&quot;</span> <span class="na">width</span><span class="o">=</span><span class="s">&quot;64&quot;</span> <span class="na">align</span><span class="o">=</span><span class="s">&quot;center&quot;</span><span class="p">&gt;</span>
+    <span class="p">&lt;</span><span class="nt">template</span> <span class="err">#</span><span class="na">default</span><span class="o">=</span><span class="s">&quot;{ row }&quot;</span><span class="p">&gt;&lt;</span><span class="nt">span</span> <span class="na">class</span><span class="o">=</span><span class="s">&quot;mono&quot;</span><span class="p">&gt;</span><span class="cp">{{</span><span class="w"> </span><span class="nx">row</span><span class="p">.</span><span class="nx">order</span><span class="w"> </span><span class="cp">}}</span><span class="p">&lt;/</span><span class="nt">span</span><span class="p">&gt;&lt;/</span><span class="nt">template</span><span class="p">&gt;</span>
+  <span class="p">&lt;/</span><span class="nt">el-table-column</span><span class="p">&gt;</span>
+  <span class="p">&lt;</span><span class="nt">el-table-column</span> <span class="na">label</span><span class="o">=</span><span class="s">&quot;操作&quot;</span> <span class="na">min-width</span><span class="o">=</span><span class="s">&quot;240&quot;</span><span class="p">&gt;</span>...
+</code></pre></div>
+
+
+<code>row.order</code> 直接用后端存的值，不信任数组下标。因为 <code>steps</code> 是 JSONB，理论上不保证顺序——这一点在缺陷默认描述的 <code>sorted(..., key=order)</code> 那里也出现过。同一个约束在两个地方被同一份数据源提醒了两次。
+<h2>AI：离线 Mock 也是一种可验收</h2>
+
+项目描述里有「AI 原生」，但 AI 层目前只有离线 Mock：
+<div class="codehilite"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">MockLLMProvider</span><span class="p">(</span><span class="n">BaseLLMProvider</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;离线 Mock：规则化生成结构化 JSON，保证全流程可离线验收。&quot;&quot;&quot;</span>
+</code></pre></div>
+
+
+这个选择在工程上是对的，理由写在类注释里：<strong>保证全流程可离线验收</strong>。AI 能力最容易做成「演示时很惊艳、测试时全跳过」的模块。把 Provider 抽象成接口，Mock 用规则实现，于是：
+<ul>
+<li>CI 里不需要 API Key，AI 相关的 5 个测试文件照常跑；</li>
+<li>前端可以在没有网关的情况下开发完整的「生成 → 审核 → 入库」流程；</li>
+<li>真实网关接进来时，只需要换 <code>get_provider()</code> 的返回值。</li>
+</ul>
+
+生成逻辑是场景表驱动，而不是随机文本：
+<div class="codehilite"><pre><span></span><code><span class="n">scenarios</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="s2">&quot;正常流程验证&quot;</span><span class="p">,</span> <span class="s2">&quot;P1&quot;</span><span class="p">,</span> <span class="s2">&quot;functional&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;必填参数校验&quot;</span><span class="p">,</span> <span class="s2">&quot;P1&quot;</span><span class="p">,</span> <span class="s2">&quot;functional&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;异常输入处理&quot;</span><span class="p">,</span> <span class="s2">&quot;P2&quot;</span><span class="p">,</span> <span class="s2">&quot;functional&quot;</span><span class="p">),</span>
+    <span class="p">(</span><span class="s2">&quot;重复提交防护&quot;</span><span class="p">,</span> <span class="s2">&quot;P2&quot;</span><span class="p">,</span> <span class="s2">&quot;functional&quot;</span><span class="p">),</span>
+<span class="p">]</span>
+<span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;include_edge_cases&quot;</span><span class="p">):</span>
+    <span class="n">scenarios</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s2">&quot;边界值验证&quot;</span><span class="p">,</span> <span class="s2">&quot;P1&quot;</span><span class="p">,</span> <span class="s2">&quot;functional&quot;</span><span class="p">))</span>
+<span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;include_security&quot;</span><span class="p">):</span>
+    <span class="n">scenarios</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s2">&quot;越权访问拦截&quot;</span><span class="p">,</span> <span class="s2">&quot;P1&quot;</span><span class="p">,</span> <span class="s2">&quot;security&quot;</span><span class="p">))</span>
+</code></pre></div>
+
+
+评审也是规则化的打分，扣分项都对应真实的用例质量问题：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">steps</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+    <span class="n">score</span> <span class="o">-=</span> <span class="mi">25</span>
+    <span class="n">issues</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">&quot;severity&quot;</span><span class="p">:</span> <span class="s2">&quot;high&quot;</span><span class="p">,</span> <span class="s2">&quot;message&quot;</span><span class="p">:</span> <span class="s2">&quot;测试步骤少于 2 条，覆盖不足&quot;</span><span class="p">})</span>
+<span class="o">...</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;expected_result&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+    <span class="n">score</span> <span class="o">-=</span> <span class="mi">15</span>
+    <span class="n">issues</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">&quot;severity&quot;</span><span class="p">:</span> <span class="s2">&quot;high&quot;</span><span class="p">,</span> <span class="s2">&quot;message&quot;</span><span class="p">:</span> <span class="s2">&quot;缺少预期结果，无法判定通过标准&quot;</span><span class="p">})</span>
+</code></pre></div>
+
+
+它不假装聪明，只做确定性检查。这类能力上线后用户信任度反而高——因为每次扣分都能解释。
+
+不过 <code>OpenAICompatibleProvider</code> 目前只是桩：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">complete</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">schema</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">api_key</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">NanoAPIError</span><span class="p">(</span><span class="s2">&quot;未配置 LLM Provider&quot;</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="n">NanoAPIError</span><span class="p">(</span><span class="s2">&quot;LLM 网关调用将在 v0.2 接入&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+有 Key 也直接抛错，而不是悄悄退回 Mock。这个选择避免了「配置了 Key 却拿到 Mock 结果」这种最坏情况。
+<h2>实测：232 条测试与性能基线</h2>
+
+后端测试规模不是靠感觉说的：
+<div class="codehilite"><pre><span></span><code>232 条，覆盖用例 / 版本 / 计划 / 执行 / 缺陷 / 需求 / 导入导出 / 并发取号 / 状态机 / 权限，当前全部通过。
+</code></pre></div>
+
+
+五个接口的 P95 基线也写在 README 里，并且有脚本可以复现（自动建 1000 用例夹具、采样、输出达标判定）：
+<div class="codehilite"><pre><span></span><code>用例列表（分页 20）   188 ms   &lt; 500 ms   达标
+用例搜索              98 ms   &lt; 500 ms   达标
+工作台 Dashboard     186 ms   &lt; 1 s      达标
+测试报告聚合         171 ms   &lt; 500 ms   达标
+缺陷列表（分页 20）    65 ms   &lt; 500 ms   达标
+</code></pre></div>
+
+
+报告聚合 171 ms 这个数字背后是一组单查询聚合，而不是 Python 循环：
+<div class="codehilite"><pre><span></span><code><span class="n">rows</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">results</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="s2">&quot;test_case__module_id&quot;</span><span class="p">,</span> <span class="s2">&quot;test_case__module__name&quot;</span><span class="p">)</span>
+    <span class="o">.</span><span class="n">annotate</span><span class="p">(</span>
+        <span class="n">total</span><span class="o">=</span><span class="n">Count</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">),</span>
+        <span class="n">passed</span><span class="o">=</span><span class="n">Count</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="nb">filter</span><span class="o">=</span><span class="n">Q</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">&quot;passed&quot;</span><span class="p">)),</span>
+        <span class="n">not_run</span><span class="o">=</span><span class="n">Count</span><span class="p">(</span><span class="s2">&quot;id&quot;</span><span class="p">,</span> <span class="nb">filter</span><span class="o">=</span><span class="n">Q</span><span class="p">(</span><span class="n">status</span><span class="o">=</span><span class="s2">&quot;not_run&quot;</span><span class="p">)),</span>
+    <span class="p">)</span>
+    <span class="o">.</span><span class="n">order_by</span><span class="p">(</span><span class="s2">&quot;-total&quot;</span><span class="p">,</span> <span class="s2">&quot;test_case__module_id&quot;</span><span class="p">)</span>
+<span class="p">)</span>
+</code></pre></div>
+
+
+<code>Count(filter=Q(...))</code> 是 Django 的条件聚合，生成 <code>COUNT(*) FILTER (WHERE ...)</code>。三类计数一次扫描完成，而不是三次。
+
+通过率口径也在注释里钉死了，避免前后端各算一套：
+<div class="codehilite"><pre><span></span><code>口径：pass_rate = passed / executed（not_run 不进分母，与 Dashboard 一致）
+</code></pre></div>
+
+
+<code>executed = total - not_run</code>。如果分母用 <code>total</code>，那么一轮刚开、什么都没跑时通过率是 0%；用 <code>executed</code>，分母为 0 时函数返回 0.0，语义清楚得多：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_ratio</span><span class="p">(</span><span class="n">numerator</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">denominator</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="k">return</span> <span class="nb">round</span><span class="p">(</span><span class="n">numerator</span> <span class="o">/</span> <span class="n">denominator</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span> <span class="k">if</span> <span class="n">denominator</span> <span class="k">else</span> <span class="mf">0.0</span>
+</code></pre></div>
+
+<h2>重复检测的 O(n²) 真相</h2>
+
+<code>find_duplicates</code> 是这套系统里唯一一处复杂度会失控的地方。它拿每两条用例的「标题 + 步骤文本」跑 <code>difflib.SequenceMatcher</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">find_duplicates</span><span class="p">(</span><span class="n">project</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;返回 [{case_a, case_b, similarity}]，≥阈值才输出，按相似度降序，最多 50 对。&quot;&quot;&quot;</span>
+    <span class="n">texts</span> <span class="o">=</span> <span class="n">_case_texts</span><span class="p">(</span><span class="n">project</span><span class="p">)</span>
+    <span class="n">pairs</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">texts</span><span class="p">)):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">texts</span><span class="p">)):</span>
+            <span class="n">similarity</span> <span class="o">=</span> <span class="n">SequenceMatcher</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">texts</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">texts</span><span class="p">[</span><span class="n">j</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span><span class="o">.</span><span class="n">ratio</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">similarity</span> <span class="o">&gt;=</span> <span class="n">SIMILARITY_THRESHOLD</span><span class="p">:</span>
+                <span class="n">pairs</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="o">...</span><span class="p">})</span>
+</code></pre></div>
+
+
+阈值 0.6，输出上限 50 对。配对上限掩盖了扫描成本——上限是 50，但<strong>比较次数</strong>是 <code>n(n-1)/2</code>。
+
+我把这段循环（连同文本拼装方式）单独抠出来，用真实规模跑了一遍：
+<div class="codehilite"><pre><span></span><code>  cases  comparisons    seconds   ms/1k cmp  pairs&gt;=0.6
+    100        4,950      0.682     137.822          50
+    200       19,900      3.887     195.305          50
+    400       79,800     18.314     229.495          50
+    800      319,600     55.534     173.760          50
+
+quadratic growth check:
+    100 -&gt;   200 cases: 4.02x comparisons, 5.70x time
+    200 -&gt;   400 cases: 4.01x comparisons, 4.71x time
+    400 -&gt;   800 cases: 4.01x comparisons, 3.03x time
+</code></pre></div>
+
+
+比较次数严格按 4 倍增长——这是二次复杂度的定义。时间增长更乱（3.03 到 5.70 倍），因为 <code>SequenceMatcher</code> 的成本取决于字符串长度和公共子串长度，而随机夹具的相似度分布并不均匀。
+
+用 400/800 两点线性外推：
+<div class="codehilite"><pre><span></span><code>   1600 cases:    1,279,200 comparisons ~=   198.5 s
+   2000 cases:    1,999,000 comparisons ~=   310.3 s
+   5000 cases:   12,497,500 comparisons ~=  1939.8 s
+</code></pre></div>
+
+
+我先试过跑 1600 条，结果整个命令超了五分钟没结束，只好把扫描截止到 800 条再外推。这个超时本身就是结论：<strong>在一个 2000 条用例的项目里点一次「重复检测」，请求会挂五分钟。</strong>
+
+这不是实现 bug，是算法选型。要把这条路走通，至少三种改法：按模块或标签先分桶（只比较同桶内）、给标题做倒排先召回候选（只比较有词面重叠的）、或者把整件事挪到后台任务里并给结果落库。项目里 <code>ai</code> 模块已经有 <code>AITask</code> 模型和任务队列的雏形，缺的是把重复检测接进去。
+<h2>仍然存在的边界</h2>
+
+把上面所有东西摊开后，边界也很清楚：
+<ul>
+<li><strong>重复检测没有分桶</strong>。上面那条二次曲线，加上 50 对上限掩盖了成本，实际规模上一用就卡。</li>
+<li><strong>AI 只有 Mock</strong>。真实网关留了接口但直接抛错，所以「AI 生成用例」目前是规则化生成，不是模型生成。</li>
+<li><strong>权限不做缓存</strong>。这是刻意的，代价是每个请求多两次查询。如果项目成员有几百人，这会成为下一个热点。</li>
+<li><strong>软删除没有级联策略</strong>。删一条被历史执行引用的用例，报告侧的 <code>select_related</code> 会拿不到它，需要查询时显式用 <code>all_objects</code> 兜底。</li>
+<li><strong><code>child_id not in ids</code> 是 O(n) 列表查找</strong>。当前规模无感，但属于「知道该改、暂时不改」。</li>
+<li><strong>导入导出是同步的</strong>。10 MB 上限内可以接受，再大就需要异步任务。</li>
+<li><strong>前端 36 个视图、后端 39 个 service 文件</strong>，没有统一的错误码字典在仓库里可见，靠 <code>common/exceptions.py</code> 与前端约定对齐。</li>
+</ul>
+
+这些不是「后续 TODO」。它们是这份实现当前的形状。
+<h2>小结</h2>
+
+如果只记三件事：
+<ol>
+<li><strong>内容与状态分离</strong>。<code>TestCase</code> 存当前状态，<code>TestCaseVersion</code> 存内容，<code>current_version</code> 做游标。所有历史引用指向版本，不指向主表。</li>
+<li><strong>锁定的是版本对象，不是用例 ID</strong>。执行、报告、缺陷描述全部绑定 <code>test_case_version</code>。这一个下划线决定了历史报告三年后还能不能当证据。</li>
+<li><strong>审计必须是业务事务的一部分</strong>。异步审计等于没有审计；字段级 diff 加可选空值，让「改了」和「点了一下」可区分。</li>
+</ol>
+
+至于乐观锁、状态机、行锁取号、软删除，它们都是同一件事的不同侧面：<strong>让系统在多人、多次、多年之后仍然自洽</strong>。这类系统真正的验收标准不是功能列表有多长，而是半年后有人问「这条报告当时为什么是失败的」时，你能给出一个不会变的答案。
+
+项目地址：<a href="https://github.com/zhoujungis/NanoQA" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/NanoQA</a>。同周发布的另一篇拆解是 <a href="/article/routewise-ai-geo-constrained-itinerary/">Routewise AI：让模型吐出一份能落在地图上的行程</a>。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/block-world-3d-voxel-engine/">方块世界 3D：一台纯 JS 体素引擎的四道闸</a></li><li>下一篇：<a href="https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/">Routewise AI：让模型吐出一份能落在地图上的行程</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/test-manage-system-vue-django/">从零搭建测试管理系统：Vue 3 + Django 全栈实战</a></li><li><a href="https://blog.zhoujun.dev/article/cursor-pagination-deep-dive/">为什么 LIMIT 100000, 20 会越来越慢？——深分页与游标分页</a></li><li><a href="https://blog.zhoujun.dev/article/drf-pagination-cache-throttle/">列表接口从 800ms 到 80ms：分页、缓存与限流</a></li><li><a href="https://blog.zhoujun.dev/article/django-subscribe-mass-mail/">别让一个坏邮箱毒死整批群发：三次加固</a></li><li><a href="https://blog.zhoujun.dev/article/django-n1-query-kill/">从 21 条 SQL 到 2 条：三次 N+1 查询围剿实录</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+  </body>
+</html>

@@ -52490,6 +52490,2302 @@ Block key memory   300,000 entries, 23.0 MB retained, 80 bytes/entry</code></pre
 
 `,
   },
+  {
+    slug: 'nanoqa-versioned-quality-loop',
+    zhSlug: 'nanoqa-versioned-quality-loop',
+    topicSlug: 'projects',
+    title: "NanoQA: four hard boundaries in a test management system",
+    excerpt:
+      "Twenty-six models, 67 routes, 232 backend tests. The hard part is not moving Excel into a browser: test cases must be versioned, execution results must bind a version snapshot, concurrent edits must be detected, and audit must commit with the business write. The costs are just as explicit — no permission cache, O(n²) duplicate detection at 55.5 seconds for 800 cases, and a mock-only AI layer.",
+    date: '2026-11-20',
+    readingTime: 31,
+    html: `<blockquote>
+<p>Who this is for: full-stack engineers building internal tools; anyone who has been burned by "the test case changed but the old report didn't"; developers who want to see how optimistic locking, state machines and audit diffs look in real code.</p>
+<p><strong>TL;DR:</strong> NanoQA has 26 models, 67 routes, 73 view classes and 232 backend tests. The hard part is not moving Excel into a browser. It is four constraints: test cases must be versioned, execution results must bind to a version snapshot, concurrent edits must be detected, and every change must commit in the same transaction as the business write. Those four constraints decide whether this data is still usable as evidence in five years. The costs are equally explicit: permissions are not cached, so every request recomputes them; duplicate detection is O(n²) and takes 55.5 seconds at 800 cases; the AI layer is currently an offline mock.</p>
+<p>Reading time around 32 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>This is not another CRUD app</h2>
+
+<p>"Test management system" sounds like the easiest category to build as CRUD: create, read, update, delete test cases, plans and defects. Any backend practice project can produce the screens in a week.</p>
+
+<p>But when a real QA team starts using it, the first thing that breaks is not the UI. It is <strong>credibility</strong>. Three concrete failure scenes:</p>
+
+<ul>
+<li>Someone changed step 3 yesterday. Pull up a test report from three months ago and the failure title has changed. Was it wrong then, or was it edited later?</li>
+<li>Two test engineers open the same case. A changes the priority, B changes the steps. Who overwrote whom?</li>
+<li>A defect goes straight from "Open" to "Closed", skipping "Resolved". The fix-duration metric will be zero forever.</li>
+</ul>
+
+<p>All three share one root cause: the data model threw away traceability. It is not a UI problem. Everything that makes NanoQA's backend complicated is an answer to those three questions.</p>
+
+<p>Start with scale. This is not a demo repository:</p>
+
+<pre><code>backend  211 py files   12,132 lines
+frontend 36 views       17,395 lines (vue + ts)
+26 models   67 routes   73 view classes   55 serializers   39 service files
+19 migrations   232 backend tests
+</code></pre>
+
+<p>That 232 is not an estimate. It is a real count of <code>def test_</code>.</p>
+
+<h2>The data model: one loop, not six islands</h2>
+
+<p>The README says "requirement → case → plan → execution → defect → report". In the schema it is a directed chain, not six parallel modules:</p>
+
+<pre><code>Requirement ──covers──▶ TestCase ──selected──▶ TestPlan ──starts──▶ TestRun
+     │                     │                                          │
+     │                     │                                          ▼
+     │                     │                                      TestResult
+     │                     │                                          │
+     │                     └──── TestCaseVersion ◀──binds─────────────┘
+     │                                                                │
+     └────────── RequirementDefect ◀── Defect ──▶ TestResultDefect ───┘
+                                       │
+                                       └──▶ TestCaseDefect
+</code></pre>
+
+<p>The important line is in the middle: <code>TestResult</code> points at both <code>TestCase</code> and <code>TestCaseVersion</code>. That single design decision gives you every traceability property downstream, and it is the comment that appears most often in the whole codebase: "pitfall 4".</p>
+
+<h2>Test cases must be versioned</h2>
+
+<p>Look at the main table first. <code>TestCase</code> stores only the current state; the content lives in a version table:</p>
+
+<pre><code>class TestCase(SoftDeleteModel):
+    case_key = models.CharField(max_length=32, unique=True)
+    title = models.CharField(max_length=255)
+    precondition = models.TextField(blank=True, default="")
+    priority = models.CharField(max_length=2, choices=PRIORITY_CHOICES, default="P1")
+    case_type = models.CharField(max_length=16, choices=TYPE_CHOICES, default="functional")
+    automation_status = models.CharField(max_length=16, choices=AUTOMATION_CHOICES, default="manual")
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="draft")
+    current_version = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
+</code></pre>
+
+<p><code>current_version</code> is a cursor pointing at whichever row in <code>TestCaseVersion</code> is currently in force. The version table is where content actually lives:</p>
+
+<pre><code>class TestCaseVersion(models.Model):
+    """Case version snapshot: historical results must bind a version (pitfall 4).
+    steps is JSONB: [{order,action,expected}]."""
+
+    test_case = models.ForeignKey(TestCase, on_delete=models.CASCADE, related_name="versions")
+    version = models.PositiveIntegerField()
+    title = models.CharField(max_length=255)
+    steps = models.JSONField(default=list)
+    expected_result = models.TextField(blank=True, default="")
+    change_summary = models.CharField(max_length=255, blank=True, default="")
+</code></pre>
+
+<p>A version is not "a new row on every save". A new version is created only when a content field actually changes. Changing priority, owner or tags does not count:</p>
+
+<pre><code>content_changed = (
+    new_title != case.title
+    or new_precondition != case.precondition
+    or new_description != case.description
+    or new_steps != version.steps
+    or new_expected != version.expected_result
+)
+</code></pre>
+
+<p>That distinction matters. Otherwise moving a case from P1 to P0 leaves a "content changed" entry in the history, and the version number quickly stops meaning anything. The fields that trigger a version are pulled out into a constant:</p>
+
+<pre><code>CONTENT_FIELDS = ["title", "precondition", "steps", "expected_result", "description"]
+</code></pre>
+
+<p>So "how many times has this case changed" now has exactly one correct answer: <code>current_version</code> minus one. Not counting audit rows.</p>
+
+<h2>Execution binds a snapshot: so old reports cannot lie</h2>
+
+<p>Back to the first failure scene. If <code>TestResult</code> stored only <code>test_case_id</code>, the report would read the <strong>current</strong> case title when rendering a failed case. Someone edits the title three months later and the historical report changes with it, silently.</p>
+
+<p>So when a run starts, the service pre-creates one <code>not_run</code> result per planned case, and pins the version object that is current at that moment:</p>
+
+<pre><code>version_map = {
+    version.test_case_id: version
+    for version in TestCaseVersion.objects.filter(
+        test_case_id__in=case_ids, version=F("test_case__current_version")
+    )
+}
+missing = [pk for pk in case_ids if pk not in version_map]
+if missing:
+    raise BusinessConflictError(f"case has no version snapshot: {missing}")
+</code></pre>
+
+<p>Then bulk-create the results:</p>
+
+<pre><code>TestResult.objects.bulk_create([
+    TestResult(
+        test_run=run,
+        test_case_id=pk,
+        test_case_version=version_map[pk],
+        status="not_run",
+    )
+    for pk in case_ids
+])
+</code></pre>
+
+<p>Note the filter uses <code>version=F("test_case__current_version")</code>. That is a cross-table comparison that only holds inside the query; there is no second filtering pass in Python.</p>
+
+<p>There is an easy-to-miss choice here: pre-create <code>not_run</code> results instead of inserting at execution time. The payoff is threefold. The denominator is fixed the moment the run exists. "Not executed" and "executed but not submitted" stop being the same thing. And bulk submission can hit existing rows with <code>filter(test_run=run, test_case_id=...)</code> instead of doing an upsert.</p>
+
+<p>The reporting side obeys the contract strictly:</p>
+
+<pre><code>def _failed_cases(results) -&gt; list[dict]:
+    failed = (
+        results.filter(status="failed")
+        .select_related("test_case", "test_case_version", ...)
+    )
+    return [
+        {
+            "result_id": result.id,
+            "case_key": result.test_case.case_key,
+            "title": result.test_case_version.title,   # snapshot, not current
+            ...
+        }
+        for result in failed
+    ]
+</code></pre>
+
+<p><code>result.test_case_version.title</code> and <code>result.test_case.title</code> differ by one underscore, but they read two different tables. The first never changes.</p>
+
+<h2>Optimistic locking: two people editing one case</h2>
+
+<p>The second failure scene. The naive fix is "last write wins", and the cost is that someone silently loses work. NanoQA chooses explicit conflict instead.</p>
+
+<p>The client receives <code>updated_at</code> with the data and sends it back untouched. The server puts it into the WHERE clause:</p>
+
+<pre><code>def save_with_lock(obj, expected_updated_at, update_fields: list[str]):
+    """Update with optimistic locking: WHERE id=%s AND updated_at=%s, 0 rows -&gt; conflict."""
+    expected = parse_updated_at(expected_updated_at)
+    new_updated_at = timezone.now()
+    values = {field: getattr(obj, field) for field in update_fields}
+    values["updated_at"] = new_updated_at
+
+    rows = type(obj).objects.filter(pk=obj.pk, updated_at=expected).update(**values)
+    if rows == 0:
+        exists = type(obj).all_objects.filter(pk=obj.pk).exists() ...
+        if not exists:
+            raise NotFoundError("resource not found")
+        raise OptimisticLockError("this record was modified by someone else; refresh and retry")
+    obj.updated_at = new_updated_at
+    return obj
+</code></pre>
+
+<p>Three details are worth calling out.</p>
+
+<p>First, <code>0 rows</code> has two meanings: a concurrent conflict, or the row is gone. The first should prompt a refresh; the second should say it does not exist. So after <code>rows == 0</code> the code probes <code>exists()</code> and separates 404 from 409. It uses <code>all_objects</code> because after a soft delete <code>objects</code> cannot see the row, yet "exists but deleted" and "never existed" still need correct classification.</p>
+
+<p>Second, the timestamp must round-trip untouched; the frontend is not allowed to format it. The comment on <code>parse_updated_at</code> is blunt:</p>
+
+<pre><code>"""Parse the client's updated_at (ISO microseconds, sent back verbatim; no frontend formatting)."""
+</code></pre>
+
+<p>The reason is practical. One <code>toLocaleString</code> on the client drops microseconds, and lock granularity degrades to milliseconds, where two writes in the same millisecond overwrite each other again.</p>
+
+<p>Third, it uses <code>.update()</code> rather than <code>save()</code>. Django's <code>save()</code> writes <code>updated_at</code> itself, and then there is no WHERE condition left. You have to bypass the ORM's timestamp behavior so that <code>updated_at</code> is a condition, not a result.</p>
+
+<p>The same lock is reused for defect updates: compare, write, then record the diff in the audit log.</p>
+
+<h2>State machines: write "who can become what" as a table</h2>
+
+<p>The third failure scene: a defect jumps from Open to Closed. The fix is not hiding the button in the UI — a frontend guard stops mistakes, not a direct API call. The fix is an explicit table of legal transitions in the service layer:</p>
+
+<pre><code>DEFECT_TRANSITIONS = {
+    "Open": {"In Progress", "Rejected", "Duplicate", "Closed"},
+    "In Progress": {"Resolved", "Open", "Rejected", "Duplicate"},
+    "Resolved": {"Closed", "Reopened", "In Progress"},
+    "Reopened": {"In Progress", "Resolved", "Open"},
+    "Closed": {"Reopened"},
+    "Rejected": {"Open"},
+    "Duplicate": {"Open"},
+}
+</code></pre>
+
+<p>Four tables: testcase, testplan, defect, requirement. One validator:</p>
+
+<pre><code>def validate_transition(entity: str, from_status: str, to_status: str):
+    if from_status == to_status:
+        return
+    table = TABLES.get(entity)
+    if table is None:
+        raise InvalidTransitionError(f"unknown state machine: {entity}")
+    allowed = table.get(from_status)
+    if allowed is None:
+        raise InvalidTransitionError(f"unknown state: {from_status}")
+    if to_status not in allowed:
+        raise InvalidTransitionError(f"cannot move from {from_status} to {to_status}")
+</code></pre>
+
+<p>A design note survives in the source and is worth copying more than the code itself:</p>
+
+<pre><code>D5 decision: on top of the documented chain transitions, allow the necessary
+rollbacks (Deprecated-&gt;Active, Closed-&gt;Reopened, Rejected-&gt;Open) because they
+match real QA workflows.
+</code></pre>
+
+<p>A pure chain state machine is beautiful in a textbook and infuriating in practice. A case marked deprecated by mistake must be recoverable. A defect that was closed and came back must reopen. A requirement that was rejected, revised, and resubmitted deserves another pass. Those rollback edges are a direct mapping of product requirements, and putting them in one table is far more readable than scattering them across a dozen <code>if</code> statements.</p>
+
+<p>Timestamps come with it. When status changes, <code>resolved_at</code> and <code>closed_at</code> are stamped automatically, but only on the <em>first</em> entry:</p>
+
+<pre><code>if status_changed:
+    now = timezone.now()
+    if new_status == Defect.STATUS_RESOLVED and defect.resolved_at is None:
+        defect.resolved_at = now
+    if new_status == Defect.STATUS_CLOSED:
+        defect.closed_at = now
+    if new_status in REOPEN_STATUSES:
+        defect.closed_at = None
+</code></pre>
+
+<p>The <code>defect.resolved_at is None</code> guard means Resolved → Closed → Reopened → Resolved does not overwrite the original fix time with the latest one. Metrics usually die exactly here.</p>
+
+<h2>Key generation: monotonic counters behind select_for_update</h2>
+
+<p>Business keys like <code>SHOP-TC-000001</code> carry implicit requirements: no duplicates, no gaps, no regression under concurrency. Together those rule out "find max ID, add one" — two requests get the same value.</p>
+
+<p>The implementation takes a row lock:</p>
+
+<pre><code>def next_key(project: Project, entity: str, width: int = 6) -&gt; str:
+    """Next business key, e.g. SHOP-TC-000001. Must be called inside the caller's transaction."""
+    if entity not in {c[0] for c in NumberSequence.ENTITY_CHOICES}:
+        raise ValueError(f"unknown entity: {entity}")
+    with transaction.atomic():
+        seq, _created = (
+            NumberSequence.objects.select_for_update()
+            .get_or_create(project=project, entity=entity, defaults={"next_value": 1})
+        )
+        value = seq.next_value
+        seq.next_value = value + 1
+        seq.save(update_fields=["next_value"])
+    return format_key(project.key, entity, value, width=width)
+</code></pre>
+
+<p><code>select_for_update()</code> becomes <code>SELECT ... FOR UPDATE</code> on PostgreSQL, holding that row until the transaction ends. Putting <code>select_for_update</code> inside <code>get_or_create</code> is slightly subtle: it only locks the existing-row path, and the create path relies on a unique constraint. That is why the concurrency test has to be a real transaction-level test:</p>
+
+<pre><code>Test isolation: every test database gets a unique name; TransactionTestCase's flush
+truncates data-migration seeds (Role/Permission), and the test base has built-in
+self-healing (ensure_rbac_seed); the concurrent key test enables serialized_rollback.
+</code></pre>
+
+<p><code>serialized_rollback</code> deserves its own paragraph. Django's <code>TransactionTestCase</code> flushes the whole database by default. If seed data (27 permissions, 5 system roles) came from a data migration, the flush removes it, and every subsequent permission test fails with <code>Role.DoesNotExist</code>. The README keeps a dedicated FAQ entry about it, which tells you it has bitten someone.</p>
+
+<h2>Soft delete: quality assets are never physically deleted</h2>
+
+<p><code>TestCase</code> inherits <code>SoftDeleteModel</code>, not <code>TimestampedModel</code>:</p>
+
+<pre><code>class SoftDeleteModel(TimestampedModel):
+    """Soft-delete base: test data is a quality asset and is never physically deleted (§48)."""
+
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    objects = SoftDeleteManager()
+    all_objects = AllObjectsManager()
+</code></pre>
+
+<p>The split between the two managers is the whole point: <code>objects</code> sees only live rows, <code>all_objects</code> sees deleted ones too. Delete and restore are each a single field write:</p>
+
+<pre><code>def soft_delete(self):
+    self.deleted_at = timezone.now()
+    self.save(update_fields=["deleted_at", "updated_at"])
+</code></pre>
+
+<p>Why should test data never be physically deleted? Because it is evidence for three things at once: that a case existed (the coverage denominator), which case a failure belonged to (report context), and which cases covered a requirement at the time (review basis). Remove any one of those and historical reports develop holes.</p>
+
+<p>The cost is that queries must be careful. If a case referenced by a <code>TestResult</code> is soft-deleted, <code>select_related("test_case")</code> will not find it (the default manager filters it out). This kind of problem only shows up in tests, which is why <code>executions</code> has a dedicated <code>test_results.py</code>.</p>
+
+<h2>RBAC: 27 permissions and a union of two role scopes</h2>
+
+<p>The full permission set is a list, used both as seed data and as a validation whitelist:</p>
+
+<pre><code>PERMISSION_CODENAMES = [
+    "project.read", "project.create", "project.update", "project.delete",
+    "requirement.read", "requirement.create", "requirement.update", "requirement.delete",
+    "testcase.read", "testcase.create", "testcase.update", "testcase.delete",
+    "testcase.execute", "testcase.review",
+    "testplan.read", "testplan.create", "testplan.update", "testplan.delete", "testplan.execute",
+    "defect.read", "defect.create", "defect.update", "defect.delete",
+    "report.read",
+    "user.manage", "role.manage", "audit.read",
+]
+</code></pre>
+
+<p>That is 27. Five system roles (admin / pm / qa / dev / viewer) are different subsets of it.</p>
+
+<p>The interesting part is resolution. A user's permissions in a project are the union of project-role permissions and organization-role permissions:</p>
+
+<pre><code>def permissions_for_user(user, project) -&gt; set[str]:
+    """Permissions in a project = project role permissions ∪ organization role permissions.
+
+    v0.1 does not cache: membership/role changes must take effect immediately
+    (a cache without invalidation causes a 60s permission lag).
+    """
+    ...
+    role_ids: set[int] = set()
+    if project is not None:
+        role_ids.update(project.members.filter(user=user).values_list("role_id", flat=True))
+        role_ids.update(project.organization.members.filter(user=user).values_list("role_id", flat=True))
+    return _role_permissions(role_ids)
+</code></pre>
+
+<p>The comment captures a real trade-off: <strong>a cache without invalidation delays revocation by 60 seconds</strong>. A revoked test engineer can still delete cases for a minute after revocation, and that is unacceptable from an audit standpoint. Two extra queries per request is the cheaper price.</p>
+
+<p>Permission checks hang off a view base class, mapped by HTTP method, instead of an <code>if</code> in every view:</p>
+
+<pre><code>class ProjectApiView(APIView):
+    """Project-scoped view base that maps permission codes by HTTP method."""
+
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    method_permissions: dict = {}
+
+    @property
+    def permission_codename(self):
+        return self.method_permissions.get(self.request.method, "")
+</code></pre>
+
+<p>Views then collapse to one dictionary:</p>
+
+<pre><code>class TestRunResultListCreateView(RunObjectMixin, ProjectApiView):
+    method_permissions = {"GET": "testplan.read", "POST": "testcase.execute"}
+</code></pre>
+
+<p>GET needs plan-read, POST needs case-execute — two permissions for two methods on one URL, without writing two classes.</p>
+
+<p>One more thing is easy to miss: how the project is resolved. Some views read <code>project_id</code> from the URL, some reverse it from an object (<code>result.test_run.project</code>), some override <code>get_project()</code>. The base class unifies all three with a cache and a fallback:</p>
+
+<pre><code>cached = getattr(request, "_nano_project", None)
+if cached is not None:
+    return cached
+...
+request._nano_project = project
+</code></pre>
+
+<p>Without the cache the same project would be queried three times per request: permission check, business logic, audit.</p>
+
+<h2>Audit: commit in the same transaction as the business write</h2>
+
+<p>The most common way to get auditing wrong is to record it asynchronously. The business write succeeds, the audit write fails, and now there is a change in the database with no evidence.</p>
+
+<p>So the rule is: audit calls must live inside the same <code>transaction.atomic()</code> as the business write. Creating a case looks like this:</p>
+
+<pre><code>def create_case(project, data: dict, user, request=None) -&gt; TestCase:
+    """Create a case: key + case + v1 version + audit in one transaction."""
+    with transaction.atomic():
+        case = TestCase.objects.create(...)
+        create_version(case, version=1, ...)
+        set_tags(case, data.get("tag_ids"))
+        AuditService.record(
+            "create", case, request=request, user=user,
+            new_data=_audit_snapshot(case, [...], data["steps"], data.get("expected_result") or ""),
+        )
+    return case
+</code></pre>
+
+<p>The audit stores a <strong>field-level diff</strong>, not a full row snapshot. On update, take an old snapshot, apply changes, take a new snapshot, and keep only the differences:</p>
+
+<pre><code>old_diff, new_diff = model_diff(old_snapshot, new_snapshot)
+AuditService.record(
+    "update", case, request=request, user=user,
+    old_data=old_diff or None, new_data=new_diff or None,
+)
+</code></pre>
+
+<p><code>old_data or None</code> also has a purpose: no differences stores <code>null</code> rather than an empty dict. Otherwise "changed but nothing actually differed" and "clicked save" are indistinguishable when you query later.</p>
+
+<p>An audit row records a dozen fields: <code>organization / project / user / action / object_type / object_id / object_ref / old_data / new_data / ip_address / user_agent / request_id</code>. There is also an adapter that papers over dirty input:</p>
+
+<pre><code>def record_audit(action, obj, request=None, **kwargs):
+    """Audit adapter: fill an empty string when the request has no User-Agent
+    (common/utils.user_agent returns None, but AuditLog.user_agent is non-null).
+    Recommend fixing it in common/utils.py later."""
+</code></pre>
+
+<p>That kind of "patch at the call site and write down where to fix it properly" comment is far better than a silent <code>or ""</code>.</p>
+
+<p>The defect status timeline is derived from the audit log rather than a separate event table:</p>
+
+<pre><code>def defect_timeline(defect: Defect) -&gt; list[dict]:
+    """Status timeline: from AuditLog(object_type="defect"), ascending by time."""
+    logs = (
+        AuditLog.objects.filter(object_type="defect", object_id=defect.pk)
+        .select_related("user")
+        .order_by("created_at", "id")
+    )
+</code></pre>
+
+<p>The second field in <code>order_by("created_at", "id")</code> is not decoration. Two audit rows can land in the same millisecond, and sorting by time alone is unstable. Adding the auto-increment key guarantees a strictly monotonic timeline.</p>
+
+<h2>Failures become defects: four tables in one transaction</h2>
+
+<p>Creating a defect from an execution result is the tightest link in the quality loop. It writes four tables at once: the defect itself, result↔defect, case↔defect, and the audit row. They must live and die together:</p>
+
+<pre><code>def create_defect_from_result(request, result: TestResult, data: dict) -&gt; Defect:
+    run = result.test_run
+    case = result.test_case
+    description = data.get("description") or _default_description(result)
+    ...
+    with transaction.atomic():
+        defect = Defect.objects.create(
+            organization=run.organization,
+            project=run.project,
+            key=next_key(run.project, "BUG"),
+            title=(data.get("title") or f"[failed] {case.case_key} {case.title}")[:255],
+            ...
+        )
+        TestResultDefect.objects.create(test_result=result, defect=defect)
+        TestCaseDefect.objects.create(test_case=case, defect=defect)
+        AuditService.record("create", defect, request=request, old_data=None, new_data={...})
+    return defect
+</code></pre>
+
+<p>Note <code>next_key(run.project, "BUG")</code> is taken inside the transaction, matching the row-lock section above. Taking the key outside the transaction would leave a gap in the sequence when the transaction rolls back.</p>
+
+<p>The default description is assembled from the version snapshot, not the current case:</p>
+
+<pre><code>def _default_description(result: TestResult) -&gt; str:
+    run = result.test_run
+    version = result.test_case_version
+    lines = [
+        f"case: {result.test_case.case_key} {version.title}",
+        f"run: {run.name} (env {run.environment or '-'} / build {run.build_version or '-'})",
+        "",
+    ]
+    if version.precondition:
+        lines += ["Precondition:", version.precondition, ""]
+    lines.append("Steps:")
+    for step in sorted(version.steps or [], key=lambda item: item.get("order", 0)):
+        lines.append(f"{step.get('order', '')}. {step.get('action', '')}")
+        if step.get("expected"):
+            lines.append(f"   expected: {step['expected']}")
+</code></pre>
+
+<p>So the defect report carries the steps as they were at the time, and a developer can reproduce from the ticket without digging through version history. The <code>sorted(..., key=order)</code> is there because <code>steps</code> is a JSONB array with no database-level ordering guarantee.</p>
+
+<p>The API layer also leaves a gentle warning: a non-failed result can still produce a defect, but it returns a warning:</p>
+
+<pre><code>warning = None
+if result.status != "failed":
+    warning = f"current result status is {result.status}, not a failure; the defect was still created and linked"
+</code></pre>
+
+<p>It deliberately does not block. Real teams do mark a case passed and then discover a problem manually; blocking would just push people to work around the process.</p>
+
+<h2>Import and export: dry_run first, then commit</h2>
+
+<p>Migrating off Excel is a mandatory gate for this category, and the easiest place to do it badly: a user uploads 500 rows, row 300 fails, and the first 299 are already in the database.</p>
+
+<p>NanoQA runs the same validation twice, with <code>dry_run</code> deciding whether to write:</p>
+
+<pre><code>Import follows §61 strictly: upload -&gt; field mapping -&gt; data preview -&gt; error check -&gt; confirm.
+Preview (dry_run=True) only parses and validates without writing; confirm
+(dry_run=False) reuses the same validation, bulk-inserts valid rows (case + v1 version
+snapshot + increasing key), skips invalid rows and reports them one by one.
+</code></pre>
+
+<p>"Reuses the same validation" is the point. If preview validates loosely and import validates strictly, users see "preview all green, import all red". One code path means the preview is a promise.</p>
+
+<p>Export columns are data, not code, and their order is the header order:</p>
+
+<pre><code>EXPORT_COLUMNS = [
+    ("case_key", "Case key"),
+    ("title", "Title"),
+    ("module_path", "Module path"),
+    ("priority", "Priority"),
+    ("case_type", "Type"),
+    ("status", "Status"),
+    ("precondition", "Precondition"),
+    ("steps", "Steps"),
+    ("expected_result", "Expected result"),
+    ("tags", "Tags"),
+    ("owner", "Owner"),
+]
+</code></pre>
+
+<p>Steps export as readable text that <code>parse_steps</code> can read back, so the exported file is itself a valid import template. That one property makes "export → edit → import" a usable bulk-edit path.</p>
+
+<p>Limits are enforced in the service layer, not just hinted in the UI: <code>MAX_FILE_SIZE = 10 * 1024 * 1024</code> and <code>ALLOWED_EXTENSIONS = {"csv", "xlsx"}</code>. Frontend limits are UX; backend limits are boundaries.</p>
+
+<h2>Search: treating the q parameter as a query language</h2>
+
+<p>The list page exposes a <code>q</code> parameter that accepts key/value pairs:</p>
+
+<pre><code>q syntax: \`priority:P0 status:active module:login tag:smoke automation:automated\`.
+Tokens are ANDed. Invalid tokens (unknown key / invalid value / empty value) degrade to
+plain text.
+</code></pre>
+
+<p>"Invalid tokens degrade to plain text" is a pragmatic decision. A user typing <code>login:timeout</code> probably wants to search for content containing those two words, not to be interrupted by an error dialog. Lenient parsing beats strict rejection in a search box.</p>
+
+<p>Values are validated against whitelists and only converted into filters on a hit:</p>
+
+<pre><code>PRIORITY_VALUES = {"p0": "P0", "p1": "P1", "p2": "P2", "p3": "P3"}
+STATUS_VALUES = {"draft", "active", "deprecated", "archived"}
+...
+if key == "priority" and value.lower() in PRIORITY_VALUES:
+    result.priority.append(PRIORITY_VALUES[value.lower()])
+elif key == "status" and value.lower() in STATUS_VALUES:
+    result.status.append(value.lower())
+...
+else:
+    result.text.append(raw)
+</code></pre>
+
+<p>Text search must reach the current version's expected result, which does not live in the main table. It uses a subquery rather than a JOIN, avoiding row multiplication from one-to-many:</p>
+
+<pre><code>def _text_q(term: str) -&gt; Q:
+    matched = TestCaseVersion.objects.filter(
+        test_case=OuterRef("pk"),
+        version=OuterRef("current_version"),
+        expected_result__icontains=term,
+    ).values("test_case_id")
+    q = Q(pk__in=Subquery(matched))
+    for name in TEXT_FIELDS:
+        q |= Q(**{f"{name}__icontains": term})
+    return q
+</code></pre>
+
+<p>A final <code>queryset.distinct()</code> cleans up duplicates produced by many-to-many filters like <code>tags__name__icontains</code>.</p>
+
+<p>The module tree has one more layer: checking "include submodules" requires recursively collecting all descendants. It uses breadth-first traversal rather than a recursive function, so deep trees cannot blow the stack:</p>
+
+<pre><code>ids = [module_id]
+if include_descendants:
+    frontier = [module_id]
+    while frontier:
+        children = list(Module.objects.filter(project=project, parent_id__in=frontier).values_list("id", flat=True))
+        new_ids = [child_id for child_id in children if child_id not in ids]
+        ids.extend(new_ids)
+        frontier = new_ids
+</code></pre>
+
+<p><code>child_id not in ids</code> is an O(n) membership test on a list, which should be a set. But each level holds only a handful of elements and it has never shown up in profiling. Leaving a known-but-not-worth-fixing trade-off visible beats pretending it is not there.</p>
+
+<h2>Routing: how project context reaches every page</h2>
+
+<p>The easiest thing to get wrong in a multi-project system is the URL. If routes were <code>/testcases</code>, "which project am I in" would live only in a global store — lost on refresh, wrong when shared.</p>
+
+<p>NanoQA puts the project in the second path segment:</p>
+
+<pre><code>{
+  path: '/p/:projectId',
+  component: () =&gt; import('@/layouts/AppLayout.vue'),
+  children: [
+    { path: '', redirect: { name: 'project-overview' } },
+    { path: 'overview', name: 'project-overview', ... },
+    { path: 'testcases', name: 'testcases', ... },
+    { path: 'testcases/:caseId', name: 'testcase-detail', ... },
+    ...
+  ],
+}
+</code></pre>
+
+<p>So <code>/p/7/testcases/42</code> is a complete context by itself: case 42 in project 7. Refresh-safe, shareable, correct with browser back and forward. That looks like a routing trick but actually determines how backend permission checks work — <code>resolve_project</code> can read <code>view.kwargs["project_id"]</code> directly and never trust a client-supplied project header.</p>
+
+<p>The top of the router file records that the shape was fixed early:</p>
+
+<pre><code>/**
+ * Route table (fixed upfront): later phases only implement views, this file's
+ * structure does not change.
+ */
+</code></pre>
+
+<p>That decision is valuable in team work. The route structure is the skeleton everyone shares; changing it mid-flight forces every in-progress branch to follow. Fixing it first lets pages be developed in parallel by name, shrinking the conflict surface from "the router file" to "each view".</p>
+
+<p>The guard does exactly two things: redirect to login without a token, and fetch the user once if a token exists but the user is not loaded:</p>
+
+<pre><code>router.beforeEach(async (to) =&gt; {
+  if (to.meta.public) return true
+  const auth = useAuthStore()
+  if (!tokenStore.access) {
+    return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  if (!auth.loaded) {
+    try {
+      await auth.fetchMe()
+    } catch {
+      tokenStore.clear()
+      return { name: 'login', query: { redirect: to.fullPath } }
+    }
+  }
+  return true
+})
+</code></pre>
+
+<p>Note the <code>!auth.loaded</code> prefix check. Clicking through ten pages in one project triggers <code>fetchMe</code> once; returning in a new tab, where the store was rebuilt, triggers it again — the only place that confirms the token is still valid.</p>
+
+<p>The <code>redirect</code> parameter is also handled correctly: after login you return to the page you wanted, instead of always landing on the home page. Small detail, but without it every deep link becomes "click, get bounced to login, land on home, find your way back".</p>
+
+<p>The guard does <strong>not</strong> check permissions. That is deliberate, as the RBAC section said: a frontend guard stops mistakes, not API calls. So the frontend only answers "am I logged in". Whether a specific button is clickable comes from the permission set returned by <code>/auth/me</code> — and that is presentation only. The real decision lives in <code>HasProjectPermission</code> on the backend.</p>
+
+<p>Page titles are set once in <code>afterEach</code>:</p>
+
+<pre><code>router.afterEach((to) =&gt; {
+  const title = to.meta.title as string | undefined
+  document.title = title ? \`\${title} · NanoQA\` : 'NanoQA'
+})
+</code></pre>
+
+<p>Using <code>meta.title</code> instead of setting <code>document.title</code> in each component means the title changes in the same frame as the navigation, and history entries are correct.</p>
+
+<h2>How the 232 tests are organized</h2>
+
+<p>That number has come up repeatedly. It is not one loud integration test; it is split by domain, each domain testing its own concern.</p>
+
+<p>The directory structure is the test strategy:</p>
+
+<pre><code>backend/apps/testcases/tests/
+  test_create.py        create: key + v1 version + audit in one transaction
+  test_update.py        update: optimistic lock / version only on content change
+  test_search.py        q parsing, invalid-token fallback, module recursion
+  test_import_export.py preview and import share one validation path
+backend/apps/executions/tests/
+  test_results.py       pre-created not_run, overwrite submit, version binding
+backend/apps/defects/tests/
+  test_api.py           state machine, timestamps, archive permission
+  test_links.py         link/unlink and audit
+backend/apps/testplans/tests/test_plans.py
+backend/apps/requirements/tests/test_api.py
+backend/apps/attachments/tests/test_attachments.py
+backend/apps/reports/tests/test_run_report.py
+</code></pre>
+
+<p>Two of them are worth calling out, because they test things that are easy to do correctly and very hard to notice when done wrong.</p>
+
+<p>The first is updating a case. It has to verify four things at once: optimistic locking fails against a stale <code>updated_at</code>; no version bump when content is unchanged; a version bump when content changed; and both the full text and the diff land in the audit. If it only tested "read it back after saving", three of those four could pass while the broken one (say, unconditional version bumps) surfaces three months later as "why is this case on version 40".</p>
+
+<p>The second is concurrent key allocation. It must use <code>TransactionTestCase</code>, because you need real commits to observe row-lock behavior. And that is precisely where the <code>flush()</code> truncating seed data problem lives — hence the README FAQ entry and the self-healing test base. This class of "the test framework itself polluted the test" problem is harder to debug than a business bug, because the error points at <code>Role.DoesNotExist</code> and has nothing to do with key allocation.</p>
+
+<p>There is one more detail: <code>serialized_rollback</code>. It restores initial data after a <code>TransactionTestCase</code> flush, at the cost of speed, in exchange for "concurrent tests do not depend on execution order". Order dependence is the most expensive kind of debt in a test suite: it turns an unrelated change into a string of random failures.</p>
+
+<h2>Why export carries a module path</h2>
+
+<p>Import/export is easy to build as "if the columns line up, it works". But in real migrations the user's spreadsheet usually looks like this:</p>
+
+<pre><code>Case key | Title | Module path | Priority | Steps | Expected | Tags | Owner
+</code></pre>
+
+<p>Note <strong>module path</strong>, not module ID. People write "Login / Verification / SMS" in Excel, not <code>module_id=17</code>. So the import service must resolve the path back to a tree node, and decide whether to auto-create or report an error when the path does not exist.</p>
+
+<p>That means import is not just field mapping; it is a tree resolution pass. And export must emit the same path format, or "export, tweak, import" is broken. Export's <code>module_path</code> column is therefore not a convenience field — it is part of the round-trip contract.</p>
+
+<p><code>EXPORT_COLUMNS</code> order is the header order, and column widths are declared separately:</p>
+
+<pre><code>COLUMN_WIDTHS = {
+    "Case key": 18, "Title": 40, "Module path": 28, "Priority": 8, "Type": 10, "Status": 8,
+    "Precondition": 30, "Steps": 60, "Expected result": 30, "Tags": 22, "Owner": 12,
+}
+</code></pre>
+
+<p>Why does something as cosmetic as column width live on the backend? Because the XLSX is generated there. Computing widths on the frontend would duplicate the export logic into the browser, and browser XLSX libraries do not behave identically to Python's <code>openpyxl</code>. <strong>Whoever generates the file owns making it readable.</strong></p>
+
+<p>Step encoding deserves a mention too. It exports as readable text that <code>parse_steps</code> can read back. That looks like bilateral adaptation, but it is really defining a micro-format: readable and hand-editable in Excel, yet unambiguously machine-parseable. Formats like this are hard to change once set, because users already hold exported files.</p>
+
+<p>Finally, the two limits:</p>
+
+<pre><code>MAX_FILE_SIZE = 10 * 1024 * 1024  # matches the frontend: 10MB
+ALLOWED_EXTENSIONS = {"csv", "xlsx"}
+</code></pre>
+
+<p>The comment "matches the frontend" is the only synchronization mechanism. If the backend ever moves to 20MB while the frontend stays at 10MB, users see the odd situation where the frontend blocks a file the backend would happily accept. Inconsistencies like that never error; they just quietly erode trust.</p>
+
+<h2>The command palette: one search entry across modules</h2>
+
+<p><code>Ctrl+K</code> opens a palette that searches four kinds of objects at once: pages, projects, cases and defects. It looks like a frontend feature, but the hard part is on the backend: <strong>the four search costs differ by two orders of magnitude</strong>.</p>
+
+<ul>
+<li>Pages: a static frontend list, zero requests.</li>
+<li>Projects: one light query, dozens of rows.</li>
+<li>Defects: filtered by project, usually hundreds of rows.</li>
+<li>Cases: potentially thousands, and must search title and key.</li>
+</ul>
+
+<p>If all four used the same "request on every keystroke" strategy, each character would fire four requests including one heavy query. So the frontend debounces, and the backend exposes a separate lightweight endpoint per type — instead of one universal search endpoint.</p>
+
+<p>That is a different trade-off from the <code>q</code> grammar in the search section. The list page's <code>q</code> is a full filtering language, good for "find every P0 case whose automation status is partial". The palette is fuzzy navigation, good for "I remember the title had 'refund' in it". The former allows complexity but must not run per keystroke; the latter is simple but must be fast.</p>
+
+<p>Both entries share one query service, just with different parameters. That "one backend capability, two frontend entries" structure is far easier to maintain than writing a separate query path for the palette — because there is only one place to fix a bug.</p>
+
+<h2>Response envelope: what one code field carries</h2>
+
+<p>Every endpoint returns the same envelope rather than raw data:</p>
+
+<pre><code>/**
+ * NanoQA API client
+ * - Unified envelope: { code, message, data }, success only when code === 0
+ * - 401/40002: single-flight token refresh, then replay the original request
+ * - 40003: optimistic lock conflict, show a unified confirmation dialog
+ */
+export interface ApiEnvelope&lt;T = unknown&gt; {
+  code: number
+  message: string
+  data: T
+}
+</code></pre>
+
+<p>Only <code>code === 0</code> counts as success. That looks redundant with HTTP status codes, but they serve different consumers: HTTP status is for middleboxes (caching, retries, monitoring), <code>code</code> is for the business layer (which error class, whether to show a dialog, whether to refresh a token).</p>
+
+<p>The exception layer defines a full table of business codes:</p>
+
+<pre><code># business error codes
+CODE_SUCCESS = 0
+CODE_PERMISSION_DENIED = 40001
+CODE_UNAUTHENTICATED = 40002
+CODE_CONFLICT = 40003          # optimistic lock conflict
+CODE_INVALID_TRANSITION = 40004  # illegal state transition
+CODE_NOT_FOUND = 40005
+CODE_VALIDATION_ERROR = 40006
+CODE_BUSINESS_CONFLICT = 40007  # business rule conflict (e.g. module still has cases)
+CODE_SERVER_ERROR = 50000
+</code></pre>
+
+<p>The frontend reacts differently to each. <code>40002</code> refreshes the token and replays, and must guarantee only one refresh happens even with concurrent requests:</p>
+
+<pre><code>/** Endpoints excluded from auto-refresh (otherwise infinite loop) */
+const NO_REFRESH_PATHS = ['/auth/login/', '/auth/refresh/', '/auth/logout/']
+</code></pre>
+
+<p>That line prevents the classic loop: the refresh request itself returns 40002, triggering another refresh, recursively forever. The blacklist is necessary, not pedantry.</p>
+
+<p><code>40003</code> shows a unified confirmation dialog letting the user choose "refresh to the latest" or "discard my changes". That interaction detail matters — half the value of optimistic locking lives here. If the server detects a conflict and the frontend only says "save failed", the experience is no different from silent overwriting.</p>
+
+<p><code>40004</code> and <code>40007</code> display the backend message directly, because it already states the reason precisely — "cannot move from draft to archived", or "module still has cases, cannot delete". Reassembling that in the frontend would only make it worse.</p>
+
+<p>The exception layer also translates standard DRF exceptions into business codes, so the frontend only needs to know one set:</p>
+
+<pre><code>if isinstance(exc, (NotAuthenticated, AuthenticationFailed)):
+    code, message = CODE_UNAUTHENTICATED, "not authenticated or session expired"
+elif isinstance(exc, PermissionDenied):
+    code, message = CODE_PERMISSION_DENIED, "permission denied"
+elif isinstance(exc, NotFound):
+    code, message = CODE_NOT_FOUND, "resource not found"
+elif isinstance(exc, ValidationError):
+    code, message = CODE_VALIDATION_ERROR, _format_validation_error(response.data)
+</code></pre>
+
+<p><code>_format_validation_error</code> is worth a look too; it flattens DRF's nested validation dictionaries into one readable sentence:</p>
+
+<pre><code>def _format_validation_error(data) -&gt; str:
+    if isinstance(data, dict):
+        if "detail" in data and isinstance(data["detail"], str):
+            return data["detail"]
+        parts = []
+        for key, value in data.items():
+            parts.append(f"{key}: {value[0] if isinstance(value, list) and value else value}")
+        return "；".join(parts) if parts else "validation failed"
+</code></pre>
+
+<p>So the frontend never has to write "pull the first item out of <code>{'title': [ErrorDetail(...)]}</code>". Every <code>message</code> in the envelope is a sentence you can show a user. Unhandled exceptions carry a <code>request_id</code> too:</p>
+
+<pre><code>logger.exception("unhandled error, request_id=%s", request_id)
+return Response(
+    envelope(CODE_SERVER_ERROR, "internal server error", {"request_id": request_id}),
+    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+)
+</code></pre>
+
+<p>When a user sees "internal server error", that <code>request_id</code> on screen is the only lead. Putting it in the response body is far more useful than only logging it — otherwise the user sends a screenshot and you still cannot find the request.</p>
+
+<h2>The UI/backend contract: the version snapshot component</h2>
+
+<p>The backend has pinned down "historical results bind a version". The frontend must surface that explicitly, or users will not understand why a report title differs from the case they just saw.</p>
+
+<p><code>CaseSnapshot.vue</code> is that contract made visible. Its first line of comment is the conclusion:</p>
+
+<pre><code>&lt;!-- Version snapshot marker: results bind the case version at execution time --&gt;
+&lt;div class="snapshot-head"&gt;
+  &lt;span class="version-badge"&gt;version snapshot v{{ snapshot?.version ?? '—' }}&lt;/span&gt;
+  &lt;span v-if="snapshot?.change_summary" class="change-summary"&gt;{{ snapshot.change_summary }}&lt;/span&gt;
+&lt;/div&gt;
+</code></pre>
+
+<p>The component takes three props, two of which can be <code>null</code>:</p>
+
+<pre><code>defineProps&lt;{
+  snapshot: VersionSnapshot | null
+  loading: boolean
+  /** Current result (shows the last execution result and comments) */
+  result: RunResult | null
+}&gt;()
+</code></pre>
+
+<p><code>result: RunResult | null</code> is not arbitrary. It represents "the execution result for this run" — which may not exist yet, so it must be nullable. Nullable <code>snapshot</code> covers a different reality: an archived version, or a temporarily failing request, must degrade into an explicit empty state rather than a blank screen:</p>
+
+<pre><code>&lt;div v-else-if="!snapshot" class="state-line"&gt;Version snapshot unavailable, please refresh&lt;/div&gt;
+</code></pre>
+
+<p>The three regions map to their data sources: the snapshot block (from <code>TestCaseVersion</code>), the steps table (<code>snapshot.steps</code>), and the last-result block (from <code>TestResult</code>). The first two never change; the third updates after every execution. Showing "the case as it was" and "this execution" on one page is the single most important UI convention in the system.</p>
+
+<p>The steps table renders <code>order / action / expected</code> directly:</p>
+
+<pre><code>&lt;el-table :data="snapshot.steps" size="small" class="steps-table"&gt;
+  &lt;el-table-column label="#" width="64" align="center"&gt;
+    &lt;template #default="{ row }"&gt;&lt;span class="mono"&gt;{{ row.order }}&lt;/span&gt;&lt;/template&gt;
+  &lt;/el-table-column&gt;
+  &lt;el-table-column label="Action" min-width="240"&gt;...
+</code></pre>
+
+<p><code>row.order</code> uses the backend value rather than the array index. Because <code>steps</code> is JSONB, order is not guaranteed — the same constraint shows up in the defect description's <code>sorted(..., key=order)</code>. The same constraint is reminded twice by the same data source.</p>
+
+<h2>AI: an offline mock is still acceptance-testable</h2>
+
+<p>The project description says "AI native", but the AI layer is currently an offline mock:</p>
+
+<pre><code>class MockLLMProvider(BaseLLMProvider):
+    """Offline mock: rule-based structured JSON generation, so the whole flow is
+    acceptance-testable without a network."""
+</code></pre>
+
+<p>That choice is correct engineering, and the reason is in the class comment: <strong>the whole flow stays acceptance-testable offline</strong>. AI features are the easiest to build as "impressive in a demo, skipped in tests". Abstracting a Provider interface and implementing the mock with rules means:</p>
+
+<ul>
+<li>CI needs no API key, and all five AI-related test files still run;</li>
+<li>the frontend can develop the entire "generate → review → accept" flow without a gateway;</li>
+<li>swapping in a real gateway only changes what <code>get_provider()</code> returns.</li>
+</ul>
+
+<p>Generation is table-driven, not random text:</p>
+
+<pre><code>scenarios = [
+    ("happy path", "P1", "functional"),
+    ("required parameter validation", "P1", "functional"),
+    ("invalid input handling", "P2", "functional"),
+    ("duplicate submission protection", "P2", "functional"),
+]
+if context.get("include_edge_cases"):
+    scenarios.append(("boundary values", "P1", "functional"))
+if context.get("include_security"):
+    scenarios.append(("unauthorized access blocked", "P1", "security"))
+</code></pre>
+
+<p>Review is rule-based scoring too, and each deduction maps to a real case-quality problem:</p>
+
+<pre><code>if len(steps) &lt; 2:
+    score -= 25
+    issues.append({"severity": "high", "message": "fewer than 2 steps, insufficient coverage"})
+...
+if not str(context.get("expected_result") or "").strip():
+    score -= 15
+    issues.append({"severity": "high", "message": "missing expected result, no pass criteria"})
+</code></pre>
+
+<p>It does not pretend to be clever; it performs deterministic checks. Trust in this kind of capability is actually higher, because every deduction can be explained.</p>
+
+<p><code>OpenAICompatibleProvider</code>, however, is only a stub today:</p>
+
+<pre><code>def complete(self, prompt: str, schema: dict | None = None) -&gt; dict:
+    if not self.api_key:
+        raise NanoAPIError("LLM provider not configured")
+    raise NanoAPIError("LLM gateway integration lands in v0.2")
+</code></pre>
+
+<p>It raises even when a key exists, instead of silently falling back to the mock. That avoids the worst case: "I configured a key but keep getting mock output".</p>
+
+<h2>Measured: 232 tests and the performance baseline</h2>
+
+<p>The backend test count is not a feeling:</p>
+
+<pre><code>232 tests covering cases / versions / plans / execution / defects / requirements /
+import-export / concurrent key allocation / state machines / permissions, all passing.
+</code></pre>
+
+<p>Five endpoints' P95 baselines are in the README, with a script that reproduces them (auto-build a 1,000-case fixture, sample, and verdict):</p>
+
+<pre><code>case list (page size 20)   188 ms   &lt; 500 ms   pass
+case search                 98 ms   &lt; 500 ms   pass
+dashboard                  186 ms   &lt; 1 s      pass
+run report aggregation     171 ms   &lt; 500 ms   pass
+defect list (page size 20)  65 ms   &lt; 500 ms   pass
+</code></pre>
+
+<p>The 171 ms behind report aggregation is a set of single-query aggregations, not a Python loop:</p>
+
+<pre><code>rows = (
+    results.values("test_case__module_id", "test_case__module__name")
+    .annotate(
+        total=Count("id"),
+        passed=Count("id", filter=Q(status="passed")),
+        not_run=Count("id", filter=Q(status="not_run")),
+    )
+    .order_by("-total", "test_case__module_id")
+)
+</code></pre>
+
+<p><code>Count(filter=Q(...))</code> is Django's conditional aggregation, which generates <code>COUNT(*) FILTER (WHERE ...)</code>. Three counts finish in one scan instead of three.</p>
+
+<p>The pass-rate definition is pinned in a comment, so frontend and backend do not each compute their own:</p>
+
+<pre><code>Definition: pass_rate = passed / executed (not_run is not in the denominator,
+matching the dashboard).
+</code></pre>
+
+<p><code>executed = total - not_run</code>. If the denominator were <code>total</code>, a fresh run with nothing executed would show 0%. With <code>executed</code>, a zero denominator returns 0.0, which reads far more clearly:</p>
+
+<pre><code>def _ratio(numerator: int, denominator: int) -&gt; float:
+    return round(numerator / denominator, 4) if denominator else 0.0
+</code></pre>
+
+<h2>The O(n²) truth about duplicate detection</h2>
+
+<p><code>find_duplicates</code> is the one place in this system where complexity gets away. It runs <code>difflib.SequenceMatcher</code> over "title + steps" for every pair of cases:</p>
+
+<pre><code>def find_duplicates(project) -&gt; list[dict]:
+    """Returns [{case_a, case_b, similarity}], only above threshold, descending,
+    capped at 50 pairs."""
+    texts = _case_texts(project)
+    pairs = []
+    for i in range(len(texts)):
+        for j in range(i + 1, len(texts)):
+            similarity = SequenceMatcher(None, texts[i][1], texts[j][1]).ratio()
+            if similarity &gt;= SIMILARITY_THRESHOLD:
+                pairs.append({...})
+</code></pre>
+
+<p>Threshold 0.6, output capped at 50 pairs. The pair cap hides the scan cost — the cap is 50, but the <strong>number of comparisons</strong> is <code>n(n-1)/2</code>.</p>
+
+<p>I lifted that loop (with the same text assembly) into a standalone bench and ran it at realistic sizes:</p>
+
+<pre><code>  cases  comparisons    seconds   ms/1k cmp  pairs&gt;=0.6
+    100        4,950      0.682     137.822          50
+    200       19,900      3.887     195.305          50
+    400       79,800     18.314     229.495          50
+    800      319,600     55.534     173.760          50
+
+quadratic growth check:
+    100 -&gt;   200 cases: 4.02x comparisons, 5.70x time
+    200 -&gt;   400 cases: 4.01x comparisons, 4.71x time
+    400 -&gt;   800 cases: 4.01x comparisons, 3.03x time
+</code></pre>
+
+<p>Comparisons grow at exactly 4x per doubling — the definition of quadratic. Time growth is noisier (3.03x to 5.70x), because <code>SequenceMatcher</code> cost depends on string length and shared-substring length, and the random fixture's similarity distribution is not uniform.</p>
+
+<p>Extrapolating linearly from the 400/800 points:</p>
+
+<pre><code>   1600 cases:    1,279,200 comparisons ~=   198.5 s
+   2000 cases:    1,999,000 comparisons ~=   310.3 s
+   5000 cases:   12,497,500 comparisons ~=  1939.8 s
+</code></pre>
+
+<p>I tried 1,600 cases first and the command ran past five minutes without finishing, so I capped the sweep at 800 and extrapolated. The timeout is itself the conclusion: <strong>clicking "find duplicates" once in a 2,000-case project hangs the request for five minutes.</strong></p>
+
+<p>This is not an implementation bug; it is an algorithm choice. Making it work needs at least one of three changes: bucket by module or tag first (compare only within buckets), build an inverted index on titles to recall candidates (compare only lexically overlapping pairs), or move the whole thing to a background task with persisted results. The <code>ai</code> module already has an <code>AITask</code> model and a task queue sketch; what is missing is wiring duplicate detection into it.</p>
+
+<h2>Five tables carry the whole loop</h2>
+
+<p>The ER diagram is nice, but what actually decides whether the system works is a handful of columns. Walking them in order is the fastest way to see why this schema survives real use.</p>
+
+<p><strong><code>TestCase.case_key</code></strong> is unique across the entire installation, not per project. That means <code>SHOP-TC-000001</code> and <code>PAY-TC-000001</code> coexist, because the project key is part of the string. A single per-project counter can therefore be used without collisions, and a case can be referenced in a commit message, a Slack thread, or a defect title with one unambiguous token.</p>
+
+<p><strong><code>TestCase.current_version</code></strong> is the only mutable pointer in the content model. Everything else about a case is either an attribute of the case (priority, owner, tags) or immutable history in <code>TestCaseVersion</code>. When someone asks "what did this case look like on the day we shipped", the answer is a single indexed lookup: <code>versions.get(test_case=case, version=N)</code>.</p>
+
+<p><strong><code>TestResult.test_case_version</code></strong> is a <code>PROTECT</code> foreign key, not <code>CASCADE</code>. That is deliberate. If someone tries to delete a version that a historical result depends on, the database refuses. Deleting history is exactly the operation you want to fail loudly rather than silently succeed.</p>
+
+<p><strong><code>TestResult</code> has <code>unique_together = [("test_run", "test_case")]</code></strong>. This is what makes the "pre-create not_run, then overwrite on submit" model safe. Submitting the same case twice in one run cannot create a duplicate row; the second write hits the existing one. Without that constraint, the pre-create model would produce phantom denominators after a retry.</p>
+
+<p><strong><code>NumberSequence(project, entity)</code></strong> is one row per project per entity type. Six entities mean six rows per project, all updated under a row lock. The table is tiny, and that is the point: a naming sequence should never be a hot spot for reads, only a serialized write.</p>
+
+<p>Five columns, five decisions. None of them are clever in isolation. Together they mean that "what happened" is always recoverable from the database alone, without replaying application logs.</p>
+
+<h2>Concurrency, in checklist form</h2>
+
+<p>Concurrency bugs in this category are rarely exotic. They are the same six situations, and the value of the implementation is that each one has a named answer:</p>
+
+<table>
+<thead><tr><th>Situation</th><th>Answer</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td>Two people edit the same case</td><td>Optimistic lock, 409 with 40003</td><td><code>save_with_lock</code></td></tr>
+<tr><td>Two people create a case at once</td><td><code>select_for_update</code> on the sequence row</td><td><code>next_key</code></td></tr>
+<tr><td>Same case submitted twice in one run</td><td><code>unique_together (test_run, test_case)</code></td><td>schema</td></tr>
+<tr><td>Same case submitted twice in one request</td><td>Bulk submit wraps the loop in one transaction</td><td><code>submit_results_bulk</code></td></tr>
+<tr><td>Role revoked mid-session</td><td>No permission cache, recomputed per request</td><td><code>permissions_for_user</code></td></tr>
+<tr><td>Business write vs audit write</td><td>Single transaction, audit inside it</td><td>every service</td></tr>
+</tbody>
+</table>
+
+<p>Two of those deserve a note. Bulk submit wrapping the loop in one transaction is a real decision, not a formality: if item seven fails validation, items one through six must not persist. The audit-inside-the-transaction rule is the same reasoning applied to evidence rather than data.</p>
+
+<p>What is notably absent from that table is a distributed lock, a Redis mutex, or a version vector. For a system at this scale, the database's own row lock and unique constraints cover every case. Reaching for infrastructure before exhausting the database is one of the most common ways an internal tool becomes an operational liability.</p>
+
+<h2>The deploy shape</h2>
+
+<p>The <code>docker-compose.yml</code> is short and tells you what the system actually needs at runtime:</p>
+
+<pre><code>services:
+  db:       postgres:18, healthcheck pg_isready every 5s
+  redis:    redis:7-alpine, healthcheck redis-cli ping
+  backend:  build ./backend, waits for both healthchecks
+  frontend: build ./frontend, nginx on :8080
+volumes:
+  pgdata:
+  media:
+</code></pre>
+
+<p>PostgreSQL 18 rather than the more conservative 16 is a deliberate bet: <code>JSONB</code> for steps and index behavior matter more here than the broadest hosting compatibility. Redis is present for the production settings module but the business logic does not depend on it — a useful property, because it means losing Redis degrades performance rather than correctness.</p>
+
+<p>The healthcheck pattern is worth copying. <code>depends_on</code> with <code>condition: service_healthy</code> is the difference between "the container started" and "the database can accept connections". Without it, the backend's first migration attempt races Postgres initialization and fails intermittently, usually on a cold machine, usually in CI, usually at the worst time.</p>
+
+<p>Media lives on a named volume and <code>MEDIA_ROOT</code> points at it. Attachments and screenshots are files, not blobs, which keeps the database small enough that a full dump is a routine operation. The trade-off is that backing up the system now means "database plus volume", not just "database" — easy to forget until a restore drill.</p>
+
+<h2>What a QA lead asks first</h2>
+
+<p>A test management system is judged by the questions it can answer without someone opening Excel. Six that come up in practice, and how this schema handles them:</p>
+
+<ul>
+<li><strong>"How much of requirement X is covered?"</strong> <code>RequirementDefect</code> gives the defect side; coverage comes from cases linked to the requirement, plus the linked-case counts in the coverage panel. Requirements have a status machine too, so "done" means something.</li>
+<li><strong>"What is our pass rate this release?"</strong> <code>passed / (total - not_run)</code>, aggregated per run and per module in a single query. The definition is pinned in a comment so nobody computes it differently on a slide.</li>
+<li><strong>"Which failures have no defect yet?"</strong> Failed results left-joined against <code>TestResultDefect</code>. This is the single most useful view in the product, because it is the gap between "we know it is broken" and "someone owns it".</li>
+<li><strong>"Why did this defect take nine days?"</strong> The audit log gives a status timeline with actor and timestamp, because transitions are auditable and <code>resolved_at</code> is only stamped on first resolution.</li>
+<li><strong>"Who changed this case and what exactly changed?"</strong> Field-level diffs, version history with change summaries, and a diff between snapshots. Not a reconstructed guess.</li>
+<li><strong>"Can we trust last quarter's report?"</strong> Yes, because every result binds the version object it was executed against. This is the question that most tools fail, and the one the whole design is built around.</li>
+</ul>
+
+<p>That last question is the reason the article exists. Everything else — state machines, optimistic locking, RBAC — is table stakes for a serious internal tool. Snapshot-bound results are the part that is easy to skip and expensive to retrofit, because by the time you need it, you have already lost the history you were trying to preserve.</p>
+
+<h2>What I would change at ten times the size</h2>
+
+<p>Extrapolating the current implementation to a much larger installation, four things break first, and they are worth naming because they are the honest limits of this version.</p>
+
+<p><strong>Duplicate detection has to become a background job with blocking.</strong> The quadratic curve is not fixable by constants. Bucket by module, index titles, and persist results keyed by a content hash so a second run on unchanged cases is free. The <code>AITask</code> model already exists; duplicate detection is the obvious first tenant.</p>
+
+<p><strong>Permission resolution needs a cache with real invalidation.</strong> The current "no cache" choice is correct at this size, but it is O(memberships) per request. The right upgrade is not a TTL cache — that reintroduces the 60-second revocation window — but an explicit invalidation on membership and role writes. The cost is a small amount of write-path complexity in exchange for not paying on every read.</p>
+
+<p><strong>Soft delete needs a cascade policy and a purge path.</strong> Right now deleted cases are invisible to default queries, which is correct for history and annoying for joins. At scale you want a documented rule: results always resolve against <code>all_objects</code>, lists never do, and a scheduled purge exists for genuinely abandoned projects.</p>
+
+<p><strong>The import path needs a job queue.</strong> Ten megabytes of XLSX is fine synchronously. A hundred thousand rows is not, and the current design has no resume. The <code>dry_run</code> two-phase model is the right shape for an async job — the preview is already the plan.</p>
+
+<p>None of those are rewrites. They are the natural next layer, and the fact that they can be described as deltas rather than redesigns is itself evidence the base model is sound.</p>
+
+<h2>One request, end to end</h2>
+
+<p>Following a single <code>PATCH /api/v1/p/testcases/42/</code> from socket to audit row shows how the layers fit, and where the guarantees actually come from.</p>
+
+<p><strong>Step one, permission.</strong> <code>ProjectApiView</code> reads <code>method_permissions["PATCH"]</code>, resolves the project from the URL, and computes the user's permission set. If <code>testcase.update</code> is missing, the request stops here with 403 and business code 40001. Nothing else runs. That ordering matters: authorization before deserialization means an unauthorized caller cannot probe the schema through validation errors.</p>
+
+<p><strong>Step two, deserialize.</strong> The serializer validates field types and choices, but deliberately does not enforce state transitions. Business rules belong in the service layer, because a serializer cannot see the current database state without duplicating queries.</p>
+
+<p><strong>Step three, load the object.</strong> The view loads the case, its current version, and the project in one or two queries with <code>select_related</code>. The current version is fetched by <code>case.current_version</code>, not by <code>versions.first()</code> — an important distinction once history exists.</p>
+
+<p><strong>Step four, the service.</strong> <code>update_case</code> opens a transaction, takes the old snapshot, applies the new values, decides whether content changed, conditionally creates a version, then calls <code>save_with_lock</code> with the client's <code>updated_at</code>. If the row was modified in between, this raises 409 and the transaction rolls back — including the version row that was just created. That rollback is the reason the version insert lives inside the same atomic block rather than before it.</p>
+
+<p><strong>Step five, tags.</strong> Tag updates happen after the locked write, and the service explicitly clears the prefetch cache before refreshing:</p>
+
+<pre><code>cache = getattr(case, "_prefetched_objects_cache", None)
+if cache is not None:
+    cache.pop("tags", None)
+prefetch_related_objects([case], "tags")
+</code></pre>
+
+<p>Without that pop, the serializer would return stale tags because <code>prefetch_related_objects</code> skips instances that already have a cached result. This is the kind of bug that only appears when a test asserts on the response body immediately after a write.</p>
+
+<p><strong>Step six, audit.</strong> New snapshot, diff against the old one, write one audit row inside the same transaction. If the audit insert fails, the case update rolls back too. Evidence and data are never out of step.</p>
+
+<p>The whole path touches three layers and one transaction boundary. There is no event bus, no eventual consistency, no compensating action. For an internal tool this is the right trade: a synchronous audit is simpler to reason about than a reliable queue, and it fails closed.</p>
+
+<h2>Why 27 permissions and five roles</h2>
+
+<p>A permission list of 27 sounds like over-engineering until you try to reduce it. Four resources times four verbs is already sixteen, and test management needs verbs the standard set does not have: <code>testcase.execute</code> is not update, and <code>testcase.review</code> is neither update nor execute.</p>
+
+<p>The five roles are the interesting part, because they encode an opinion about how QA teams actually divide work:</p>
+
+<ul>
+<li><strong>admin</strong> holds everything, including <code>role.manage</code> and <code>audit.read</code>.</li>
+<li><strong>pm</strong> can create and delete plans and manage users, but cannot delete cases — the artifact of record is protected from the person with the schedule pressure.</li>
+<li><strong>qa</strong> can do everything on cases and plans, including delete, but cannot manage users or read the audit log beyond their project view.</li>
+<li><strong>dev</strong> can read cases and update defects. Notably, a developer can update a defect without being able to modify the case that produced it.</li>
+<li><strong>viewer</strong> is read-only across the board.</li>
+</ul>
+
+<p>That distribution is not accidental. The person who owns the release calendar should not be able to quietly delete an inconvenient test case, and the person fixing a bug should not be able to edit the test that exposes it. Both restrictions are enforced by the permission set, not by convention.</p>
+
+<p>Role permissions are also additive across scopes: a user who is <code>qa</code> on the project and <code>viewer</code> in the organization gets the union, which is the realistic case for someone who joined a project from a different team. The resolution function reflects that directly rather than requiring an explicit "project member overrides org role" rule, because the union is almost always what people mean.</p>
+
+<h2>The dashboard and its six numbers</h2>
+
+<p>The project overview shows six figures: cases, execution progress, pass rate, open defects, requirement coverage, and recent audit activity. Each one has a definition problem hiding behind it, and the value of the implementation is that the definitions are decided once rather than per view.</p>
+
+<p><strong>Cases</strong> counts live rows only. Soft-deleted cases disappear from the denominator, which is correct for "how much do we have" but wrong for "how much did we have last quarter" — that question has to go through history, not the dashboard.</p>
+
+<p><strong>Execution progress</strong> is <code>(total - not_run) / total</code> for the current run. Because results are pre-created at run start, this number is meaningful from the first second: zero percent rather than "unknown".</p>
+
+<p><strong>Pass rate</strong> is <code>passed / executed</code>, and the choice to exclude <code>not_run</code> from the denominator is the single most consequential metric decision in the product. Include it and a fresh run reads as a catastrophic failure; exclude it and a run with two results reads as a confident 100%. Neither is wrong if the label is honest, which is why the definition sits next to the number rather than in a wiki.</p>
+
+<p><strong>Open defects</strong> uses the state machine's notion of open: anything not in Closed, Rejected or Duplicate. That is deliberately not "status == Open", because a defect In Progress is still open work. Getting this wrong produces a dashboard that looks calm while the queue grows.</p>
+
+<p><strong>Requirement coverage</strong> is a ratio of requirements with at least one linked case to total requirements. A binary "covered or not" rather than a percentage of cases, because a requirement with one good case and a requirement with forty mediocre ones are both "covered" — and pretending otherwise invites gaming the metric.</p>
+
+<p><strong>Recent audit activity</strong> reads the same <code>AuditLog</code> table used for timelines, filtered to the project and ordered by <code>created_at, id</code>. No separate activity feed, no denormalised counter. One source of truth for "what happened", rendered twice.</p>
+
+<p>The deeper point is that none of these figures is computed in the browser. They come from the backend already aggregated, with conditional <code>Count(filter=Q(...))</code> so a single query produces several categories. That keeps the dashboard honest when the client caches, and it keeps the definitions in one place when a slide deck disagrees with the product.</p>
+
+<h2>Choosing JSONB for steps</h2>
+
+<p>The steps of a test case live in a <code>JSONField</code> array of <code>{order, action, expected}</code> rather than in a <code>TestCaseStep</code> table. That is a decision with real consequences on both sides, and it is worth being explicit about why it went this way.</p>
+
+<p>The argument for a separate table is strong on paper. Steps would be queryable, so you could ask "which cases share this exact action", and each step would get its own identity for references. The argument against is equally strong in practice: steps have no identity that matters. Nobody links a defect to "step 3 of case 42" — they link to the case. Nobody edits a step outside the context of its case. And the case content is already versioned as a whole, so per-step rows would need their own versioning story or they would break the snapshot guarantee.</p>
+
+<p>The decisive factor is the snapshot. A version must be an immutable, self-contained record of what the case looked like. If steps were rows in another table, "immutable" would have to be enforced across a join, and every historical result would depend on a second table staying intact. With JSONB, the version row is complete on its own. Copy it elsewhere and it still means the same thing.</p>
+
+<p>The costs are real and known. Searching step text requires either a JSONB containment query or the subquery trick used for the current version's expected result. Ordering is not guaranteed by the database, so every consumer sorts by the <code>order</code> field — which shows up in three places: the steps table in the UI, the defect description builder, and the export. Each of those is a place someone can forget, and forgetting produces steps in the wrong order with no error.</p>
+
+<p>It also makes structural validation a code concern rather than a schema concern. The database will happily accept <code>[{"order": 1}]</code> with no action. Normalisation has to happen in the serializer, and that means the guarantee is only as good as the serializer being used on every write path.</p>
+
+<p>None of that is a reason to switch. It is a reason to know exactly what was traded away. The rule of thumb that follows: content that is always read as a whole, versioned as a whole, and never referenced by identity belongs in a document; content that is queried independently or referenced directly belongs in a table. Steps are the first kind. Results are the second, which is precisely why <code>TestResult</code> is a table and not a field on the run.</p>
+
+<h2>Boundaries that still exist</h2>
+
+<p>With all of that laid out, the boundaries are equally clear:</p>
+
+<ul>
+<li><strong>Duplicate detection has no bucketing.</strong> The quadratic curve above, plus the 50-pair cap that hides the cost, means it stalls at real scale.</li>
+<li><strong>The AI layer is mock only.</strong> The real gateway has an interface but raises immediately, so "AI-generated cases" is currently rule-based generation, not model generation.</li>
+<li><strong>Permissions are not cached.</strong> Deliberate, at the cost of two extra queries per request. With hundreds of project members this becomes the next hotspot.</li>
+<li><strong>Soft delete has no cascade policy.</strong> Deleting a case referenced by historical execution means report-side <code>select_related</code> cannot find it, and queries must fall back to <code>all_objects</code>.</li>
+<li><strong><code>child_id not in ids</code> is an O(n) list lookup.</strong> Invisible at current scale, but it belongs in the "known, not yet changed" bucket.</li>
+<li><strong>Import/export is synchronous.</strong> Acceptable under the 10MB limit; beyond that it needs a background task.</li>
+<li><strong>36 frontend views and 39 backend service files</strong>, with no single error-code dictionary visible in the repository; alignment relies on <code>common/exceptions.py</code> and a frontend convention.</li>
+</ul>
+
+<p>These are not a TODO list. They are the current shape of this implementation.</p>
+
+<h2>Closing</h2>
+
+<p>If you only remember three things:</p>
+
+<ol>
+<li><strong>Separate content from state.</strong> <code>TestCase</code> holds current state, <code>TestCaseVersion</code> holds content, <code>current_version</code> is the cursor. Every historical reference points at a version, never at the main table.</li>
+<li><strong>Pin the version object, not the case ID.</strong> Execution, reports and defect descriptions all bind <code>test_case_version</code>. That one underscore decides whether a three-year-old report is still evidence.</li>
+<li><strong>Audit must be part of the business transaction.</strong> Asynchronous audit is no audit; field-level diffs plus optional nulls make "it changed" and "someone clicked save" distinguishable.</li>
+</ol>
+
+<p>Optimistic locking, state machines, key allocation under a row lock, soft delete — they are all sides of the same thing: <strong>keeping the system self-consistent across many people, many edits and many years</strong>. The real acceptance criterion for this kind of system is not the length of the feature list. It is whether, six months later, when someone asks "why was this report failing at the time", you can give an answer that will not change.</p>
+
+<p>Source: <a href="https://github.com/zhoujungis/NanoQA" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/NanoQA</a>. The other teardown published this week is <a href="/en/article/routewise-ai-geo-constrained-itinerary/">Routewise AI: making a model emit an itinerary that survives a map</a>.</p>`,
+  },
+
+
+  {
+    slug: 'routewise-ai-geo-constrained-itinerary',
+    zhSlug: 'routewise-ai-geo-constrained-itinerary',
+    topicSlug: 'projects',
+    title: "Routewise AI: making a model emit an itinerary that survives a map",
+    excerpt:
+      "Getting gpt-5.6-luna to produce an itinerary you can plot on a real map is not a prompt problem. It is four stacked constraints: a fixed city schedule, four-day chunks requested in parallel, a forced JSON shape validated against four geographic rules, and one retry that feeds the exact rejection back into the prompt. 1,101 lines of TypeScript, no server. The validator only understands distance, not meaning, and 22–25 km is a blind spot.",
+    date: '2026-11-20',
+    readingTime: 30,
+    html: `<blockquote>
+<p>Who this is for: developers using large models for structured output who have been burned by "the JSON parses but the content does not hold up"; anyone running streaming endpoints on Cloudflare Pages Functions; engineers who want one AI call to be a product feature rather than a demo.</p>
+<p><strong>TL;DR:</strong> Routewise AI makes <code>gpt-5.6-luna</code> emit an itinerary you can plot on a real map. The method is not a better prompt. It is four stacked constraints: the server fixes the city schedule, splits a long trip into four-day chunks and requests them in parallel, forces a JSON shape and validates each day against four geographic rules, and on failure feeds the exact rejection reason back into the prompt for one retry. The whole backend is 1,101 lines of TypeScript with no server. The costs are explicit too: a generation costs 10 credits, the validator only understands distance and not meaning, and the four layers still cannot stop "right place name, coordinate off by three kilometres".</p>
+<p>Reading time around 34 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>Why trip planning is the hardest structured output</h2>
+
+<p>Asking a model to write an itinerary is the easiest thing to demo and the easiest thing to get wrong.</p>
+
+<p>The demo version usually goes like this: give it "Tokyo, 3 days", it returns Markdown with Day 1, Day 2, Senso-ji, Skytree, Ichiran ramen. It looks very convincing.</p>
+
+<p>Then you connect it to a map. Problems appear immediately:</p>
+
+<ul>
+<li>Morning in Asakusa (139.79 E), afternoon in Shinjuku (139.70), evening back in Ginza (139.76). The text reads fine; on the map it is a line that folds back on itself.</li>
+<li>Coordinates are <code>35.68, 139.76</code>, the centre of Tokyo. Five attractions all land on the same point, because the model has no memory of specific venue coordinates.</li>
+<li>The itinerary says take the Shinkansen to Kyoto, but Day 2 and Day 3 are still Tokyo, and Day 4 suddenly becomes Kyoto. The transfer vanished.</li>
+<li>Budget says "about ¥8,000 total", but per-day totals add to ¥23,000.</li>
+</ul>
+
+<p>All four share one essence: <strong>the output is syntactically correct and semantically impossible</strong>. The JSON parses, the fields are complete, and it cannot be used.</p>
+
+<p>All of Routewise AI's engineering complexity is aimed at this. The project is not large:</p>
+
+<pre><code>functions   18 files   1,101 lines TypeScript   Cloudflare Pages Functions
+src         15 files   2,283 lines TS/TSX      Web client (React)
+miniprogram 28 files                           WeChat mini program (native WXML/JS)
+public/locations 251 city JSON files           offline location data
+migrations  5 SQL files                        D1 database
+</code></pre>
+
+<p>Of those 1,101 lines, <code>functions/api/plan.ts</code> alone is 491 — it is the "make output verifiable" chain.</p>
+
+<h2>Architecture: five parts, one edge pipeline</h2>
+
+<pre><code> Web (React)  ─┐
+               ├─▶ /api/plan (SSE) ─▶ ModelFlare gpt-5.6-luna
+ mini program ─┘         │
+                         ├─▶ D1: users / sessions / plans / credit_ledger
+                         │
+ public/locations/*.json ┘        offline city data (lazy-loaded by the client)
+</code></pre>
+
+<p>There are only two cloud resources: Pages Functions and D1 (SQLite). No long-running process, no object storage, no message queue.</p>
+
+<p>A request passes four gates before the model is even discussed:</p>
+
+<pre><code>const language: Language = body.language === 'zh-TW' || body.language === 'en' ? body.language : 'zh-CN'
+const cities = Array.isArray(body.cities) ? body.cities.filter(...).slice(0, 8) : []
+const days = Math.min(16, Math.max(2, Number(body.days) || 5))
+const travelDate = /^\\d{4}-\\d{2}-\\d{2}$/.test(body.travelDate || '') ? body.travelDate as string : new Date().toISOString().slice(0, 10)
+const budget = Math.max(0, Number(body.budget) || 8000)
+</code></pre>
+
+<p>Eight cities, sixteen days, date format, budget floor. Those numbers also exist on the frontend, in the mini program's <code>miniprogram/js/lib/plan.js</code>:</p>
+
+<pre><code>export const MAX_CITIES = 8
+export const MIN_DAYS = 2
+export const MAX_DAYS = 16
+export const PLAN_COST_CREDITS = 10 // matches the backend, display only
+</code></pre>
+
+<p>Both places say "matches the backend". That consistency is maintained by comment, which is a known weak point of this system; we will come back to it.</p>
+
+<h2>Fix the city schedule, then let the model fill in</h2>
+
+<p>The thing a model most easily scrambles in a multi-city trip is not the content, it is the <strong>allocation</strong>. Give it "Tokyo, Kyoto, Osaka, 7 days" and it might allocate 2/3/2, or 3/2/2, or put Day 1 in Tokyo, Day 2 in Osaka, and Day 3 back in Tokyo.</p>
+
+<p>So this is not left to the model. The server computes a complete day-by-day city table first:</p>
+
+<pre><code>function buildCitySchedule(cities: string[], days: number) {
+  const baseDays = Math.floor(days / cities.length)
+  let remaining = days % cities.length
+  const schedule: string[] = []
+  for (const city of cities) {
+    const cityDays = baseDays + (remaining &gt; 0 ? 1 : 0)
+    if (remaining &gt; 0) remaining -= 1
+    for (let index = 0; index &lt; cityDays; index += 1) schedule.push(city)
+  }
+  while (schedule.length &lt; days) schedule.push(cities[cities.length - 1])
+  return schedule.slice(0, days)
+}
+</code></pre>
+
+<p>7 days across 3 cities → <code>baseDays = 2, remaining = 1</code> → Tokyo 3 days, Kyoto 2, Osaka 2. The remainder goes to the earlier cities.</p>
+
+<p>That schedule is pasted verbatim into every chunk's prompt:</p>
+
+<pre><code>The city allocation for the complete trip is fixed. Follow it exactly:
+- Day 1 (2026-12-20): Tokyo
+- Day 2 (2026-12-21): Tokyo
+- Day 3 (2026-12-22): Tokyo
+- Day 4 (2026-12-23): Kyoto
+...
+</code></pre>
+
+<p>The value of this step is <strong>removing uncertainty from the model</strong>. City allocation is a deterministic algorithm; the model only handles "what to do during these three Tokyo days". It does not need to remember, while generating Day 4, that three Tokyo days already passed — the table tells it.</p>
+
+<p>Dates follow the same logic, derived from the departure date by <code>dateIso</code> rather than computed by the model:</p>
+
+<pre><code>function dateIso(travelDate: string, offset: number) {
+  const date = new Date(\`\${travelDate}T12:00:00Z\`)
+  date.setUTCDate(date.getUTCDate() + offset)
+  return date.toISOString().slice(0, 10)
+}
+</code></pre>
+
+<p>Using <code>T12:00:00Z</code> instead of <code>T00:00:00Z</code> is deliberate: it avoids <code>setUTCDate</code> crossing a day boundary because of time zones. Noon plus any offset never falls into the previous day.</p>
+
+<h2>Four-day chunks: turning sequential into parallel</h2>
+
+<p>A 16-day trip generated in one shot has two problems: the output is long enough to truncate, and the wait is long. So it is chunked at four days:</p>
+
+<pre><code>const chunks: number[][] = []
+for (let start = 1; start &lt;= input.days; start += 4) {
+  chunks.push(Array.from({ length: Math.min(4, input.days - start + 1) }, (_, index) =&gt; start + index))
+}
+</code></pre>
+
+<p>16 days → 4 chunks. Then groups of four run concurrently:</p>
+
+<pre><code>const results: Plan[] = []
+for (let offset = 0; offset &lt; chunks.length; offset += 4) {
+  const group = chunks.slice(offset, offset + 4)
+  const generated = await Promise.all(group.map((expectedDays) =&gt;
+    generateChunk(env, buildPrompt(input, expectedDays, citySchedule), expectedDays, onDelta),
+  ))
+  results.push(...generated)
+}
+
+results.sort((left, right) =&gt; left.days[0].day - right.days[0].day)
+</code></pre>
+
+<p>Note the concurrency limit is also four. That is not arbitrary — Pages Functions has a subrequest limit, and firing sixteen fetches at once is gambling with the platform quota. Four chunks per group, at most four concurrent, is the compromise that works without crossing the line.</p>
+
+<p>Each chunk may only emit its own days:</p>
+
+<pre><code>Generate ONLY Day \${firstDay} through Day \${lastDay} in this response.
+Other chunks are generated separately. Keep transfers consistent with the fixed full-trip schedule.
+</code></pre>
+
+<p>"Keep transfers consistent" is the safety net for cross-chunk coherence. Because the Day 5 chunk and the Day 9 chunk run concurrently and cannot see each other's output, the only shared context is that full schedule table.</p>
+
+<p>On merge, days are sorted and title-level fields come from the first chunk:</p>
+
+<pre><code>return {
+  title: input.language === 'en' ? \`\${routeName} · \${input.days}-day trip\` : \`\${routeName} · \${input.days}天\${input.style}之旅\`,
+  subtitle: first.subtitle,
+  totalEstimate: first.totalEstimate,
+  pace: first.pace,
+  seasonalNote: first.seasonalNote,
+  days: results.flatMap((result) =&gt; result.days).sort((left, right) =&gt; left.day - right.day),
+}
+</code></pre>
+
+<p>The title is no longer asked of the model; it is assembled from parameters. That is the same idea continued: anything code can determine, do not leave to the model.</p>
+
+<h2>The prompt: writing validation rules into a contract the model must honour</h2>
+
+<p><code>buildPrompt</code> is over sixty lines, but it is really a <strong>machine-checkable contract</strong>, not just a description of intent. It has three parts.</p>
+
+<p>Part one is fixed input:</p>
+
+<pre><code>Trip requirements:
+- Destinations, in preferred order: \${input.cities.join(' → ')}
+- Number of days: \${input.days}
+- Departure date: \${input.travelDate}
+- Total budget: \${input.currency} \${input.budget}
+- Travel pace: \${input.style}
+</code></pre>
+
+<p>Part two is the output shape. Note it is a complete JSON skeleton, including one sample item:</p>
+
+<pre><code>Return ONLY valid JSON without markdown, using exactly this structure:
+{
+  "title": "short trip title",
+  ...
+  "days": [{
+    "day": 1,
+    "items": [{
+      "time": "08:00",
+      "endTime": "09:00",
+      "title": "specific activity, restaurant, train or hotel action",
+      "latitude": 35.6812,
+      "longitude": 139.7671,
+      "type": "sight"
+    }]
+  }]
+}
+</code></pre>
+
+<p>Part three is the mandatory rules, and every line maps to a validator or a field consumer downstream:</p>
+
+<pre><code>- Return exactly \${expectedDays.length} day objects, numbered \${expectedDays.join(', ')}.
+- Give each day 5 or 6 chronological items covering breakfast or morning setup, ...
+- Every item must include numeric WGS84 latitude and longitude for its named venue ...
+- For intercity travel, name departure and arrival stations/airports, ...
+- Plan geography before writing the itinerary: first group each day into one nearby district ...
+- Within one local-area segment, keep consecutive stops within about 15 km, keep the whole segment within about 22 km, and keep meal stops within about 6 km of an adjacent activity.
+- A distant day trip or a move to another city is allowed only when it is represented by a separate train item between the two areas. ...
+</code></pre>
+
+<p>The last two lines are the validator's literal parameters. There is an important design point here: <strong>15 / 22 / 6 appear both in the prompt and in <code>geographicIssues</code></strong>. The model knows in advance how it will be measured, and the validator never encounters "a rule that was never stated but now disqualifies me".</p>
+
+<p>The prompt also asks the model to be honest:</p>
+
+<pre><code>- Prices, schedules, opening hours and availability are estimates, never live-verified facts.
+- For meals, ... Tell the user to verify current opening hours instead of claiming live availability.
+</code></pre>
+
+<p>That line solves a different layer of trustworthiness: rather than having the model claim "open now", have it admit it is an estimate.</p>
+
+<h2>SSE: one stream, four events, one heartbeat</h2>
+
+<p>The whole endpoint is an SSE stream, because a generation can take over a minute. The client needs to see progress rather than a spinner.</p>
+
+<p>The server emits only four event types:</p>
+
+<pre><code>async function sendSse(writer, event: string, data: unknown) {
+  await writer.write(encoder.encode(\`event: \${event}\\ndata: \${JSON.stringify(data)}\\n\\n\`))
+}
+</code></pre>
+
+<ul>
+<li><code>status</code>: generation is starting</li>
+<li><code>delta</code>: each text increment from the model</li>
+<li><code>complete</code>: validation passed, credits charged, row persisted — the final result</li>
+<li><code>error</code>: anything failed</li>
+</ul>
+
+<p>The heartbeat is a comment frame every 30 seconds:</p>
+
+<pre><code>const heartbeat = setInterval(() =&gt; {
+  void writer.write(encoder.encode(':keep-alive\\n\\n')).catch(() =&gt; undefined)
+}, 30_000)
+</code></pre>
+
+<p>SSE comment frames (starting with <code>:</code>) are ignored by clients but sufficient to stop intermediaries from declaring the connection dead.</p>
+
+<p>The real work runs inside <code>waitUntil</code>:</p>
+
+<pre><code>const task = (async () =&gt; {
+  try {
+    await sendSse(writer, 'status', { message: locale.started })
+    const plan = await generatePlan(env, {...}, (delta) =&gt; sendSse(writer, 'delta', { delta }))
+    ...
+    await sendSse(writer, 'complete', { plan, credits: user.credits - costCredits, planId })
+  } catch (error) {
+    try { await sendSse(writer, 'error', { error: locale.unavailable }) } catch { /* client disconnected */ }
+  } finally {
+    clearInterval(heartbeat)
+    try { await writer.close() } catch { /* client disconnected */ }
+  }
+})()
+context.waitUntil(task)
+</code></pre>
+
+<p><code>context.waitUntil</code> is the key. Once the response is returned, the runtime still allows that Promise to keep running — otherwise the stream would be reclaimed the moment it is handed off.</p>
+
+<p>The response headers must cooperate too, or an intermediary will buffer the stream:</p>
+
+<pre><code>headers: {
+  'content-type': 'text/event-stream; charset=utf-8',
+  'cache-control': 'no-cache, no-store',
+  connection: 'keep-alive',
+  'x-accel-buffering': 'no',
+}
+</code></pre>
+
+<p><code>x-accel-buffering: no</code> is specifically for nginx-style reverse proxies. Without it, the client receives one block at the end and streaming degrades into batching.</p>
+
+<p>The model-side SSE parser is handwritten too, because it has to handle line boundaries across chunks:</p>
+
+<pre><code>while (true) {
+  const { done, value } = await reader.read()
+  lineBuffer += decoder.decode(value, { stream: !done })
+  let newline = lineBuffer.indexOf('\\n')
+  while (newline &gt;= 0) {
+    const line = lineBuffer.slice(0, newline).replace(/\\r$/, '')
+    lineBuffer = lineBuffer.slice(newline + 1)
+    if (!line) await dispatch()
+    else if (line.startsWith('data:')) eventData.push(line.slice(5).trimStart())
+    newline = lineBuffer.indexOf('\\n')
+  }
+  if (done) break
+}
+</code></pre>
+
+<p>The second argument to <code>decoder.decode(value, { stream: !done })</code> matters: in streaming mode a multi-byte character can be split, and <code>stream: true</code> makes TextDecoder retain the incomplete byte sequence until the next chunk. Skip it in a Chinese context and you get intermittent mojibake.</p>
+
+<h2>The geo validator: four checks and a minimum spanning tree</h2>
+
+<p>Once the model returns, the server does not simply trust it. First it normalises structure, then it validates geography.</p>
+
+<p>Normalisation turns "looks like" into "definitely is": the type must be one of three values, coordinates must be in range, missing fields get defaults, and a day with fewer than four items is a hard error:</p>
+
+<pre><code>const itemType = itemValue.type === 'food' || itemValue.type === 'train' ? itemValue.type : 'sight'
+const title = text(itemValue.title)
+if (!title) throw new Error('Missing item title')
+...
+latitude: typeof itemValue.latitude === 'number' &amp;&amp; itemValue.latitude &gt;= -90 &amp;&amp; itemValue.latitude &lt;= 90 ? itemValue.latitude : undefined,
+</code></pre>
+
+<p>An out-of-range coordinate becomes <code>undefined</code>, which the "missing coordinate" rule then catches. That is better than throwing: throwing fails the whole chunk, while <code>undefined</code> only disqualifies this one item, and on retry the model knows exactly which one.</p>
+
+<p>Then four geographic checks. There is a key structural assumption: <strong>a <code>train</code> item is an explicit area separator</strong>.</p>
+
+<pre><code>// A train item is an explicit change of area. Stops on either side are checked as separate clusters.
+const areas: PlanItem[][] = [[]]
+for (const item of day.items) {
+  if (item.type === 'train') {
+    if (areas[areas.length - 1].length) areas.push([])
+    continue
+  }
+  areas[areas.length - 1].push(item)
+}
+</code></pre>
+
+<p>So "Tokyo morning + Kyoto afternoon" is not treated as "two attractions 370 km apart". It is split into two independent activity areas, each validated on its own. Without this assumption, a cross-city itinerary could never pass.</p>
+
+<p>Check one: consecutive stops no more than 15 km apart.</p>
+
+<pre><code>for (let index = 1; index &lt; area.length; index += 1) {
+  const kilometers = distanceKm(area[index - 1], area[index])
+  if (kilometers !== null &amp;&amp; kilometers &gt; MAX_SAME_AREA_LEG_KM) {
+    issues.push(\`Day \${day.day}: adjacent stops are too far apart (\${describeDistance(...)})\`)
+  }
+}
+</code></pre>
+
+<p>Distance is haversine, handwritten rather than a dependency:</p>
+
+<pre><code>function distanceKm(left: PlanItem, right: PlanItem) {
+  if (left.latitude === undefined || ...) return null
+  const radians = Math.PI / 180
+  const latitudeDelta = (right.latitude - left.latitude) * radians
+  const longitudeDelta = (right.longitude - left.longitude) * radians
+  const a = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(left.latitude * radians) * Math.cos(right.latitude * radians) * Math.sin(longitudeDelta / 2) ** 2
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+</code></pre>
+
+<p>Check two: any two points inside one activity area no more than 22 km apart. A double loop, O(n²), but n is five or six per day, so it does not matter.</p>
+
+<p>Check three: a meal stop no more than 6 km from its adjacent activity. It only looks at the neighbours and takes the nearer one.</p>
+
+<p>Check four — backtrack detection — is the interesting one. It compares "actual route length" against "the minimum spanning tree of these points":</p>
+
+<pre><code>const traveled = routeDistance(area)
+const minimumTree = minimumSpanningTreeDistance(area)
+if (traveled !== null &amp;&amp; minimumTree !== null &amp;&amp; traveled &gt; 25 &amp;&amp; traveled &gt; minimumTree * MAX_ROUTE_TO_MINIMUM_TREE_RATIO) {
+  issues.push(\`Day \${day.day}: stop order backtracks excessively (\${Math.round(traveled)} km route for a roughly \${Math.round(minimumTree)} km area)\`)
+}
+</code></pre>
+
+<p>A minimum spanning tree answers "what is the shortest path that visits all these points". Dividing actual route length by it gives "how many times over did you zigzag". Above 2.2x and above 25 km absolute, it is declared backtracking.</p>
+
+<p>The MST is a naive Prim:</p>
+
+<pre><code>function minimumSpanningTreeDistance(items: PlanItem[]) {
+  if (items.length &lt; 2) return 0
+  const reached = new Set([0])
+  let total = 0
+  while (reached.size &lt; items.length) {
+    let best: { index: number; kilometers: number } | null = null
+    for (const left of reached) {
+      for (let right = 0; right &lt; items.length; right += 1) {
+        if (reached.has(right)) continue
+        const kilometers = distanceKm(items[left], items[right])
+        if (kilometers !== null &amp;&amp; (!best || kilometers &lt; best.kilometers)) best = { index: right, kilometers }
+      }
+    }
+    if (!best) return null
+    reached.add(best.index)
+    total += best.kilometers
+  }
+  return total
+}
+</code></pre>
+
+<p>This criterion is much smarter than "a cap on total route length". It does not care how far you travelled; it cares whether the path you took is several times the distance this area inherently requires. A 30 km suburban day trip can be reasonable; a 20 km day that zigzags across town is not.</p>
+
+<h2>Measured: what the validator catches and what it misses</h2>
+
+<p>These four checks are pure functions, so they can run without D1 or the model. I lifted <code>distanceKm</code>, <code>routeDistance</code>, <code>minimumSpanningTreeDistance</code> and <code>geographicIssues</code> verbatim with their constants into a bench (<code>tools/bench_routewise_geo.mjs</code>) and tested six itineraries built from real Tokyo coordinates:</p>
+
+<pre><code>  compact (valid)
+    route      3.3 km    mst  3.0 km    ratio 1.08    issues 0
+
+  east-west ping-pong
+    route     23.4 km    mst  9.5 km    ratio 2.47    issues 0
+
+  long ping-pong (fires)
+    route     26.1 km    mst 10.6 km    ratio 2.45    issues 1: stop order backtracks excessively
+
+  train split (valid)
+    route    370.3 km    mst 370.3 km   ratio 1.00    issues 0
+
+  meal detour
+    route     14.1 km    mst  7.4 km    ratio 1.91    issues 1: meal Remote lunch is 7 km from its nearest activity
+
+  missing coords
+    route      0.0 km    mst  0.0 km    ratio n/a     issues 1: Ueno Park is missing a usable coordinate
+</code></pre>
+
+<p>The <code>train split</code> row deserves its own note: route 370.3 km, MST also 370.3 km, ratio 1.00. Because <code>train</code> splits it into two areas, the two Tokyo points and the two Kyoto points are validated independently, and the intercity leg does not participate. Without the split, that row would be flagged as "two attractions 370 km apart".</p>
+
+<p>Now the miss: <code>east-west ping-pong</code> has a ratio of <strong>2.47</strong>, above the 2.2 threshold, and reports nothing.</p>
+
+<p>The reason is the <code>traveled &gt; 25</code> absolute-length floor. 23.4 km does not reach 25, so even though the ratio is over, the rule does not fire. I scaled the same shape up (<code>long ping-pong</code>, 26.1 km) and it fired immediately.</p>
+
+<p>That is a real design trade-off, not a bug: the absolute floor exists to stop small-scale reversals from being flagged — a 3 km route completed on a 6 km tree also has ratio 2 and is entirely reasonable. The cost is that 22–25 km is a blind spot.</p>
+
+<p>Cost-wise the four checks are free enough to ignore:</p>
+
+<pre><code>validator cost  (10000 iterations x 6 fixtures)
+  compact (valid)          mean 0.004 ms
+  east-west ping-pong      mean 0.002 ms
+  long ping-pong (fires)   mean 0.002 ms
+  missing coords           mean 0.000 ms
+
+worst case: 16 days x 6 items, one cluster
+  mean 0.078 ms   (16 days x C(6,2)=15 pairs = 240 span checks)
+</code></pre>
+
+<p>The worst case — 16 days, six items each, all in one cluster — is 0.078 ms. To block an itinerary that took tens of seconds and 10 credits to generate, the extra compute is on the order of ten-thousandths of a millisecond. <strong>The validator should never be the thing you skip.</strong></p>
+
+<p>Failure handling matters too. It does not report an error to the user directly; it retries once with the specific reason:</p>
+
+<pre><code>for (let attempt = 0; attempt &lt; 2; attempt += 1) {
+  ...
+  const plan = normalizePlan(parseJsonText(output), expectedDays)
+  const issues = geographicIssues(plan)
+  if (issues.length) throw new Error(\`Geographic validation failed: \${issues.join('; ')}\`)
+  return plan
+} catch (error) {
+  lastError = error
+  if (attempt === 0) {
+    const feedback = error instanceof Error ? error.message : 'The previous response was invalid'
+    attemptPrompt = \`\${prompt}\\n\\nThe previous draft was rejected. Return a completely new JSON response that fixes this feedback, especially by using compact same-day areas and correct coordinates:\\n\${feedback}\`
+    await new Promise((resolve) =&gt; setTimeout(resolve, 1200))
+  }
+}
+</code></pre>
+
+<p>Feeding back the exact text of <code>Day 1: adjacent stops are too far apart (Ueno Park to Shinjuku Gyoen is 11 km)</code> usually lets the model move things correctly on the second try. This is the highest-leverage part of the whole design: <strong>the validator's output becomes the next round's input</strong>.</p>
+
+<p>Each chunk times out at 210 seconds, with a 1.2-second wait before retrying. The wait avoids hitting the same transient failure twice in a row.</p>
+
+<h2>Credits: charge after generation, not before</h2>
+
+<p>A generation costs 10 credits. Where the deduction happens matters: it sits after successful generation, as a conditional UPDATE:</p>
+
+<pre><code>const charge = await env.DB.prepare('UPDATE users SET credits = credits - ? WHERE id = ? AND credits &gt;= ?')
+  .bind(costCredits, user.id, costCredits).run()
+if (!charge.meta.changes) {
+  await sendSse(writer, 'error', { error: locale.credits, credits: user.credits })
+  return
+}
+</code></pre>
+
+<p><code>WHERE credits &gt;= ?</code> is an atomic balance check. Two people clicking generate at once with a 10-credit balance, and only one UPDATE matches — the other gets <code>changes === 0</code> and an insufficient-credits message. This is the classic "hand concurrency control to the database", safer than SELECT-then-UPDATE.</p>
+
+<p>The ledger and the plan are then written in one batch:</p>
+
+<pre><code>await env.DB.batch([
+  env.DB.prepare("INSERT INTO credit_ledger (id, user_id, delta, kind, reference) VALUES (?, ?, ?, 'plan_generation', ?)").bind(id(), user.id, -costCredits, planId),
+  env.DB.prepare('INSERT INTO plans (id, user_id, request_json, response_json, cost_credits) VALUES (?, ?, ?, ?, ?)').bind(planId, user.id, JSON.stringify({...}), JSON.stringify(plan), costCredits),
+])
+</code></pre>
+
+<p>D1's <code>batch</code> is transactional, so the worst case — credits charged but no plan stored — cannot happen.</p>
+
+<p>The pre-check before generation remains:</p>
+
+<pre><code>if (user.credits &lt; costCredits) return json({ error: locale.credits, credits: user.credits }, 402)
+</code></pre>
+
+<p>Note this returns <code>json(...)</code> rather than opening a stream — a plain 402. Blocking once up front saves a model call; the conditional UPDATE afterwards is the real line of defence.</p>
+
+<p><code>credit_ledger.kind</code> is a constrained whitelist:</p>
+
+<pre><code>kind TEXT NOT NULL CHECK (kind IN ('signup_bonus', 'plan_generation', 'recharge', 'refund'))
+</code></pre>
+
+<p>When referral bonuses were added later, this table was rebuilt (<code>credit_ledger_new</code> → rename) because SQLite cannot alter a CHECK constraint in place. That migration pattern is worth remembering: create new, copy rows, drop old, rename, rebuild indexes — five steps.</p>
+
+<h2>Auth: tokens stored as hashes, one account per IP</h2>
+
+<p>Passwords use PBKDF2 with 100,000 iterations:</p>
+
+<pre><code>export async function hashPassword(password: string, salt: string) {
+  const source = await crypto.subtle.importKey('raw', encoder.encode(password), 'PBKDF2', false, ['deriveBits'])
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: encoder.encode(salt), iterations: 100000, hash: 'SHA-256' },
+    source, 256,
+  )
+  return toHex(bits)
+}
+</code></pre>
+
+<p>A session token is two UUIDs concatenated, but <strong>the database stores only its SHA-256</strong>:</p>
+
+<pre><code>export async function createSession(db: D1Database, userId: string) {
+  const token = \`\${id()}\${id().replaceAll('-', '')}\`
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString()
+  await db.prepare('INSERT INTO sessions (id, token_hash, user_id, expires_at) VALUES (?, ?, ?, ?)')
+    .bind(id(), await digest(token), userId, expiresAt).run()
+  return token
+}
+</code></pre>
+
+<p>So even if the database is exfiltrated, no usable token comes with it. Verification digests first too:</p>
+
+<pre><code>const row = await db.prepare(\`
+  SELECT users.id, users.email, users.display_name AS displayName, users.credits, users.invite_code AS inviteCode
+  FROM sessions JOIN users ON users.id = sessions.user_id
+  WHERE sessions.token_hash = ? AND sessions.expires_at &gt; ?\`
+).bind(await digest(token), new Date().toISOString()).first&lt;User&gt;()
+</code></pre>
+
+<p>The expiry check lives in SQL (<code>expires_at &gt; ?</code>), not fetched then compared. That keeps the index usable and avoids returning expired rows.</p>
+
+<p>Registration has a hard limit — <strong>one account per IP</strong>:</p>
+
+<pre><code>const ipHash = ip ? await digest(\`routewise-registration:\${ip}\`) : null
+if (ipHash) {
+  const existingIp = await env.DB.prepare('SELECT id FROM users WHERE registration_ip_hash = ? LIMIT 1').bind(ipHash).first()
+  if (existingIp) return json({ error: 'this network already registered an account; one per IP' }, 409)
+}
+</code></pre>
+
+<p><code>registration_ip_hash</code> is a sha256; plain IPs are never stored. The <code>digest</code> input is prefixed with <code>routewise-registration:</code> so it cannot collide with the same IP hashed elsewhere.</p>
+
+<p>A unique index backs it up at the database level:</p>
+
+<pre><code>CREATE UNIQUE INDEX IF NOT EXISTS idx_users_registration_ip
+  ON users(registration_ip_hash)
+  WHERE registration_ip_hash IS NOT NULL;
+</code></pre>
+
+<p>The <code>WHERE ... IS NOT NULL</code> partial index matters. Without it, every user with no IP (<code>NULL</code>) would conflict under a unique index — multiple NULLs do not conflict in SQLite, but declaring it explicitly is safer.</p>
+
+<p>The error mapping at registration is worth copying:</p>
+
+<pre><code>} catch (error) {
+  const message = String(error)
+  if (message.includes('users.email')) return json({ error: 'email already registered, please sign in' }, 409)
+  if (message.includes('registration_ip_hash') || message.includes('idx_users_registration_ip')) return json({ error: 'this network already registered an account; one per IP' }, 409)
+  if (message.includes('idx_referrals_daily_reward_slot')) return json({ error: 'this inviter has used today\\'s three rewards...' }, 429)
+</code></pre>
+
+<p>It admits something inelegant but true: under concurrency the pre-check can miss, and final consistency is guaranteed by unique constraints. Mapping constraint names to sentences a user can understand beats a bare 500.</p>
+
+<h2>Invites and credits: a daily reward slot table</h2>
+
+<p>Referral rewards are the easiest thing to turn into a points-farming hole. The constraint here is one unique index:</p>
+
+<pre><code>CREATE UNIQUE INDEX IF NOT EXISTS idx_referrals_daily_reward_slot
+  ON referrals(inviter_user_id, reward_day, reward_slot);
+</code></pre>
+
+<p><code>reward_slot</code> is limited to 1–3:</p>
+
+<pre><code>reward_slot INTEGER NOT NULL CHECK (reward_slot BETWEEN 1 AND 3)
+</code></pre>
+
+<p>So "same inviter, same day, at most three rewards" is guaranteed by the database rather than by application counting:</p>
+
+<pre><code>const dailyRewards = inviter
+  ? await env.DB.prepare('SELECT COUNT(*) AS count FROM referrals WHERE inviter_user_id = ? AND reward_day = ?').bind(inviter.id, rewardDay).first&lt;{ count: number }&gt;()
+  : null
+const rewardSlot = (dailyRewards?.count || 0) + 1
+if (inviter &amp;&amp; rewardSlot &gt; 3) return json({ error: 'this inviter has used today\\'s three rewards...' }, 429)
+</code></pre>
+
+<p>The pre-check exists to give a friendly message. The real guard is that unique index — two people registering with the same invite code concurrently, both computing <code>slot = 3</code>, and the second INSERT hits the index and takes the catch branch with a 429.</p>
+
+<p>Four things are written in one batch:</p>
+
+<pre><code>const statements = [
+  env.DB.prepare('INSERT INTO users (...) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(userId, email, await hashPassword(password, salt), salt, initialCredits, userInviteCode, inviter?.id || null, ipHash),
+  env.DB.prepare("INSERT INTO credit_ledger (id, user_id, delta, kind, reference) VALUES (?, ?, 10, 'signup_bonus', 'signup')").bind(id(), userId),
+]
+if (inviter) {
+  statements.push(
+    env.DB.prepare('UPDATE users SET credits = credits + 10 WHERE id = ?').bind(inviter.id),
+    env.DB.prepare("INSERT INTO credit_ledger ... 10, 'referral_bonus', ?").bind(id(), inviter.id, userId),
+    env.DB.prepare("INSERT INTO credit_ledger ... 10, 'referral_bonus', ?").bind(id(), userId, inviter.id),
+    env.DB.prepare('INSERT INTO referrals (...) VALUES (?, ?, ?, ?, 10, ?, ?)').bind(id(), inviter.id, userId, submittedInviteCode, rewardDay, rewardSlot),
+  )
+}
+await env.DB.batch(statements)
+</code></pre>
+
+<p>The invitee gets 20 (10 base + 10 bonus), the inviter gets 10. All three ledger entries are in the same transaction, so "credits added with no ledger row" can never happen.</p>
+
+<p>The balance itself has a non-negative constraint:</p>
+
+<pre><code>credits INTEGER NOT NULL DEFAULT 10 CHECK (credits &gt;= 0)
+</code></pre>
+
+<p>That plus the <code>WHERE credits &gt;= ?</code> above is double insurance. If application logic is wrong, the constraint rejects it outright.</p>
+
+<h2>Payments: Stripe signatures and conditional D1 writes</h2>
+
+<p>Top-ups have two channels: Stripe and WeChat. Both are webhook callbacks.</p>
+
+<p>Stripe signature verification is a handwritten HMAC-SHA256:</p>
+
+<pre><code>async function verifyStripeSignature(body: string, signature: string | null, secret: string) {
+  if (!signature) return false
+  const values = signature.split(',').map((part) =&gt; part.split('=', 2))
+  const timestamp = values.find(([key]) =&gt; key === 't')?.[1]
+  const signatures = values.filter(([key]) =&gt; key === 'v1').map(([, value]) =&gt; value)
+  if (!timestamp || signatures.length === 0) return false
+  const key = await crypto.subtle.importKey('raw', encoder.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+  const expected = toHex(await crypto.subtle.sign('HMAC', key, encoder.encode(\`\${timestamp}.\${body}\`)))
+  return signatures.some((candidate) =&gt; equal(expected, candidate))
+}
+</code></pre>
+
+<p>The signature string can contain multiple <code>v1</code> entries (Stripe signs with both during key rotation), hence <code>signatures.some(...)</code>. Comparison uses a constant-time <code>equal</code>:</p>
+
+<pre><code>function equal(a: string, b: string) {
+  if (a.length !== b.length) return false
+  let difference = 0
+  for (let index = 0; index &lt; a.length; index += 1)
+    difference |= a.charCodeAt(index) ^ b.charCodeAt(index)
+  return difference === 0
+}
+</code></pre>
+
+<p>Real duplicate-payment protection lives in <code>settleRechargeOrder</code>. All three statements carry a <code>status = 'pending'</code> condition:</p>
+
+<pre><code>if (!order || order.status !== 'pending' || order.provider !== provider) return false
+if (provider === 'stripe' &amp;&amp; order.checkout_reference !== providerReference) return false
+
+// D1 batch is transactional. Every statement is conditional on the order still being pending.
+await db.batch([
+  db.prepare("INSERT INTO credit_ledger (id, user_id, delta, kind, amount_cny, reference) SELECT ?, user_id, credits, 'recharge', amount_cny, ? FROM recharge_orders WHERE id = ? AND status = 'pending'").bind(id(), providerReference, orderId),
+  db.prepare("UPDATE users SET credits = credits + (SELECT credits FROM recharge_orders WHERE id = ? AND status = 'pending') WHERE id = (SELECT user_id FROM recharge_orders WHERE id = ? AND status = 'pending')").bind(orderId, orderId),
+  db.prepare("UPDATE recharge_orders SET status = 'paid', provider_reference = ?, paid_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'").bind(providerReference, orderId),
+])
+</code></pre>
+
+<p>Note the first INSERT uses <code>SELECT ... FROM recharge_orders WHERE ... status = 'pending'</code>. If the order is no longer pending, it selects zero rows and no ledger row is written. The second is the same: <code>credits + (SELECT ...)</code> adds <code>NULL</code> in that case, and the UPDATE affects zero rows.</p>
+
+<p><strong>Idempotency is guaranteed entirely by "every statement carries the pending condition"</strong>, not by application-level locking. When Stripe redelivers the same event, the second attempt matches zero rows everywhere and the balance stays put. On a single-node database like D1/SQLite, this is a very clean pattern.</p>
+
+<h2>Testing SSE's dirtiest edge with one mock</h2>
+
+<p>The mini-program's tests are more worth copying than the backend's, because they target the most easily missed class of SSE bug: <strong>a byte stream cut in the middle of a multi-byte character</strong>.</p>
+
+<p>The mini-program's <code>wx.request</code> calls back in chunks when <code>enableChunked: true</code>, and with <code>responseType: 'arraybuffer'</code> you get raw bytes:</p>
+
+<pre><code>task = wx.request({
+  url: \`\${config.apiBase}/api/plan\`,
+  method: 'POST',
+  data: payload,
+  responseType: 'arraybuffer',
+  enableChunked: true, // base library 2.20.1+
+  header: { 'content-type': 'application/json', Accept: 'text/event-stream', ...authHeader() },
+  ...
+})
+
+task.onChunkReceived(({ data }) =&gt; {
+  if (settled) return
+  parser.feed(decoder.decode(data, { stream: true }))
+})
+</code></pre>
+
+<p>The key is <code>stream: true</code>. Chunk boundaries are arbitrary, and a Chinese SSE stream can be cut mid-character; <code>stream: true</code> makes the decoder retain the incomplete sequence until the next chunk. Without it, Chinese text becomes intermittent mojibake.</p>
+
+<p>The test constructs a real cross-boundary cut:</p>
+
+<pre><code>if (url.endsWith('/api/plan')) {
+  // SSE stream simulation: real byte chunks, cut across a UTF-8 character boundary
+  const encoder = new TextEncoder()
+  const full =
+    'event: status\\ndata: {"message":"..."}\\n\\n' +
+    'event: delta\\ndata: {"delta":"..."}\\n\\n' +
+    \`event: complete\\ndata: \${JSON.stringify({ plan: MOCK_PLAN, credits: 0, planId: 'mock-plan-1' })}\\n\\n\`
+  const bytes = encoder.encode(full)
+  const cut = 100 // cut at byte 100, across a multi-byte Chinese character
+  const chunk1 = bytes.slice(0, cut)
+  const chunk2 = bytes.slice(cut)
+</code></pre>
+
+<p>Byte 100 is computed, and the comment says so: "cut across a multi-byte Chinese character". The assertion is not "parsing succeeded" but that the content is <strong>character-for-character equal</strong>:</p>
+
+<pre><code>assert(deltas === 10, \`delta total 10 chars (6 + 4), actual \${deltas}\`)
+</code></pre>
+
+<p>10 is a hard-coded expectation. If the decoder drops half a character at the boundary, this becomes 11 or 9. A test designed to catch UTF-8 boundary bugs must not itself accept "approximately right".</p>
+
+<p>The second group asserts cancellation:</p>
+
+<pre><code>const stream2 = streamPlan({ cities: ['Beijing'], days: 2 }, {})
+stream2.abort()
+await sleep(50)
+assert(lastPlanTask &amp;&amp; lastPlanTask._aborted === true, 'abort cancels the underlying request')
+</code></pre>
+
+<p>The mock only calls <code>opts.success(...)</code> at 40 ms and first checks <code>if (task._aborted) return</code>. So this assertion verifies that abort actually cancelled the underlying request task, not merely flipped a frontend flag.</p>
+
+<p>The third group is a regression test, and its title records history:</p>
+
+<pre><code>console.log('\\n🧪 T5 SSE request 401 (regression: streamPlan must also clear the session)')
+state.setSession('stale-token', { id: 'u1' })
+mode = 'plan-401'
+const s401 = await streamPlan({ cities: ['Beijing'], days: 2 }, {}).promise.catch((e) =&gt; e)
+mode = 'normal'
+assert(s401.status === 401, 'SSE 401 rejects with status')
+assert(state.token === null, 'session cleared after SSE 401')
+assert(unauthorized === 2, 'SSE 401 triggers the global callback')
+</code></pre>
+
+<p>The existence of this test is itself the conclusion: <strong>the SSE endpoint missing 401 handling was a real bug</strong>. JSON requests go through a shared wrapper that handled 401 long ago, but SSE is a separate code path with its own parser, and it missed the session clear. The regression test nails that hole shut.</p>
+
+<p>One more assertion is easy to overlook but important:</p>
+
+<pre><code>assert(lib.MAX_CITIES === 8 &amp;&amp; lib.MIN_DAYS === 2 &amp;&amp; lib.MAX_DAYS === 16 &amp;&amp; lib.PLAN_COST_CREDITS === 10, 'constants match backend constraints')
+</code></pre>
+
+<p>It cannot actually compare against the backend (mini-program tests should not hit the network), but it pins the numbers in the test. So when someone changes a backend constraint and forgets the frontend, at least the test reminds them "there is an agreement here". That is partial compensation for the fragility noted earlier about consistency being maintained by comments.</p>
+
+<h2>Event contract: four events, each doing one job</h2>
+
+<p>The four SSE event types are not arbitrary; they map to four distinct client reactions:</p>
+
+<table>
+<thead><tr><th>Event</th><th>When it fires</th><th>Client reaction</th></tr></thead>
+<tbody>
+<tr><td><code>status</code></td><td>request validated, about to call the model</td><td>show "AI connected"</td></tr>
+<tr><td><code>delta</code></td><td>model emits a text increment</td><td>append to progress area, show received-character count</td></tr>
+<tr><td><code>complete</code></td><td>validated + credits charged + persisted</td><td>render the full plan, navigate to results</td></tr>
+<tr><td><code>error</code></td><td>anything failed</td><td>show the message, do not unlock results</td></tr>
+</tbody>
+</table>
+
+<p>The important part is when <code>complete</code> fires: not "the model finished", but "validation passed, credits charged, itinerary persisted". So when the client receives <code>complete</code>, the data is guaranteed reproducible — refresh the page and <code>/api/account/plans/:id</code> returns the same thing.</p>
+
+<p>That is also why charging happens after validation. Charge first and a geographically-rejected itinerary makes the user pay without a result; charge after validation but before <code>complete</code>, and the worst case is "model finished, validation passed, but the balance check failed during charging" — the client still receives <code>error</code> rather than a fake success.</p>
+
+<p><code>delta</code> usage must also be restrained. It is only for progress display; the client should not try to parse the intermediate JSON — a JSON document cut into ten pieces is not valid JSON in any one piece. The frontend shows "received N characters" rather than attempting incremental rendering of itinerary cards. That constraint avoids an entire class of "half a JSON document failed to parse" bugs.</p>
+
+<p>One practical SSE detail: each event is written as <code>event: X\\ndata: {...}\\n\\n</code>, with the double newline as the event separator. A parser must split on blank lines rather than process line by line, otherwise multi-line <code>data:</code> continuation would be merged incorrectly. The backend only emits single-line data, but the parser follows the protocol, so multi-line support costs nothing later.</p>
+
+<h2>Frontend: two renderers, from PosterBook to the mini program</h2>
+
+<p>The web and mini program share the same backend protocol but have two rendering layers.</p>
+
+<p>The web map poster is <code>PosterBook.tsx</code>, 38 KB, drawing the itinerary as an 1800px-wide poster coloured by day; the print version is <code>PrintDoc</code>, exporting PDF via <code>window.print()</code>.</p>
+
+<p>The mini program pulls pure logic out into its own module so pages and tests share it:</p>
+
+<pre><code>// Pure logic layer for planning and itinerary display: payload construction, day
+// validation, type mapping, itinerary flattening, summary formatting.
+// Extracted from the original canvas scene so pages (form/result) reuse it and tests
+// can drive it directly. Constraints match the backend: days 2-16, at most 8 cities.
+</code></pre>
+
+<p><code>flattenPlan</code> flattens the nested structure into a mixed "day header + items" list, consumed by both views and tests. That is the rule worth keeping in a mini program: <strong>WXML does no logic</strong>; every testable computation goes into <code>js/lib/</code>.</p>
+
+<p>The network layer wraps everything, including SSE parsing:</p>
+
+<pre><code>// Network layer: wx.request wrapper (auto token, unified error handling) + SSE parsing.
+// Backend protocol (same as the original functions):
+//   - JSON endpoints: Authorization: Bearer &lt;token&gt;
+//   - /api/plan: POST, SSE stream, events status / delta / complete / error
+//     (heartbeat and unknown events ignored)
+</code></pre>
+
+<p>"heartbeat and unknown events ignored" corresponds to the backend's 30-second heartbeat. Both ends stay in agreement through comments and the five test files under <code>miniprogram/test/</code>.</p>
+
+<p>The mini program can stream for real too — <code>enableChunked</code> plus <code>onChunkReceived</code> feeds the parser chunk by chunk, matching the web experience. The difference is implementation only: the web uses <code>response.body.getReader()</code>, the mini program uses callbacks. Two handwritten parsers, each needing that UTF-8 boundary test.</p>
+
+<h2>Cost: the books for one generation</h2>
+
+<p>Whether an AI feature can ship often depends not on quality but on whether per-call cost is predictable. This system turns cost into three computable numbers.</p>
+
+<p>First, credits are a hard gate. A generation costs 10; signing up grants 10; an invite grants 10–20. So a new user's free allowance is one generation, and inviting one person buys another.</p>
+
+<p>Second, model calls are enumerable. The upper bound on chunks, and one retry per chunk, is fixed at design time:</p>
+
+<pre><code>const chunks: number[][] = []
+for (let start = 1; start &lt;= input.days; start += 4) {
+  chunks.push(Array.from({ length: Math.min(4, input.days - start + 1) }, (_, index) =&gt; start + index))
+}
+</code></pre>
+
+<p>16 days → 4 chunks → one concurrent group → at most 4 model calls. Each chunk tries at most twice, so the worst case is 8 calls. Each with <code>max_output_tokens: 18_000</code>.</p>
+
+<p>Multiply those three numbers and the worst-case cost of any generation is known before the button is pressed. That matters enormously for AI features, because model calls are billed per token and have high variance. <strong>A feature with unpredictable cost is, operationally, unusable.</strong></p>
+
+<p>Third, overruns have a hard ceiling. Each chunk times out at 210 seconds:</p>
+
+<pre><code>const controller = new AbortController()
+const timeout = setTimeout(() =&gt; controller.abort(), 210_000)
+</code></pre>
+
+<p>210 is not arbitrary. It must stay under the Pages Functions execution limit while covering the slowest chunk (five or six items per day, each with coordinates and detailed instructions). On timeout, <code>AbortController</code> cancels the fetch, the catch branch runs, and it either retries or fails — a stuck connection cannot drag the whole request down.</p>
+
+<p>That also explains charging after success: a generation that failed because the model hung gives the user nothing, so they should not pay. The cost is that the project absorbs invalid calls, which is exactly why the 210-second timeout and two-attempt cap must be strict.</p>
+
+<p>The top-up side follows the same idea. The order table stores both <code>amount_cny</code> and <code>credits</code> rather than computing "amount ÷ unit price" at runtime:</p>
+
+<pre><code>amount_cny INTEGER NOT NULL CHECK (amount_cny &gt; 0),
+credits INTEGER NOT NULL CHECK (credits &gt; 0),
+</code></pre>
+
+<p>The reason is practical: prices change. If conversion were computed at runtime as "1 CNY = 10 credits", a price increase would retroactively change every historical order's credit value and the books would stop balancing. Freezing the exchange rate into the order row is a property a ledger should have.</p>
+
+<p>The later <code>charged_amount</code> / <code>charged_currency</code> columns extend the same principle — what Stripe actually charged may differ from the listed price (FX, tax, discounts), and the ledger must record "what was actually charged", not "what we assumed".</p>
+
+<h2>Multilingual: three locales and a runtime converter</h2>
+
+<p>The UI supports Simplified Chinese, Traditional Chinese and English, but it does not ship three static string sets. It writes Simplified Chinese and English, and converts Traditional Chinese at runtime:</p>
+
+<pre><code>- Three-language UI: Simplified Chinese / Traditional Chinese / English, preference in
+  localStorage (routewise_language)
+- Live Traditional conversion: lazily loaded opencc-js (cn -&gt; tw Converter); city names
+  and UI copy convert uniformly
+</code></pre>
+
+<p>The benefit is direct: copy maintenance drops from three sets to two, and Traditional Chinese can never miss "a new string someone forgot to translate" because it is always a faithful conversion of Simplified. The cost is loading a converter on first paint, hence lazy loading.</p>
+
+<p>Backend error strings take the other route — all three written out:</p>
+
+<pre><code>const messages: Record&lt;Language, { login: string; invalid: string; city: string; credits: string; unavailable: string; started: string }&gt; = {
+  'zh-CN': { login: '请先登录后再规划', invalid: '请求格式无效', city: '请至少选择一个城市', ... },
+  'zh-TW': { login: '請先登入後再規劃', invalid: '請求格式無效', city: '請至少選擇一個城市', ... },
+  en: { login: 'Sign in before creating a plan', invalid: 'Invalid request', city: 'Choose at least one city', ... },
+}
+</code></pre>
+
+<p>Why the difference? Backend strings appear inside SSE events, in 402 responses and in logs, where depending on a frontend library at runtime is awkward. And there are only six fields — writing all three is cheap.</p>
+
+<p>There is a detail worth learning here: Traditional and Simplified differ by more than glyphs. <code>請先登入後再規劃</code> and <code>请先登录后再规划</code> are the same sentence written differently; a Simplified-to-Traditional mapping cannot produce it ("登入" vs "登录" is a regional usage difference). So even with opencc on the frontend, these backend strings must be written by hand.</p>
+
+<p>Currency follows language, but symbol localisation happens on the frontend:</p>
+
+<pre><code>const currency: Currency = body.currency === 'TWD' || body.currency === 'USD' ? body.currency : 'CNY'
+</code></pre>
+
+<p>The backend accepts only three currency codes and falls back to CNY for anything else. Thousands separators, symbol placement and decimal places belong to the presentation layer — the backend only needs to tell the model "total budget 8000 CNY" in the prompt.</p>
+
+<h2>How the prompt got here</h2>
+
+<p>The final prompt reads like something written deliberately. It was not. It is the residue of a specific failure sequence, and that sequence explains why each rule is phrased the way it is.</p>
+
+<p><strong>Attempt one</strong> was a polite request: "plan a 5-day Tokyo trip with specific times and locations". The output was beautiful prose and useless data. No coordinates, so it could not be plotted; no per-item cost, so the budget could not be checked.</p>
+
+<p><strong>Attempt two</strong> added a JSON schema. Now the output parsed, and the map showed five pins on top of each other, because the model was emitting the city centroid for every venue. The fix was not "ask for coordinates" — it already did. The fix was telling the model <em>why</em>: coordinates will be plotted on a real city map, so they must closely match the named venue. Models respond to consequences better than to adjectives.</p>
+
+<p><strong>Attempt three</strong> fixed coordinates and broke geography. With real coordinates, the itinerary became a pinball route: north, south, north, south. This is where the district-first instruction came from — "plan geography before writing the itinerary, group each day into one nearby district, then order stops in a continuous direction". Note the ordering: decide the area, then order within it. Models that write items first will rationalise any order afterwards.</p>
+
+<p><strong>Attempt four</strong> made the day trips break. A legitimate day trip to Kamakura from Tokyo produces a 60 km leg, which the same-area rules reject. The answer was to make the transfer explicit: distance is only allowed when represented by a separate <code>train</code> item, which acts as an area separator for the validator. That single type value resolved both the modelling question and the validation question at once.</p>
+
+<p><strong>Attempt five</strong> added the numeric thresholds the validator was already using, so that the model could self-correct before ever being measured. Every rule after that is a bug that was observed once and then encoded.</p>
+
+<p>That is the honest history of most production prompts: not a specification, but a sediment layer. The discipline that makes it maintainable is the rule that each sentence must correspond to something the code checks or something the client renders. Anything else is decoration and belongs out.</p>
+
+<h2>Failure taxonomy</h2>
+
+<p>Once the pipeline is layered, failures become classifiable, and each class has a different correct response. Getting this mapping wrong is how systems end up either retrying things that cannot succeed or giving up on things that would have.</p>
+
+<table>
+<thead><tr><th>Failure</th><th>Detection</th><th>Correct response</th></tr></thead>
+<tbody>
+<tr><td>Model returns prose, not JSON</td><td><code>parseJsonText</code> throws</td><td>Retry with the parse error as feedback</td></tr>
+<tr><td>Wrong number of days</td><td><code>normalizePlan</code> length check</td><td>Retry, quoting the exact expected range</td></tr>
+<tr><td>Missing or out-of-range coordinates</td><td>normalize sets <code>undefined</code></td><td>Retry; the geo check names the item</td></tr>
+<tr><td>Stops too far apart / backtracking</td><td><code>geographicIssues</code></td><td>Retry with the specific pair and distance</td></tr>
+<tr><td>Model times out at 210s</td><td><code>AbortController</code></td><td>One retry after 1.2s; then fail</td></tr>
+<tr><td>Model provider down</td><td>fetch rejects or 5xx</td><td>Retry once, then SSE <code>error</code></td></tr>
+<tr><td>Balance changed mid-generation</td><td>conditional UPDATE returns 0 rows</td><td>No retry: <code>error</code> with credits</td></tr>
+<tr><td>Client disconnects</td><td>writer throws</td><td>Swallow, clear heartbeat, close</td></tr>
+</tbody>
+</table>
+
+<p>Three distinctions in that table carry real weight.</p>
+
+<p><strong>Content failures retry; infrastructure failures retry once; state failures do not retry at all.</strong> A balance problem will not fix itself by asking the model again, and retrying there would waste another two minutes to arrive at the same 402.</p>
+
+<p><strong>Feedback must be specific enough to act on.</strong> "The previous response was invalid" produces another invalid response. "Day 1: adjacent stops are too far apart (Ueno Park to Shinjuku Gyoen is 11 km)" produces a fixed day, because it names the day, the two items, and the excess.</p>
+
+<p><strong>Client disconnects are normal, not errors.</strong> A user closing the tab mid-generation is expected behaviour. The writer throws, the catch swallows, the heartbeat is cleared, and the stream closes. Logging that as a failure would drown the real ones.</p>
+
+<p>The last row is worth extending: because generation runs in <code>waitUntil</code>, a disconnect does not stop the model call. The work finishes, the credits are charged, and the plan is stored — the user simply is not there to see it, and can find it in history later. That is the right behaviour for a paid generation, and it only works because persistence does not depend on the client connection.</p>
+
+<h2>The poster: Web Mercator, tiles, and 1800 pixels</h2>
+
+<p>The itinerary is not only text. The client renders a shareable poster on a canvas, and the drawing code is where "works on a map" becomes literal.</p>
+
+<p>The canvas is a fixed 1800 pixels wide:</p>
+
+<pre><code>const WIDTH = 1800;
+</code></pre>
+
+<p>Fixed width rather than responsive, because the output is an image. It will be saved, posted, and printed, so a predictable pixel budget beats fitting a container.</p>
+
+<p>Base map tiles come from a standard slippy-map scheme, with the Web Mercator projection written out explicitly:</p>
+
+<pre><code>const scale = 256 * 2 ** zoom;
+x: (longitude + 180) / 360 * scale,
+y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * scale,
+</code></pre>
+
+<p>Zoom is chosen to fit the itinerary's bounding box rather than fixed:</p>
+
+<pre><code>const sourceScale = Math.min(width * 0.82 / spanX, height * 0.72 / spanY);
+const exactZoom = Math.max(3, Math.min(18, sourceZoom + Math.log2(sourceScale)));
+</code></pre>
+
+<p>The 0.82 and 0.72 leave margin for pins and labels near the edges; without them, a marker on the bounding-box corner gets clipped. Clamping to 3 through 18 keeps the tile math valid at both extremes.</p>
+
+<p>Tile X wraps around the antimeridian:</p>
+
+<pre><code>const wrappedX = ((tileX % maxTile) + maxTile) % maxTile;
+</code></pre>
+
+<p>That double modulo is the standard trick for negative operands: JavaScript's <code>%</code> keeps the sign, so a plain modulo produces negative tile indices for longitudes left of the prime meridian.</p>
+
+<p>Tiles are drawn with a one-pixel overshoot:</p>
+
+<pre><code>if (image) ctx.drawImage(image, x + tileX * tileSize - view.left, y + tileY * tileSize - view.top, tileSize + 1, tileSize + 1);
+</code></pre>
+
+<p>The <code>+ 1</code> hides hairline seams between adjacent tiles caused by fractional positioning. It is the kind of detail nobody notices when present and everybody notices when missing.</p>
+
+<p>When a tile cannot be fetched — offline, rate-limited, or simply outside the available zoom range — the renderer falls back to a sketch map: <code>drawSketchMap</code> draws an abstract layout from the coordinates instead of degrading to a blank rectangle. A poster that still communicates the route beats a poster with a grey hole.</p>
+
+<p>Print export is a separate component (<code>PrintDoc</code>) and a single call:</p>
+
+<pre><code>&lt;button className="ghost-btn" onClick={() =&gt; window.print()}&gt;...&lt;/button&gt;
+</code></pre>
+
+<p>Browser print-to-PDF is the pragmatic choice here. A server-side PDF pipeline would mean a headless browser, a queue, and font shipping — three moving parts to produce something the browser already does well with a print stylesheet.</p>
+
+<h2>At ten times the traffic</h2>
+
+<p>Extrapolating this design to a much larger user base, the constraints shift in a predictable order.</p>
+
+<p><strong>The 4-way concurrency cap becomes the bottleneck before the model does.</strong> Pages Functions has per-request subrequest limits, and grouping in fours means a 16-day trip occupies one invocation for the duration of its slowest group. At scale the right move is a queue: enqueue chunk jobs, let them run as separate invocations, and stream results to the client from D1 or a Durable Object rather than from the same call stack.</p>
+
+<p><strong>Credits move from a column to a ledger-first design.</strong> Right now <code>users.credits</code> is authoritative and the ledger is the audit trail. That is fine at low volume. Under contention, the right model is to append to the ledger and derive the balance, or keep the column but treat it strictly as a cache of the ledger sum with periodic reconciliation. The current conditional UPDATE already prevents overdraft, so this is a scaling change, not a correctness fix.</p>
+
+<p><strong>The geo validator stays as-is, and that is the point.</strong> At 0.078 ms worst case it is three orders of magnitude cheaper than a single model call. Even a hundredfold increase in itinerary size would leave it negligible. This is what "keep validation cheap enough that you never skip it" buys you.</p>
+
+<p><strong>The prompt becomes a versioned artifact.</strong> Once multiple engineers iterate on it, "the prompt" needs a version number, an evaluation set, and a diff. The current single string in <code>plan.ts</code> is honest for one author; it is not survivable by a team without a way to answer "did this change make it better".</p>
+
+<p>Notice that none of these are architectural rewrites. They are all "extract the part that already exists into the layer that needs it". That is usually the sign that the original boundaries were drawn in roughly the right places.</p>
+
+<h2>What streaming actually buys you</h2>
+
+<p>It is worth being precise about why this endpoint streams at all, because "streaming" is often added as a flourish and then paid for in complexity forever.</p>
+
+<p>The generation takes roughly forty seconds for a five-day trip and proportionally longer for sixteen days, because chunks are requested in groups. A synchronous request of that length has three problems: users cannot tell whether it is working, intermediaries time out, and a failure at second thirty-nine returns nothing useful.</p>
+
+<p>Streaming addresses all three differently.</p>
+
+<p><strong>Perceived latency.</strong> The first <code>status</code> event arrives in milliseconds, the first <code>delta</code> shortly after. The user is watching text accumulate rather than a spinner. This is a real product gain even though the total time is unchanged.</p>
+
+<p><strong>Connection lifetime.</strong> The 30-second heartbeat comment frame keeps the connection alive through proxies that would otherwise close an idle socket. Without it, a slow chunk looks like a dead connection and gets killed by the network before the model finishes.</p>
+
+<p><strong>Partial failure visibility.</strong> The <code>error</code> event carries a message and arrives immediately, rather than being inferred from a connection drop. A user who hit a 402 three seconds in gets that answer in three seconds, not after a timeout.</p>
+
+<p>What streaming does <em>not</em> buy is incremental rendering of the itinerary. The client cannot draw day 2 while day 3 is still being generated, because the JSON for a chunk only becomes parseable when the chunk completes, and cross-chunk ordering is only settled at merge. So the UI has two states: a progress view driven by <code>delta</code> character counts, and a result view driven by <code>complete</code>. Trying to merge them produces a flickering half-rendered itinerary and a class of parse bugs that never fully go away.</p>
+
+<p>That constraint is worth stating explicitly because it is counter-intuitive: more streaming does not mean a smoother UI. The right split is "stream progress, not content".</p>
+
+<p>There is one more consequence. Because generation runs under <code>waitUntil</code>, the work continues if the client disconnects. So closing the tab does not cancel a generation, does not refund the credits, and does not lose the plan. The plan is in history when the user comes back. For a paid operation this is the correct semantics — the alternative, where a network blip silently burns ten credits and returns nothing, is much worse. If cancellation is genuinely desired, it has to be an explicit action with its own endpoint and its own refund rule, not an implicit side effect of a dropped socket.</p>
+
+<h2>D1 as a product database</h2>
+
+<p>Using D1 for accounts, credits, orders and plans rather than only for a cache is the decision most worth examining, because SQLite at the edge has real constraints and the design leans into them rather than fighting them.</p>
+
+<p>What D1 gives you here is transactional batches. <code>db.batch([...])</code> executes a list of statements atomically, which is what makes the credit ledger, the referral bonus, the WeChat account creation and the payment settlement all correct without a distributed transaction. Every one of those flows needs "all or nothing" across three or four tables, and every one of them gets it from a single primitive.</p>
+
+<p>What D1 does not give you is row-level locking or an interactive transaction you can hold open across application logic. That absence shapes the code in a specific way: instead of "read, decide, write", the pattern becomes "write conditionally and inspect the change count".</p>
+
+<pre><code>UPDATE users SET credits = credits - ? WHERE id = ? AND credits &gt;= ?
+</code></pre>
+
+<p>That single statement replaces a lock, a check and an update. It is also more robust than the equivalent application code, because the check and the write are the same operation, so there is no window between them.</p>
+
+<p>The same shape appears in payment settlement, where all three statements carry <code>status = 'pending'</code>. The condition is not defensive programming; it is the concurrency control. A duplicate webhook finds zero pending rows and does nothing, which is exactly the idempotency a payment callback needs.</p>
+
+<p>The consequence for schema design is that constraints carry more weight than they would in a system with rich locking. The <code>CHECK (credits &gt;= 0)</code>, the partial unique index on <code>registration_ip_hash</code>, the <code>(inviter_user_id, reward_day, reward_slot)</code> unique index — each one is a rule that would otherwise need application code plus a lock, and each one is enforced even if the application has a bug.</p>
+
+<p>The trade-off is migration friction. SQLite cannot alter a CHECK constraint in place, so adding the referral bonus kind meant creating a new ledger table, copying rows, dropping the old one and renaming — with index recreation as a separate step. That is a real cost. It is still cheaper than running a relational server for a project of this size, but it is not zero, and it is the kind of thing you only learn by hitting it once.</p>
+
+<p>Read-heavy paths are the other soft spot. Plans are stored as JSON blobs keyed by user, which is ideal for "show my last eight itineraries" and useless for "how many people planned Kyoto last month". If analytics becomes a requirement, that is a schema change, not a query change. Naming that boundary now is better than discovering it after the first product question that cannot be answered.</p>
+
+<h2>What a smaller version would look like</h2>
+
+<p>Most of this article describes four layers of defence. It is worth asking what would remain if the project had to be half its size, because that answer reveals which parts are load-bearing and which are polish.</p>
+
+<p><strong>Keep the schedule, drop the chunking.</strong> Fixing the city allocation server-side removes the largest single source of nonsense. Chunking exists because sixteen-day itineraries truncate; if the product only supported short trips, a single call would do, and the merge logic, the concurrency cap and the cross-chunk consistency instruction all disappear with it.</p>
+
+<p><strong>Keep the geo validator, drop the retry.</strong> The validator costs 0.078 ms at worst and stops an entire class of impossible output. The retry costs an extra model call and a 1.2-second delay. If budget mattered more than success rate, you would show the failure and let the user decide — but you would never remove the validator, because returning an unroutable itinerary is worse than returning an error.</p>
+
+<p><strong>Keep the versioned snapshot equivalent — the prompt contract — and drop the poster.</strong> The structured output contract is what makes the result usable at all. The canvas poster is a delight feature; it is the difference between a good product and a memorable one, but it is not what makes the data correct.</p>
+
+<p><strong>Keep the conditional writes, drop the referral system.</strong> Idempotent settlement and atomic credit deduction are correctness properties. The invite mechanic is growth. One of those can be deleted on a bad day; the other cannot.</p>
+
+<p>That ordering is also a reasonable roadmap in reverse. When the system has to grow, the first things to add are the ones that were cut for scope, not the ones that were cut for size — and the distinction between those two categories is exactly what a design document is for.</p>
+
+<h2>Boundary: why these checks cannot replace a human</h2>
+
+<p>Treating the geo validator as proof of content correctness is the most likely misreading of this design. What it actually guarantees is narrow.</p>
+
+<p>What it guarantees: coordinates exist and are in range; distances between points satisfy four thresholds; the route does not obviously backtrack; intercity legs have an explicit <code>train</code> item. All five are <strong>geometric facts</strong> that need no external knowledge.</p>
+
+<p>What it cannot guarantee is precisely what matters most in trip planning:</p>
+
+<ul>
+<li>Whether Senso-ji is open on Tuesday, or under renovation.</li>
+<li>Whether that ramen shop still exists at the same address.</li>
+<li>Whether a 10-minute walk from A to B is realistic in rainy season.</li>
+<li>Whether ¥8,000 is enough during cherry blossom season.</li>
+<li>Whether an activity needs a reservation a month in advance.</li>
+</ul>
+
+<p>So the prompt line "Prices, schedules, opening hours and availability are estimates, never live-verified facts" is not a disclaimer, it is a statement of what this system is. The validator handles shape, the model handles content, and fact-checking still needs a person.</p>
+
+<p>That is also why the output keeps a <code>note</code> field and requires it to contain "reservations, opening-hour verification and practical warnings". The model is instructed to tell the user "you need to confirm this yourself" rather than giving a confident-looking answer.</p>
+
+<p>Comparing two product positions makes it clear. If the goal is "hand the user an itinerary they can follow exactly", this is not enough — it needs real POI data and opening hours. If the goal is "hand the user a draft they can edit", it is already there: 40 seconds produces a structurally rigorous, geographically sensible draft covering five or six stops a day, and a human only needs to verify facts and adjust preferences. The latter is what a project this size should be doing.</p>
+
+<p>Recognising that boundary is worth more than adding another validation layer. Another layer doubles the cost, and the gain may be zero: what the validator does not know, it will never know.</p>
+
+<h2>Location data: 251 city JSON files and an edge search proxy</h2>
+
+<p>City selection must be fast and work offline. So city data is generated as static JSON at build time:</p>
+
+<pre><code>tools/build-cities.mjs        build-world-cities.mjs
+generate-locations.mjs         cn-city-coords.json
+world-cities.json              world-provinces.json
+</code></pre>
+
+<p>251 files under <code>public/locations/</code>, lazy-loaded by the client. That way first paint waits on no API at all.</p>
+
+<p>But users may want to search for a place not in the list. So there is an edge proxy forwarding to Open-Meteo geocoding:</p>
+
+<pre><code>const upstreamUrl = new URL("https://geocoding-api.open-meteo.com/v1/search")
+upstreamUrl.searchParams.set("name", query)
+upstreamUrl.searchParams.set("count", "20")
+</code></pre>
+
+<p>Two details. First, input is strictly bounded so it cannot become an open proxy:</p>
+
+<pre><code>const query = (url.searchParams.get("q") || "").trim().slice(0, 80)
+const requestedCountry = (url.searchParams.get("country") || "").toUpperCase()
+const country = /^[A-Z]{2}$/.test(requestedCountry) ? requestedCountry : ""
+if (query.length &lt; 2) return json({ results: [] })
+</code></pre>
+
+<p><code>country</code> must match two uppercase letters or it is discarded — never interpolated into an arbitrary string. The URL is also a fixed host plus a fixed path, accepting no caller-supplied address.</p>
+
+<p>Second, so that place names have English equivalents on Traditional/Simplified UIs, the same query is issued twice:</p>
+
+<pre><code>const englishRequest = language === 'en' ? null : fetch(englishUrl, { headers: { Accept: "application/json" } })
+const [response, englishResponse] = await Promise.all([localizedRequest, englishRequest])
+</code></pre>
+
+<p>Then merged by id:</p>
+
+<pre><code>const englishNames = new Map((englishPayload.results || []).map((place) =&gt; [place.id, place.name]))
+...
+sourceName: englishNames.get(place.id) || place.name,
+</code></pre>
+
+<p>One round trip, two languages, in parallel via <code>Promise.all</code>. The result is cached for an hour:</p>
+
+<pre><code>headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }
+</code></pre>
+
+<h2>Boundaries that still exist</h2>
+
+<p>With the whole chain laid out, the boundaries are clear:</p>
+
+<ul>
+<li><strong>The validator understands distance, not meaning.</strong> It does not know Senso-ji is closed on Tuesdays, or that a shop has gone out of business. It can guarantee the route does not backtrack; it cannot guarantee the content is true.</li>
+<li><strong>22–25 km is a blind spot for the backtrack rule.</strong> The measured ratio-2.47 itinerary that reported nothing is the example. An absolute floor is necessary, but shapes near the boundary slip through.</li>
+<li><strong>Coordinate and place-name consistency is unchecked.</strong> A model can give "Senso-ji" with Shinjuku coordinates and pass every distance check, because the validator only compares points, not names.</li>
+<li><strong>City allocation is even splitting.</strong> 3 cities over 7 days is always 3/2/2, with no notion of "Tokyo deserves an extra day".</li>
+<li><strong>Credits are charged after generation</strong>, so a slow failed generation is free. Friendly to users, but the project absorbs the cost of invalid model calls.</li>
+<li><strong>Frontend and backend each declare the constraints.</strong> <code>MAX_CITIES</code>, <code>MAX_DAYS</code> and the 10 credits exist in both <code>plan.ts</code> and <code>miniprogram/js/lib/plan.js</code>, aligned by comment.</li>
+<li><strong>Two SSE parsers.</strong> The web uses <code>getReader()</code>, the mini program uses <code>enableChunked</code> callbacks, both handwritten. Logically equivalent, code not shared, so UTF-8 boundary bugs must be tested on both sides.</li>
+<li><strong>Only one retry.</strong> A chunk failing twice fails the whole generation: no credits charged, but the user waited over two minutes for nothing.</li>
+</ul>
+
+<p>These are not a TODO list. They are the current shape of this implementation.</p>
+
+<h2>Closing</h2>
+
+<p>If you only remember three things:</p>
+
+<ol>
+<li><strong>Do not ask the model what you can compute.</strong> City allocation, dates and titles are all computed server-side. The model only handles "what to do during these three Tokyo days". That single rule removes the largest source of uncertainty from the model.</li>
+<li><strong>Write validation rules into the contract.</strong> 15 / 22 / 6 km appear in both the prompt and the validator, so the model knows in advance how it will be measured. On failure, feed the exact reason back and retry — the validator's output is the next round's input.</li>
+<li><strong>Where you do not need a lock, do not add one.</strong> Credit deduction uses a conditional UPDATE, payment idempotency uses a <code>status = 'pending'</code> condition on every statement, and invite limits use a unique index. All three hand the invariant to the database.</li>
+</ol>
+
+<p>SSE streaming, four-day chunking, minimum-spanning-tree backtrack detection, IP-hash rate limiting — they are all sides of one thing: <strong>turning a model call that takes tens of seconds into a product feature with progress, verification and auditable books</strong>. The acceptance criterion for this kind of feature is not "the first generation looks right". It is "out of a hundred generations, how many are wrong on a map, and were users told about the ones that were".</p>
+
+<p>Source: <a href="https://github.com/zhoujungis/trip-planning" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/trip-planning</a>. The other teardown published this week is <a href="/en/article/nanoqa-versioned-quality-loop/">NanoQA: four hard boundaries in a test management system</a>.</p>`,
+  },
+
+
 ]
 
 // 列表页、快照和 sitemap 都按这个顺序渲染：新稿在前，和中文站的列表一致。
