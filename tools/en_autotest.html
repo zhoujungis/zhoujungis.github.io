@@ -1,0 +1,988 @@
+<blockquote>
+<p>Who this is for: engineers who have written pytest suites but never turned them into a service; people building internal tools, test platforms or device farms; anyone using Appium for Android automation and getting tired of adb, sessions and report formats.</p>
+<p><strong>TL;DR:</strong> AutoTest chains three roles into one remote pipeline. A developer laptop only picks scripts. A test server streams pytest stdout over Server-Sent Events. Every script gets its own pytest process. The whole batch sends exactly one summary email. The hard part is not making Appium click. It is four boundaries: interpreter discovery, single-batch mutual exclusion, sub-report merging, and report IDs plus mail de-duplication. This article walks through ten HTTP routes, four SSE events and three config tables, and then points at three latent bugs, five undeclared imports and one Stop button with no backend.</p>
+<p>Reading time around 32 minutes. Level: advanced.</p>
+</blockquote>
+
+<h2>This is not a folder of pytest scripts</h2>
+
+<p>Most teams end up with the same kind of "automation" after a year: a <code>tests/</code> directory with dozens of <code>test_*.py</code> files, one person running them on their own laptop, and a screenshot of the log pasted into a chat group. It finds bugs, but it is not a system, because nobody answers four questions:</p>
+
+<ul>
+<li>Can someone launch a run without installing Python or plugging in a phone?</li>
+<li>What happens when a second person clicks Run while the first batch is halfway through?</li>
+<li>When ten scripts finish, where do I look, and which script does a failed log line belong to?</li>
+<li>If three people click Run, how many emails land in the inbox?</li>
+</ul>
+
+<p>AutoTest is an internal test platform that grew out of those four questions. Its size is modest: seven Vue components, a 25 KB <code>server.js</code> with ten routes, three <code>test_*.py</code> scripts in the test directory, and three PostgreSQL config tables. The complexity is not in the line count. It is in the boundaries: where the Python process comes from, how an SSE stream ends, how reports merge, how one email is sent instead of ten, and how configuration evolves without migrations.</p>
+
+<p>Here is the thesis up front:</p>
+
+<pre><code>role            where it runs           responsibility
+script author   anywhere                write tests/debug or tests/release
+developer box   Vite :5173              scan local scripts, queue, show logs
+test server     Node :3000              spawn pytest, write reports, mail, config
+</code></pre>
+
+<p>Of those three, the test server is the hard one. It has to turn one HTTP request into a controlled child process, then reassemble that child's output, files and exit code into something both humans and machines can read. Appium is only one part of that child process.</p>
+
+<h2>Two machines, one proxy: the topology</h2>
+
+<p>AutoTest splits the system into a developer box and a test server. The developer box needs no Python, no Appium, no Android SDK, and no phone. It runs a Vite frontend. The execution environment lives on the test server, addressed by <code>AUTOTEST_REMOTE_SERVER</code>:</p>
+
+<pre><code>+-------------------------+         +------------------------------+
+|  developer box (:5173)  |  proxy  |  test server (Node :3000)    |
+|  - scans local tests/   | ------> |  - runs pytest (SSE output)  |
+|  - Testbed / config UI  |         |  - reads and writes reports/ |
+|                         |         |  - PostgreSQL config         |
+|                         |         |  - Pretest checks            |
++-------------------------+         +------------------------------+
+</code></pre>
+
+<p>The Vite proxy table is the load-bearing part. It keeps the script list local, and forwards execution, reports, config and environment checks to the remote host:</p>
+
+<pre><code>const REMOTE_SERVER =
+  env.AUTOTEST_REMOTE_SERVER || process.env.AUTOTEST_REMOTE_SERVER || 'http://127.0.0.1:3000'
+
+server: {
+  proxy: {
+    '/api/log': { target: REMOTE_SERVER, changeOrigin: true,
+      rewrite: (p) =&gt; p.replace(/^\/api\/log/, '/log') },
+    '/api/reports': { target: REMOTE_SERVER, changeOrigin: true },
+    '/api/report': { target: REMOTE_SERVER, changeOrigin: true },
+    '/run-tests-stream': { target: REMOTE_SERVER, changeOrigin: true },
+    '/stop-tests': { target: REMOTE_SERVER, changeOrigin: true },
+    '/api/pretest': { target: REMOTE_SERVER, changeOrigin: true },
+    '/api/config': { target: REMOTE_SERVER, changeOrigin: true },
+  },
+  host: true,
+  port: 5173,
+}
+</code></pre>
+
+<p>Why split at all? Two reasons. The developer box is where scripts change all day, and requiring every author to install Appium, the Android SDK and a matching Python is an adoption tax. The test server is where the phone and the SDK live, and it is usually a fixed Windows machine with USB devices attached. Separating them also means a frontend deploy cannot break a running device session, and a driver crash cannot take down the UI. The cost is a second network hop and a proxy configuration that has to stay in sync with backend routes. For a team of five the trade is worth it; for a solo developer on one laptop, running both processes locally is also supported, because the default remote server is simply 127.0.0.1:3000.</p>
+
+<p>One detail is easy to miss: <code>/api/log</code> needs its own rewrite and must sit before the broader rules. The backend route is <code>/log</code>; the frontend prefixes everything with <code>/api</code> for consistency. If a single <code>/api</code> rule caught it, the request would arrive as <code>/api/log</code> and 404. In Vite, proxy order is not decoration. It is routing.</p>
+
+<p>The other detail is <code>host: true</code>. It makes Vite listen on the LAN, so a colleague can open <code>http://192.168.x.x:5173</code> without installing a second set of Node dependencies. The price is that there is no authentication by default. That is section 27.</p>
+
+<p>Deployment is worth one paragraph because it explains several defaults. The test server is typically a Windows machine on the office LAN, reached by IP rather than by hostname, because there is no DNS entry for a workstation. That is why the remote server is configured as a full URL, and why CORS is open: the page is served from a Vite origin and calls a different host. It is also why the backend binds <code>0.0.0.0</code>, since binding loopback would make the LAN setup impossible. Every one of these choices is reasonable in isolation and dangerous in combination, which is the recurring theme of this article.</p>
+
+<h2>What the developer box actually does</h2>
+
+<p>The script list is not fetched from the remote host. A Vite middleware scans it locally:</p>
+
+<pre><code>function localScriptsPlugin() {
+  return {
+    name: 'local-scripts',
+    configureServer(server) {
+      server.middlewares.use('/api/scripts', (req, res, next) =&gt; {
+        if (req.method !== 'GET') return next()
+        const url = new URL(req.url || '/', 'http://localhost')
+        const mode = url.searchParams.get('mode') === 'test' ? 'release' : 'debug'
+        const dirPath = path.resolve(__dirname, '..', 'tests', mode)
+        const files = fs.readdirSync(dirPath)
+          .filter(f =&gt; f.startsWith('test_') &amp;&amp; f.endsWith('.py'))
+          .map(f =&gt; ({ name: f, path: path.join(dirPath, f) }))
+        sendJson(res, 200, files)
+      })
+    }
+  }
+}
+</code></pre>
+
+<p>This has one clear benefit: a script author adds a new <code>test_xxx.py</code>, refreshes the console, and sees it, with no deployment to the test server. The same endpoint also exists inside <code>server.js</code>, with nearly identical logic but a different root. Keeping two implementations in sync is a human job; a shared module would be better. For a small internal tool, the duplication is survivable.</p>
+
+<p>The Testbed interaction is deliberately narrow. The left panel lists scripts and supports search; typing a keyword and pressing Enter appends every match to the run queue. The right panel is a draggable table; its order is the execution order, because <code>server.js</code> iterates the <code>scripts</code> parameter in order. Debug and Test map to <code>tests/debug</code> and <code>tests/release</code>. The top bar has exactly six actions: run, stop, Pretest, results, live report, and three config pages.</p>
+
+<p>Run ultimately does one thing: it builds an EventSource URL.</p>
+
+<pre><code>const params = new URLSearchParams()
+params.set('mode', mode.value)
+params.set('scripts', selectedScripts.value.map(s =&gt; s.name).join(','))
+evtSource = new EventSource(`/run-tests-stream?${params.toString()}`)
+
+evtSource.addEventListener('stdout', e =&gt; appendStreamLine(e.data))
+evtSource.addEventListener('stderr', e =&gt; appendStreamLine(e.data))
+evtSource.addEventListener('report', e =&gt; { /* remember reportId */ })
+evtSource.addEventListener('close', e =&gt; { /* finish */ })
+</code></pre>
+
+<p>The queue sends file names, not paths and not objects. That is a small but important decision. Objects stringify to <code>[object Object]</code> in a URL. Absolute paths would hand the server an arbitrary file read. Accepting only names that match <code>test_*.py</code> is a protocol-level allowlist.</p>
+
+<p>The queue deserves a note because it is the only place where human intent becomes execution order. Dragging a smoke test above a long stress loop is a meaningful action: if the smoke test fails, the stress loop still runs, because the server does not short-circuit on failure. That is deliberate for data collection, but it surprises people who expect fail-fast. A future version could expose a "stop on first failure" switch; today the ordering is the only control. The search-to-queue shortcut has the same property: it appends every match, so a broad keyword can queue twenty scripts by accident. A confirmation with the match count would be a small but worthwhile improvement.</p>
+
+<h2>The test server: turning HTTP into processes</h2>
+
+<p><code>server.js</code> is a single-file Express service with very few dependencies: <code>express</code>, <code>cors</code>, <code>pg</code>, <code>tcp-port-used</code>, and Node's built-in <code>child_process</code>, <code>fs</code> and <code>readline</code>. It implements ten routes:</p>
+
+<table>
+<thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td>/api/scripts?mode=debug|test</td><td>Remote script list, mirroring the local middleware</td></tr>
+<tr><td>GET</td><td>/run-tests-stream</td><td>SSE test execution</td></tr>
+<tr><td>GET</td><td>/api/reports</td><td>Report list with running/finished status</td></tr>
+<tr><td>GET</td><td>/api/report/:reportId</td><td>One merged report</td></tr>
+<tr><td>GET</td><td>/log?reportId=&amp;nodeid=</td><td>One test case and its log</td></tr>
+<tr><td>GET/POST</td><td>/api/config?table=</td><td>Read/write the three config tables</td></tr>
+<tr><td>GET</td><td>/api/pretest</td><td>Database, Appium, Python checks</td></tr>
+<tr><td>POST</td><td>/api/pretest/install</td><td>Install missing pip packages</td></tr>
+<tr><td>GET</td><td>/test-results-json</td><td>Legacy overview file (historical)</td></tr>
+</tbody>
+</table>
+
+<p>There is no <code>/stop-tests</code> in that table, although the frontend posts to it. Section 26 is about that gap.</p>
+
+<p>Functionally the service does three things. It delegates config reads and writes to PostgreSQL and keeps no business state itself. It turns one run into N child processes and turns their stdout/stderr into SSE events. It merges each child's pytest JSON report into a batch report, and triggers one email at the end.</p>
+
+<p>There is no queue, no task table and no worker. Batch state lives in one boolean and one directory on disk. That is what makes it simple, and also what makes it fragile.</p>
+
+<h2>Four SSE events and one batch timeline</h2>
+
+<p><code>/run-tests-stream</code> is the only long-lived connection in the system. It writes SSE headers, then does five things in order. First it allocates an ID and a directory. Then it writes an empty report shell so the live page can open immediately:</p>
+
+<pre><code>res.setHeader('Content-Type', 'text/event-stream')
+res.setHeader('Cache-Control', 'no-cache')
+res.setHeader('Connection', 'keep-alive')
+
+reportId = generateDailyId()
+reportDir = path.join(REPORTS_BASE, reportId)
+fs.mkdirSync(reportDir, { recursive: true })
+
+fs.writeFileSync(reportFile, JSON.stringify({
+  tests: [], collectors: [], summary: {},
+  status: 'running', created: now, updatedAt: now,
+  duration: 0, exitcode: 0, root: __dirname, environment: {},
+}, null, 2))
+
+res.write(`event: report\ndata: ${JSON.stringify({ reportId, status: 'running' })}\n\n`)
+</code></pre>
+
+<p>After that, every script starts independently. The loop is a <code>forEach</code>, not an await chain, so scripts run concurrently. There are only four event types:</p>
+
+<table>
+<thead><tr><th>Event</th><th>Payload</th><th>Consumer</th></tr></thead>
+<tbody>
+<tr><td><code>report</code></td><td><code>{ reportId, status }</code></td><td>Frontend stores the ID and can open the live report</td></tr>
+<tr><td><code>stdout</code></td><td><code>{ script, line, type }</code></td><td>Console appends the line</td></tr>
+<tr><td><code>stderr</code></td><td><code>{ script, line, type }</code></td><td>Console appends the line; busy/init errors also use this</td></tr>
+<tr><td><code>close</code></td><td><code>{ script, code, reportId, label }</code> or <code>{ code, message }</code></td><td>One script finished, or the whole batch failed to start</td></tr>
+</tbody>
+</table>
+
+<p>The batch does not send one final <code>close</code>. Each script sends its own. Only when the remaining counter reaches zero does the server finish the report, send mail and release the lock:</p>
+
+<pre><code>scriptsRemaining -= 1
+if (scriptsRemaining === 0) {
+  markReportFinished(reportFile, batchMailExit)
+  spawnFinishMail(batchMailExit)
+  runTestsStreamBusy = false
+}
+</code></pre>
+
+<p>The frontend's <code>onerror</code> handling deserves a note. EventSource can fire <code>onerror</code> on a normal stream close, so the handler checks <code>running</code> first. Without that check, every successful run ends with a red "connection lost" message. Small detail, but it is the difference between a tool that feels finished and one that feels broken.</p>
+
+<p>SSE rather than WebSocket or polling is a deliberate fit. The traffic is one-directional: server to browser. There is no message from the client after the run starts, except the separate stop request. SSE reconnects automatically, carries a simple text framing, and travels through the same proxy as normal HTTP. Polling would require a job ID and a cursor, plus a store for partial output; WebSocket would add a second protocol and a connection lifecycle for no benefit. The limitation is that SSE is one stream per run, so a second tab cannot attach to the same run. The live report page solves that by reading the JSON file instead of the stream, which is why it can be opened after the fact, or from a link in an email.</p>
+
+<h2>Why every script gets its own pytest process</h2>
+
+<p>The natural shortcut is to pass all selected scripts to one pytest invocation: <code>pytest -v a.py b.py c.py --json-report</code>. AutoTest does not do that. Every script gets a process:</p>
+
+<pre><code>const proc = spawnPythonModule(
+  'pytest',
+  ['-v', scriptPath, '--json-report', `--json-report-file=${subReportFile}`],
+  { env: spawnEnvWithPython(deferMailEnv), cwd: AUTOTEST_ROOT,
+    stdio: ['ignore', 'pipe', 'pipe'] }
+)
+</code></pre>
+
+<p>There are three reasons. The first is crash isolation. Appium tests regularly drive a session into an unusable state; one script killing the driver must not fail every later script. A separate process means a segfault, a <code>sys.exit</code> or an interpreter crash only takes down its own script.</p>
+
+<p>The second is fixture isolation. <code>app_driver</code> is module-scoped, so one pytest process reuses it. Ten scripts in one process would inherit the first script's Appium session, or need explicit teardown between files. A process per script forces a fresh initialisation, so state cannot leak.</p>
+
+<p>The third is natural report sharding. Each script writes its own <code>&lt;script&gt;.json</code>. A failure loses one shard, not the batch. The server merges by nodeid afterwards.</p>
+
+<p>The cost is explicit: every script re-imports, restarts the Appium session, and pays startup N times. For short scripts, startup can exceed test time. AutoTest chooses diagnosability over total wall time, which is a reasonable trade for an internal platform.</p>
+
+<p>There is also a hidden cost. Because each script is a separate process, <code>pytest_sessionfinish</code> runs N times, and by default it sends mail. That leads directly to the batch-mail problem.</p>
+
+<p>The startup cost is not theoretical. On a Windows machine with Appium 1.x, creating a session can take five to fifteen seconds depending on the device and the app. If a script itself only checks one screen, the session dominates. A team with many tiny scripts should either group them into one file with multiple test functions, or add a batch mode that passes several files to one pytest process and accepts the shared-session trade. AutoTest chooses the opposite default because its scripts are long stress loops, where session startup is noise. The right default depends on the shape of the suite, not on ideology.</p>
+
+<h2>Single-batch exclusion: one boolean against four races</h2>
+
+<p>One unremarkable variable in <code>server.js</code> does a lot of work:</p>
+
+<pre><code>/** Prevent two /run-tests-stream batches from overlapping
+ *  (races on .daily_counter, report dirs, and mail config reads). */
+let runTestsStreamBusy = false
+</code></pre>
+
+<p>It blocks four distinct races, not one. Two batches arriving together can read-modify-write <code>.daily_counter.json</code> and allocate the same report ID, so the second overwrites the first directory. They can create and merge report files in the same directory at the same time. One batch can be reading <code>test_config</code> for mail while an admin changes the recipient. And two batches can each try to start Appium on port 4723, with the second killing the first.</p>
+
+<p>The implementation fails fast instead of queueing:</p>
+
+<pre><code>if (runTestsStreamBusy) {
+  res.write(`event: stderr\ndata: ${JSON.stringify({
+    line: 'A batch is already running; wait for it to finish.', type: 'busy'
+  })}\n\n`)
+  res.write(`event: close\ndata: ${JSON.stringify({ code: -2, message: 'busy' })}\n\n`)
+  return res.end()
+}
+runTestsStreamBusy = true
+</code></pre>
+
+<p>That choice is defensible for humans. "A batch is already running" is more useful than silently queueing a second run whose start time nobody knows. But the lock is in-process. If <code>server.js</code> runs under pm2 with two instances, or behind a multi-worker proxy, the lock does not exist. The correct upgrade is a file lock or a PostgreSQL advisory lock. For a single-instance LAN tool the boolean is enough; for anything horizontally scaled it is not.</p>
+
+<h2>Finding Python: five fallbacks from file to PATH</h2>
+
+<p>This is the least elegant and most useful part of the project. A Node process's PATH often differs from the user's shell. The fact that <code>python</code> works in a terminal does not mean a child process of <code>node server.js</code> can find it. AutoTest tries five levels:</p>
+
+<pre><code>1. configs/python_path.txt        first non-comment line
+2. AUTOTEST_PYTHON                environment variable
+3. where python / python3         PATH
+4. py -3                          Windows launcher
+5. scan LOCALAPPDATA / Program Files Python installs
+</code></pre>
+
+<p>The order matters less than the fact that every candidate is actually executed:</p>
+
+<pre><code>function verifyPythonExe(exe) {
+  if (!exe || !fs.existsSync(exe)) return false
+  const r = spawnSync(exe, ['-c', 'import sys; print(sys.executable)'], {
+    encoding: 'utf8', env: PYTHON_ENV_FOR_AUTOTEST, timeout: 20000,
+    windowsHide: true,
+  })
+  return r.status === 0
+}
+</code></pre>
+
+<p><code>fs.existsSync</code> proves a file exists, not that it runs. A broken venv, an interpreter behind a licence check, or an exe locked by antivirus will only fail at the real spawn. Running <code>-c "import sys"</code> early moves the failure from "while running tests" to "while starting the server".</p>
+
+<p>After finding the interpreter, the surrounding PATH has to be repaired too. The child needs <code>pip</code> and, later, <code>appium</code>:</p>
+
+<pre><code>function spawnEnvWithPython(baseEnv) {
+  const env = { ...baseEnv }
+  const { cmd } = resolvePythonLaunch()
+  if (cmd.toLowerCase().endsWith('.exe')) {
+    const dir = path.dirname(cmd)
+    const scripts = path.join(dir, 'Scripts')
+    env.PATH = `${dir}${path.delimiter}${env.PATH || ''}`
+    if (fs.existsSync(scripts)) {
+      env.PATH = `${scripts}${path.delimiter}${env.PATH}`
+    }
+  }
+  return env
+}
+</code></pre>
+
+<p>Why is this necessary? <code>python.exe</code>, <code>pip.exe</code> and <code>appium.cmd</code> usually live in different directories, and a child shell command needs to resolve the global npm directory. AutoTest prepends both the interpreter directory and <code>Scripts</code>, then uses <code>python -m pip</code> rather than bare <code>pip</code> to avoid PATH ambiguity entirely.</p>
+
+<p>One more global matters:</p>
+
+<pre><code>const PYTHON_ENV_FOR_AUTOTEST = withAndroidSdkEnv({
+  ...process.env,
+  PYTHONUNBUFFERED: '1',
+  PYTHONIOENCODING: 'utf-8',
+  PYTHONPATH: [AUTOTEST_ROOT, process.env.PYTHONPATH || ''].join(path.delimiter),
+})
+</code></pre>
+
+<p><code>PYTHONUNBUFFERED=1</code> is the precondition for streaming. Without it, pytest's stdout sits in a buffer until a few kilobytes accumulate, and the user sees a long pause followed by a wall of text. <code>PYTHONPATH</code> is what lets <code>python -m core.finish_report_mail</code> import a package from the project root.</p>
+
+<p>Virtual environments add one more trap. A common setup is a project venv for pytest and a global npm install for Appium. If <code>configs/python_path.txt</code> points at the venv, <code>python -m pip</code> installs into the venv, which is correct, but <code>appium</code> is still resolved from the global npm directory. If someone points at the system Python instead, packages install somewhere else and the next run cannot import them. The Pretest install endpoint makes this worse because it uses the same resolved interpreter but gives no feedback about which environment it modified. Printing <code>sys.executable</code> and <code>sys.prefix</code> in the Pretest result would remove most of the confusion.</p>
+
+<h2>Report directories and IDs: looks daily, is global</h2>
+
+<p>The ID format is <code>YYYYMMDD-NNNNNN</code>, for example <code>20260520-000084</code>. It looks like "reset to 1 every day". It is not:</p>
+
+<pre><code>const COUNTER_FILE = path.join(REPORTS_BASE, '.daily_counter.json')
+
+function generateDailyId() {
+  const now = new Date()
+  const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+
+  let counter = 0
+  if (fs.existsSync(COUNTER_FILE)) {
+    counter = JSON.parse(fs.readFileSync(COUNTER_FILE, 'utf-8')).counter || 0
+  }
+  counter += 1
+  fs.writeFileSync(COUNTER_FILE, JSON.stringify({ counter }, null, 2), 'utf-8')
+
+  return `${ymd}-${String(counter).padStart(6, '0')}`
+}
+</code></pre>
+
+<p>Both the variable and the file say <em>daily</em>, but the counter never resets at midnight. The date part is the day of the run. The sequence part is the total number of runs on this deployment. Tomorrow's first report will not be <code>...-000001</code>; it will continue from wherever the counter left off. Delete the counter file and it starts at 1 again, possibly colliding with existing directories.</p>
+
+<p>This does not fail tests, but it makes the ID ambiguous. Worse, the mailer depends on the counter to find the report directory:</p>
+
+<pre><code>def _find_report_id_for_counter(counter: int) -&gt; str | None:
+    suffix = f"-{counter:06d}"
+    names = [
+        p.name for p in _REPORTS_ROOT.iterdir()
+        if p.is_dir() and _REPORT_DIR_RE.match(p.name) and p.name.endswith(suffix)
+    ]
+    return max(names) if names else None
+</code></pre>
+
+<p>If the counter and the directories drift, the "this report" link in the email points at the wrong place or at nothing. The fix is to pass the report ID to the mail process instead of letting it guess. Or store the counter as <code>{ date, counter }</code> and reset on date change. The stronger fix is a ULID: monotonic, time-sortable, and no lock required.</p>
+
+<h2>Merging sub-reports: nodeid is the primary key</h2>
+
+<p>Each script writes a pytest JSON report. When the script exits, the server merges it into the batch report:</p>
+
+<pre><code>function mergeSubReportToTotal(totalFile, subFile) {
+  const total = JSON.parse(fs.readFileSync(totalFile, 'utf-8'))
+  const sub = JSON.parse(fs.readFileSync(subFile, 'utf-8'))
+
+  sub.tests.forEach(test =&gt; {
+    const exists = total.tests.find(t =&gt; t.nodeid === test.nodeid)
+    if (exists) {
+      exists.call = exists.call || { log: [] }
+      exists.call.log = exists.call.log.concat(test.call?.log || [])
+      exists.outcome = test.outcome
+      exists.setup = test.setup
+      exists.teardown = test.teardown
+    } else {
+      total.tests.push(test)
+    }
+  })
+
+  total.collectors = total.collectors.concat(sub.collectors || [])
+  total.summary = sub.summary || total.summary
+  total.exitcode = sub.exitcode || total.exitcode
+  total.updatedAt = Date.now() / 1000
+  fs.writeFileSync(totalFile, JSON.stringify(total, null, 2), 'utf-8')
+}
+</code></pre>
+
+<p>Using nodeid is correct. A pytest nodeid looks like <code>tests/debug/test_binding.py::test_device_bind_loop</code>. It includes the path, class and method, so it is unique across scripts. If the same script is queued twice, the second run's logs merge into the same entry instead of creating duplicates.</p>
+
+<p>But the last three lines have two problems. <code>total.summary = sub.summary</code> overwrites instead of aggregating. After the merge, the header counts reflect only the last script, not the batch. The UI hides this because TestTable recounts from <code>json.tests</code>; any other consumer of <code>summary</code>, including mail, scripts and a future API, reads the wrong number. And <code>total.exitcode = sub.exitcode || total.exitcode</code> only updates when the sub exit code is truthy. Zero is falsy, so "the last script succeeded" never writes a successful batch exit code. The batch result is actually tracked separately in <code>batchMailExit</code>.</p>
+
+<p>The fix is straightforward: recompute <code>summary</code> from <code>total.tests</code> after merging, and compute exitcode explicitly as "any failure means 1". The bug is a classic one: <strong>the merge was written as last-writer-wins, not as an aggregation.</strong></p>
+
+<p>A report has more consumers than the UI. Mail links to it, scripts may parse it, and a future dashboard will aggregate it. That is why a silently wrong <code>summary</code> is worse than a missing field: the UI looks right while every downstream number is wrong. A useful discipline is to define the report schema once, with a version field, and to make every producer and consumer import the same type. The current JSON is pytest's schema plus a few added fields, which is pragmatic but means a pytest upgrade can change the contract. Pinning pytest and validating the merged file against a schema in CI would catch that early.</p>
+
+<h2>Attaching logs: stdout pasted onto every test</h2>
+
+<p>pytest's JSON report already contains <code>call.log</code>, but in verbose mode the progress output and Python <code>logging</code> lines do not always land in every test's log. AutoTest patches it by hand:</p>
+
+<pre><code>function appendLogToSubReport(subReportFile, line) {
+  line = line.trim()
+  if (!line) return
+
+  let subReport = { tests: [] }
+  if (fs.existsSync(subReportFile)) {
+    subReport = JSON.parse(fs.readFileSync(subReportFile, 'utf-8'))
+  }
+  if (!Array.isArray(subReport.tests)) subReport.tests = []
+
+  if (subReport.tests.length === 0) return
+
+  subReport.tests.forEach((test) =&gt; {
+    test.call = test.call || { log: [] }
+    test.call.log = test.call.log || []
+    test.call.log.push({
+      name: test.nodeid.split('::')[0] || 'unknown',
+      msg: line, args: null, levelname: 'INFO', levelno: 20,
+    })
+  })
+
+  fs.writeFileSync(subReportFile, JSON.stringify(subReport, null, 2), 'utf-8')
+}
+</code></pre>
+
+<p>Three consequences follow, in ascending order of severity. First, collection-phase logs are lost. Before running a test, pytest imports modules, resolves fixtures and executes <code>conftest.py</code>. Import errors, fixture failures and syntax errors are exactly what you most need to see, and at that moment <code>subReport.tests</code> is still empty, so the function returns immediately. The report looks blank while the console clearly shows a traceback.</p>
+
+<p>Second, a multi-test script duplicates every line N times. Each stdout line is pushed into every test in that file. Five tests means the same line appears five times. Per-test display tolerates it; exporting the report for statistics multiplies it.</p>
+
+<p>Third, every line rewrites the whole JSON file. For each stdout line the function reads, parses, pushes, stringifies and writes the entire report. A 5,000-line run does 5,000 full-file rewrites, and it gets slower as the report grows. That is O(lines x report size) I/O.</p>
+
+<p>The correct split is two streams. Process-level logs go to <code>reports/&lt;id&gt;/run.log</code>, appended line by line and tailed over SSE. They belong to no single test, but they are complete and cheap. Test-level logs come from pytest hooks such as <code>pytest_runtest_logreport</code>, where <code>report.capstdout</code> can be attached to the matching nodeid. Collection errors get their own bucket from <code>pytest_collectreport</code>. AutoTest's current approach is a "good enough to read" compromise. It stops being good enough the moment someone uses reports for quality trends.</p>
+
+<p>Log volume is the other hidden cost. A stress loop that runs for hours can produce hundreds of megabytes of stdout, and the current design stores a copy in every test entry as well as in the JSON report. Disk fills quietly, and the largest file is also the slowest to rewrite. A production version needs retention: keep the full run log for N days, keep per-test logs for failures only, and compress finished batches. None of that exists today, which is acceptable for a tool whose reports are read within a day, and dangerous for one that is expected to keep a year of history.</p>
+
+<h2>Summary mail: from N messages to one</h2>
+
+<p><code>conftest.py</code> has a default behaviour that looks innocent:</p>
+
+<pre><code>def pytest_sessionfinish(session, exitstatus):
+    if os.environ.get("AUTOTEST_DEFER_SESSION_MAIL") == "1":
+        return
+    from core.finish_report_mail import send_finish_mail
+    send_finish_mail(exitstatus)
+</code></pre>
+
+<p>Running one script locally is natural: pytest ends, one mail goes out. Through Testbed, each script is a process, so ten scripts would send ten mails. The fix is one environment variable:</p>
+
+<pre><code>const deferMailEnv = {
+  ...PYTHON_ENV_FOR_AUTOTEST,
+  AUTOTEST_DEFER_SESSION_MAIL: '1',
+}
+
+function spawnFinishMail(batchExitForMailBody) {
+  const mailProc = spawnPythonModule(
+    'core.finish_report_mail', [String(batchExitForMailBody)],
+    { cwd: AUTOTEST_ROOT, env: PYTHON_ENV_FOR_AUTOTEST,
+      stdio: ['ignore', 'pipe', 'pipe'] }
+  )
+}
+</code></pre>
+
+<p>Two benefits follow. Mail logic exists in exactly one place, shared by local and batch runs, so Node never needs its own SMTP implementation. And mail failure cannot affect test results: the mail process exit code is recorded separately (0 sent, 2 skipped or failed), while the batch exit is tracked in <code>batchMailExit</code>.</p>
+
+<p>The failure modes are equally explicit. If <code>server.js</code> crashes before the last script settles, <code>spawnFinishMail</code> never runs and the batch mail is lost. If the last pytest child hangs, for example inside <code>driver.quit()</code>, <code>scriptsRemaining</code> never reaches zero, so the batch neither finishes nor mails. If the counter and the report directories drift, the link is wrong. The robust version treats "batch finished" as a recoverable state: write <code>batch.json</code> with the report ID and exit code, let the mailer retry, or model mail as a task row rather than a one-shot spawn.</p>
+
+<p>Deliverability is another boundary. Sending through an enterprise SMTP relay with a hard-coded sender works until the relay changes its policy, the account password rotates, or the company moves to another provider. Because the sender must match the login, there is no way to send on behalf of a team address. A better design uses a dedicated service account, reads credentials from the environment, and records the SMTP response code so a failure is visible instead of silent. The current code prints the result and exits with status 2, which is a start, but the server does not surface that code anywhere except its own console.</p>
+
+<h2>Mail encoding: subject, NUL, and surrogate pairs</h2>
+
+<p>The body is HTML with tester name, project name, report path and links. Those fields come from config and can contain anything. <code>finish_report_mail.py</code> applies three layers of defence:</p>
+
+<pre><code>def _sanitize_subject(subject: str) -&gt; str:
+    s = (subject or "").replace("\r", " ").replace("\n", " ").replace("\t", " ")
+    s = "".join(ch for ch in s if ord(ch) &gt;= 32 or ch in "\t")
+    s = " ".join(s.split()).strip()
+    if len(s) &gt; 200:
+        s = s[:197] + "..."
+    return s or "[automation] notification"
+
+def _sanitize_html_body(html_body: str) -&gt; str:
+    s = (html_body or "").replace("\x00", "")
+    return "".join(ch for ch in s if not (0xD800 &lt;= ord(ch) &lt;= 0xDFFF))
+</code></pre>
+
+<p>Why these characters? Mail headers are strict. A <code>\r\n</code> in a subject can be interpreted as header injection by some gateways; at best the message is rejected, at worst an extra <code>Bcc</code> is forged. NUL and UTF-16 surrogate pairs (<code>0xD800</code> to <code>0xDFFF</code>) can throw during MIME encoding, especially on Windows when strings arrive from files or the clipboard. A too-long subject is truncated or rejected; RFC limits are much lower than 998 bytes, so 200 characters is conservative.</p>
+
+<p>The body uses <code>EmailMessage</code> with plain first and HTML second:</p>
+
+<pre><code>msg = EmailMessage()
+msg["From"] = _sender_email
+msg["To"] = to_email
+msg["Subject"] = subject
+msg.set_content(plain, charset="utf-8", subtype="plain")
+msg.add_alternative(content_html, charset="utf-8", subtype="html")
+</code></pre>
+
+<p><code>From</code> must equal the SMTP login account. Alibaba enterprise mail rejects a display-name form with a 440. The recipient must end in <code>@glazero.com</code>, enforced in code. Both constraints tie the module to one provider; switching providers means editing code.</p>
+
+<p>Two practical problems remain. The SMTP host, sender and password are hard-coded at the top of the file, so anyone with the repository can send mail. They belong in environment variables or a secret manager, with only <code>.env.example</code> in git. And <code>TEST_REPORT_BASE_URL</code> defaults to <code>http://localhost:5173</code>. If production never sets it, the "this report" link opens the recipient's own localhost. That is the classic development default leaking into production.</p>
+
+<h2>Config without files: three tables, DELETE plus INSERT</h2>
+
+<p>Config lives in PostgreSQL, not JSON or YAML:</p>
+
+<pre><code>CREATE TABLE IF NOT EXISTS device_config (
+    product TEXT, product_sn TEXT, product_name TEXT,
+    serial_port TEXT, serial_baud_rate TEXT, device_view TEXT,
+    ssid TEXT, password TEXT
+);
+
+CREATE TABLE IF NOT EXISTS test_config (
+    test_name TEXT, user_name TEXT, email TEXT,
+    retry_count INTEGER, timeout INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS phone_config (
+    android_remote_ip TEXT, android_remote_port INTEGER,
+    android_sdk_path TEXT, android_version INTEGER,
+    android_device_name TEXT, android_udid TEXT,
+    android_adb_connect TEXT, android_automation_name TEXT,
+    android_app_fullpath TEXT, android_app_package TEXT,
+    android_app_activity TEXT,
+    ios_remote_ip TEXT, ios_remote_port INTEGER,
+    ios_version INTEGER, ios_automation_name TEXT,
+    ios_device_name TEXT, ios_app_fullpath TEXT
+);
+</code></pre>
+
+<p>None of the three tables has a primary key, because each is designed to hold exactly one row. Saving is "clear, then insert one":</p>
+
+<pre><code>await pool.query(`DELETE FROM ${tableName}`)
+const fields = Object.keys(data)
+const placeholders = fields.map((_, i) =&gt; `$${i + 1}`)
+const sql = `INSERT INTO ${tableName} (${fields.join(',')})
+             VALUES (${placeholders.join(',')}) RETURNING *`
+const result = await pool.query(sql, values)
+</code></pre>
+
+<p>The benefit is schema flexibility: a new field on the page becomes a new key in the body, and the SQL follows. For an internal tool whose config changes often, that saves real work. The costs are equally real. There is no history, so a bad save can only be undone from memory. There is no concurrency control: two saves race, last writer wins, and there is a moment when the table is empty; a pytest process reading config at that moment gets an empty object. There are no type constraints beyond TEXT and INTEGER, so enums, ranges and required fields live only in the frontend. And WiFi passwords, mail addresses and tester names are stored in plaintext, so a database backup is a credential leak.</p>
+
+<p>A better compromise is a single row with JSONB: one <code>config</code> table, fixed <code>id = 1</code>, all values in <code>data JSONB</code>, written with <code>INSERT ... ON CONFLICT (id) DO UPDATE</code>. That keeps flexibility, removes the empty-table window, and allows <code>updated_at</code> for optimistic locking.</p>
+
+<p>Configuration also carries personal data. The tester name and email are personal, the WiFi password is a secret, and the device serial numbers identify hardware. Storing them in one unencrypted table means a database dump is both a privacy and a security event. At minimum, restrict database access to the service account, exclude the config database from broad backups, and encrypt the password column. A JSONB design makes it easier to separate public fields from secrets, because the secret can live in a separate table or a key-vault reference rather than next to the product name.</p>
+
+<h2>Dynamic SQL: a table allowlist does not cover columns</h2>
+
+<p>The config endpoint validates the table name:</p>
+
+<pre><code>const TABLES = {
+  device_config: 'device_config',
+  test_config: 'test_config',
+  phone_config: 'phone_config',
+}
+</code></pre>
+
+<p>That blocks table-name injection, but not column-name injection. <code>fields</code> comes directly from <code>Object.keys(req.body)</code> and is interpolated into the column position. Values are parameterised; identifiers are not. Any key containing a quote or SQL fragment can change the statement shape. The realistic attacks are not <code>DROP TABLE</code> (Node's <code>pg</code> does not run multiple statements by default), but structural probing: an unknown column produces a 500 that reveals schema information, and a crafted identifier produces syntax errors echoed to the client. If a future version enables multi-statement execution, it gets worse.</p>
+
+<p>Actual risk depends on exposure. On loopback or a trusted LAN it requires prior access. But the service listens on <code>0.0.0.0</code> with permissive CORS by default, which section 27 covers. The safer implementation keeps a per-table column allowlist:</p>
+
+<pre><code>const COLUMNS = {
+  device_config: ['product', 'product_sn', 'product_name', ...],
+  test_config: ['test_name', 'user_name', 'email', 'retry_count', 'timeout'],
+  phone_config: ['android_remote_ip', ...],
+}
+const fields = Object.keys(data).filter(k =&gt; COLUMNS[tableKey].includes(k))
+</code></pre>
+
+<p>Or simpler: store one JSONB blob so column names never enter SQL at all.</p>
+
+<p>One more detail: <code>retry_count</code> and <code>timeout</code> in <code>test_config</code> are never read by <code>server.js</code> or pytest. They appear on the config page and imply that retry and timeout work. They do not. That is the most common way a config table rots: the field is added, the consumer never follows.</p>
+
+<p>There is no migration story for configuration, which is both the point and the problem. Adding a column is easy: add it to <code>schema.sql</code>, add the input to the Vue page, and the dynamic insert follows. But existing deployments do not run <code>schema.sql</code> again, so the column never appears, and the next save fails with "column does not exist". The project handles this by telling operators to run the SQL manually, which works for one machine and fails for three. A lightweight migration table, or a startup check that compares information_schema with the expected columns, would turn a silent failure into a clear message.</p>
+
+<h2>Pretest: three checks and an install door</h2>
+
+<p>Pretest is one of the most useful ideas in AutoTest. It moves environment failures from "after you click Run" to "before you click Run":</p>
+
+<pre><code>app.get('/api/pretest', async (req, res) =&gt; {
+  const db = await checkPostgres()       // SELECT 1
+  const appium = await checkAppium()     // TCP 127.0.0.1:4723, one-second timeout
+  const pyDeps = await checkPythonDeps() // pip list --format=json
+  res.json({ db, appium, python: pyDeps })
+})
+</code></pre>
+
+<p>Each check maps to a common failure:</p>
+
+<table>
+<thead><tr><th>Check</th><th>Method</th><th>What failure really means</th></tr></thead>
+<tbody>
+<tr><td>Database</td><td><code>SELECT 1</code></td><td>PostgreSQL down, wrong database/password, pool exhausted</td></tr>
+<tr><td>Appium</td><td>TCP connect 4723</td><td>Appium not started, or the port is taken by something else</td></tr>
+<tr><td>Python deps</td><td><code>pip list --format=json</code></td><td>Missing <code>pytest</code>, <code>appium-python-client</code>, <code>poco</code></td></tr>
+</tbody>
+</table>
+
+<p>The dependency check only looks at three packages, while a real run also needs <code>pytest-json-report</code>, <code>psutil</code>, <code>requests</code> and <code>selenium</code>. The checklist is smaller than reality, so Pretest can be all green while the run still fails. A better design makes <code>pip install -r requirements.txt</code> the single source of truth, then checks <code>pip check</code> and the key imports instead of hard-coding three names.</p>
+
+<p>The same file also exposes an install endpoint:</p>
+
+<pre><code>app.post('/api/pretest/install', (req, res) =&gt; {
+  const { packages } = req.body
+  const { cmd, args } = pythonModuleExecArgs('pip', ['install', ...packages])
+  execFile(cmd, args, { env: PYTHON_ENV_FOR_AUTOTEST }, (err, stdout, stderr) =&gt; {
+    if (err) return res.status(500).json({ error: stderr || err.message })
+    res.json({ message: stdout })
+  })
+})
+</code></pre>
+
+<p>It is convenient and it is a remote execution surface. Anyone who can reach port 3000 can make the server run <code>pip install</code> with an arbitrary package. On a personal machine that is fine. On a shared LAN host it is a supply-chain door. At minimum it needs authentication, a package allowlist, and a rule that only packages reported missing may be installed.</p>
+
+<p>A check is only useful if it fails for the right reason. Pretest currently reports "Python dependencies OK" when the three hard-coded packages exist, even if the interpreter is the wrong one or <code>pytest-json-report</code> is missing. That is a false green, which is worse than no check because it teaches users to trust it. A more honest design runs the same command the runner will run, for example <code>python -m pytest --version</code> and <code>python -c "import pytest_jsonreport"</code>, and reports the full command and output on failure. The principle is simple: a health check should exercise the real path, not a proxy for it.</p>
+
+<h2>Appium 1.x and /wd/hub: one URL decides a 404</h2>
+
+<p><code>build_appium_url</code> is six lines, but it decides whether the project can connect at all:</p>
+
+<pre><code>def build_appium_url(host, port):
+    """
+    Appium 1.x (e.g. 1.18) requires http://host:port/wd/hub.
+    Connecting to http://host:port alone returns 404:
+    The URL '/session' did not map to a valid resource.
+    """
+    host = str(host or "127.0.0.1").strip()
+    port = int(port or 4723)
+    base = f"http://{host}:{port}".rstrip("/")
+    if not base.endswith("/wd/hub"):
+        base = f"{base}/wd/hub"
+    return base
+</code></pre>
+
+<p>Appium 1.x serves WebDriver at <code>/wd/hub/session</code>. Appium 2 removed <code>/wd/hub</code> and uses <code>/session</code>. AutoTest targets 1.x, and its error message even suggests <code>npm install -g appium@1.18.3</code>, so every initialisation goes through this function.</p>
+
+<p>The problem is that not every path goes through it. After rebooting a phone, <code>restart_phone()</code> rebuilds the driver with:</p>
+
+<pre><code>self.driver = webdriver.Remote("http://127.0.0.1:4723", options=self.options)
+</code></pre>
+
+<p>No <code>/wd/hub</code>, and no configured host or port. With Appium 1.x this 404s after every reboot. With Appium 2.x, initialisation 404s instead. The project is pinned to an unmaintained 1.x line. The better design makes the path configurable, probes <code>/status</code> before initialising, and chooses by version, so an upgrade is a config change rather than edits in three places.</p>
+
+<h2>adb device discovery: connect, list, then match udid</h2>
+
+<p>When Appium says <code>Could not find a connected Android device</code>, the real cause is usually adb, not Appium. <code>ensure_adb_device</code> encodes that troubleshooting knowledge:</p>
+
+<pre><code>def ensure_adb_device(phone_cfg: dict) -&gt; str | None:
+    adb = _adb_executable()
+    connect_addr = str(phone_cfg.get("android_adb_connect") or "").strip()
+    if connect_addr:
+        subprocess.run([adb, "connect", connect_addr], capture_output=True,
+                       text=True, timeout=20, check=False)
+
+    result = subprocess.run([adb, "devices"], capture_output=True,
+                            text=True, timeout=20, check=False)
+    devices = [
+        line.split()[0]
+        for line in (result.stdout or "").splitlines()
+        if line.strip() and not line.startswith("List of devices")
+        and len(line.split()) &gt;= 2 and line.split()[1] == "device"
+    ]
+    if not devices:
+        raise RuntimeError(
+            "adb found no usable Android device (Appium: Could not find a connected Android device).\n"
+            "Check: 1) USB debugging on a real phone; "
+            "2) start the emulator and set android_adb_connect, e.g. 127.0.0.1:7555; "
+            "3) adb kill-server &amp;&amp; adb start-server, then retry.\n"
+        )
+
+    want = str(phone_cfg.get("android_udid") or "").strip()
+    if want and want not in devices:
+        raise RuntimeError(f"android_udid={want} not in adb list; current devices: {devices}")
+    return want or devices[0]
+</code></pre>
+
+<p>Three things are worth learning here. First, <code>adb connect</code> must come before <code>adb devices</code>. Emulators such as MuMu and Nox do not appear automatically; they must be connected to something like <code>127.0.0.1:7555</code>. Putting that address in config removes a command from the user's memory. Second, the error message contains repair steps. It does not just throw "no device"; it lists the three most common causes and their commands. For an internal tool, that matters more than log level. Third, multi-device selection is explicit. If the list has more than one device and no udid is configured, the code warns and uses the first. That avoids the hardest incident to diagnose: a test that ran on someone else's phone.</p>
+
+<p>The boundary is that the parser only accepts the <code>device</code> state. <code>offline</code> and <code>unauthorized</code> are filtered out, and the error says "no usable device" rather than "one device is unauthorized". A better message would include the raw adb output and name the actual state.</p>
+
+<p>Emulators and real devices behave differently enough to deserve separate notes. An emulator is usually connected over TCP and can disappear when the host sleeps; a real device can drop to <code>unauthorized</code> when the debug authorization is revoked. The current error message covers both, but the code does not distinguish them. A small improvement is to record the device transport (USB or TCP) and include it in the log, so a flaky run can be correlated with the connection type. This sounds like polish, but in a device farm it is the difference between a five-minute diagnosis and an afternoon.</p>
+
+<h2>Appium process management: why not CREATE_NEW_CONSOLE</h2>
+
+<p><code>tools/appium_server.py</code> starts, detects and stops Appium. It solves several very Windows-specific problems:</p>
+
+<pre><code>def build_appium_popen_cmd(port: int, appium_cmd: str) -&gt; tuple[list[str], str]:
+    node = _where_executable("node")
+    main_js = _appium_main_js_near(appium_cmd)
+    if node and main_js:
+        return [node, main_js, "-p", str(port)], f"{node} {main_js} -p {port}"
+    if os.name == "nt":
+        return ["cmd.exe", "/c", appium_cmd, "-p", str(port)], f"cmd /c {appium_cmd} -p {port}"
+    return [appium_cmd, "-p", str(port)], f"{appium_cmd} -p {port}"
+</code></pre>
+
+<p>It prefers <code>node main.js</code> over <code>appium.cmd</code>. The <code>.cmd</code> path goes through <code>cmd.exe</code>, which in some environments opens a new console window; the parent loses the handle and thinks startup failed. The code comments this directly:</p>
+
+<pre><code># Do not use CREATE_NEW_CONSOLE: the .cmd runs in another window
+# and the parent thinks startup failed.
+popen_kw["creationflags"] = subprocess.CREATE_NO_WINDOW
+</code></pre>
+
+<p>The startup sequence is "probe first, then decide":</p>
+
+<pre><code>is_port_listening(127.0.0.1, 4723)
+  |- already listening -&gt; reuse, skip startup
+  |- not listening     -&gt; kill old appium -&gt; start -&gt; wait up to 60s
+</code></pre>
+
+<p>This makes repeated calls idempotent: no duplicate Appium instances. But the kill match is broad:</p>
+
+<pre><code>for proc in psutil.process_iter(["pid", "name"]):
+    if "node" in (proc.info["name"] or "").lower():
+        cmdline = " ".join(proc.cmdline())
+        if "appium" in cmdline.lower() and str(self.port) in cmdline:
+            proc.kill()
+</code></pre>
+
+<p>Any Node process whose command line contains both <code>appium</code> and the port number is killed, including a user's manual debugging instance, another project's Appium, or an unrelated process that happens to carry the port in its arguments. A safer approach uses a PID file or checks <code>psutil</code> <code>create_time</code>, and only kills the instance it started.</p>
+
+<p><code>AppiumServer.start()</code> also mutates <code>os.environ</code> directly:</p>
+
+<pre><code>for key in ("ANDROID_HOME", "ANDROID_SDK_ROOT", "PATH"):
+    if key in run_env:
+        os.environ[key] = run_env[key]
+</code></pre>
+
+<p>That is a library function changing global state. It persists for the rest of the process and can affect later logic. The environment should be passed to the child only, not written back.</p>
+
+<p>Service lifetime is another design question. AutoTest starts Appium per test process and stops it in <code>quit()</code>, which means the service is up and down many times per batch. That is simple and avoids a long-lived process holding a stale port, but it also means every process pays the startup cost and races with any other process that wants the same port. A long-lived service managed by the server, with sessions per test, would be faster and would make the batch lock less about the port. The trade is a supervisor and a health check, which is exactly the kind of complexity a small tool avoids until it has to.</p>
+
+<h2>Stress loops: rebuild the session, not the server</h2>
+
+<p>The common need is not one run but a hundred. Appium sessions leak, stall and lose context over time, but restarting the whole Appium server is slow. <code>reconnect_appium</code> picks the middle layer:</p>
+
+<pre><code>def reconnect_appium(self, phone_cfg=None):
+    """Rebuild the Appium session during stress loops (do not restart Appium)."""
+    phone_cfg = phone_cfg or load_config("phone_config")
+    if self.driver:
+        try:
+            self.driver.quit()
+        except Exception as exc:
+            logging.warning("closing old session: %s", exc)
+    udid = ensure_adb_device(phone_cfg)
+    if udid and self.options:
+        self.options.udid = udid
+    url = build_appium_url(
+        phone_cfg.get("android_remote_ip"),
+        phone_cfg.get("android_remote_port"),
+    )
+    self.driver = webdriver.Remote(url, options=self.options)
+    return self.driver
+</code></pre>
+
+<p>It quits the old session (ignoring quit errors), re-confirms the adb device (the phone may have dropped), and creates a new session with the same options. The Appium service stays up, so startup cost is avoided.</p>
+
+<p>The layering is worth borrowing. <code>restart_app()</code> kills and reopens the app, for application-state pollution. <code>reconnect_appium()</code> rebuilds the session, for driver-state pollution. <code>restart_phone()</code> reboots the device, for system-level problems. <code>AppiumServer.kill()/start()</code> restarts the service, for a wedged Appium process. Four levels, ordered by cost. Many teams only have "reboot the phone", so a small problem costs three minutes.</p>
+
+<h2>Rebooting a phone: adb reboot and boot_completed</h2>
+
+<p><code>restart_phone()</code> is a shell script written in Python. It sends <code>adb reboot</code>, then polls until the device comes back:</p>
+
+<pre><code>def wait_for_device_online(self, timeout=180, check_interval=5):
+    while time.time() - start_time &lt; timeout:
+        result = subprocess.run("adb devices", shell=True, capture_output=True, text=True)
+        device_lines = [line for line in result.stdout.split("\n") if udid in line]
+        if device_lines:
+            device_status = device_lines[0].split("\t")[-1].strip()
+            if device_status == "device":
+                boot_check = subprocess.run(
+                    f"adb -s {udid} shell getprop sys.boot_completed",
+                    shell=True, capture_output=True, text=True,
+                )
+                if boot_check.returncode == 0 and boot_check.stdout.strip() == "1":
+                    return True
+        time.sleep(check_interval)
+    return False
+</code></pre>
+
+<p>It checks two layers: the adb state is <code>device</code> (not <code>offline</code> or <code>unauthorized</code>), and <code>sys.boot_completed</code> is <code>1</code>. That order is correct. Waiting only for <code>adb devices</code> returns at the lock screen, and the following <code>activate_app</code> fails.</p>
+
+<p>But the rebuild after reboot has a clear bug:</p>
+
+<pre><code>self.driver = webdriver.Remote("http://127.0.0.1:4723", options=self.options)
+</code></pre>
+
+<p>It bypasses <code>build_appium_url</code> and ignores the configured host and port. With Appium 1.x it 404s after every reboot; with a network-connected phone, <code>127.0.0.1</code> is the wrong host anyway. This is what happens when one concept has two implementations: initialisation uses the helper, reboot uses a shortcut.</p>
+
+<p><code>adb reboot</code> is also built with <code>shell=True</code>. The udid comes from config or adb output, so injection risk is low, but <code>subprocess.run([adb, "-s", udid, "reboot"])</code> is cleaner and removes the question.</p>
+
+<p>A stress loop without observability is a random number generator. The current script logs each cycle and counts successes, but it does not record per-cycle duration, failure reason, or device state. After a hundred cycles, the only question anyone asks is "how many failed", and the answer is a single number with no trend. Adding a structured line per cycle, with timestamp, duration, outcome and a short error code, would make the run log useful without changing the report format. It would also make the difference between "the phone got slower" and "the app started crashing" visible.</p>
+
+<h2>Test script conventions: PLATFORM, fixtures, and global mail</h2>
+
+<p>The platform asks for exactly three conventions:</p>
+
+<pre><code># 1) name is test_*.py under tests/debug or tests/release
+# 2) declare the platform at module level
+PLATFORM = "Android"   # or "iOS"
+
+# 3) use the fixture from conftest.py
+def test_example(app_driver):
+    ...
+</code></pre>
+
+<p><code>app_driver</code> is module-scoped:</p>
+
+<pre><code>@pytest.fixture(scope="module")
+def app_driver(request):
+    platform = getattr(request.module, "PLATFORM", None)
+    if platform is None:
+        raise ValueError("define PLATFORM = 'iOS' or 'Android' in the test script")
+
+    driver = AppControl()
+    driver.init_log()
+    driver.init_appium(platform)
+    yield driver
+    driver.quit()
+</code></pre>
+
+<p>Module scope means one session per file. Combined with one process per script, the net effect is one session per script, which matches the isolation goal.</p>
+
+<p>One design detail is worth noting: <code>PLATFORM</code> is a module variable read through <code>request.module</code>. A typo or wrong case falls through to <code>else: raise UnknownObjectException</code>, which is a poor error. Validate against <code>Literal["Android", "iOS"]</code> and print the accepted values.</p>
+
+<p>The <code>dut</code> fixture is more questionable:</p>
+
+<pre><code>@pytest.fixture(scope="module")
+def dut():
+    try:
+        dut = Device()
+        yield dut
+    except Exception as e:
+        print('failed to initialise dut.')
+</code></pre>
+
+<p>On exception it prints one line and never yields, so pytest reports "fixture did not yield". <code>Device()</code> is currently an empty shell. It is historical baggage: <code>test_binding.py</code> requests both <code>dut</code> and <code>app_driver</code>, but only the latter does work.</p>
+
+<p><code>test_binding.py</code> also contains a set of constants worth reading:</p>
+
+<pre><code>NUM_CYCLES = 10
+RESTART_APP_EVERY = 50
+RESTART_PHONE_EVERY = 50
+WAIT_BETWEEN_CYCLES = 5
+</code></pre>
+
+<p>The loop runs ten times, but "restart the app every 50 cycles" and "restart the phone every 50 cycles" can never fire. This is not a syntax error; it is a configuration mismatch. The constants were copied from a longer stress script, the loop limit was reduced, and the thresholds were not. A safer version derives from <code>NUM_CYCLES</code> or asserts the relationship:</p>
+
+<pre><code>assert RESTART_APP_EVERY &lt;= NUM_CYCLES or RESTART_APP_EVERY == 0
+</code></pre>
+
+<h2>The reading side: 5-second polls, 3-second polls, and v-html</h2>
+
+<p>The frontend splits the report list and a single report into two pages, with different polling. <code>Result.vue</code> uses <code>LIST_POLL_MS = 5000</code> and only polls while a report is <code>running</code>; when everything finishes, it stops. The README says three seconds; the code says five. That is another documentation drift. <code>TestTable.vue</code> uses <code>POLL_MS = 3000</code> and polls while <code>status === 'running'</code> or the URL carries <code>live=1</code>, then stops.</p>
+
+<p>Polling only when needed is better than an unconditional interval: a closed tab or a finished batch stops generating requests. It also handles a boundary: <code>live=1</code> means "I insist on live", so even a report already marked finished can be fetched once more.</p>
+
+<p>A single report draws a pie chart with Chart.js:</p>
+
+<pre><code>import { Chart, PieController, ArcElement, Tooltip, Legend } from 'chart.js'
+Chart.register(PieController, ArcElement, Tooltip, Legend)
+</code></pre>
+
+<p>But <code>chart.js</code> is not in <code>pytest-vue/package.json</code>. Likewise <code>Testbed.vue</code> imports <code>vuedraggable</code>, which is also undeclared. The current environment depends on node_modules that were installed historically and never recorded. A clean <code>npm ci</code> fails. Section 25 covers this.</p>
+
+<p>The log page has a more serious issue:</p>
+
+<pre><code>&lt;span v-html="highlightErrorKeywords(line)"&gt;&lt;/span&gt;
+</code></pre>
+
+<pre><code>function highlightErrorKeywords(line) {
+  if (!line) return ''
+  const keywords = ['NameError', 'TypeError', 'AttributeError', 'IndexError', 'KeyError']
+  let highlighted = line
+  keywords.forEach(key =&gt; {
+    const regex = new RegExp(`(${key})`, 'g')
+    highlighted = highlighted.replace(regex, '&lt;span class="error-keyword"&gt;$1&lt;/span&gt;')
+  })
+  return highlighted
+}
+</code></pre>
+
+<p><code>v-html</code> renders the string as HTML, and <code>line</code> comes from device or test output. A log line containing <code>&lt;img src=x onerror=...&gt;</code>, or an application that logs user input, executes it. Escape the line before highlighting, or use text nodes plus CSS and avoid <code>v-html</code> entirely. Internal logs are usually assumed trustworthy, but logs are exactly where external input tends to appear.</p>
+
+<p>The report UX is intentionally plain: a table, a status colour, a pie chart and a print button. That is appropriate for an internal tool. The one thing missing is a stable deep link per test case. <code>log.html?reportId=&amp;nodeid=</code> is stable as long as the report exists, but report retention is undefined, so links pasted into chat rot. A permalink that includes a content hash, or a small server that proxies old links to an archive, would make reports shareable. For now, the practical advice is to paste the report ID and nodeid rather than the whole URL, and to keep the batch directory until the issue is closed.</p>
+
+<h2>Three latent bugs found by reading the code</h2>
+
+<p>These are not design trade-offs. They are bugs you can locate by reading. Together they show the gap between "it runs" and "it is maintainable": the gap lives on exception paths.</p>
+
+<p><strong>Bug one: the first line of <code>bind_device_ByBle</code> throws.</strong></p>
+
+<pre><code>def bind_device_ByBle(self):
+    ssid = self.config.get("wifi", {}).get("ssid")
+    password = self.config.get("wifi", {}).get("password")
+</code></pre>
+
+<p><code>self.config</code> is never assigned in <code>AppControl.__init__</code>, and there is no other assignment in <code>app_base.py</code>. The method throws <code>AttributeError</code> on its first line whenever it is called. <code>test_binding.py</code> wraps every cycle in <code>try/except Exception</code>, so the symptom is: every cycle fails immediately, the log shows one AttributeError, and the loop continues. A casual reader blames the device.</p>
+
+<p>The fix is simple: read WiFi from <code>device_config</code> in <code>__init__</code>, or pass ssid/password as arguments. More importantly, do not swallow programming errors with a bare <code>except Exception</code> inside the loop. At least distinguish device exceptions from code exceptions.</p>
+
+<p><strong>Bug two: <code>devices_sn</code> is a string, iterated as a collection.</strong></p>
+
+<pre><code>self.devices_sn = load_config("device_config")["product_sn"]
+self.device_num = len(self.devices_sn)
+...
+for device_sn in self.devices_sn:
+</code></pre>
+
+<p><code>product_sn</code> is <code>TEXT</code> in the database. If the config page holds one SN, <code>len()</code> returns the character count and the loop yields characters. The unbind loop then runs "characters + 2" times, and the bind loop tries to match a single character against <code>SN: x</code>. Unless the column stores a JSON array string, and the code never calls <code>json.loads</code>, this logic cannot work.</p>
+
+<p>The fix is to define the format (comma-separated or JSON array), parse it into <code>list[str]</code> when loading, and handle empty and single values.</p>
+
+<p><strong>Bug three: the merged <code>summary</code> overwrites instead of aggregating.</strong></p>
+
+<p>Section 10 broke this down. The UI hides it because the frontend recounts, but mail, scripts and a future API read the wrong numbers. Recompute after merging:</p>
+
+<pre><code>const counts = { passed: 0, failed: 0, skipped: 0, total: total.tests.length }
+for (const t of total.tests) {
+  if (t.outcome in counts) counts[t.outcome] += 1
+}
+total.summary = counts
+</code></pre>
+
+<p>All three bugs live on exception or boundary paths. Walking the happy path through the UI will not reveal them. That is why internal tools need code review, not just "it runs".</p>
+
+<h2>Dependency manifests and portability: five undeclared imports</h2>
+
+<p>There is a visible gap between the manifests and the imports. The frontend <code>package.json</code> declares axios, body-parser, cors, express, pg, tcp-port-used, vue and vue-router. The code also imports <code>vuedraggable</code> in <code>Testbed.vue</code> and <code>chart.js</code> in <code>TestTable.vue</code>. Neither is declared. On a clean machine, <code>npm ci</code> followed by a build fails with "Could not resolve vuedraggable" or "chart.js".</p>
+
+<p>The Python manifest is even shorter. <code>requirements.txt</code> contains one line:</p>
+
+<pre><code>appium-python-client==5.3.1
+</code></pre>
+
+<p>The code also needs <code>pytest</code>, <code>pytest-json-report</code>, <code>psutil</code> and <code>requests</code>. <code>appium-python-client</code> brings Selenium, but not pytest or the JSON reporter. Pretest checks only three packages, so "Pretest green but pytest will not start" is possible.</p>
+
+<p>Then there is the case bug. <code>router.js</code> imports:</p>
+
+<pre><code>import TestBed from '@/components/TestBed.vue'
+</code></pre>
+
+<p>The actual file is <code>Testbed.vue</code>, with a lowercase b. Windows does not care, so the local machine works. Linux and default macOS filesystems do care, so a CI or container build fails immediately. This is the most common form of "it only runs on my Windows box".</p>
+
+<p>All three problems can be caught once in CI:</p>
+
+<pre><code>npm ci                            # manifest must be complete
+npm run build                     # on a Linux runner, exposes case issues
+python -m pytest --collect-only   # exposes missing pytest/pytest-json-report
+</code></pre>
+
+<h2>The Stop button: a POST with no backend</h2>
+
+<p>The Testbed top bar has a Stop button. Its implementation is:</p>
+
+<pre><code>async function stopTests() {
+  if (!running.value) return
+  try {
+    await fetch('/stop-tests', { method: 'POST' })
+    output.value += '\n===== tests stopped =====\n'
+    running.value = false
+    if (evtSource) {
+      evtSource.close()
+      evtSource = null
+    }
+  } catch (err) {
+    console.error(err)
+  }
+}
+</code></pre>
+
+<p>Vite proxies <code>/stop-tests</code> to the test server. But <code>server.js</code> has no such route. The POST returns 404, and <code>fetch</code> does not throw on 404 because it is a valid response. The frontend therefore continues: it sets <code>running</code> to false, closes the EventSource and prints "tests stopped".</p>
+
+<p>In reality the pytest child keeps running, Appium keeps tapping, and <code>runTestsStreamBusy</code> is still true. The user sees "stopped", while the next person who clicks Run gets "a batch is already running". This is a textbook composition bug: optimistic frontend update plus a missing backend endpoint.</p>
+
+<p>Real cancellation requires four things on the server: keep references to the current batch's child processes; expose <code>POST /stop-tests</code>; send <code>SIGTERM</code> and escalate to <code>SIGKILL</code> after a timeout; and in <code>settleChild</code> record "stopped by user" as an explicit label and release the batch lock. The frontend should only set <code>running</code> to false after receiving <code>close</code>.</p>
+
+<p>In the current fail-fast model, the honest choice is to rename the button "disconnect output", or remove it. A button that looks like it stops but cannot is worse than no button.</p>
+
+<h2>The security boundary: this tool does not belong on the public internet</h2>
+
+<p>Listing every security issue in AutoTest produces a long page: <code>app.use(cors())</code> allows any origin; <code>app.listen(3000, '0.0.0.0')</code> binds every interface; no endpoint authenticates; config holds WiFi passwords, email addresses and tester names; <code>/api/pretest/install</code> can run <code>pip install</code> with arbitrary packages; <code>TestLog.vue</code> renders logs with <code>v-html</code>; <code>finish_report_mail.py</code> hard-codes SMTP credentials; and <code>adb reboot</code> uses <code>shell=True</code>.</p>
+
+<p>Each has an explanation: internal tool, one maintainer, fast delivery. Stacked together they mean one thing: <strong>anyone who can reach port 3000 can read the WiFi password, install arbitrary packages on the server, and send mail from the company account.</strong></p>
+
+<p>The minimum hardening order is short. Bind to <code>127.0.0.1</code>, and put Nginx or Caddy with Basic Auth or SSO in front when LAN access is needed. Disable or allowlist <code>/api/pretest/install</code>; if it stays, only permit packages reported missing. Move credentials out of source and rotate the leaked authorization code. Escape logs before highlighting and drop <code>v-html</code>. Replace permissive CORS with an explicit origin.</p>
+
+<p>One sentence: it is a LAN tool. Do not put it on the public internet. If you must, design it as a service that can execute commands and read company configuration, because that is what it is.</p>
+
+<p>Why does any of this matter beyond one internal tool? Because the same shape appears everywhere: a web console that shells out to a test runner, a data pipeline that shells out to a Python script, an agent that shells out to a CLI. The pattern is always HTTP to process, process to files, files to a report, report to a notification. The failure modes are always the same: buffering hides output, a missing interpreter looks like a test failure, two runs corrupt each other's files, and a "stop" button that only closes a socket. Getting these boundaries right once gives you a template for the next five internal tools.</p>
+
+<h2>If I rewrote it, I would change these five things first</h2>
+
+<p>I would keep the shape: developer box, test server, SSE. Then I would change five things. First, give each batch a cancellable process table. A <code>Map&lt;reportId, Set&lt;ChildProcess&gt;&gt;</code> plus <code>POST /stop-tests</code> and a single <code>settleChild</code> path. Stopping means signal, wait, write the report, release the lock, not closing a browser connection.</p>
+
+<p>Second, split process logs from test logs. Append to <code>reports/&lt;id&gt;/run.log</code> and tail it over SSE. Attach test logs from <code>pytest_runtest_logreport</code>'s <code>capstdout</code>, keyed by nodeid. Collection errors get their own bucket. No lost tracebacks, no N-fold duplication, no full-file rewrite per line.</p>
+
+<p>Third, use ULID for report IDs and aggregate summaries. ULIDs are monotonic and time-sortable, and they remove the "daily counter that is not daily" problem. Recompute counts after merging, and compute exitcode explicitly as "any failure means 1".</p>
+
+<p>Fourth, add a column allowlist to config, and write with UPSERT plus JSONB. A table allowlist is not enough. One <code>config(id, data JSONB, updated_at)</code> row with <code>ON CONFLICT</code> removes the delete-then-insert window. Encrypt credentials, or at least stop storing them in plaintext.</p>
+
+<p>Fifth, put dependencies and case sensitivity in CI. <code>npm ci &amp;&amp; npm run build</code> on Linux, <code>python -m pytest --collect-only</code> in a clean venv, and a build step that catches import case mismatches. Internal tools most often die from "it only runs on my machine".</p>
+
+<p>None of these five touches Appium business logic. All of them decide whether a second person can take over.</p>
+
+<p>The order of these changes matters. Cancellation and process logs come first because they affect correctness and diagnosis. Report aggregation and ULID come next because they affect every consumer. Config hardening and CI come last because they are about preventing future regressions rather than fixing current pain. Trying to do all five at once in a codebase this size usually produces a rewrite that is neither the old system nor the new one. A safer path is to add the process table and run log behind a flag, migrate one batch at a time, and delete the old path only after a month of clean runs.</p>
+
+<h2>Closing: the cost of turning tests into a service is in the boundaries</h2>
+
+<p>AutoTest's value is not "click a button to run pytest"; that is a shell wrapper. Its value is making four kinds of invisible labour explicit. Process boundaries: one pytest per script, with interpreter path, encoding, buffering and Android SDK solved before launch. File boundaries: report directories, sub-report merges, log attachment and counters, where any inconsistency makes results untrustworthy. Human boundaries: batch exclusion, one mail instead of ten, Pretest, and error messages a second person can act on. Security boundaries: no auth, open CORS, executable pip, hard-coded credentials, which together decide that it can only live on a LAN.</p>
+
+<p>If you remember three things: making tests run is Appium; making tests a service is process management. A report is not "pytest's output", it is a data contract you define, and a merge must aggregate rather than let the last writer win. And internal tools fail first on exception paths: the Stop button, collection failures, cross-day counters and Windows case sensitivity are what the next person hits.</p>
+
+<p>What is worth keeping is the part that took the most thought: the five-level interpreter discovery, the clear adb error messages, the single batch lock, the per-script report shard, and the defer-mail environment variable. These are small, unglamorous decisions that encode operational knowledge. A rewrite that replaces them with a framework often loses exactly this knowledge, then rediscovers it as incidents. The lesson is to keep the boundaries explicit and the code boring.</p>
+
+<p>Source: <a href="https://github.com/zhoujungis/AutoTest" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/AutoTest</a>. It is not a platform you can ship publicly, but it assembles the skeleton of remote mobile automation, and every pitfall above is a place where that skeleton actually carries load.</p>
+
+<p>Related reading: <a href="/en/article/nanoqa-versioned-quality-loop/">NanoQA: four hard boundaries in a test management system</a>, <a href="/en/article/nanoss-windows-ssh-client/">NanoSSH: a 13 MB Windows SSH client</a>, and <a href="/en/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas: 30,000 interview notes, crawled and summarised</a>.</p>

@@ -1,0 +1,1369 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：写过 pytest 但没把测试跑成「服务」的人；负责内部工具、测试平台、设备农场的工程师；正在用 Appium 做 Android 自动化、被 adb、session…" />
+<!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/autotest-pytest-mobile-console/" />
+    <meta property="og:title" content="AutoTest：把 pytest 手机自动化装进一个可远程遥控的控制台" />
+    <meta property="og:description" content="适用读者：写过 pytest 但没把测试跑成「服务」的人；负责内部工具、测试平台、设备农场的工程师；正在用 Appium 做 Android 自动化、被 adb、session…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/autotest-pytest-mobile-console/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/autotest-pytest-mobile-console-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/autotest-pytest-mobile-console-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="AutoTest：把 pytest 手机自动化装进一个可远程遥控的控制台 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AutoTest：把 pytest 手机自动化装进一个可远程遥控的控制台" />
+    <meta name="twitter:description" content="适用读者：写过 pytest 但没把测试跑成「服务」的人；负责内部工具、测试平台、设备农场的工程师；正在用 Appium 做 Android 自动化、被 adb、session…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/autotest-pytest-mobile-console-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>AutoTest：把 pytest 手机自动化装进一个可远程遥控的控制台 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-B45EY_Sx.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+      <meta property="article:section" content="项目实战" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/autotest-pytest-mobile-console/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/autotest-pytest-mobile-console/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/autotest-pytest-mobile-console/" />
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-23T15:16:55.633484+08:00" />
+        <meta property="article:modified_time" content="2026-11-23T15:23:16.542095+08:00" />
+        <meta property="article:tag" content="Appium" />
+    <meta property="article:tag" content="Node.js" />
+    <meta property="article:tag" content="Vue" />
+    <meta property="article:tag" content="pytest" />
+    <meta property="article:tag" content="自动化测试" />
+    <meta property="article:tag" content="项目实战" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/autotest-pytest-mobile-console/#article","url":"https://blog.zhoujun.dev/article/autotest-pytest-mobile-console/","headline":"AutoTest：把 pytest 手机自动化装进一个可远程遥控的控制台","description":"适用读者：写过 pytest 但没把测试跑成「服务」的人；负责内部工具、测试平台、设备农场的工程师；正在用 Appium 做 Android 自动化、被 adb、session…","image":"https://blog.zhoujun.dev/photos/autotest-pytest-mobile-console-cover.png","datePublished":"2026-11-23T15:16:55.633484+08:00","dateModified":"2026-11-23T15:23:16.542095+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/autotest-pytest-mobile-console/"},"articleSection":"项目实战","keywords":"Appium, Node.js, Vue, pytest, 自动化测试, 项目实战","inLanguage":"zh-CN","wordCount":13331},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/autotest-pytest-mobile-console/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"AutoTest：把 pytest 手机自动化装进一个可远程遥控的控制台","item":"https://blog.zhoujun.dev/article/autotest-pytest-mobile-console/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"autotest-pytest-mobile-console","title":"AutoTest：把 pytest 手机自动化装进一个可远程遥控的控制台","created_at":"2026-11-23T15:16:55.633484+08:00","updated_at":"2026-11-23T15:23:16.542095+08:00","author":null,"category":{"id":14,"name":"项目实战","slug":"projects"},"tags":[{"id":229,"name":"Appium","slug":"appium"},{"id":230,"name":"Node.js","slug":"nodejs"},{"id":227,"name":"Vue","slug":"vue"},{"id":228,"name":"pytest","slug":"pytest"},{"id":231,"name":"自动化测试","slug":"automation-testing"},{"id":232,"name":"项目实战","slug":"project-practice"}],"cover_image":"/photos/autotest-pytest-mobile-console-cover.png","excerpt":"适用读者：写过 pytest 但没把测试跑成「服务」的人；负责内部工具、测试平台、设备农场的工程师；正在用 Appium 做 Android 自动化、被 adb、session 和报告格式反复折磨的人 结论先行：AutoTest 把三件事接成一条远程流水线：开发机只负责选脚本，测试服务器用 SSE 逐行回传 stdou","reading_time":53,"views_count":3,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>AutoTest：把 pytest 手机自动化装进一个可远程遥控的控制台</span></nav><h1>AutoTest：把 pytest 手机自动化装进一个可远程遥控的控制台</h1><div class="ns-meta">2026/11/23 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/projects/">项目实战</a> · 标签：Appium Node.js Vue pytest 自动化测试 项目实战</p><nav class="ns-series"><p><strong>本系列 · 项目实战</strong>（11 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li><a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/aidevops-terminal-client/">【开源】aidevops 技术拆解：研发数据关联与可解释风险</a></li><li><a href="https://blog.zhoujun.dev/article/halo-music-square-architecture/">Halo 音乐广场技术拆解：多音源在线音乐应用</a></li><li><a href="https://blog.zhoujun.dev/article/happy-games-24-games-zero-framework-guide/">快乐小游戏：24 款零框架小游戏的全栈实践</a></li><li><a href="https://blog.zhoujun.dev/article/google-matter-smart-home-dev-guide/">谷歌 Matter 智能家居开发完全指南：从入门到认证</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/projects/">查看项目实战专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：写过 pytest 但没把测试跑成「服务」的人；负责内部工具、测试平台、设备农场的工程师；正在用 Appium 做 Android 自动化、被 adb、session 和报告格式反复折磨的人
+结论先行：AutoTest 把三件事接成一条远程流水线：开发机只负责选脚本，测试服务器用 SSE 逐行回传 stdout，每个脚本单独起一个 pytest 进程，整批结束只发一封汇总邮件。真正的难点不是让 Appium 点下去，而是 Python 解释器发现、单批互斥、子报告合并、日报 ID 与发信去重这四类边界。文章会给出 10 条 HTTP 路由、4 个 SSE 事件、3 张配置表的真实实现，也会把 3 个隐性故障、5 个未声明的依赖、1 个没有后端的停止按钮逐一定位到文件与行。
+阅读时间：约 53 分钟 | 难度：进阶 | 收获：一套可复用的远程测试控制台骨架 + 进程/文件/邮件三重边界的处理方式 + 一份可以直接照着改的踩坑清单
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>这不是一个 pytest 脚本合集</li>
+<li>两条机器，一条代理：整体拓扑</li>
+<li>开发机只做三件事：扫描、排队、显示</li>
+<li>测试服务器：把 HTTP 变成进程</li>
+<li>SSE 的四个事件与一次批次的完整时序</li>
+<li>为什么每个脚本单独起一个 pytest 进程</li>
+<li>单批互斥：一把布尔锁挡住四种竞态</li>
+<li>Python 解释器发现：从文件到 PATH 的五级回退</li>
+<li>报告目录与 ID：看起来按天，其实是全局计数</li>
+<li>子报告合并：nodeid 是唯一的主键</li>
+<li>日志挂载：把 stdout 贴到每一条用例上</li>
+<li>汇总邮件：从 N 封到 1 封</li>
+<li>邮件编码：主题、NUL 与代理对</li>
+<li>配置不落文件：三张表、一次 DELETE 加 INSERT</li>
+<li>动态 SQL：表白名单挡不住列名</li>
+<li>Pretest：三个检查，一个安装入口</li>
+<li>Appium 1.x 的 /wd/hub：一行 URL 决定的 404</li>
+<li>adb 设备发现：先 connect，再 devices，最后对 udid</li>
+<li>Appium 进程管理：为什么不用 CREATE_NEW_CONSOLE</li>
+<li>循环压测：重建 session 而不重启服务</li>
+<li>重启手机：adb reboot 与 boot_completed</li>
+<li>测试脚本的约定：PLATFORM、fixture 与全局邮件</li>
+<li>报告阅读侧：5 秒轮询、3 秒轮询与 v-html</li>
+<li>我在阅读代码时发现的三个隐性故障</li>
+<li>依赖清单与可移植性：五个未声明的 import</li>
+<li>停止按钮：一个没有后端的 POST</li>
+<li>安全边界：这个工具不该暴露在公网</li>
+<li>如果重写，我会先改这五件事</li>
+<li>小结：把测试变成服务，成本在边界</li>
+</ul>
+<hr>
+<h2>这不是一个 pytest 脚本合集</h2>
+
+大多数团队里的「自动化测试」最终会长成同一个样子：<code>tests/</code> 目录下几十个 <code>test_*.py</code>，一个人在自己电脑上跑，跑完把日志截图发到群里。它当然能发现 bug，但它不是系统，因为没有人回答下面四个问题：
+<ul>
+<li>谁能在不装 Python、不连手机的情况下发起一次测试？</li>
+<li>一次批次跑到一半，第二个人又点了一次运行，会发生什么？</li>
+<li>十个脚本跑完，结果在哪里看？失败的那一条，日志属于哪个脚本？</li>
+<li>三个人同时点运行，收件箱里会收到几封邮件？</li>
+</ul>
+
+AutoTest 是一个内部测试平台，围绕这四个问题长出来的。它的规模并不夸张：控制台有 7 个 Vue 组件，<code>server.js</code> 约 25 KB、实现了 10 条路由，测试目录里目前有 3 个 <code>test_*.py</code>，配置落在 3 张 PostgreSQL 表里。但它的复杂度不在代码量，而在边界：Python 进程从哪里来、SSE 怎么收尾、报告怎么合并、邮件怎么只发一封、配置怎么在没有迁移的情况下演进。
+
+先给结论，后面逐条拆：
+<div class="codehilite"><pre><span></span><code>角色          运行位置              负责
+写脚本的人     任意                  写 tests/debug 或 tests/release
+开发机         Vite :5173            扫描本地脚本、排队、看日志
+测试服务器      Node :3000            起 pytest、写报告、发邮件、存配置
+</code></pre></div>
+
+
+这四类角色里，真正难的是「测试服务器」：它要把一个 HTTP 请求变成一个受控的子进程，再把子进程的输出、文件、退出码重新组装成人和机器都能读的东西。Appium 只是这个子进程里的一部分。
+<h2>两条机器，一条代理：整体拓扑</h2>
+
+AutoTest 默认按「开发机 + 测试服务器」拆分。开发机不需要 Python、Appium、Android SDK，甚至不需要连手机；它只跑一个 Vite 前端。真正的执行环境在测试服务器上，由 <code>AUTOTEST_REMOTE_SERVER</code> 指定：
+<div class="codehilite"><pre><span></span><code>┌─────────────────────────┐         ┌──────────────────────────────┐
+│  开发机 (Vite :5173)     │  proxy  │  测试服务器 (Node :3000)      │
+│  · 扫描本地 tests/ 脚本   │ ──────► │  · 执行 pytest (SSE 流式输出)  │
+│  · Testbed / 配置 / 报告 UI│         │  · 读写 reports/              │
+│                         │         │  · PostgreSQL 配置存储         │
+│                         │         │  · Pretest 环境检查            │
+└─────────────────────────┘         └──────────────────────────────┘
+</code></pre></div>
+
+
+Vite 的代理表是这个拓扑的关键。它把「读脚本列表」留在本机，把「执行、报告、配置、环境检查」转到远端：
+<div class="codehilite"><pre><span></span><code><span class="c1">// pytest-vue/vite.config.js</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">REMOTE_SERVER</span><span class="w"> </span><span class="o">=</span>
+<span class="w">  </span><span class="nx">env</span><span class="p">.</span><span class="nx">AUTOTEST_REMOTE_SERVER</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">AUTOTEST_REMOTE_SERVER</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;http://127.0.0.1:3000&#39;</span>
+
+<span class="nx">server</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">proxy</span><span class="o">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="s1">&#39;/api/log&#39;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">target</span><span class="o">:</span><span class="w"> </span><span class="nx">REMOTE_SERVER</span><span class="p">,</span><span class="w"> </span><span class="nx">changeOrigin</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">      </span><span class="nx">rewrite</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="nx">p</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">p</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="sr">/^\/api\/log/</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;/log&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="s1">&#39;/api/reports&#39;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">target</span><span class="o">:</span><span class="w"> </span><span class="nx">REMOTE_SERVER</span><span class="p">,</span><span class="w"> </span><span class="nx">changeOrigin</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="s1">&#39;/api/report&#39;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">target</span><span class="o">:</span><span class="w"> </span><span class="nx">REMOTE_SERVER</span><span class="p">,</span><span class="w"> </span><span class="nx">changeOrigin</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="s1">&#39;/run-tests-stream&#39;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">target</span><span class="o">:</span><span class="w"> </span><span class="nx">REMOTE_SERVER</span><span class="p">,</span><span class="w"> </span><span class="nx">changeOrigin</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="s1">&#39;/stop-tests&#39;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">target</span><span class="o">:</span><span class="w"> </span><span class="nx">REMOTE_SERVER</span><span class="p">,</span><span class="w"> </span><span class="nx">changeOrigin</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="s1">&#39;/api/pretest&#39;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">target</span><span class="o">:</span><span class="w"> </span><span class="nx">REMOTE_SERVER</span><span class="p">,</span><span class="w"> </span><span class="nx">changeOrigin</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="s1">&#39;/api/config&#39;</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">target</span><span class="o">:</span><span class="w"> </span><span class="nx">REMOTE_SERVER</span><span class="p">,</span><span class="w"> </span><span class="nx">changeOrigin</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">host</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">port</span><span class="o">:</span><span class="w"> </span><span class="mf">5173</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这里有一个很容易被忽略的细节：<code>/api/log</code> 必须单独 rewrite，而且放在更具体的路径上。原因是后端的真实路由叫 <code>/log</code>，前端为了统一走 <code>/api/*</code> 加了一层前缀；如果代理只写一条 <code>/api</code> 前缀规则，<code>/api/log</code> 会被原样转发到 <code>/api/log</code>，然后 404。代理表的顺序在 Vite 里不是装饰，它是路由。
+
+另一个细节是 <code>host: true</code>。它让 Vite 监听局域网地址，于是同事可以直接用 <code>http://192.168.x.x:5173</code> 打开控制台，而不需要每台机器都装一套 Node 依赖。代价是它默认没有鉴权，这一点在第 27 节展开。
+<h2>开发机只做三件事：扫描、排队、显示</h2>
+
+开发机的脚本列表不是从远端拿的，而是由 Vite 的一个中间件在本机扫：
+<div class="codehilite"><pre><span></span><code><span class="c1">// vite.config.js</span>
+<span class="kd">function</span><span class="w"> </span><span class="nx">localScriptsPlugin</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;local-scripts&#39;</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">configureServer</span><span class="p">(</span><span class="nx">server</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">server</span><span class="p">.</span><span class="nx">middlewares</span><span class="p">.</span><span class="nx">use</span><span class="p">(</span><span class="s1">&#39;/api/scripts&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">req</span><span class="p">,</span><span class="w"> </span><span class="nx">res</span><span class="p">,</span><span class="w"> </span><span class="nx">next</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">req</span><span class="p">.</span><span class="nx">method</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="s1">&#39;GET&#39;</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">next</span><span class="p">()</span>
+<span class="w">        </span><span class="kd">const</span><span class="w"> </span><span class="nx">url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">URL</span><span class="p">(</span><span class="nx">req</span><span class="p">.</span><span class="nx">url</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;/&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;http://localhost&#39;</span><span class="p">)</span>
+<span class="w">        </span><span class="kd">const</span><span class="w"> </span><span class="nx">mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">url</span><span class="p">.</span><span class="nx">searchParams</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">&#39;mode&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s1">&#39;test&#39;</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="s1">&#39;release&#39;</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;debug&#39;</span>
+<span class="w">        </span><span class="kd">const</span><span class="w"> </span><span class="nx">dirPath</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">path</span><span class="p">.</span><span class="nx">resolve</span><span class="p">(</span><span class="nx">__dirname</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;..&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;tests&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">mode</span><span class="p">)</span>
+<span class="w">        </span><span class="kd">const</span><span class="w"> </span><span class="nx">files</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">fs</span><span class="p">.</span><span class="nx">readdirSync</span><span class="p">(</span><span class="nx">dirPath</span><span class="p">)</span>
+<span class="w">          </span><span class="p">.</span><span class="nx">filter</span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">f</span><span class="p">.</span><span class="nx">startsWith</span><span class="p">(</span><span class="s1">&#39;test_&#39;</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">f</span><span class="p">.</span><span class="nx">endsWith</span><span class="p">(</span><span class="s1">&#39;.py&#39;</span><span class="p">))</span>
+<span class="w">          </span><span class="p">.</span><span class="nx">map</span><span class="p">(</span><span class="nx">f</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">({</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="nx">f</span><span class="p">,</span><span class="w"> </span><span class="nx">path</span><span class="o">:</span><span class="w"> </span><span class="nx">path</span><span class="p">.</span><span class="nx">join</span><span class="p">(</span><span class="nx">dirPath</span><span class="p">,</span><span class="w"> </span><span class="nx">f</span><span class="p">)</span><span class="w"> </span><span class="p">}))</span>
+<span class="w">        </span><span class="nx">sendJson</span><span class="p">(</span><span class="nx">res</span><span class="p">,</span><span class="w"> </span><span class="mf">200</span><span class="p">,</span><span class="w"> </span><span class="nx">files</span><span class="p">)</span>
+<span class="w">      </span><span class="p">})</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这个设计有一个明确的好处：写脚本的人在本地新增一个 <code>test_xxx.py</code>，刷新控制台就能看到，不需要部署到测试服务器。同一个 <code>/api/scripts</code> 在 <code>server.js</code> 里也有一份实现，逻辑几乎一样，只是根目录不同。两份实现的同步靠人，未来应该抽成共享模块。
+
+Testbed 页面的交互也刻意做得很窄：
+<ul>
+<li>左侧是脚本列表，支持搜索；输入关键词按回车，会把匹配的脚本批量加入右侧待运行列表。</li>
+<li>右侧是一个可拖拽排序的表格，顺序就是执行顺序，因为 <code>server.js</code> 是按 <code>scripts</code> 参数的顺序 <code>forEach</code> 启动子进程的。</li>
+<li>Debug / Test 两个模式分别对应 <code>tests/debug</code> 与 <code>tests/release</code>。</li>
+<li>顶栏只有六个动作：运行、停止、Pretest、结果、实时报告、三个配置页。</li>
+</ul>
+
+运行按钮最终只做一件事，拼一个 EventSource：
+<div class="codehilite"><pre><span></span><code><span class="c1">// Testbed.vue</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">params</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">URLSearchParams</span><span class="p">()</span>
+<span class="nx">params</span><span class="p">.</span><span class="nx">set</span><span class="p">(</span><span class="s1">&#39;mode&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">mode</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span><span class="w">               </span><span class="c1">// debug | test</span>
+<span class="nx">params</span><span class="p">.</span><span class="nx">set</span><span class="p">(</span><span class="s1">&#39;scripts&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">selectedScripts</span><span class="p">.</span><span class="nx">value</span><span class="p">.</span><span class="nx">map</span><span class="p">(</span><span class="nx">s</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">s</span><span class="p">.</span><span class="nx">name</span><span class="p">).</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">))</span>
+<span class="nx">evtSource</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">EventSource</span><span class="p">(</span><span class="sb">`/run-tests-stream?</span><span class="si">${</span><span class="nx">params</span><span class="p">.</span><span class="nx">toString</span><span class="p">()</span><span class="si">}</span><span class="sb">`</span><span class="p">)</span>
+
+<span class="nx">evtSource</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s1">&#39;stdout&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">appendStreamLine</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">data</span><span class="p">))</span>
+<span class="nx">evtSource</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s1">&#39;stderr&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">appendStreamLine</span><span class="p">(</span><span class="nx">e</span><span class="p">.</span><span class="nx">data</span><span class="p">))</span>
+<span class="nx">evtSource</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s1">&#39;report&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* 记录 reportId */</span><span class="w"> </span><span class="p">})</span>
+<span class="nx">evtSource</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s1">&#39;close&#39;</span><span class="p">,</span><span class="w">   </span><span class="p">(</span><span class="nx">e</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* 结束 */</span><span class="w"> </span><span class="p">})</span>
+</code></pre></div>
+
+
+注意 <code>scripts</code> 只传文件名，不传路径，也不传对象。这是一个很小但很关键的决定：如果传对象，URL 里会出现 <code>[object Object]</code>；如果传绝对路径，服务器就获得了一个任意文件读取入口。只允许 <code>test_*.py</code> 的文件名，等于在协议层做了一次白名单。
+<h2>测试服务器：把 HTTP 变成进程</h2>
+
+<code>server.js</code> 是一个单文件 Express 服务，依赖很少：<code>express</code>、<code>cors</code>、<code>pg</code>、<code>tcp-port-used</code>，以及 Node 内置的 <code>child_process</code>、<code>fs</code>、<code>readline</code>。它实现了 10 条路由：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>方法</th>
+<th>路径</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/scripts?mode=debug\|test</code></td>
+<td>远端脚本列表（与本地中间件同构）</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/run-tests-stream</code></td>
+<td>SSE 执行测试</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/reports</code></td>
+<td>报告列表（含 running/finished）</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/report/:reportId</code></td>
+<td>单份合并报告</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/log?reportId=&amp;nodeid=</code></td>
+<td>单条用例详情与日志</td>
+</tr>
+<tr>
+<td>GET/POST</td>
+<td><code>/api/config?table=</code></td>
+<td>读/写三张配置表</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/pretest</code></td>
+<td>数据库、Appium、Python 依赖检查</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/pretest/install</code></td>
+<td>安装缺失的 pip 包</td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/test-results-json</code></td>
+<td>旧版总览文件（历史遗留）</td>
+</tr>
+</tbody>
+</table></div>
+
+这份路由表里没有 <code>/stop-tests</code>，但前端会 POST 它。第 26 节会专门讲这个缺口。
+
+从工程角度看，这个服务只做三件事：
+<ol>
+<li>把配置读写委托给 PostgreSQL，自己不保存业务状态。</li>
+<li>把一次运行变成 N 个子进程，并把 stdout/stderr 变成 SSE 事件。</li>
+<li>把每个子进程的 pytest JSON 报告合并成一个批次报告，并在结束时触发一次发信。</li>
+</ol>
+
+它没有队列、没有任务表、没有 worker。批次状态只存在于一个布尔变量和磁盘目录里。这是它简单的地方，也是它脆弱的地方。
+<h2>SSE 的四个事件与一次批次的完整时序</h2>
+
+<code>/run-tests-stream</code> 是整个系统唯一的长连接。它先写 SSE 头，然后按顺序做五件事：
+<div class="codehilite"><pre><span></span><code><span class="nx">res</span><span class="p">.</span><span class="nx">setHeader</span><span class="p">(</span><span class="s1">&#39;Content-Type&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;text/event-stream&#39;</span><span class="p">)</span>
+<span class="nx">res</span><span class="p">.</span><span class="nx">setHeader</span><span class="p">(</span><span class="s1">&#39;Cache-Control&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;no-cache&#39;</span><span class="p">)</span>
+<span class="nx">res</span><span class="p">.</span><span class="nx">setHeader</span><span class="p">(</span><span class="s1">&#39;Connection&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;keep-alive&#39;</span><span class="p">)</span>
+
+<span class="nx">reportId</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">generateDailyId</span><span class="p">()</span><span class="w">                       </span><span class="c1">// 20261123-000123</span>
+<span class="nx">reportDir</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">path</span><span class="p">.</span><span class="nx">join</span><span class="p">(</span><span class="nx">REPORTS_BASE</span><span class="p">,</span><span class="w"> </span><span class="nx">reportId</span><span class="p">)</span>
+<span class="nx">fs</span><span class="p">.</span><span class="nx">mkdirSync</span><span class="p">(</span><span class="nx">reportDir</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">recursive</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">})</span>
+
+<span class="c1">// 先写一个空壳，前端立刻能打开「实时报告」</span>
+<span class="nx">fs</span><span class="p">.</span><span class="nx">writeFileSync</span><span class="p">(</span><span class="nx">reportFile</span><span class="p">,</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span>
+<span class="w">  </span><span class="nx">tests</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"> </span><span class="nx">collectors</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span><span class="w"> </span><span class="nx">summary</span><span class="o">:</span><span class="w"> </span><span class="p">{},</span>
+<span class="w">  </span><span class="nx">status</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;running&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">created</span><span class="o">:</span><span class="w"> </span><span class="nx">now</span><span class="p">,</span><span class="w"> </span><span class="nx">updatedAt</span><span class="o">:</span><span class="w"> </span><span class="nx">now</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">duration</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">exitcode</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">root</span><span class="o">:</span><span class="w"> </span><span class="nx">__dirname</span><span class="p">,</span><span class="w"> </span><span class="nx">environment</span><span class="o">:</span><span class="w"> </span><span class="p">{},</span>
+<span class="p">},</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="mf">2</span><span class="p">))</span>
+
+<span class="nx">res</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="sb">`event: report\ndata: </span><span class="si">${</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"> </span><span class="nx">reportId</span><span class="p">,</span><span class="w"> </span><span class="nx">status</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;running&#39;</span><span class="w"> </span><span class="si">}</span><span class="sb">)}\n\n`</span><span class="p">)</span>
+</code></pre></div>
+
+
+之后的每个脚本都会独立启动，并行执行（<code>scripts.forEach</code>，不是串行等待）。事件只有四种：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>事件</th>
+<th>数据</th>
+<th>谁消费</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>report</code></td>
+<td><code>{ reportId, status }</code></td>
+<td>前端记录 reportId，打开实时报告</td>
+</tr>
+<tr>
+<td><code>stdout</code></td>
+<td><code>{ script, line, type }</code></td>
+<td>控制台逐行显示</td>
+</tr>
+<tr>
+<td><code>stderr</code></td>
+<td><code>{ script, line, type }</code></td>
+<td>控制台逐行显示；busy/init 错误也走这里</td>
+</tr>
+<tr>
+<td><code>close</code></td>
+<td><code>{ script, code, reportId, label }</code> 或 <code>{ code, message }</code></td>
+<td>单脚本结束或整批失败</td>
+</tr>
+</tbody>
+</table></div>
+
+整批结束时不是发一个 <code>close</code>，而是每个脚本各发一个 <code>close</code>；当 <code>scriptsRemaining</code> 归零时才：
+<div class="codehilite"><pre><span></span><code><span class="nx">scriptsRemaining</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mf">1</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">scriptsRemaining</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">markReportFinished</span><span class="p">(</span><span class="nx">reportFile</span><span class="p">,</span><span class="w"> </span><span class="nx">batchMailExit</span><span class="p">)</span><span class="w">  </span><span class="c1">// status: finished</span>
+<span class="w">  </span><span class="nx">spawnFinishMail</span><span class="p">(</span><span class="nx">batchMailExit</span><span class="p">)</span><span class="w">                 </span><span class="c1">// 只发一封</span>
+<span class="w">  </span><span class="nx">runTestsStreamBusy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span><span class="w">                     </span><span class="c1">// 释放批锁</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+前端对 <code>onerror</code> 的处理值得注意：EventSource 在连接正常关闭时也可能触发 <code>onerror</code>，所以它先判断 <code>running</code>，避免把「跑完了」误报成「连接中断」。这是一个很小的细节，但如果没有它，用户会在每次成功结束时看到一条红色错误。
+<h2>为什么每个脚本单独起一个 pytest 进程</h2>
+
+一个更自然的写法是：把所有选中的脚本作为参数传给一个 pytest 进程，<code>pytest -v a.py b.py c.py --json-report</code>。AutoTest 没有这么做，而是每个脚本一个进程：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">proc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">spawnPythonModule</span><span class="p">(</span>
+<span class="w">  </span><span class="s1">&#39;pytest&#39;</span><span class="p">,</span>
+<span class="w">  </span><span class="p">[</span><span class="s1">&#39;-v&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">scriptPath</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;--json-report&#39;</span><span class="p">,</span><span class="w"> </span><span class="sb">`--json-report-file=</span><span class="si">${</span><span class="nx">subReportFile</span><span class="si">}</span><span class="sb">`</span><span class="p">],</span>
+<span class="w">  </span><span class="p">{</span><span class="w"> </span><span class="nx">env</span><span class="o">:</span><span class="w"> </span><span class="nx">spawnEnvWithPython</span><span class="p">(</span><span class="nx">deferMailEnv</span><span class="p">),</span><span class="w"> </span><span class="nx">cwd</span><span class="o">:</span><span class="w"> </span><span class="nx">AUTOTEST_ROOT</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">stdio</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;pipe&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;pipe&#39;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<span class="p">)</span>
+</code></pre></div>
+
+
+原因有三个：
+
+第一，隔离崩溃。Appium 测试经常会把 session 跑到不可用；一个脚本把 driver 跑死，不应该让后面的脚本全部失败。独立进程意味着一个脚本 <code>segfault</code>、<code>sys.exit</code> 或 Python 解释器崩溃，只影响它自己。
+
+第二，隔离 session 级 fixture。<code>app_driver</code> 是 <code>scope="module"</code>，一个 pytest 进程里它会复用；如果十个脚本在同一个进程里跑，第一个脚本创建的 Appium session 会被后面的脚本继承（或者需要显式 teardown）。独立进程强制每个脚本重新初始化，状态不会串。
+
+第三，报告天然分片。每个脚本写自己的 <code>&lt;script&gt;.json</code>，失败时只丢一片，不会污染整批。服务器再按 nodeid 合并。
+
+代价也很直接：每个脚本都要重新 import、重新启动 Appium session，启动开销从「一次」变成「N 次」；如果脚本很短，启动成本会超过测试本身。AutoTest 的取舍是「可诊断性优先于总耗时」，对一个内部平台来说这是合理的。
+
+还有一个隐藏成本：因为每个脚本一个进程，<code>pytest_sessionfinish</code> 会执行 N 次，而它默认会发邮件。这就引出了下一节的批量邮件问题。
+<h2>单批互斥：一把布尔锁挡住四种竞态</h2>
+
+<code>server.js</code> 里有一个很不起眼的变量：
+<div class="codehilite"><pre><span></span><code><span class="cm">/** 禁止两批 /run-tests-stream 并行（避免 .daily_counter、报告目录与发信读配置竞态） */</span>
+<span class="kd">let</span><span class="w"> </span><span class="nx">runTestsStreamBusy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span>
+</code></pre></div>
+
+
+它挡住的不是一种竞态，而是四种：
+<ol>
+<li><code>.daily_counter.json</code> 的读-改-写。两个批次同时进来，可能生成同一个 reportId，第二个批次会覆盖第一个批次的目录。</li>
+<li>报告目录的创建与合并。两个批次同时写 <code>reports/&lt;id&gt;/</code>，合并逻辑会互相踩。</li>
+<li>发信时读取 <code>test_config</code>。一个批次正在跑，管理员改了收件邮箱，邮件的收件人可能对不上。</li>
+<li>Appium 端口 4723。两个批次同时启动 Appium，后一个会杀掉前一个的进程。</li>
+</ol>
+
+锁的实现很直接：如果 busy，就不排队，直接回一个 <code>stderr</code> + <code>close</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">runTestsStreamBusy</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">res</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="sb">`event: stderr\ndata: </span><span class="si">${</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span>
+<span class="w">    </span><span class="nx">line</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;已有测试批次在执行，请等待当前批次全部结束后再运行。&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;busy&#39;</span>
+<span class="w">  </span><span class="si">}</span><span class="sb">)}\n\n`</span><span class="p">)</span>
+<span class="w">  </span><span class="nx">res</span><span class="p">.</span><span class="nx">write</span><span class="p">(</span><span class="sb">`event: close\ndata: </span><span class="si">${</span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"> </span><span class="nx">code</span><span class="o">:</span><span class="w"> </span><span class="o">-</span><span class="mf">2</span><span class="p">,</span><span class="w"> </span><span class="nx">message</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;busy&#39;</span><span class="w"> </span><span class="si">}</span><span class="sb">)}\n\n`</span><span class="p">)</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">res</span><span class="p">.</span><span class="nx">end</span><span class="p">()</span>
+<span class="p">}</span>
+<span class="nx">runTestsStreamBusy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</code></pre></div>
+
+
+这个设计的选择是「快速失败」而不是「排队」：内部平台的使用者是人，人能看懂「现在有批次在跑」，排队反而会让第二次点击的人不知道什么时候开始。
+
+但它有一个明确的边界：这是进程内锁。如果 <code>server.js</code> 用 <code>pm2</code> 起了两个实例，或者前面有一层多 worker 的反向代理，这把锁就不存在了。正确的做法是文件锁（<code>proper-lockfile</code>）或 PostgreSQL advisory lock。对于一个单实例内网工具，布尔锁够用；对于任何要横向扩展的版本，它不够。
+<h2>Python 解释器发现：从文件到 PATH 的五级回退</h2>
+
+这是整个项目里最「不优雅但最实用」的一段。Node 进程的 PATH 往往和用户 CMD 的 PATH 不一样：用户在终端里能跑 <code>python</code>，不代表 <code>node server.js</code> 的子进程能找到。AutoTest 用了五级回退：
+<div class="codehilite"><pre><span></span><code>1. configs/python_path.txt        第一行非注释内容
+2. AUTOTEST_PYTHON                环境变量
+3. where python / python3         PATH
+4. py -3                          Windows launcher
+5. 扫描 LOCALAPPDATA/Program Files 下的 Python 安装
+</code></pre></div>
+
+
+关键不是顺序，而是每一步都真的执行一次验证：
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">verifyPythonExe</span><span class="p">(</span><span class="nx">exe</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">exe</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="nx">fs</span><span class="p">.</span><span class="nx">existsSync</span><span class="p">(</span><span class="nx">exe</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">spawnSync</span><span class="p">(</span><span class="nx">exe</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;-c&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;import sys; print(sys.executable)&#39;</span><span class="p">],</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">encoding</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;utf8&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="o">:</span><span class="w"> </span><span class="nx">PYTHON_ENV_FOR_AUTOTEST</span><span class="p">,</span><span class="w"> </span><span class="nx">timeout</span><span class="o">:</span><span class="w"> </span><span class="mf">20000</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">windowsHide</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="p">})</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">r</span><span class="p">.</span><span class="nx">status</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">0</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>fs.existsSync</code> 只能证明文件存在，不能证明它能跑；一个损坏的 venv、一个需要许可证的解释器、一个被杀毒软件锁住的 exe，都会在真正 <code>spawn</code> 时才报错。提前跑一次 <code>-c "import sys"</code> 把故障从「运行测试时」提前到「服务启动时」。
+
+找到解释器之后，还要把它周围的 PATH 补齐：
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">spawnEnvWithPython</span><span class="p">(</span><span class="nx">baseEnv</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">env</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="nx">baseEnv</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">cmd</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">resolvePythonLaunch</span><span class="p">()</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">cmd</span><span class="p">.</span><span class="nx">toLowerCase</span><span class="p">().</span><span class="nx">endsWith</span><span class="p">(</span><span class="s1">&#39;.exe&#39;</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">dir</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">path</span><span class="p">.</span><span class="nx">dirname</span><span class="p">(</span><span class="nx">cmd</span><span class="p">)</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">scripts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">path</span><span class="p">.</span><span class="nx">join</span><span class="p">(</span><span class="nx">dir</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;Scripts&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">env</span><span class="p">.</span><span class="nx">PATH</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">dir</span><span class="si">}${</span><span class="nx">path</span><span class="p">.</span><span class="nx">delimiter</span><span class="si">}${</span><span class="nx">env</span><span class="p">.</span><span class="nx">PATH</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="si">}</span><span class="sb">`</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">fs</span><span class="p">.</span><span class="nx">existsSync</span><span class="p">(</span><span class="nx">scripts</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">env</span><span class="p">.</span><span class="nx">PATH</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">scripts</span><span class="si">}${</span><span class="nx">path</span><span class="p">.</span><span class="nx">delimiter</span><span class="si">}${</span><span class="nx">env</span><span class="p">.</span><span class="nx">PATH</span><span class="si">}</span><span class="sb">`</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">env</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+为什么需要这一步？因为 <code>python.exe</code> 和 <code>pip.exe</code>、<code>appium.cmd</code> 通常不在同一个目录；而且子进程里执行的 <code>appium</code> 命令需要能解析到全局 npm 目录。AutoTest 的做法是把解释器目录和 <code>Scripts</code> 目录都塞进 PATH，再用 <code>python -m pip</code> 而不是 <code>pip</code>，绕开 PATH 的不确定性。
+
+这段代码还有一个容易被忽略的全局变量：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">PYTHON_ENV_FOR_AUTOTEST</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">withAndroidSdkEnv</span><span class="p">({</span>
+<span class="w">  </span><span class="p">...</span><span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">PYTHONUNBUFFERED</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;1&#39;</span><span class="p">,</span><span class="w">       </span><span class="c1">// 否则 SSE 要等缓冲区满才吐行</span>
+<span class="w">  </span><span class="nx">PYTHONIOENCODING</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span><span class="w">   </span><span class="c1">// 否则 Windows 默认 cp936 会把中文日志写成乱码</span>
+<span class="w">  </span><span class="nx">PYTHONPATH</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="nx">AUTOTEST_ROOT</span><span class="p">,</span><span class="w"> </span><span class="nx">process</span><span class="p">.</span><span class="nx">env</span><span class="p">.</span><span class="nx">PYTHONPATH</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;&#39;</span><span class="p">].</span><span class="nx">join</span><span class="p">(</span><span class="nx">path</span><span class="p">.</span><span class="nx">delimiter</span><span class="p">),</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+<code>PYTHONUNBUFFERED=1</code> 是 SSE 流式输出的前提。没有它，pytest 的 stdout 会在缓冲区里攒到几 KB 才一次性吐出，用户看到的是「卡住很久，然后刷屏」。<code>PYTHONPATH</code> 则保证 <code>python -m core.finish_report_mail</code> 能 import 到项目根下的包。
+<h2>报告目录与 ID：看起来按天，其实是全局计数</h2>
+
+报告 ID 的格式是 <code>YYYYMMDD-NNNNNN</code>，例如 <code>20260520-000084</code>。第一眼看上去像「每天从 1 开始」，但实现不是：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">COUNTER_FILE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">path</span><span class="p">.</span><span class="nx">join</span><span class="p">(</span><span class="nx">REPORTS_BASE</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;.daily_counter.json&#39;</span><span class="p">)</span>
+
+<span class="kd">function</span><span class="w"> </span><span class="nx">generateDailyId</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">now</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">()</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">ymd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">now</span><span class="p">.</span><span class="nx">getFullYear</span><span class="p">()</span><span class="si">}${</span><span class="nb">String</span><span class="p">(</span><span class="nx">now</span><span class="p">.</span><span class="nx">getMonth</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1</span><span class="p">).</span><span class="nx">padStart</span><span class="p">(</span><span class="mf">2</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;0&#39;</span><span class="p">)</span><span class="si">}${</span><span class="nb">String</span><span class="p">(</span><span class="nx">now</span><span class="p">.</span><span class="nx">getDate</span><span class="p">()).</span><span class="nx">padStart</span><span class="p">(</span><span class="mf">2</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;0&#39;</span><span class="p">)</span><span class="si">}</span><span class="sb">`</span>
+
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">counter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">fs</span><span class="p">.</span><span class="nx">existsSync</span><span class="p">(</span><span class="nx">COUNTER_FILE</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">counter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">fs</span><span class="p">.</span><span class="nx">readFileSync</span><span class="p">(</span><span class="nx">COUNTER_FILE</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;utf-8&#39;</span><span class="p">)).</span><span class="nx">counter</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="mf">0</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="nx">counter</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">1</span>
+<span class="w">  </span><span class="nx">fs</span><span class="p">.</span><span class="nx">writeFileSync</span><span class="p">(</span><span class="nx">COUNTER_FILE</span><span class="p">,</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"> </span><span class="nx">counter</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="mf">2</span><span class="p">),</span><span class="w"> </span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="sb">`</span><span class="si">${</span><span class="nx">ymd</span><span class="si">}</span><span class="sb">-</span><span class="si">${</span><span class="nb">String</span><span class="p">(</span><span class="nx">counter</span><span class="p">).</span><span class="nx">padStart</span><span class="p">(</span><span class="mf">6</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;0&#39;</span><span class="p">)</span><span class="si">}</span><span class="sb">`</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+变量名和文件名都叫 <code>daily</code>，但计数器从来不在午夜归零。这意味着：
+<ul>
+<li>ID 的日期部分是「这次运行的日期」，序号部分是「这个部署历史上一共跑过多少次」。</li>
+<li>跨天后的第一条报告，序号不会回到 1；它会继续增长。</li>
+<li>如果 <code>.daily_counter.json</code> 被删除，序号会从 1 重新开始，可能和已有目录冲突。</li>
+</ul>
+
+这不是一个会导致测试失败的问题，但它会让报告 ID 的语义变得含混。更糟的是，<code>finish_report_mail.py</code> 依赖这个计数器去反查报告目录：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_find_report_id_for_counter</span><span class="p">(</span><span class="n">counter</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;-</span><span class="si">{</span><span class="n">counter</span><span class="si">:</span><span class="s2">06d</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="n">names</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">p</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">_REPORTS_ROOT</span><span class="o">.</span><span class="n">iterdir</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">is_dir</span><span class="p">()</span> <span class="ow">and</span> <span class="n">_REPORT_DIR_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="ow">and</span> <span class="n">p</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="k">return</span> <span class="nb">max</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="k">if</span> <span class="n">names</span> <span class="k">else</span> <span class="kc">None</span>
+</code></pre></div>
+
+
+一旦计数器与实际目录不同步（手工删了目录、恢复备份、并发批次），邮件里的「本次报告」链接就会指向错误或不存在的位置。正确的做法是把 reportId 直接传给发信子进程，而不是让它猜；或者把计数器改成按日结构 <code>{ date, counter }</code>，并在日期变化时归零。更彻底的做法是 ULID：单调、可按时间排序、不需要锁。
+<h2>子报告合并：nodeid 是唯一的主键</h2>
+
+每个脚本写一份 pytest JSON 报告，服务器在脚本结束时把它合并进批次总报告：
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">mergeSubReportToTotal</span><span class="p">(</span><span class="nx">totalFile</span><span class="p">,</span><span class="w"> </span><span class="nx">subFile</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">fs</span><span class="p">.</span><span class="nx">readFileSync</span><span class="p">(</span><span class="nx">totalFile</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">sub</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">fs</span><span class="p">.</span><span class="nx">readFileSync</span><span class="p">(</span><span class="nx">subFile</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span>
+
+<span class="w">  </span><span class="nx">sub</span><span class="p">.</span><span class="nx">tests</span><span class="p">.</span><span class="nx">forEach</span><span class="p">(</span><span class="nx">test</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">exists</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">total</span><span class="p">.</span><span class="nx">tests</span><span class="p">.</span><span class="nx">find</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">t</span><span class="p">.</span><span class="nx">nodeid</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="nx">test</span><span class="p">.</span><span class="nx">nodeid</span><span class="p">)</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">exists</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">exists</span><span class="p">.</span><span class="nx">call</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">exists</span><span class="p">.</span><span class="nx">call</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">log</span><span class="o">:</span><span class="w"> </span><span class="p">[]</span><span class="w"> </span><span class="p">}</span>
+<span class="w">      </span><span class="nx">exists</span><span class="p">.</span><span class="nx">call</span><span class="p">.</span><span class="nx">log</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">exists</span><span class="p">.</span><span class="nx">call</span><span class="p">.</span><span class="nx">log</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nx">test</span><span class="p">.</span><span class="nx">call</span><span class="o">?</span><span class="p">.</span><span class="nx">log</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">[])</span>
+<span class="w">      </span><span class="nx">exists</span><span class="p">.</span><span class="nx">outcome</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">test</span><span class="p">.</span><span class="nx">outcome</span>
+<span class="w">      </span><span class="nx">exists</span><span class="p">.</span><span class="nx">setup</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">test</span><span class="p">.</span><span class="nx">setup</span>
+<span class="w">      </span><span class="nx">exists</span><span class="p">.</span><span class="nx">teardown</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">test</span><span class="p">.</span><span class="nx">teardown</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">total</span><span class="p">.</span><span class="nx">tests</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">test</span><span class="p">)</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">})</span>
+
+<span class="w">  </span><span class="nx">total</span><span class="p">.</span><span class="nx">collectors</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">total</span><span class="p">.</span><span class="nx">collectors</span><span class="p">.</span><span class="nx">concat</span><span class="p">(</span><span class="nx">sub</span><span class="p">.</span><span class="nx">collectors</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">[])</span>
+<span class="w">  </span><span class="nx">total</span><span class="p">.</span><span class="nx">summary</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">sub</span><span class="p">.</span><span class="nx">summary</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">total</span><span class="p">.</span><span class="nx">summary</span>
+<span class="w">  </span><span class="nx">total</span><span class="p">.</span><span class="nx">exitcode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">sub</span><span class="p">.</span><span class="nx">exitcode</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">total</span><span class="p">.</span><span class="nx">exitcode</span>
+<span class="w">  </span><span class="nx">total</span><span class="p">.</span><span class="nx">updatedAt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Date</span><span class="p">.</span><span class="nx">now</span><span class="p">()</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1000</span>
+<span class="w">  </span><span class="nx">fs</span><span class="p">.</span><span class="nx">writeFileSync</span><span class="p">(</span><span class="nx">totalFile</span><span class="p">,</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">total</span><span class="p">,</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="mf">2</span><span class="p">),</span><span class="w"> </span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+选择 <code>nodeid</code> 作为去重键是对的。pytest 的 nodeid 形如 <code>tests/debug/test_binding.py::test_device_bind_loop</code>，包含文件路径、类名、方法名，跨脚本不会重复；如果同一脚本被选中两次，第二次的日志会合并进同一条，而不是产生两条重复记录。
+
+但最后三行有两个问题：
+<ul>
+<li><code>total.summary = sub.summary</code> 是覆盖，不是累加。合并完成后，总报告顶部的 <code>passed/failed/skipped</code> 只反映最后一个脚本的统计，而不是整批。前端 TestTable 读的是 <code>json.tests</code>，自己重新计数，所以页面上的数字是对的；但任何直接读 <code>summary</code> 的消费者（邮件、脚本、未来的 API）都会得到错的。</li>
+<li><code>total.exitcode = sub.exitcode || total.exitcode</code> 只在子报告 exitcode 为真时更新；0 是假值，所以「最后一个脚本成功」不会把整批 exitcode 写成 0。批次结果实际上由 <code>batchMailExit</code> 单独维护。</li>
+</ul>
+
+修法不复杂：合并时重新遍历 <code>total.tests</code> 计算 summary，exitcode 用 <code>Math.max</code> 或显式的「有失败即 1」。但这两个 bug 很典型：<strong>合并函数写成了「最后一次写入者获胜」，而不是「聚合」</strong>。
+<h2>日志挂载：把 stdout 贴到每一条用例上</h2>
+
+pytest 的 JSON 报告本身包含 <code>call.log</code>，但在 <code>-v</code> 模式下，pytest 的进度输出和 <code>logging</code> 的 stdout 并不一定都进入每个用例的 <code>call.log</code>。AutoTest 的做法是手工补：
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">appendLogToSubReport</span><span class="p">(</span><span class="nx">subReportFile</span><span class="p">,</span><span class="w"> </span><span class="nx">line</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">line</span><span class="p">.</span><span class="nx">trim</span><span class="p">()</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">line</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">subReport</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">tests</span><span class="o">:</span><span class="w"> </span><span class="p">[]</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">fs</span><span class="p">.</span><span class="nx">existsSync</span><span class="p">(</span><span class="nx">subReportFile</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">subReport</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="nx">fs</span><span class="p">.</span><span class="nx">readFileSync</span><span class="p">(</span><span class="nx">subReportFile</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nb">Array</span><span class="p">.</span><span class="nx">isArray</span><span class="p">(</span><span class="nx">subReport</span><span class="p">.</span><span class="nx">tests</span><span class="p">))</span><span class="w"> </span><span class="nx">subReport</span><span class="p">.</span><span class="nx">tests</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[]</span>
+
+<span class="w">  </span><span class="c1">// 关键：没有 tests 就直接返回</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">subReport</span><span class="p">.</span><span class="nx">tests</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+
+<span class="w">  </span><span class="nx">subReport</span><span class="p">.</span><span class="nx">tests</span><span class="p">.</span><span class="nx">forEach</span><span class="p">((</span><span class="nx">test</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">test</span><span class="p">.</span><span class="nx">call</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">test</span><span class="p">.</span><span class="nx">call</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">log</span><span class="o">:</span><span class="w"> </span><span class="p">[]</span><span class="w"> </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">test</span><span class="p">.</span><span class="nx">call</span><span class="p">.</span><span class="nx">log</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">test</span><span class="p">.</span><span class="nx">call</span><span class="p">.</span><span class="nx">log</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">[]</span>
+<span class="w">    </span><span class="nx">test</span><span class="p">.</span><span class="nx">call</span><span class="p">.</span><span class="nx">log</span><span class="p">.</span><span class="nx">push</span><span class="p">({</span>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="nx">test</span><span class="p">.</span><span class="nx">nodeid</span><span class="p">.</span><span class="nx">split</span><span class="p">(</span><span class="s1">&#39;::&#39;</span><span class="p">)[</span><span class="mf">0</span><span class="p">]</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="s1">&#39;unknown&#39;</span><span class="p">,</span>
+<span class="w">      </span><span class="nx">msg</span><span class="o">:</span><span class="w"> </span><span class="nx">line</span><span class="p">,</span><span class="w"> </span><span class="nx">args</span><span class="o">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nx">levelname</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;INFO&#39;</span><span class="p">,</span><span class="w"> </span><span class="nx">levelno</span><span class="o">:</span><span class="w"> </span><span class="mf">20</span><span class="p">,</span>
+<span class="w">    </span><span class="p">})</span>
+<span class="w">  </span><span class="p">})</span>
+
+<span class="w">  </span><span class="nx">fs</span><span class="p">.</span><span class="nx">writeFileSync</span><span class="p">(</span><span class="nx">subReportFile</span><span class="p">,</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">(</span><span class="nx">subReport</span><span class="p">,</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="mf">2</span><span class="p">),</span><span class="w"> </span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这段代码有三个明确的后果，按严重程度排列：
+
+第一，<strong>收集阶段的日志会丢</strong>。pytest 在真正开始跑用例之前，会先做 collection：import 模块、解析 fixture、执行 <code>conftest.py</code>。如果 import 失败、fixture 报错、语法错误，这些恰恰是最需要看的日志，而此时 <code>subReport.tests</code> 还是空数组，函数直接 <code>return</code>。用户看到的是「报告里什么都没有」，但控制台里明明有 traceback。
+
+第二，<strong>多用例脚本的日志会重复 N 份</strong>。每一行 stdout 被 push 到该脚本的每一条 test 的 <code>call.log</code>。一个文件里有 5 条用例，同一行日志就会出现 5 次。日志页按用例展示时还能接受，但如果有人把整份报告导出去做统计，就会被放大。
+
+第三，<strong>每一行都重写整个 JSON 文件</strong>。<code>appendLogToSubReport</code> 对每个 stdout 行执行一次「读文件 → <code>JSON.parse</code> → push → <code>JSON.stringify</code> → 写文件」。一个跑 5,000 行的脚本，就是 5,000 次全量读写；报告越大，后面的行越慢。这是典型的 O(行数 × 报告大小) I/O。
+
+正确的做法是把两件事分开：
+<ul>
+<li><strong>进程级日志</strong>写一个 <code>run.log</code>，按行 append，SSE 同时转发。它不属于任何一条用例，但完整、便宜。</li>
+<li><strong>用例级日志</strong>用 pytest hook 关联，例如 <code>pytest_runtest_logreport(report)</code> 里把 <code>report.capstdout</code> 挂到对应的 nodeid；collect 阶段的错误用 <code>pytest_collectreport</code> 单独存。</li>
+</ul>
+
+AutoTest 当前的做法是「能看就行」的折中，对内部工具可以接受；但只要有人开始用报告做质量趋势，这三个问题就会变成数据问题。
+<h2>汇总邮件：从 N 封到 1 封</h2>
+
+<code>conftest.py</code> 里有一段默认行为：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">pytest_sessionfinish</span><span class="p">(</span><span class="n">session</span><span class="p">,</span> <span class="n">exitstatus</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;AUTOTEST_DEFER_SESSION_MAIL&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;1&quot;</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">core.finish_report_mail</span><span class="w"> </span><span class="kn">import</span> <span class="n">send_finish_mail</span>
+    <span class="n">send_finish_mail</span><span class="p">(</span><span class="n">exitstatus</span><span class="p">)</span>
+</code></pre></div>
+
+
+本地单跑一个脚本时，行为很自然：pytest 结束，发一封邮件。但通过 Testbed 批量跑时，每个脚本一个进程，如果什么都不做，十次运行会发十封邮件。AutoTest 的解法是一个环境变量：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 每个子进程都带这个变量</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">deferMailEnv</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="nx">PYTHON_ENV_FOR_AUTOTEST</span><span class="p">,</span><span class="w"> </span><span class="nx">AUTOTEST_DEFER_SESSION_MAIL</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;1&#39;</span><span class="w"> </span><span class="p">}</span>
+
+<span class="c1">// 整批结束时，由 server 启动一个独立的发信进程</span>
+<span class="kd">function</span><span class="w"> </span><span class="nx">spawnFinishMail</span><span class="p">(</span><span class="nx">batchExitForMailBody</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">mailProc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">spawnPythonModule</span><span class="p">(</span>
+<span class="w">    </span><span class="s1">&#39;core.finish_report_mail&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="nb">String</span><span class="p">(</span><span class="nx">batchExitForMailBody</span><span class="p">)],</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">cwd</span><span class="o">:</span><span class="w"> </span><span class="nx">AUTOTEST_ROOT</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="o">:</span><span class="w"> </span><span class="nx">PYTHON_ENV_FOR_AUTOTEST</span><span class="p">,</span>
+<span class="w">      </span><span class="nx">stdio</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;pipe&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;pipe&#39;</span><span class="p">]</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="p">)</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这个设计有两个好处：
+<ul>
+<li>发信逻辑只存在于 Python 一处，本地单跑和批量跑共用，不需要在 Node 里再写一套 SMTP。</li>
+<li>发信失败不会影响测试结果：子进程的退出码被单独记录（0 成功、2 未发信或失败），测试批次的 <code>batchExit</code> 不受影响。</li>
+</ul>
+
+但它也有明确的失败模式：
+<ul>
+<li>如果 <code>server.js</code> 在最后一个脚本结束前崩溃，<code>spawnFinishMail</code> 永远不会执行，批次邮件丢失。</li>
+<li>如果最后一个 pytest 子进程卡死（例如 driver 在 <code>quit()</code> 里挂住），<code>scriptsRemaining</code> 不会归零，整批既不结束也不发信。</li>
+<li>如果 <code>.daily_counter.json</code> 与报告目录不同步，邮件里的报告链接会错（见上一节）。</li>
+</ul>
+
+更稳的做法是把「批次结束」也当成一个可恢复的状态：把 reportId 和 batchExit 写进一个 <code>batch.json</code>，发信进程失败后可以重试；或者用一个最小的任务表，让「发信」成为一条待办，而不是一次性的 <code>spawn</code>。
+<h2>邮件编码：主题、NUL 与代理对</h2>
+
+邮件正文是 HTML，里面拼了测试人员、项目名、报告路径和链接。这些字段来自配置表，理论上可以是任意字符串。<code>finish_report_mail.py</code> 在处理它们时做了三层防御：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">_sanitize_subject</span><span class="p">(</span><span class="n">subject</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="p">(</span><span class="n">subject</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\r</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot; &quot;</span><span class="p">)</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ch</span> <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">s</span> <span class="k">if</span> <span class="nb">ord</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">32</span> <span class="ow">or</span> <span class="n">ch</span> <span class="ow">in</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">s</span><span class="o">.</span><span class="n">split</span><span class="p">())</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">200</span><span class="p">:</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">s</span><span class="p">[:</span><span class="mi">197</span><span class="p">]</span> <span class="o">+</span> <span class="s2">&quot;...&quot;</span>
+    <span class="k">return</span> <span class="n">s</span> <span class="ow">or</span> <span class="s2">&quot;【自动化测试】通知&quot;</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_sanitize_html_body</span><span class="p">(</span><span class="n">html_body</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">s</span> <span class="o">=</span> <span class="p">(</span><span class="n">html_body</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\x00</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ch</span> <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">s</span> <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="mh">0xD800</span> <span class="o">&lt;=</span> <span class="nb">ord</span><span class="p">(</span><span class="n">ch</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mh">0xDFFF</span><span class="p">))</span>
+</code></pre></div>
+
+
+为什么要专门处理这些字符？因为邮件协议对头部有严格限制：
+<ul>
+<li>主题里的 <code>\r\n</code> 会被某些网关解释为头部注入（header injection），轻则拒收，重则伪造出额外的 <code>Bcc</code>。</li>
+<li>NUL 和 UTF-16 代理对（<code>0xD800–0xDFFF</code>）在 MIME 编码时可能触发异常，尤其是在 Windows 上从文件或剪贴板读进来的字符串。</li>
+<li>过长的主题会被截断或拒收，RFC 建议远小于 998 字节；这里保守地截到 200 个字符。</li>
+</ul>
+
+正文使用 <code>EmailMessage</code> + <code>send_message</code>，并且先 plain 后 html：
+<div class="codehilite"><pre><span></span><code><span class="n">msg</span> <span class="o">=</span> <span class="n">EmailMessage</span><span class="p">()</span>
+<span class="n">msg</span><span class="p">[</span><span class="s2">&quot;From&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_sender_email</span>        <span class="c1"># 必须与 SMTP 登录账号一致</span>
+<span class="n">msg</span><span class="p">[</span><span class="s2">&quot;To&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">to_email</span>
+<span class="n">msg</span><span class="p">[</span><span class="s2">&quot;Subject&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">subject</span>
+<span class="n">msg</span><span class="o">.</span><span class="n">set_content</span><span class="p">(</span><span class="n">plain</span><span class="p">,</span> <span class="n">charset</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">,</span> <span class="n">subtype</span><span class="o">=</span><span class="s2">&quot;plain&quot;</span><span class="p">)</span>
+<span class="n">msg</span><span class="o">.</span><span class="n">add_alternative</span><span class="p">(</span><span class="n">content_html</span><span class="p">,</span> <span class="n">charset</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">,</span> <span class="n">subtype</span><span class="o">=</span><span class="s2">&quot;html&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>From</code> 必须等于登录账号，这是阿里企业邮的硬要求；用「显示名 + 地址」的形式会被 440 拒绝。收件人也必须属于 <code>@glazero.com</code>，代码里是显式检查的。这两个限制让这个模块天然绑定在公司邮箱上，换供应商时要改代码。
+
+还有两个实际问题：
+<ol>
+<li><strong>硬编码凭据</strong>。<code>_smtp_host</code>、<code>_sender_email</code>、<code>_smtp_password</code> 直接写在文件顶部。任何拿到仓库的人都能发信。正确做法是读环境变量或密钥管理，仓库里只留 <code>.env.example</code>。本文不复述具体值，但这个模式必须改。</li>
+<li><strong>报告链接默认指向 localhost</strong>。<code>TEST_REPORT_BASE_URL</code> 的默认值是 <code>http://localhost:5173</code>，如果部署时没有设置，收件人点「本次报告」会打开自己的 localhost，等于打不开。这是一个典型的「开发默认值泄漏到生产」的问题。</li>
+</ol>
+<h2>配置不落文件：三张表、一次 DELETE 加 INSERT</h2>
+
+配置没有用 JSON/YAML，而是放在 PostgreSQL 的三张表里：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">device_config</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">product</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">product_sn</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">product_name</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">serial_port</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">serial_baud_rate</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">device_view</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">ssid</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">password</span><span class="w"> </span><span class="nb">TEXT</span>
+<span class="p">);</span>
+
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">test_config</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">test_name</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">user_name</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">email</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">retry_count</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w"> </span><span class="n">timeout</span><span class="w"> </span><span class="nb">INTEGER</span>
+<span class="p">);</span>
+
+<span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">phone_config</span><span class="w"> </span><span class="p">(</span>
+<span class="w">    </span><span class="n">android_remote_ip</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">android_remote_port</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span>
+<span class="w">    </span><span class="n">android_sdk_path</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">android_version</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span>
+<span class="w">    </span><span class="n">android_device_name</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">android_udid</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">android_adb_connect</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">android_automation_name</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">android_app_fullpath</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">android_app_package</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">android_app_activity</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">ios_remote_ip</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">ios_remote_port</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span>
+<span class="w">    </span><span class="n">ios_version</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span><span class="w"> </span><span class="n">ios_automation_name</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">    </span><span class="n">ios_device_name</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span><span class="w"> </span><span class="n">ios_app_fullpath</span><span class="w"> </span><span class="nb">TEXT</span>
+<span class="p">);</span>
+</code></pre></div>
+
+
+三张表都没有主键，因为设计上永远只有一行。写入逻辑是「先清空，再插入一条」：
+<div class="codehilite"><pre><span></span><code><span class="k">await</span><span class="w"> </span><span class="nx">pool</span><span class="p">.</span><span class="nx">query</span><span class="p">(</span><span class="sb">`DELETE FROM </span><span class="si">${</span><span class="nx">tableName</span><span class="si">}</span><span class="sb">`</span><span class="p">)</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">fields</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Object</span><span class="p">.</span><span class="nx">keys</span><span class="p">(</span><span class="nx">data</span><span class="p">)</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">placeholders</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">fields</span><span class="p">.</span><span class="nx">map</span><span class="p">((</span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">i</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="sb">`$</span><span class="si">${</span><span class="nx">i</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1</span><span class="si">}</span><span class="sb">`</span><span class="p">)</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">sql</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="sb">`INSERT INTO </span><span class="si">${</span><span class="nx">tableName</span><span class="si">}</span><span class="sb"> (</span><span class="si">${</span><span class="nx">fields</span><span class="p">.</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span><span class="si">}</span><span class="sb">)</span>
+<span class="sb">             VALUES (</span><span class="si">${</span><span class="nx">placeholders</span><span class="p">.</span><span class="nx">join</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span><span class="si">}</span><span class="sb">) RETURNING *`</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">pool</span><span class="p">.</span><span class="nx">query</span><span class="p">(</span><span class="nx">sql</span><span class="p">,</span><span class="w"> </span><span class="nx">values</span><span class="p">)</span>
+</code></pre></div>
+
+
+这个设计的好处是「加配置项不用写迁移」：前端多一个字段，<code>req.body</code> 多一个 key，SQL 自动带上。对于一个配置项经常变的内部工具，这确实省事。
+
+代价也很清楚：
+<ul>
+<li>没有历史。改错了只能靠记忆恢复。</li>
+<li>没有并发控制。两个人同时保存，后写的覆盖先写的，而且中间有一个「表为空」的瞬间；如果此时有 pytest 进程在读配置，会读到空对象。</li>
+<li>没有类型约束。所有业务字段都是 TEXT/INTEGER，枚举、范围、必填都靠前端。</li>
+<li>密码、WiFi 密码、邮箱都是明文。数据库备份即凭据泄漏。</li>
+</ul>
+
+更好的折中是「单行 + JSONB」：一张 <code>config</code> 表，<code>id</code> 固定为 1，<code>data JSONB</code> 存全部配置，写入用 <code>INSERT ... ON CONFLICT (id) DO UPDATE</code>。这样既保留 schema 的灵活性，又避免「DELETE 后 INSERT」的空窗，还能加 <code>updated_at</code> 做乐观锁。
+<h2>动态 SQL：表白名单挡不住列名</h2>
+
+配置接口有一个表名白名单：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">TABLES</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">device_config</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;device_config&#39;</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">test_config</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;test_config&#39;</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">phone_config</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;phone_config&#39;</span><span class="p">,</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这段代码挡住的是「表名注入」，但挡不住列名。<code>fields</code> 直接来自 <code>Object.keys(req.body)</code>，被拼进 SQL 的列名位置；<code>values</code> 虽然走了参数化，列名没有。也就是说，只要请求体里出现一个带引号或 SQL 片段的 key，就能改变语句结构。典型的攻击形态不是 <code>DROP TABLE</code>（PostgreSQL 的 <code>pool.query</code> 默认不允许一次执行多条语句），而是：
+<ul>
+<li>用不存在的列名制造 500，探测表结构；</li>
+<li>用特殊列名触发语法错误，把数据库错误信息回显到前端；</li>
+<li>在未来某个版本引入多语句执行时，升级为更严重的问题。</li>
+</ul>
+
+现实风险取决于暴露面：如果这个服务只在 127.0.0.1 或内网，攻击者需要先拿到内网访问权；但第 27 节会说明，它默认监听 <code>0.0.0.0</code> 且 CORS 全开。一个更稳妥的写法是每张表维护固定的列白名单：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">COLUMNS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">device_config</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;product&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;product_sn&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;product_name&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...],</span>
+<span class="w">  </span><span class="nx">test_config</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;test_name&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;user_name&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;email&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;retry_count&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;timeout&#39;</span><span class="p">],</span>
+<span class="w">  </span><span class="nx">phone_config</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;android_remote_ip&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...],</span>
+<span class="p">}</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">fields</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Object</span><span class="p">.</span><span class="nx">keys</span><span class="p">(</span><span class="nx">data</span><span class="p">).</span><span class="nx">filter</span><span class="p">(</span><span class="nx">k</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">COLUMNS</span><span class="p">[</span><span class="nx">tableKey</span><span class="p">].</span><span class="nx">includes</span><span class="p">(</span><span class="nx">k</span><span class="p">))</span>
+</code></pre></div>
+
+
+或者更简单：整张表只存一个 JSONB 字段，列名根本不进入 SQL。
+
+顺带一提，<code>test_config</code> 里的 <code>retry_count</code> 和 <code>timeout</code> 两个字段，在 <code>server.js</code> 和 <code>pytest</code> 里都没有被读取。它们出现在配置页上，会让人以为「重试」和「超时」生效了，实际上没有。这是配置表最常见的腐烂方式：字段加上了，消费端没跟上。
+<h2>Pretest：三个检查，一个安装入口</h2>
+
+Pretest 是 AutoTest 里最实用的设计之一。它把「环境问题」从「点了运行之后看报错」提前到「运行之前点一下检查」：
+<div class="codehilite"><pre><span></span><code><span class="nx">app</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">&#39;/api/pretest&#39;</span><span class="p">,</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">(</span><span class="nx">req</span><span class="p">,</span><span class="w"> </span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">db</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">checkPostgres</span><span class="p">()</span><span class="w">      </span><span class="c1">// SELECT 1</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">appium</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">checkAppium</span><span class="p">()</span><span class="w">    </span><span class="c1">// TCP 127.0.0.1:4723，1 秒超时</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">pyDeps</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">checkPythonDeps</span><span class="p">()</span><span class="c1">// pip list --format=json</span>
+<span class="w">  </span><span class="nx">res</span><span class="p">.</span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">db</span><span class="p">,</span><span class="w"> </span><span class="nx">appium</span><span class="p">,</span><span class="w"> </span><span class="nx">python</span><span class="o">:</span><span class="w"> </span><span class="nx">pyDeps</span><span class="w"> </span><span class="p">})</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+三个检查各自对应一类最常见的失败：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>检查</th>
+<th>方法</th>
+<th>失败时的真实含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>数据库</td>
+<td><code>SELECT 1</code></td>
+<td>PostgreSQL 没起、库名/密码错、连接池耗尽</td>
+</tr>
+<tr>
+<td>Appium</td>
+<td>TCP connect 4723</td>
+<td>Appium 没启动，或端口被别的进程占用</td>
+</tr>
+<tr>
+<td>Python 依赖</td>
+<td><code>pip list --format=json</code></td>
+<td>缺 <code>pytest</code>、<code>appium-python-client</code>、<code>poco</code></td>
+</tr>
+</tbody>
+</table></div>
+
+Python 依赖检查只看了三个包，但实际运行还需要 <code>pytest-json-report</code>、<code>psutil</code>、<code>requests</code>、<code>selenium</code> 等。这是一个「检查清单小于真实依赖」的问题：Pretest 全绿，运行仍可能失败。更好的做法是让 <code>pip install -r requirements.txt</code> 成为唯一真相，然后检查 <code>pip check</code> 和关键 import，而不是硬编码三个名字。
+
+同一个文件里还有一个安装入口：
+<div class="codehilite"><pre><span></span><code><span class="nx">app</span><span class="p">.</span><span class="nx">post</span><span class="p">(</span><span class="s1">&#39;/api/pretest/install&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="nx">req</span><span class="p">,</span><span class="w"> </span><span class="nx">res</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">packages</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">req</span><span class="p">.</span><span class="nx">body</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">cmd</span><span class="p">,</span><span class="w"> </span><span class="nx">args</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">pythonModuleExecArgs</span><span class="p">(</span><span class="s1">&#39;pip&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;install&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">...</span><span class="nx">packages</span><span class="p">])</span>
+<span class="w">  </span><span class="nx">execFile</span><span class="p">(</span><span class="nx">cmd</span><span class="p">,</span><span class="w"> </span><span class="nx">args</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">env</span><span class="o">:</span><span class="w"> </span><span class="nx">PYTHON_ENV_FOR_AUTOTEST</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">(</span><span class="nx">err</span><span class="p">,</span><span class="w"> </span><span class="nx">stdout</span><span class="p">,</span><span class="w"> </span><span class="nx">stderr</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">res</span><span class="p">.</span><span class="nx">status</span><span class="p">(</span><span class="mf">500</span><span class="p">).</span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">error</span><span class="o">:</span><span class="w"> </span><span class="nx">stderr</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">err</span><span class="p">.</span><span class="nx">message</span><span class="w"> </span><span class="p">})</span>
+<span class="w">    </span><span class="nx">res</span><span class="p">.</span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">message</span><span class="o">:</span><span class="w"> </span><span class="nx">stdout</span><span class="w"> </span><span class="p">})</span>
+<span class="w">  </span><span class="p">})</span>
+<span class="p">})</span>
+</code></pre></div>
+
+
+它很方便，也是一个远程执行入口：任何能访问 3000 端口的人，都能让服务器执行 <code>pip install &lt;任意包&gt;</code>。这在个人机器上没问题，在内网共享机器上就是一个供应链入口。最低限度要加鉴权、包名白名单、以及「只允许安装 Pretest 报告里缺失的包」。
+<h2>Appium 1.x 的 /wd/hub：一行 URL 决定的 404</h2>
+
+<code>build_appium_url</code> 只有六行，但它决定了整个项目能不能连上 Appium：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">build_appium_url</span><span class="p">(</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Appium 1.x（如 1.18）会话地址必须为 http://host:port/wd/hub。</span>
+<span class="sd">    若只连 http://host:port，会 404：The URL &#39;/session&#39; did not map to a valid resource。</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">host</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">host</span> <span class="ow">or</span> <span class="s2">&quot;127.0.0.1&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="n">port</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">port</span> <span class="ow">or</span> <span class="mi">4723</span><span class="p">)</span>
+    <span class="n">base</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;http://</span><span class="si">{</span><span class="n">host</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">port</span><span class="si">}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">base</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;/wd/hub&quot;</span><span class="p">):</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">base</span><span class="si">}</span><span class="s2">/wd/hub&quot;</span>
+    <span class="k">return</span> <span class="n">base</span>
+</code></pre></div>
+
+
+Appium 1.x 的 WebDriver 端点是 <code>/wd/hub/session</code>；Appium 2.x 移除了 <code>/wd/hub</code>，直接用 <code>/session</code>。这个项目选择支持 1.x（错误提示里甚至写着 <code>npm install -g appium@1.18.3</code>），所以所有初始化都走这个函数。
+
+问题在于，并不是所有地方都走了它。<code>restart_phone()</code> 在手机重启后重建 driver 时写的是：
+<div class="codehilite"><pre><span></span><code><span class="bp">self</span><span class="o">.</span><span class="n">driver</span> <span class="o">=</span> <span class="n">webdriver</span><span class="o">.</span><span class="n">Remote</span><span class="p">(</span><span class="s2">&quot;http://127.0.0.1:4723&quot;</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">)</span>
+</code></pre></div>
+
+
+没有 <code>/wd/hub</code>，也没有用配置里的 host/port。如果 Appium 是 1.x，这一行会在重启后 404；如果 Appium 是 2.x，初始化那一行反而会 404。整个项目被钉在 1.x 上，而 1.x 已经停止维护。
+
+更好的做法是把 path 也做成配置：<code>appium_path=/wd/hub</code>，初始化前探测 <code>/status</code>，根据版本决定。这样升级 Appium 时只需要改配置，不需要改三处代码。
+<h2>adb 设备发现：先 connect，再 devices，最后对 udid</h2>
+
+Appium 报 <code>Could not find a connected Android device</code> 时，真正的原因通常不在 Appium，而在 adb。<code>ensure_adb_device</code> 把这段排错知识写进了代码：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">ensure_adb_device</span><span class="p">(</span><span class="n">phone_cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">adb</span> <span class="o">=</span> <span class="n">_adb_executable</span><span class="p">()</span>
+    <span class="n">connect_addr</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">phone_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;android_adb_connect&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">connect_addr</span><span class="p">:</span>
+        <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="n">adb</span><span class="p">,</span> <span class="s2">&quot;connect&quot;</span><span class="p">,</span> <span class="n">connect_addr</span><span class="p">],</span> <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                       <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="n">adb</span><span class="p">,</span> <span class="s2">&quot;devices&quot;</span><span class="p">],</span> <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                            <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span> <span class="n">check</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">devices</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">stdout</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">splitlines</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;List of devices&quot;</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">())</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;device&quot;</span>
+    <span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">devices</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+            <span class="s2">&quot;adb 未检测到可用的 Android 设备（Appium 报错: Could not find a connected Android device）。</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot;请检查：</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot;  1) 真机：USB 调试已开，执行 adb devices 状态为 device</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot;  2) 模拟器/MuMu/夜神：先启动模拟器，在手机配置填 android_adb_connect，如 127.0.0.1:7555</span><span class="se">\n</span><span class="s2">&quot;</span>
+            <span class="s2">&quot;  3) 执行 adb kill-server &amp;&amp; adb start-server 后重试</span><span class="se">\n</span><span class="s2">&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">want</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">phone_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;android_udid&quot;</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">want</span> <span class="ow">and</span> <span class="n">want</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">devices</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;手机配置 android_udid=</span><span class="si">{</span><span class="n">want</span><span class="si">}</span><span class="s2"> 不在 adb 列表中，当前设备: </span><span class="si">{</span><span class="n">devices</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">want</span> <span class="ow">or</span> <span class="n">devices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</code></pre></div>
+
+
+这段代码有三个值得学的点：
+<ol>
+<li><strong>先 <code>adb connect</code>，再 <code>adb devices</code></strong>。MuMu、夜神这类模拟器不会自动出现在 adb 列表里，必须先 connect 到 <code>127.0.0.1:7555</code> 之类的地址。把这一步放进配置，而不是让用户记命令。</li>
+<li><strong>错误信息里带修复步骤</strong>。它不是简单抛 <code>RuntimeError("no device")</code>，而是把三种最常见的原因和对应命令写进异常。对于内部工具，这比日志级别更重要。</li>
+<li><strong>多设备时显式选择</strong>。如果 adb 列表里有多台设备，而配置没有指定 <code>android_udid</code>，默认取第一台并打 warning。这避免了「跑到了别人的手机上」这种最难查的事故。</li>
+</ol>
+
+它的边界是：<code>adb devices</code> 的输出解析依赖 <code>device</code> 这个状态；<code>offline</code>、<code>unauthorized</code> 都会被过滤掉，错误信息里只会说「没有可用设备」，不会告诉用户「有一台未授权」。可以把原始输出一起带进异常（代码里确实拼了 <code>output.strip()</code> 的一部分），但还可以更明确。
+<h2>Appium 进程管理：为什么不用 CREATE_NEW_CONSOLE</h2>
+
+<code>tools/appium_server.py</code> 负责启动、检测和关闭 Appium。它解决的是 Windows 上几个很具体的问题：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">build_appium_popen_cmd</span><span class="p">(</span><span class="n">port</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">appium_cmd</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">str</span><span class="p">]:</span>
+    <span class="n">node</span> <span class="o">=</span> <span class="n">_where_executable</span><span class="p">(</span><span class="s2">&quot;node&quot;</span><span class="p">)</span>
+    <span class="n">main_js</span> <span class="o">=</span> <span class="n">_appium_main_js_near</span><span class="p">(</span><span class="n">appium_cmd</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">node</span> <span class="ow">and</span> <span class="n">main_js</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">node</span><span class="p">,</span> <span class="n">main_js</span><span class="p">,</span> <span class="s2">&quot;-p&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">port</span><span class="p">)],</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">main_js</span><span class="si">}</span><span class="s2"> -p </span><span class="si">{</span><span class="n">port</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">&quot;nt&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s2">&quot;cmd.exe&quot;</span><span class="p">,</span> <span class="s2">&quot;/c&quot;</span><span class="p">,</span> <span class="n">appium_cmd</span><span class="p">,</span> <span class="s2">&quot;-p&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">port</span><span class="p">)],</span> <span class="sa">f</span><span class="s2">&quot;cmd /c </span><span class="si">{</span><span class="n">appium_cmd</span><span class="si">}</span><span class="s2"> -p </span><span class="si">{</span><span class="n">port</span><span class="si">}</span><span class="s2">&quot;</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">appium_cmd</span><span class="p">,</span> <span class="s2">&quot;-p&quot;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">port</span><span class="p">)],</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">appium_cmd</span><span class="si">}</span><span class="s2"> -p </span><span class="si">{</span><span class="n">port</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
+
+
+优先用 <code>node main.js</code> 而不是 <code>appium.cmd</code>，原因是后者会经过 <code>cmd.exe</code>，在某些环境下会弹出一个新控制台窗口，父进程拿不到正确的句柄，误以为启动失败。<code>build_appium_popen_cmd</code> 里还有一行注释：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 不用 CREATE_NEW_CONSOLE：.cmd 会在另一窗口跑，父进程以为启动失败</span>
+<span class="n">popen_kw</span><span class="p">[</span><span class="s2">&quot;creationflags&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">CREATE_NO_WINDOW</span>
+</code></pre></div>
+
+
+启动流程是「先探端口，再决定」：
+<div class="codehilite"><pre><span></span><code>is_port_listening(127.0.0.1, 4723)
+  ├─ 已监听 → 复用，跳过启动
+  └─ 未监听 → kill 旧的 appium 进程 → 启动 → 等待端口最多 60 秒
+</code></pre></div>
+
+
+这个流程的好处是幂等：重复调用不会起多个 Appium；坏处是 <code>kill()</code> 的匹配条件很宽：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span> <span class="n">proc</span> <span class="ow">in</span> <span class="n">psutil</span><span class="o">.</span><span class="n">process_iter</span><span class="p">([</span><span class="s2">&quot;pid&quot;</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">]):</span>
+    <span class="k">if</span> <span class="s2">&quot;node&quot;</span> <span class="ow">in</span> <span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">&quot;name&quot;</span><span class="p">]</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+        <span class="n">cmdline</span> <span class="o">=</span> <span class="s2">&quot; &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">proc</span><span class="o">.</span><span class="n">cmdline</span><span class="p">())</span>
+        <span class="k">if</span> <span class="s2">&quot;appium&quot;</span> <span class="ow">in</span> <span class="n">cmdline</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">and</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">port</span><span class="p">)</span> <span class="ow">in</span> <span class="n">cmdline</span><span class="p">:</span>
+            <span class="n">proc</span><span class="o">.</span><span class="n">kill</span><span class="p">()</span>
+</code></pre></div>
+
+
+任何命令行里同时包含 <code>appium</code> 和端口号的 node 进程都会被杀掉，包括用户手动开的调试实例、其他项目的 Appium、甚至一个恰好参数里带 4723 的无关进程。更稳的做法是按 PID 文件或 <code>psutil</code> 的 <code>create_time</code> 校验，只杀自己启动的那个。
+
+另外，<code>AppiumServer.start()</code> 会直接改写 <code>os.environ</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;ANDROID_HOME&quot;</span><span class="p">,</span> <span class="s2">&quot;ANDROID_SDK_ROOT&quot;</span><span class="p">,</span> <span class="s2">&quot;PATH&quot;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">run_env</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">run_env</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+</code></pre></div>
+
+
+这是一个库函数修改全局状态的典型例子。它在当前进程里长期生效，可能影响后续其他逻辑；应该只把 <code>run_env</code> 传给子进程，而不是写回 <code>os.environ</code>。
+<h2>循环压测：重建 session 而不重启服务</h2>
+
+手机自动化的常见需求不是「跑一遍」，而是「循环跑一百遍」。Appium session 跑久了会泄漏、会卡、会丢上下文，但重启整个 Appium 服务又太慢。<code>reconnect_appium</code> 选了一个中间层：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">reconnect_appium</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">phone_cfg</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;循环压测时重建 Appium session（不重启 Appium 服务）。&quot;&quot;&quot;</span>
+    <span class="n">phone_cfg</span> <span class="o">=</span> <span class="n">phone_cfg</span> <span class="ow">or</span> <span class="n">load_config</span><span class="p">(</span><span class="s2">&quot;phone_config&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">driver</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">driver</span><span class="o">.</span><span class="n">quit</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;关闭旧 session: </span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">exc</span><span class="p">)</span>
+    <span class="n">udid</span> <span class="o">=</span> <span class="n">ensure_adb_device</span><span class="p">(</span><span class="n">phone_cfg</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">udid</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">udid</span> <span class="o">=</span> <span class="n">udid</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="n">build_appium_url</span><span class="p">(</span>
+        <span class="n">phone_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;android_remote_ip&quot;</span><span class="p">),</span>
+        <span class="n">phone_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;android_remote_port&quot;</span><span class="p">),</span>
+    <span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">driver</span> <span class="o">=</span> <span class="n">webdriver</span><span class="o">.</span><span class="n">Remote</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">driver</span>
+</code></pre></div>
+
+
+它做了三件事：关闭旧 session（忽略关闭失败）、重新确认 adb 设备（手机可能掉线）、用同一个 <code>options</code> 建新 session。Appium 服务本身不动，所以启动成本被省掉了。
+
+这个分层很值得借鉴：
+<ul>
+<li><code>restart_app()</code>：只杀应用、重开应用，适合应用状态污染；</li>
+<li><code>reconnect_appium()</code>：重建 session，适合 driver 状态污染；</li>
+<li><code>restart_phone()</code>：重启手机，适合系统级问题；</li>
+<li><code>AppiumServer.kill()/start()</code>：重启服务，适合 Appium 进程本身卡死。</li>
+</ul>
+
+四级递进，按成本从低到高。很多团队的脚本只有「重启手机」这一招，结果一次小问题要等三分钟。
+<h2>重启手机：adb reboot 与 boot_completed</h2>
+
+<code>restart_phone()</code> 是一个典型的「把 shell 脚本写进 Python」的函数。它先发 <code>adb reboot</code>，然后轮询设备是否回来：
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">wait_for_device_online</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">180</span><span class="p">,</span> <span class="n">check_interval</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+    <span class="k">while</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">-</span> <span class="n">start_time</span> <span class="o">&lt;</span> <span class="n">timeout</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="s2">&quot;adb devices&quot;</span><span class="p">,</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">device_lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">udid</span> <span class="ow">in</span> <span class="n">line</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">device_lines</span><span class="p">:</span>
+            <span class="n">device_status</span> <span class="o">=</span> <span class="n">device_lines</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">device_status</span> <span class="o">==</span> <span class="s2">&quot;device&quot;</span><span class="p">:</span>
+                <span class="n">boot_check</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;adb -s </span><span class="si">{</span><span class="n">udid</span><span class="si">}</span><span class="s2"> shell getprop sys.boot_completed&quot;</span><span class="p">,</span>
+                    <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">capture_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">boot_check</span><span class="o">.</span><span class="n">returncode</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">boot_check</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="o">==</span> <span class="s2">&quot;1&quot;</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">True</span>
+        <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">check_interval</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+
+
+它检查了两层：<code>adb devices</code> 里的状态是 <code>device</code>（不是 <code>offline</code>/<code>unauthorized</code>），以及 <code>sys.boot_completed</code> 为 <code>1</code>（系统真的启动完成，而不只是 adb 守护进程起来了）。这是正确的顺序；只等 <code>adb devices</code> 会在锁屏界面就返回，后面的 <code>activate_app</code> 会失败。
+
+但重启后的重建有一个明确的 bug：
+<div class="codehilite"><pre><span></span><code><span class="bp">self</span><span class="o">.</span><span class="n">driver</span> <span class="o">=</span> <span class="n">webdriver</span><span class="o">.</span><span class="n">Remote</span><span class="p">(</span><span class="s2">&quot;http://127.0.0.1:4723&quot;</span><span class="p">,</span> <span class="n">options</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">options</span><span class="p">)</span>
+</code></pre></div>
+
+
+这里没有走 <code>build_appium_url</code>，也没有用配置里的 IP/端口。如果 Appium 是 1.x，重启后必然 404；如果手机是通过网络连接的，<code>127.0.0.1</code> 也不对。这是「同一个概念在多处实现」的典型后果：初始化走了一个函数，重启走了另一条路。
+
+另外，<code>adb reboot</code> 用 <code>shell=True</code> 拼接命令，<code>udid</code> 来自配置/<code>adb devices</code>，理论上有命令注入面；虽然这个场景里 udid 通常是设备序列号，风险不高，但用 <code>subprocess.run([adb, "-s", udid, "reboot"])</code> 更干净。
+<h2>测试脚本的约定：PLATFORM、fixture 与全局邮件</h2>
+
+平台对测试脚本的约定只有三条：
+<div class="codehilite"><pre><span></span><code><span class="c1"># 1) 文件名必须是 test_*.py，放在 tests/debug 或 tests/release</span>
+<span class="c1"># 2) 模块级必须声明平台</span>
+<span class="n">PLATFORM</span> <span class="o">=</span> <span class="s2">&quot;Android&quot;</span>   <span class="c1"># 或 &quot;iOS&quot;</span>
+
+<span class="c1"># 3) 用 conftest.py 提供的 fixture</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">test_example</span><span class="p">(</span><span class="n">app_driver</span><span class="p">):</span>
+    <span class="o">...</span>
+</code></pre></div>
+
+
+<code>conftest.py</code> 里 <code>app_driver</code> 是 <code>scope="module"</code>：
+<div class="codehilite"><pre><span></span><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;module&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">app_driver</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="n">platform</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">module</span><span class="p">,</span> <span class="s2">&quot;PLATFORM&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">platform</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;请在测试脚本里定义 PLATFORM = &#39;iOS&#39; 或 &#39;Android&#39;&quot;</span><span class="p">)</span>
+
+    <span class="n">driver</span> <span class="o">=</span> <span class="n">AppControl</span><span class="p">()</span>
+    <span class="n">driver</span><span class="o">.</span><span class="n">init_log</span><span class="p">()</span>
+    <span class="n">driver</span><span class="o">.</span><span class="n">init_appium</span><span class="p">(</span><span class="n">platform</span><span class="p">)</span>
+    <span class="k">yield</span> <span class="n">driver</span>
+    <span class="n">driver</span><span class="o">.</span><span class="n">quit</span><span class="p">()</span>
+</code></pre></div>
+
+
+模块级 fixture 意味着「一个文件一个 session」。配合「一个脚本一个 pytest 进程」，最终就是「一个脚本一个 session」，符合前面说的隔离目标。
+
+但这里有一个值得注意的设计：<code>PLATFORM</code> 是模块级变量，由 <code>request.module</code> 读取。如果脚本里写错了（拼写、大小写），<code>init_appium</code> 会走到 <code>else: raise UnknownObjectException</code>，错误信息很不友好。可以改成 <code>Literal["Android", "iOS"]</code> 校验并给出明确提示。
+
+另一个问题是 <code>dut</code> fixture：
+<div class="codehilite"><pre><span></span><code><span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">scope</span><span class="o">=</span><span class="s2">&quot;module&quot;</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">dut</span><span class="p">():</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">dut</span> <span class="o">=</span> <span class="n">Device</span><span class="p">()</span>
+        <span class="k">yield</span> <span class="n">dut</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;初始化dut失败.&#39;</span><span class="p">)</span>
+</code></pre></div>
+
+
+它在异常时只打印一行，然后没有 <code>yield</code>，pytest 会报「fixture did not yield」。而且 <code>Device()</code> 目前只是一个空壳。这个 fixture 更像是历史遗留：测试脚本 <code>test_binding.py</code> 同时请求 <code>dut</code> 和 <code>app_driver</code>，但真正干活的只有后者。
+
+<code>test_binding.py</code> 里还有一组常量，值得单独看：
+<div class="codehilite"><pre><span></span><code><span class="n">NUM_CYCLES</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">RESTART_APP_EVERY</span> <span class="o">=</span> <span class="mi">50</span>
+<span class="n">RESTART_PHONE_EVERY</span> <span class="o">=</span> <span class="mi">50</span>
+<span class="n">WAIT_BETWEEN_CYCLES</span> <span class="o">=</span> <span class="mi">5</span>
+</code></pre></div>
+
+
+循环 10 次，但「每 50 轮重启应用」和「每 50 轮重启手机」两个分支永远不会触发。这不是语法错误，而是配置不一致：常量是从更长的压测脚本里抄过来的，循环上限被改小了，重启阈值没改。更稳的写法是用 <code>NUM_CYCLES</code> 推导，或者加一个断言：
+<div class="codehilite"><pre><span></span><code><span class="k">assert</span> <span class="n">RESTART_APP_EVERY</span> <span class="o">&lt;=</span> <span class="n">NUM_CYCLES</span> <span class="ow">or</span> <span class="n">RESTART_APP_EVERY</span> <span class="o">==</span> <span class="mi">0</span>
+</code></pre></div>
+
+<h2>报告阅读侧：5 秒轮询、3 秒轮询与 v-html</h2>
+
+前端把「报告列表」和「单份报告」分成两个页面，轮询策略不同：
+<ul>
+<li>报告列表 <code>Result.vue</code>：<code>LIST_POLL_MS = 5000</code>，只有存在 <code>running</code> 报告时才轮询，全部完成就停。README 写的是「每 3 秒自动刷新」，实际代码是 5 秒；这是文档与实现的又一次漂移。</li>
+<li>单份报告 <code>TestTable.vue</code>：<code>POLL_MS = 3000</code>，只要 <code>status === 'running'</code> 或 URL 带 <code>live=1</code> 就轮询，完成后停止。</li>
+</ul>
+
+这种「只在需要时轮询」的写法比「永远 setInterval」好，用户关掉页面或批次结束后不再产生请求。它还处理了一个边界：<code>live=1</code> 是「我强制要看实时」，即使后端已经标记 finished，也允许再拉一次。
+
+单份报告用 Chart.js 画饼图：
+<div class="codehilite"><pre><span></span><code><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">Chart</span><span class="p">,</span><span class="w"> </span><span class="nx">PieController</span><span class="p">,</span><span class="w"> </span><span class="nx">ArcElement</span><span class="p">,</span><span class="w"> </span><span class="nx">Tooltip</span><span class="p">,</span><span class="w"> </span><span class="nx">Legend</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;chart.js&#39;</span>
+<span class="nx">Chart</span><span class="p">.</span><span class="nx">register</span><span class="p">(</span><span class="nx">PieController</span><span class="p">,</span><span class="w"> </span><span class="nx">ArcElement</span><span class="p">,</span><span class="w"> </span><span class="nx">Tooltip</span><span class="p">,</span><span class="w"> </span><span class="nx">Legend</span><span class="p">)</span>
+</code></pre></div>
+
+
+但 <code>pytest-vue/package.json</code> 的依赖里没有 <code>chart.js</code>。同样，<code>Testbed.vue</code> 里的 <code>import draggable from 'vuedraggable'</code> 也没有在 <code>package.json</code> 声明。这说明当前环境依赖的是「历史上装过、但没写进清单」的 node_modules。在一台干净的机器上 <code>npm ci</code> 会直接失败。第 25 节会集中讲这个问题。
+
+日志页 <code>TestLog.vue</code> 有一个更严肃的问题：
+<div class="codehilite"><pre><span></span><code><span class="p">&lt;</span><span class="nt">span</span> <span class="na">v-html</span><span class="o">=</span><span class="s">&quot;highlightErrorKeywords(line)&quot;</span><span class="p">&gt;&lt;/</span><span class="nt">span</span><span class="p">&gt;</span>
+</code></pre></div>
+
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">highlightErrorKeywords</span><span class="p">(</span><span class="nx">line</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">line</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="s1">&#39;&#39;</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">keywords</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s1">&#39;NameError&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;TypeError&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;AttributeError&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;IndexError&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;KeyError&#39;</span><span class="p">]</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">highlighted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">line</span>
+<span class="w">  </span><span class="nx">keywords</span><span class="p">.</span><span class="nx">forEach</span><span class="p">(</span><span class="nx">key</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">regex</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">RegExp</span><span class="p">(</span><span class="sb">`(</span><span class="si">${</span><span class="nx">key</span><span class="si">}</span><span class="sb">)`</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;g&#39;</span><span class="p">)</span>
+<span class="w">    </span><span class="nx">highlighted</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">highlighted</span><span class="p">.</span><span class="nx">replace</span><span class="p">(</span><span class="nx">regex</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&lt;span class=&quot;error-keyword&quot;&gt;$1&lt;/span&gt;&#39;</span><span class="p">)</span>
+<span class="w">  </span><span class="p">})</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">highlighted</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>v-html</code> 会把字符串当 HTML 渲染，而 <code>line</code> 来自设备/测试输出。如果某一行日志里包含 <code>&lt;img src=x>，或者应用把用户输入打进了日志，这段代码就会执行它。正确做法是先 <code>escapeHtml(line)</code>，再替换关键字；或者用文本节点 + CSS 高亮，完全不用 <code>v-html</code>。内部工具的日志通常被认为「可信」，但日志恰恰是最容易混入外部输入的地方。
+<h2>我在阅读代码时发现的三个隐性故障</h2>
+
+这三个问题不是「设计取舍」，而是读代码时能直接定位的 bug。它们共同说明一件事：一个能跑起来的内部工具，和一份可维护的代码之间，差距往往在异常路径上。
+
+<strong>故障一：<code>bind_device_ByBle</code> 的第一行就会抛异常。</strong>
+<div class="codehilite"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">bind_device_ByBle</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="n">ssid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;wifi&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;ssid&quot;</span><span class="p">)</span>
+    <span class="n">password</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;wifi&quot;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;password&quot;</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>self.config</code> 在 <code>AppControl.__init__</code> 里从未赋值，整个 <code>app_base.py</code> 里也没有第二处赋值。也就是说，这个方法只要被调用，第一行就会 <code>AttributeError</code>。而 <code>test_binding.py</code> 的循环体用 <code>try/except Exception</code> 把每一轮都包住，所以表现是「每轮立刻失败、日志里一行 AttributeError、循环继续」。如果只看控制台，很容易以为是设备问题。
+
+修法很直接：在 <code>__init__</code> 里从 <code>device_config</code> 读取 WiFi 信息，或者把 <code>ssid</code>/<code>password</code> 作为参数传进来。更重要的是，不要在循环里用裸 <code>except Exception</code> 吞掉编程错误；至少区分「设备异常」和「代码异常」。
+
+<strong>故障二：<code>devices_sn</code> 是字符串，却被当成集合迭代。</strong>
+<div class="codehilite"><pre><span></span><code><span class="bp">self</span><span class="o">.</span><span class="n">devices_sn</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">(</span><span class="s2">&quot;device_config&quot;</span><span class="p">)[</span><span class="s2">&quot;product_sn&quot;</span><span class="p">]</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">device_num</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">devices_sn</span><span class="p">)</span>
+<span class="o">...</span>
+<span class="k">for</span> <span class="n">device_sn</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">devices_sn</span><span class="p">:</span>
+</code></pre></div>
+
+
+数据库里 <code>product_sn</code> 是 <code>TEXT</code>。如果配置页填的是一个 SN，<code>len()</code> 得到的是字符数，<code>for</code> 得到的是每个字符。于是 <code>unbind_device()</code> 的循环次数变成「SN 字符数 + 2」，绑定循环会拿单个字符去匹配 <code>SN: x</code>。除非配置里存的是 JSON 数组字符串（而代码没有 <code>json.loads</code>），否则这段逻辑不成立。
+
+修法：明确 <code>product_sn</code> 的格式（逗号分隔或 JSON 数组），在读配置时解析成 <code>list[str]</code>，并对空值/单值做兼容。
+
+<strong>故障三：合并报告的 <code>summary</code> 是覆盖，不是聚合。</strong>
+
+前面已经拆过。它在页面看不太出来（前端自己计数），但会让邮件、脚本和未来的 API 读到错的统计。修法是合并后重新计算：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">counts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">passed</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">failed</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">skipped</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">total</span><span class="o">:</span><span class="w"> </span><span class="nx">total</span><span class="p">.</span><span class="nx">tests</span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="p">}</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="nx">t</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">total</span><span class="p">.</span><span class="nx">tests</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">t</span><span class="p">.</span><span class="nx">outcome</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="nx">counts</span><span class="p">)</span><span class="w"> </span><span class="nx">counts</span><span class="p">[</span><span class="nx">t</span><span class="p">.</span><span class="nx">outcome</span><span class="p">]</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">1</span>
+<span class="p">}</span>
+<span class="nx">total</span><span class="p">.</span><span class="nx">summary</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">counts</span>
+</code></pre></div>
+
+
+这三个故障有一个共同点：它们都发生在「异常/边界路径」上，正常走一遍 UI 很难发现。这也是为什么内部工具需要 code review，而不只是「能跑就行」。
+<h2>依赖清单与可移植性：五个未声明的 import</h2>
+
+AutoTest 的依赖清单和实际 import 之间有明显缺口。
+
+<strong>前端 <code>pytest-vue/package.json</code></strong> 声明了：
+<div class="codehilite"><pre><span></span><code><span class="nt">&quot;dependencies&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;axios&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^1.16.0&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;body-parser&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^2.2.2&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;cors&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^2.8.6&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;express&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^5.2.1&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;pg&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^8.20.0&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;tcp-port-used&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^1.0.2&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;vue&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^3.5.32&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;vue-router&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^4.6.4&quot;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+但代码里还 import 了：
+<ul>
+<li><code>vuedraggable</code>（<code>Testbed.vue</code> 的拖拽排序）；</li>
+<li><code>chart.js</code>（<code>TestTable.vue</code> 的饼图）。</li>
+</ul>
+
+这两个都不在 <code>package.json</code> 里。在一台干净机器上 <code>npm ci</code> 之后，构建会报 <code>Could not resolve "vuedraggable"</code> / <code>"chart.js"</code>。
+
+<strong>Python <code>requirements.txt</code></strong> 只有一行：
+<div class="codehilite"><pre><span></span><code>appium-python-client==5.3.1
+</code></pre></div>
+
+
+而代码实际需要 <code>pytest</code>、<code>pytest-json-report</code>、<code>psutil</code>、<code>requests</code>、<code>selenium</code>（<code>appium-python-client</code> 会带上 selenium，但 pytest 和 pytest-json-report 不会）。<code>server.js</code> 的 Pretest 也只检查三个包，所以「Pretest 全绿但 pytest 起不来」是可能的。
+
+<strong>大小写问题</strong>：<code>router.js</code> 里写的是
+<div class="codehilite"><pre><span></span><code><span class="k">import</span><span class="w"> </span><span class="nx">TestBed</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@/components/TestBed.vue&#39;</span>
+</code></pre></div>
+
+
+而实际文件名是 <code>Testbed.vue</code>（小写 b）。Windows 的文件系统不区分大小写，所以本机没问题；Linux 和 macOS 的默认文件系统区分大小写，CI 或容器里构建会直接失败。这是「只在一台 Windows 机器上能跑」的最典型症状。
+
+这三个问题都可以用 CI 一次性挡住：
+<div class="codehilite"><pre><span></span><code>npm<span class="w"> </span>ci<span class="w">                    </span><span class="c1"># 依赖清单必须完整</span>
+npm<span class="w"> </span>run<span class="w"> </span>build<span class="w">             </span><span class="c1"># 在 Linux runner 上跑，暴露大小写</span>
+python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>--collect-only<span class="w">   </span><span class="c1"># 暴露 pytest/pytest-json-report 缺失</span>
+</code></pre></div>
+
+<h2>停止按钮：一个没有后端的 POST</h2>
+
+Testbed 顶栏有一个「停止测试」按钮，它的实现是：
+<div class="codehilite"><pre><span></span><code><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">stopTests</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">running</span><span class="p">.</span><span class="nx">value</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+<span class="w">  </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">await</span><span class="w"> </span><span class="nx">fetch</span><span class="p">(</span><span class="s1">&#39;/stop-tests&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">method</span><span class="o">:</span><span class="w"> </span><span class="s1">&#39;POST&#39;</span><span class="w"> </span><span class="p">})</span>
+<span class="w">    </span><span class="nx">output</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="s1">&#39;\n===== 测试已停止 =====\n&#39;</span>
+<span class="w">    </span><span class="nx">running</span><span class="p">.</span><span class="nx">value</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">evtSource</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">evtSource</span><span class="p">.</span><span class="nx">close</span><span class="p">()</span>
+<span class="w">      </span><span class="nx">evtSource</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">null</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">(</span><span class="nx">err</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">console</span><span class="p">.</span><span class="nx">error</span><span class="p">(</span><span class="nx">err</span><span class="p">)</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Vite 也把 <code>/stop-tests</code> 代理到了测试服务器。但 <code>server.js</code> 里没有任何 <code>/stop-tests</code> 路由。这一 POST 会 404，<code>fetch</code> 不会抛异常（404 是有效响应），于是前端仍然执行后面的代码：把 <code>running</code> 设为 false、关闭 EventSource、打印「测试已停止」。
+
+真实情况是：<strong>pytest 子进程还在跑，Appium 还在点，批次锁 <code>runTestsStreamBusy</code> 仍然是 true</strong>。用户在界面上看到「已停止」，但下一个人点运行会收到「已有测试批次在执行」。这是一个非常典型的「前端乐观更新 + 后端缺接口」的合成 bug。
+
+要真正实现停止，服务器至少需要：
+<ol>
+<li>保存当前批次的子进程引用（<code>Set&lt;ChildProcess&gt;</code>）；</li>
+<li>提供 <code>POST /stop-tests</code>，对每个子进程发 <code>SIGTERM</code>，超时后 <code>SIGKILL</code>；</li>
+<li>在 <code>settleChild</code> 里把「被主动停止」记成一个明确的 <code>label</code>，并释放批次锁；</li>
+<li>前端只在收到 <code>close</code> 事件后才把 <code>running</code> 设为 false。</li>
+</ol>
+
+在当前的「快速失败」模型里，最诚实的做法反而是：把按钮改成「断开输出」而不是「停止测试」，或者直接删掉。一个看起来能停止、实际停不掉的按钮，比没有按钮更危险。
+<h2>安全边界：这个工具不该暴露在公网</h2>
+
+把 AutoTest 的所有安全相关问题列出来，会得到一张很长的单子：
+<ul>
+<li><code>app.use(cors())</code> 允许任意来源；</li>
+<li><code>app.listen(3000, '0.0.0.0')</code> 监听所有网卡；</li>
+<li>所有接口没有鉴权；</li>
+<li>配置表里有 WiFi 密码、邮箱、测试人员；</li>
+<li><code>/api/pretest/install</code> 能执行 <code>pip install</code> 任意包；</li>
+<li><code>TestLog.vue</code> 用 <code>v-html</code> 渲染日志；</li>
+<li><code>finish_report_mail.py</code> 硬编码 SMTP 凭据；</li>
+<li><code>adb reboot</code> 用 <code>shell=True</code> 拼接命令。</li>
+</ul>
+
+这些单看都能解释（内网工具、单人维护、快速交付），但它们叠加起来意味着：<strong>任何能访问 3000 端口的人，都能读走 WiFi 密码、让服务器装任意包、并以公司邮箱发信。</strong>
+
+最低限度的加固顺序：
+<ol>
+<li><strong>监听地址</strong>改成 <code>127.0.0.1</code>，需要局域网访问时前面放 Nginx/Caddy，加 Basic Auth 或公司 SSO。</li>
+<li><strong>关掉或白名单</strong> <code>/api/pretest/install</code>；如果保留，只允许 Pretest 报告里缺失的包。</li>
+<li><strong>凭据</strong>从源码移到环境变量/密钥管理，轮换已经泄漏的授权码。</li>
+<li><strong>日志渲染</strong>先转义再高亮，不用 <code>v-html</code>。</li>
+<li><strong>CORS</strong>从 <code>*</code> 改成明确的前端 origin。</li>
+</ol>
+
+一句话：它是一个内网工具，不要把它放到公网。如果一定要放，先把它当成一个「能执行命令、能读公司配置」的服务来设计。
+<h2>如果重写，我会先改这五件事</h2>
+
+如果明天要从零重写 AutoTest，我会保留「开发机 + 测试服务器 + SSE」的整体形状，但先改这五处：
+
+<strong>一、给批次一个可取消的进程表。</strong>
+
+用一个 <code>Map&lt;reportId, Set&lt;ChildProcess&gt;&gt;</code> 保存当前批次的子进程，提供 <code>POST /stop-tests</code>，并在进程退出时统一走 <code>settleChild</code>。停止不是「关前端连接」，而是「发信号、等退出、写报告、释放锁」。
+
+<strong>二、把进程日志和用例日志分开。</strong>
+
+<code>reports/&lt;id&gt;/run.log</code> 按行 append，SSE 直接 tail 它；用例日志用 <code>pytest_runtest_logreport</code> 的 <code>capstdout</code> 关到 nodeid。这样 collect 阶段的错误不会丢，多用例脚本不会重复 N 份，也不会每行重写整个 JSON。
+
+<strong>三、报告 ID 改成 ULID，summary 改成聚合。</strong>
+
+ULID 单调、可按时间排序、不需要 <code>.daily_counter.json</code>，也不会有「日期是运行日、序号是历史总量」的歧义。summary 在合并后重新遍历 tests 计算，exitcode 用显式的「有失败即 1」。
+
+<strong>四、配置表加列白名单，写入用 UPSERT + JSONB。</strong>
+
+表名白名单不够，列名也要白名单；或者干脆一张 <code>config(id, data JSONB, updated_at)</code>，用 <code>ON CONFLICT</code> 更新，避免 DELETE 空窗。凭据加密存储，至少不要明文。
+
+<strong>五、把依赖和大小写放进 CI。</strong>
+
+<code>npm ci &amp;&amp; npm run build</code> 在 Linux runner 上跑；<code>python -m pytest --collect-only</code> 在干净 venv 里跑；<code>import</code> 的文件名大小写用 lint 或构建直接暴露。内部工具最容易死在「只在我电脑上能跑」。
+
+这五件事都不涉及 Appium 的业务逻辑，但它们决定了这个工具能不能被第二个人接手。
+<h2>小结：把测试变成服务，成本在边界</h2>
+
+AutoTest 的价值不在于「点一个按钮跑 pytest」——那只是一个 shell 包装。它的价值在于把四类隐形劳动显式化了：
+<ul>
+<li><strong>进程边界</strong>：每个脚本一个 pytest 进程，Python 路径、编码、缓冲、Android SDK 都要在启动前解决；</li>
+<li><strong>文件边界</strong>：报告目录、子报告合并、日志挂载、计数器，任何一处不一致都会让结果不可信；</li>
+<li><strong>人的边界</strong>：批次互斥、只发一封邮件、Pretest、可读的错误信息，让「第二个人」也能用；</li>
+<li><strong>安全边界</strong>：无鉴权、CORS 全开、可执行 pip、硬编码凭据，决定了它只能待在局域网里。</li>
+</ul>
+
+如果只记三句话：
+<ol>
+<li>把测试跑起来靠 Appium，把测试跑成服务靠进程管理。</li>
+<li>报告不是「pytest 的输出」，而是「你自己定义的数据契约」；合并函数必须是聚合，不是最后一次写入。</li>
+<li>内部工具最容易忽略的是异常路径：停止按钮、collection 失败、跨天计数、Windows 大小写，这些才是第二个人接手时最先踩到的坑。</li>
+</ol>
+
+代码在 <a href="https://github.com/zhoujungis/AutoTest" rel="noopener noreferrer" target="_blank">github.com/zhoujungis/AutoTest</a>。它不是一个可以直接对外发布的平台，但它把「远程跑手机自动化」这件事的骨架搭完整了；上面列的每一个坑，都是这个骨架真实承重的地方。
+
+<strong>相关阅读</strong>
+<ul>
+<li><a href="/article/nanoqa-versioned-quality-loop/">NanoQA：一套测试管理系统的四道硬边界</a></li>
+<li><a href="/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li>
+<li><a href="/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li>
+</ul></div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/">Routewise AI：让模型吐出一份能落在地图上的行程</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/nanoqa-versioned-quality-loop/">NanoQA：一套测试管理系统的四道硬边界</a></li><li><a href="https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/">Routewise AI：让模型吐出一份能落在地图上的行程</a></li><li><a href="https://blog.zhoujun.dev/article/block-world-3d-voxel-engine/">方块世界 3D：一台纯 JS 体素引擎的四道闸</a></li><li><a href="https://blog.zhoujun.dev/article/shuge-cloudflare-rag/">書閣 ShuGe：在边缘搭一套可引用页码的 RAG</a></li><li><a href="https://blog.zhoujun.dev/article/z-memory-explainable-provenance/">Z Memory：让 AI 记住并说清理由</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+  </body>
+</html>
