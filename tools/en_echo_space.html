@@ -1,0 +1,939 @@
+<blockquote>
+
+Who this is for: frontend engineers who want to put a genuinely usable product on the edge without being captured by a framework or a server; anyone building small products on Cloudflare Pages Functions and D1 who keeps getting bitten by auth, rate limiting, accounting definitions, and concurrent writes; and anyone who has written a player and then discovered that playback is the easy twenty percent.
+TL;DR: ECHO SPACE is an immersive audio player deployed on Cloudflare Pages. The frontend is dependency-free native HTML/CSS/JS; the backend is Pages Functions plus D1. The hard part is not getting audio to come out. It is four boundaries. Authentication has to fit 10,000 PBKDF2 iterations inside the edge CPU budget. Listening time has to be measured from <code>currentTime</code> deltas rather than a timer, or seeking inflates the stats. A single listening session has to collapse into one row, which is the <code>sessionId</code> + UPSERT + partial-unique-index trio. And free-mode playlists have to cut a total training duration into song segments, rest segments, and warm-up/stretch phases so that every second adds up exactly. The article walks through seven API routes, four D1 migrations and four tables, and it pins the honest limits — in-isolate rate limiting, legacy history that cannot be precisely de-duplicated, server trust in client-submitted titles — to the files that cause them.
+Reading time around 38 minutes. Level: advanced.
+</blockquote>
+
+<strong>Contents</strong>
+<ul>
+<li>This is not a player demo</li>
+<li>The topology: static assets, Pages Functions, and D1</li>
+<li>Why the frontend uses no framework and ships no bundle</li>
+<li>Authentication: PBKDF2, a 16-byte salt, and 10,000 iterations</li>
+<li>Sessions: cookie flags, a 30-day lifetime, and probabilistic sweeping</li>
+<li>Rate limiting: an in-isolate map with LRU eviction</li>
+<li>Request body limits: Content-Length is not trusted, streaming is the backstop</li>
+<li>Playback accounting: currentTime deltas, not setInterval</li>
+<li>Session de-duplication: sessionId, UPSERT, and a partial unique index</li>
+<li>Schema migration: adding columns to an old history table without rewriting it</li>
+<li>Aggregation: per-session dedup, a 14-day calendar, and the UTC+14 trap</li>
+<li>Free-mode playlists: turning a training plan into a pure function</li>
+<li>Scheduling rules: three rest models for jump rope, running, and hiking</li>
+<li>The duration index: know how long a track is without downloading it</li>
+<li>The executor: a 250ms tick, stall compensation, and phase transitions</li>
+<li>The silence scene: breathing guidance and a focus timer</li>
+<li>Online audio: a JOOX proxy, temporary URLs, and a five-minute refresh</li>
+<li>Cloud playlists: optimistic locking and rev conflicts</li>
+<li>Security headers and CSP: six policies one page needs</li>
+<li>Checks and tests: Node's built-in test runner plus asset validation</li>
+<li>Known limitations: an honest list</li>
+<li>If I rewrote it, I would change these five things first</li>
+<li>Conclusion: the complexity of an edge app lives in its boundaries</li>
+</ul>
+<hr>
+<h2>This is not a player demo</h2>
+
+Most "music player" projects end up in the same place: one HTML file, one <code>&lt;audio&gt;</code> tag, and a script that pulls a playlist from a public endpoint. It makes sound, but it is not a product, because nobody answers six questions:
+<ul>
+<li>A user can play without logging in, so how long did they listen, what did they hear, and where is that stored?</li>
+<li>If they pause, resume, and refresh the page on the same song, how many history rows are left behind?</li>
+<li>If they drag the progress bar forward sixty seconds, do those sixty seconds count as listening time?</li>
+<li>If two tabs save a playlist at once, who overwrites whom?</li>
+<li>"Jump rope for 30 minutes, resting 30 seconds after each song" — who guarantees the plan totals exactly 1800 seconds?</li>
+<li>When the rate limiter is running on ten thousand edge machines, who exactly is it limiting?</li>
+</ul>
+
+ECHO SPACE grew out of those six questions. Its size is modest: a handful of native modules under <code>public/</code>, seven handlers under <code>functions/api/</code>, and data in four D1 tables. There is no framework, no bundler, no millisecond-scale build output; opening the page is one static HTML request plus a few <code>/api/*</code> calls. But the complexity is not in the line count. It is in the boundaries: the authentication CPU budget, the session cookie lifetime, the definition of listening time, the primary key of de-duplication, migration compatibility, and the physical location of the rate limiter.
+
+Here is the thesis up front, and the rest of the article unpacks it:
+<ul>
+<li>Authentication uses PBKDF2-SHA-256 with a random 16-byte salt and <strong>a fixed 10,000 iterations</strong> — not for maximum strength, but to stay under the Pages Functions CPU ceiling.</li>
+<li>A session is a row in <code>echo_sessions</code> in D1. The cookie is <code>HttpOnly; Secure; SameSite=Lax</code>, valid for thirty days, and expiry is handled by "delete a batch at login plus sweep at a 2% probability on authenticated requests."</li>
+<li>Listening time is <strong>never</strong> accumulated with <code>setInterval</code>. It uses real <code>audio.currentTime</code> deltas and discards any single delta larger than five seconds.</li>
+<li>Each playback session gets a <code>sessionId</code>, writes go through <code>INSERT ... ON CONFLICT DO UPDATE</code>, and a partial unique index on <code>(username, session_id)</code> folds repeated network retries into a single row.</li>
+<li>The core of free-mode playlists, <code>buildPlan()</code>, is a pure function: given track durations and a total number of seconds, it returns a segment array whose seconds sum to exactly the total — something a unit test can pin down.</li>
+<li>Rate limiting is an in-isolate <code>Map</code> that can only ever be best-effort. That is written into the README as a known limitation instead of hidden in a comment.</li>
+</ul>
+
+This article ties each of those to a file, a function, and a constant. First, why it is worth writing.
+<h2>The topology: static assets, Pages Functions, and D1</h2>
+
+ECHO SPACE has exactly three pieces of infrastructure:
+<div class="codehilite"><pre><span></span><code>Browser
+  |
+  |-- static assets -----------&gt; Cloudflare Pages
+  |                               public/index.html
+  |                               public/js/*.js
+  |                               public/styles.css
+  |                               public/audio/*
+  |
+  |-- /api/* -------------------&gt; Pages Functions
+                                    functions/api/*.js
+                                      |
+                                      `--&gt; Cloudflare D1: echo-space-db
+</code></pre></div>
+
+
+<code>wrangler.toml</code> is short, and it is what defines the topology:
+<div class="codehilite"><pre><span></span><code><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;echo-space-run&quot;</span>
+<span class="n">compatibility_date</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;2026-08-27&quot;</span>
+<span class="n">pages_build_output_dir</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;./public&quot;</span>
+
+<span class="k">[[d1_databases]]</span>
+<span class="n">binding</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;DB&quot;</span>
+<span class="n">database_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;echo-space-db&quot;</span>
+<span class="n">database_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;788e722f-9aea-48d2-89ad-f449ed393aa2&quot;</span>
+</code></pre></div>
+
+
+<code>pages_build_output_dir</code> points at <code>public/</code>, so Pages serves that directory as the static site; <code>binding = "DB"</code> gives every Function <code>env.DB</code>. There is no separate API server, no container, no process to keep alive. That is the appealing part of an edge app, and it is also the part people misjudge.
+
+The misjudgment is thinking "static assets plus Functions" means "no state." The opposite is true: all the state lives in D1, and D1 is a <strong>geographically distributed SQLite</strong>. Everything you know about <code>INSERT</code>, <code>UPDATE</code>, unique indexes, and transactional batches still applies, but the concurrency model, the latency, and the fact that each invocation is a fresh isolate all shape your API design. Every section below about sessions, rate limiting, de-duplication, and optimistic locking is really answering one question: in an environment with no resident process, where every request may land on a different isolate, how do you write the state correctly?
+<h2>Why the frontend uses no framework and ships no bundle</h2>
+
+The frontend under <code>public/</code> is native HTML/CSS/JS — no React, no Vue, no Vite:
+<div class="codehilite"><pre><span></span><code>public/
+├── index.html          # page skeleton: scene cards, player, login modal, profile
+├── styles.css          # dark theme, scene colors, responsive, motion, focus styles
+├── free-mode.js        # pure-function free-mode scheduler (unit-testable)
+├── tracks-data.js      # scene directory and local track metadata
+├── durations-data.js   # precomputed audio duration index
+├── _headers            # Pages cache and security response headers
+├── audio/              # the actual audio files
+└── js/
+    ├── main.js         # entry: init, routing, event wiring
+    ├── core.js         # global state, audio element, SCENE_META, helpers
+    ├── auth.js         # login/register modal and local auth state
+    ├── player.js       # play, pause, skip, seek, volume, media keys
+    ├── scene.js        # scene switching, list rendering, order, next
+    ├── stats.js        # listening-time accounting and session flush
+    ├── free-training.js# free-mode executor (250ms tick)
+    ├── library.js      # JOOX online search and cloud playlists
+    ├── profile.js      # profile page and stats rendering
+    ├── timer.js        # silence-scene breathing guide and timer
+    ├── views.js        # view transitions and hero sync
+    ├── settings.js     # settings page and grouped tabs
+    └── dialog.js       # toast, focus trap, background inert
+</code></pre></div>
+
+
+The reasons for going framework-free are concrete, not aesthetic:
+<ol>
+<li><strong>Two requests to first paint.</strong> One static HTML file plus one CSS response; the rest of the JS is native <code>import</code>, which the browser caches and parallelizes. No bundle means no hydration and no "blank screen, then fill in."</li>
+<li><strong>Audio playback wants low-level control.</strong> <code>audio.currentTime</code>, <code>timeupdate</code>, <code>seeked</code>, the Media Session API, <code>sendBeacon</code> — you want the DOM directly. A framework's reactivity only adds a layer of "when should this sync" overhead here.</li>
+<li><strong>Testable pure functions must run without a framework.</strong> The free-mode scheduler lives in <code>public/free-mode.js</code> and can be loaded into Node with <code>vm.runInNewContext</code>, so it needs no jsdom and no component mounting.</li>
+</ol>
+
+The cost is equally honest: with no component system, "the play button's icon and aria state" tends to scatter across four audio event handlers. The author eventually collapsed it into one function in <code>player.js</code>:
+<div class="codehilite"><pre><span></span><code><span class="c1">// player.js — the single entry point for the play/pause icon and aria state</span>
+<span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">syncPlayButton</span><span class="p">(</span><span class="nx">active</span><span class="p">,</span><span class="w"> </span><span class="nx">label</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;播放 / 暂停&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">$</span><span class="p">(</span><span class="s2">&quot;ic-play&quot;</span><span class="p">).</span><span class="nx">classList</span><span class="p">.</span><span class="nx">toggle</span><span class="p">(</span><span class="s2">&quot;hidden&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">active</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">$</span><span class="p">(</span><span class="s2">&quot;ic-pause&quot;</span><span class="p">).</span><span class="nx">classList</span><span class="p">.</span><span class="nx">toggle</span><span class="p">(</span><span class="s2">&quot;hidden&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">!</span><span class="nx">active</span><span class="p">);</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">button</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">$</span><span class="p">(</span><span class="s2">&quot;btn-play&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">button</span><span class="p">.</span><span class="nx">setAttribute</span><span class="p">(</span><span class="s2">&quot;aria-pressed&quot;</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="p">(</span><span class="nx">active</span><span class="p">));</span>
+<span class="w">  </span><span class="nx">button</span><span class="p">.</span><span class="nx">setAttribute</span><span class="p">(</span><span class="s2">&quot;aria-label&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">label</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>core.js</code> holds the global state and scene metadata, so no module keeps a second copy:
+<div class="codehilite"><pre><span></span><code><span class="c1">// core.js — a single source of truth</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">SCENE_META</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">silence</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;静默&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">en</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;SILENCE&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">list</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;白噪音 · 冥想&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">jump</span><span class="o">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;跳绳&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">en</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;JUMP ROPE&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">list</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;DJ 节奏歌单&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">run</span><span class="o">:</span><span class="w">     </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;跑步&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">en</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;RUNNING&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">list</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;步频歌单&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">hike</span><span class="o">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;爬山&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">en</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;HIKING&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">list</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;山野歌单&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="p">};</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">scene</span><span class="o">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">tracks</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">  </span><span class="nx">idx</span><span class="o">:</span><span class="w"> </span><span class="o">-</span><span class="mf">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">playing</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">shuffle</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">loop</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;all&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">volume</span><span class="o">:</span><span class="w"> </span><span class="nx">readVolume</span><span class="p">(),</span>
+<span class="w">  </span><span class="nx">seeking</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="p">};</span>
+</code></pre></div>
+
+
+One easily missed detail: <code>SCENE_COLORS</code> also lives in <code>core.js</code>, so the color of a profile bar and the color of a dot in "recent plays" come from the same source instead of two hex literals in two components. With no props to pass, <code>state</code> and these constants are the de facto shared context, and they have to be singular.
+
+Native modules also change how ordering works. <code>scene.js</code> keeps an <code>order</code> array that is the single source of playback order. <code>rebuildOrder()</code> fills it <code>0..n-1</code> and, when shuffle is on, applies a Fisher–Yates swap. <code>nextIndex(dir)</code> locates the current track's position in <code>order</code>, moves by ±1, wraps to <code>0</code> when loop is on, and returns <code>-1</code> (stop) when loop is off and the end is reached. Keeping <code>order</code> separate from <code>state.tracks</code> means shuffle never mutates the displayed list, so the UI order and the playback order can differ without one corrupting the other. There is a subtle repair step too: if <code>state.idx</code> is somehow not in <code>order</code> (for example after a list swap), <code>nextIndex</code> rebuilds the order before looking up the position, so a stale index cannot strand playback. Because every module imports <code>core.js</code> and <code>scene.js</code> through native ES modules, the browser builds the dependency graph itself; there is no bundler that might accidentally inline a dead module or duplicate a constant, and the network panel shows exactly which file is responsible for which behavior.
+<h2>Authentication: PBKDF2, a 16-byte salt, and 10,000 iterations</h2>
+
+Start with the shape of password storage. In <code>functions/api/_auth.js</code>, the salt and hash are produced like this:
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">PASSWORD_ITERATIONS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">10000</span><span class="p">;</span>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">createPasswordSalt</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">bytesToHex</span><span class="p">(</span><span class="nx">crypto</span><span class="p">.</span><span class="nx">getRandomValues</span><span class="p">(</span><span class="ow">new</span><span class="w"> </span><span class="nb">Uint8Array</span><span class="p">(</span><span class="mf">16</span><span class="p">)));</span>
+<span class="p">}</span>
+
+<span class="k">export</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">hashPassword</span><span class="p">(</span><span class="nx">password</span><span class="p">,</span><span class="w"> </span><span class="nx">saltHex</span><span class="p">,</span><span class="w"> </span><span class="nx">iterations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">PASSWORD_ITERATIONS</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">material</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">crypto</span><span class="p">.</span><span class="nx">subtle</span><span class="p">.</span><span class="nx">importKey</span><span class="p">(</span>
+<span class="w">    </span><span class="s2">&quot;raw&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="ow">new</span><span class="w"> </span><span class="nx">TextEncoder</span><span class="p">().</span><span class="nx">encode</span><span class="p">(</span><span class="nx">password</span><span class="p">),</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;PBKDF2&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">    </span><span class="p">[</span><span class="s2">&quot;deriveBits&quot;</span><span class="p">],</span>
+<span class="w">  </span><span class="p">);</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">derived</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">crypto</span><span class="p">.</span><span class="nx">subtle</span><span class="p">.</span><span class="nx">deriveBits</span><span class="p">(</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;PBKDF2&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nx">salt</span><span class="o">:</span><span class="w"> </span><span class="nx">hexToBytes</span><span class="p">(</span><span class="nx">saltHex</span><span class="p">),</span>
+<span class="w">      </span><span class="nx">iterations</span><span class="p">,</span>
+<span class="w">      </span><span class="nx">hash</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;SHA-256&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nx">material</span><span class="p">,</span>
+<span class="w">    </span><span class="mf">256</span><span class="p">,</span>
+<span class="w">  </span><span class="p">);</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">bytesToHex</span><span class="p">(</span><span class="ow">new</span><span class="w"> </span><span class="nb">Uint8Array</span><span class="p">(</span><span class="nx">derived</span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Three choices are worth pausing on.
+
+<strong>Why PBKDF2 and not Argon2 or scrypt.</strong> Because of Web Crypto. Pages Functions run in the Workers runtime, where <code>crypto.subtle.deriveBits</code> is native, while Argon2 needs WASM or extra CPU time, which is expensive in an environment with a per-invocation CPU budget. PBKDF2 is not the strongest password KDF, but it is the one that reliably finishes within ten thousand iterations.
+
+<strong>Why 10,000 iterations and not the hundreds of thousands OWASP recommends.</strong> This is the most counter-intuitive decision in the article, and the comment says it plainly:
+<div class="codehilite"><pre><span></span><code><span class="c1">// Keep this below the Pages Functions CPU budget. Raising it can make auth</span>
+<span class="c1">// requests time out at the edge.</span>
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">PASSWORD_ITERATIONS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">10000</span><span class="p">;</span>
+</code></pre></div>
+
+
+On a server you control, you absolutely should push iterations to 600,000. But the free/low tier of Pages Functions has a hard per-request CPU ceiling, and PBKDF2 is pure CPU work; raise the iterations and login requests time out at the edge. The author chose "login works" over "the hash is theoretically optimal" — a real engineering trade-off, written into the code and into the README's known limitations, not quietly buried.
+
+<strong>Why a 16-byte salt and a 256-bit hash.</strong> A 16-byte (128-bit) random salt resists rainbow tables and is cheap; <code>deriveBits(..., 256)</code> produces 256 bits, which is 64 hex characters and fits a <code>TEXT</code> column. Neither needs to be "bigger," because every millisecond at the edge is on the books.
+
+The comparison after login is also worth noting: <code>hashPassword(password, account.password_salt)</code> is compared as a plain string against the stored <code>password_hash</code>. There is no <code>timingSafeEqual</code>, because both sides are server-derived hex strings and the result is not directly exposed to the attacker (the error is always "incorrect account or password"). It is an acceptable choice, and one worth knowing about.
+
+Registration is where D1 is used most carefully. Creating an account is two writes — the <code>echo_users</code> row and an <code>echo_sessions</code> row — and a failure between them would leave a user who can never log in, or a session pointing at nobody. The handler wraps both in a single <code>env.DB.batch([...])</code>, which D1 executes atomically: either both rows exist or neither does. If the batch throws a <code>UNIQUE constraint failed</code> error — a race with a simultaneous registration — the handler maps it to <code>409</code> instead of <code>500</code>, so the client sees "already registered" rather than "server broken." Before that it runs two explicit lookups (username, then email) to give a specific error in the common case, and the batch's unique constraint is the backstop for the race between those lookups and the insert.
+
+Login is the mirror image. It looks the account up with <code>WHERE username = ? OR email = ?</code>, verifies the PBKDF2 hash against the stored salt, and then does a batch that deletes that user's expired sessions and inserts a fresh one. Deleting expired sessions at login keeps the table from growing for accounts that do come back, complementing the probabilistic sweep for accounts that do not. Both paths end by calling <code>clearAuthRateLimit(request)</code> and returning a <code>Set-Cookie</code>; both refuse non-same-origin requests before touching the database; and both cap the body at 8 KiB through <code>readJson</code>. The symmetry is deliberate — the two handlers are short enough to read side by side and diff.
+<h2>Sessions: cookie flags, a 30-day lifetime, and probabilistic sweeping</h2>
+
+After authentication, the server does not issue a JWT. It issues a random session token stored in D1:
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">SESSION_TTL_MS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1000</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">24</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">30</span><span class="p">;</span>
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">SESSION_COOKIE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;echo_token&quot;</span><span class="p">;</span>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">sessionCookie</span><span class="p">(</span><span class="nx">token</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="sb">`</span><span class="si">${</span><span class="nx">SESSION_COOKIE</span><span class="si">}</span><span class="sb">=</span><span class="si">${</span><span class="nx">token</span><span class="si">}</span><span class="sb">`</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;Path=/&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;HttpOnly&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;Secure&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;SameSite=Lax&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="sb">`Max-Age=</span><span class="si">${</span><span class="nb">Math</span><span class="p">.</span><span class="nx">floor</span><span class="p">(</span><span class="nx">SESSION_TTL_MS</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1000</span><span class="p">)</span><span class="si">}</span><span class="sb">`</span><span class="p">,</span>
+<span class="w">  </span><span class="p">].</span><span class="nx">join</span><span class="p">(</span><span class="s2">&quot;; &quot;</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Each flag has a job: <code>HttpOnly</code> keeps JavaScript from reading the token so XSS cannot steal it; <code>Secure</code> sends it only over HTTPS, which the edge provides by default; <code>SameSite=Lax</code> blocks most cross-site request forgery while still allowing normal navigation from external links; <code>Max-Age</code> tells the browser to drop it after thirty days. The token itself is <code>crypto.randomUUID()</code>, 135 bits of randomness — not guessable.
+
+The interesting part is how expired sessions are cleaned up. Pages Functions have no cron trigger, so you cannot run a cleanup job at 3 a.m. The author uses two pieces of logic. The first is inside <code>authenticatedUsername()</code>: when a user arrives with a token, and that session has expired, delete it on the spot:
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">authenticatedUsername</span><span class="p">(</span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">sessionToken</span><span class="p">(</span><span class="nx">request</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">token</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">session</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span>
+<span class="w">    </span><span class="s2">&quot;SELECT username, expires_at FROM echo_sessions WHERE token = ?&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">token</span><span class="p">).</span><span class="nx">first</span><span class="p">();</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">session</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">session</span><span class="p">.</span><span class="nx">expires_at</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="nb">Date</span><span class="p">.</span><span class="nx">now</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">session</span><span class="p">)</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;DELETE FROM echo_sessions WHERE token = ?&quot;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">token</span><span class="p">).</span><span class="nx">run</span><span class="p">();</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="c1">// With a 2% probability, run a global sweep of all expired sessions.</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nx">random</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">SESSION_SWEEP_PROBABILITY</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;DELETE FROM echo_sessions WHERE expires_at &lt;= ?&quot;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nb">Date</span><span class="p">.</span><span class="nx">now</span><span class="p">()).</span><span class="nx">run</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">session</span><span class="p">.</span><span class="nx">username</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+The second piece is that 2% sweep. The idea: since there is no timer, spread the cleanup across normal requests — on average, one in fifty authenticated requests executes <code>DELETE FROM echo_sessions WHERE expires_at &lt;= ?</code> on the side. Expired rows do not pile up, and any single request pays at most one lightweight DELETE. The <code>try {} catch {}</code> is deliberate: a failed sweep must not break the request.
+
+This design is imperfect, but it honestly acknowledges that the edge has no timers. The real improvement is to move the sweep into a Durable Object alarm or a Cloudflare Cron Trigger hitting a <code>/_sweep</code> endpoint — both appear in the "if I rewrote it" list.
+
+Two helpers support all of this and are worth seeing because they encode small robustness decisions. <code>parseCookie()</code> splits the <code>Cookie</code> header on <code>;</code>, finds the first <code>=</code>, and then tries <code>decodeURIComponent</code> on the value with a fallback to the raw value if decoding throws — so a malformed cookie cannot crash an authenticated request. <code>requestAddress()</code> prefers <code>CF-Connecting-IP</code>, falls back to the first entry of <code>X-Forwarded-For</code>, and finally to the literal string <code>"unknown"</code>; that single address becomes the rate-limit key, which is why the limiter can be per-client even though the function sees only a <code>Request</code>. <code>isSameOrigin()</code> is deliberately lenient in one case: if the request has no <code>Origin</code> header at all (some same-origin navigations and non-browser clients), it returns <code>true</code>, and only compares origins when the header is present. That is the right behavior for a site that also needs to serve ordinary form posts, but it is exactly why the limiter and the session check matter alongside it — CSRF defense rests on <code>SameSite=Lax</code> and the origin check together, not on one of them.
+<h2>Rate limiting: an in-isolate map with LRU eviction</h2>
+
+The limiter is the part of <code>_auth.js</code> most worth reading on its own. Its interface is small:
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">createRateLimiter</span><span class="p">({</span><span class="w"> </span><span class="nx">windowMs</span><span class="p">,</span><span class="w"> </span><span class="nx">max</span><span class="p">,</span><span class="w"> </span><span class="nx">maxBuckets</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">10000</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">buckets</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Map</span><span class="p">();</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">check</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="nx">clear</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">buckets</span><span class="p">.</span><span class="ow">delete</span><span class="p">(</span><span class="nx">key</span><span class="p">);</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">};</span>
+<span class="p">}</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">authLimiter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createRateLimiter</span><span class="p">({</span><span class="w"> </span><span class="nx">windowMs</span><span class="o">:</span><span class="w"> </span><span class="mf">5</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1000</span><span class="p">,</span><span class="w"> </span><span class="nx">max</span><span class="o">:</span><span class="w"> </span><span class="mf">10</span><span class="w"> </span><span class="p">});</span>
+</code></pre></div>
+
+
+That means "at most 10 times per key in 5 minutes." The <code>check()</code> implementation has three layers of defense, each worth reading.
+
+<strong>Layer one: lazy expiry.</strong> There is no timer scanning the map; every <code>check()</code> compares <code>now - bucket.startedAt &gt;= windowMs</code> and resets if expired. This is the usual token-bucket / sliding-window shape.
+
+<strong>Layer two: a capacity ceiling.</strong> <code>maxBuckets = 10000</code> exists to stop an attacker from growing memory with unlimited keys. When the map exceeds the ceiling, first delete every expired bucket; if it is still over, treat <code>Map</code> insertion order as approximate LRU and evict from the oldest:
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">buckets</span><span class="p">.</span><span class="nx">size</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="nx">maxBuckets</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">bucketKey</span><span class="p">,</span><span class="w"> </span><span class="nx">bucketValue</span><span class="p">]</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">buckets</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">now</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">bucketValue</span><span class="p">.</span><span class="nx">startedAt</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nx">windowMs</span><span class="p">)</span><span class="w"> </span><span class="nx">buckets</span><span class="p">.</span><span class="ow">delete</span><span class="p">(</span><span class="nx">bucketKey</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="c1">// If every bucket is still active, evict the oldest so attacker-controlled</span>
+<span class="w">  </span><span class="c1">// keys cannot grow memory without bound.</span>
+<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="nx">buckets</span><span class="p">.</span><span class="nx">size</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="nx">maxBuckets</span><span class="p">)</span><span class="w"> </span><span class="nx">buckets</span><span class="p">.</span><span class="ow">delete</span><span class="p">(</span><span class="nx">buckets</span><span class="p">.</span><span class="nx">keys</span><span class="p">().</span><span class="nx">next</span><span class="p">().</span><span class="nx">value</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>Layer three: reset on success.</strong> Both <code>login.js</code> and <code>register.js</code> call <code>clearAuthRateLimit(request)</code> after success, deleting the current address's bucket. So "a few wrong passwords, then finally a correct one" does not keep consuming quota.
+
+Now the <strong>physical boundary</strong>, which the README spells out:
+<blockquote>
+
+The current rate-limit Map lives inside the Pages Functions isolate and can only be best-effort protection at the edge. If you need strong resistance, add distributed rate limiting in Cloudflare WAF, Rate Limiting Rules, or Durable Objects.
+</blockquote>
+
+That sentence matters. Cloudflare runs thousands of isolates, each holding its own map. An attacker only has to make requests land on different isolates to bypass "10 per isolate." So the real job of this limiter is not "stop distributed brute force" but "stop rapid retries from one connection/user" and "reduce write pressure on D1." Hiding that in a code comment would be a failure; putting it in the docs as a known limitation is what respects the reader.
+
+The limiter is applied at different granularities. Authentication uses one limiter keyed by address (<code>5 minutes / 10 attempts</code>). History writes use another keyed by username (<code>60 seconds / 30 writes</code>). Library saves use a third keyed by username (<code>60 seconds / 30 saves</code>). Search uses two at once: one per username and one per IP, so a single account cannot hammer the upstream and a single address cannot fan out across accounts. Every rejection goes through the same <code>json()</code> helper, which sets <code>Cache-Control: no-store</code> so a <code>429</code> is never cached and replayed, and includes a <code>Retry-After</code> header computed from the bucket's remaining window. That last detail matters on the client: a retry-after value lets the UI say "try again in 42 seconds" instead of a vague "too many requests," and it prevents a client from tight-looping the same rejected call.
+<h2>Request body limits: Content-Length is not trusted, streaming is the backstop</h2>
+
+Every write endpoint caps the body size, defaulting to 8 KiB. The intuitive approach is to read <code>Content-Length</code>:
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">requestExceedsLimit</span><span class="p">(</span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">maxBytes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">8192</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">length</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Number</span><span class="p">(</span><span class="nx">request</span><span class="p">.</span><span class="nx">headers</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s2">&quot;content-length&quot;</span><span class="p">));</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nb">Number</span><span class="p">.</span><span class="nb">isFinite</span><span class="p">(</span><span class="nx">length</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="nx">maxBytes</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+But <code>Content-Length</code> is optional: a chunked request can omit it. The real defense counts bytes while reading:
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">readJson</span><span class="p">(</span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">maxBytes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">8192</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">requestExceedsLimit</span><span class="p">(</span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">maxBytes</span><span class="p">))</span><span class="w"> </span><span class="k">throw</span><span class="w"> </span><span class="nx">tooLarge</span><span class="p">();</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">request</span><span class="p">.</span><span class="nx">body</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">request</span><span class="p">.</span><span class="nx">json</span><span class="p">();</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">reader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">request</span><span class="p">.</span><span class="nx">body</span><span class="p">.</span><span class="nx">getReader</span><span class="p">();</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">chunks</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[];</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">done</span><span class="p">,</span><span class="w"> </span><span class="nx">value</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">reader</span><span class="p">.</span><span class="nx">read</span><span class="p">();</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">done</span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">    </span><span class="nx">total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">value</span><span class="p">.</span><span class="nx">byteLength</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">total</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="nx">maxBytes</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">await</span><span class="w"> </span><span class="nx">reader</span><span class="p">.</span><span class="nx">cancel</span><span class="p">();</span>
+<span class="w">      </span><span class="k">throw</span><span class="w"> </span><span class="nx">tooLarge</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">chunks</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">value</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="nx">reader</span><span class="p">.</span><span class="nx">releaseLock</span><span class="p">();</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">bytes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Uint8Array</span><span class="p">(</span><span class="nx">total</span><span class="p">);</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">offset</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="nx">chunk</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">chunks</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">bytes</span><span class="p">.</span><span class="nx">set</span><span class="p">(</span><span class="nx">chunk</span><span class="p">,</span><span class="w"> </span><span class="nx">offset</span><span class="p">);</span><span class="w"> </span><span class="nx">offset</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">chunk</span><span class="p">.</span><span class="nx">byteLength</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="ow">new</span><span class="w"> </span><span class="nx">TextDecoder</span><span class="p">().</span><span class="nx">decode</span><span class="p">(</span><span class="nx">bytes</span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+The value is not "reject big payloads" but "cannot be bypassed by omitting a header." <code>reader.cancel()</code> stops pulling data as soon as possible so it does not keep filling memory; <code>releaseLock()</code> releases the stream correctly. Any endpoint that accepts JSON gets both "size cap" and "valid JSON" by calling <code>readJson</code>, with no duplicated try/catch.
+
+The playlist endpoint is the exception; it needs a larger cap, so it passes an explicit limit:
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">libraryJson</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">readJson</span><span class="p">(</span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">MAX_LIBRARY_BYTES</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1024</span><span class="p">);</span>
+</code></pre></div>
+
+
+The extra 1024 bytes account for the JSON envelope (field names, braces, quotes), because <code>validateLibrary()</code> later checks the serialized byte length precisely.
+<h2>Playback accounting: currentTime deltas, not setInterval</h2>
+
+This is the section most often written wrong and most often ignored. Almost every naive "track listening time" implementation looks like this:
+<div class="codehilite"><pre><span></span><code><span class="c1">// Anti-pattern: do not do this</span>
+<span class="nx">setInterval</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">playing</span><span class="p">)</span><span class="w"> </span><span class="nx">totalSeconds</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">1</span><span class="p">;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">1000</span><span class="p">);</span>
+</code></pre></div>
+
+
+It has three fatal problems. First, timers are throttled in background tabs, so the seconds do not match real listening. Second, if the user drags the bar three minutes forward, you never find out. Third, if the timer is not cleared properly on pause, it keeps counting.
+
+ECHO SPACE measures "real media-time deltas." The core is in <code>public/js/stats.js</code>:
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">recordAudioProgress</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">seg</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">audio</span><span class="p">.</span><span class="nx">currentTime</span><span class="p">;</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nb">Number</span><span class="p">.</span><span class="nb">isFinite</span><span class="p">(</span><span class="nx">current</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">previous</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">mediaTime</span><span class="p">;</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">state</span><span class="p">.</span><span class="nx">playing</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="nx">state</span><span class="p">.</span><span class="nx">seeking</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">Number</span><span class="p">.</span><span class="nb">isFinite</span><span class="p">(</span><span class="nx">previous</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">delta</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">current</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">previous</span><span class="p">;</span>
+<span class="w">    </span><span class="c1">// Ignore seeks and browser timestamp jumps; normal timeupdate intervals</span>
+<span class="w">    </span><span class="c1">// are much smaller than five seconds.</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">delta</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">delta</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mf">5</span><span class="p">)</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">acc</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">delta</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="nx">seg</span><span class="p">.</span><span class="nx">mediaTime</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">current</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+There are four judgment calls, each matching a real failure:
+<ol>
+<li><strong>Only accumulate when <code>state.playing</code> is true.</strong> No adding while paused.</li>
+<li><strong>Only accumulate when <code>!state.seeking</code>.</strong> While dragging, the <code>input</code> event sets <code>state.seeking</code> true and accumulation pauses; the <code>change</code> event (the real drop point) calls <code>syncMediaTime()</code> to reset the anchor to the new <code>currentTime</code>, so the skipped span is not counted.</li>
+<li><strong><code>delta &gt; 0</code>.</strong> Seeking backward yields a negative delta; skip it.</li>
+<li><strong><code>delta &lt;= 5</code>.</strong> The most important rule. A background tab resuming, a system sleep/wake, or network buffering can make the gap between two <code>timeupdate</code> events jump to tens of seconds or minutes; during normal playback it is usually 0.25–1 second. Treating "a jump larger than five seconds" as anomalous is what makes this accounting valid.</li>
+</ol>
+
+Putting the pieces in order makes the accounting concrete. The user clicks a row; <code>playIndex()</code> calls <code>playTrack()</code>, which bumps <code>playbackGeneration</code>, flushes any previous segment, sets <code>state.idx</code>, and calls <code>startPlaybackSession()</code> — minting a <code>sessionId</code> and recording the starting <code>mediaTime</code>. Audio begins; <code>timeupdate</code> fires a few times per second, and each call to <code>recordAudioProgress()</code> adds a small positive delta. Every thirty seconds the interval flushes a checkpoint with <code>keepOpen: true</code>, so the server has a recent total while the session keeps accumulating. If the user drags the bar, the <code>input</code> handler sets <code>state.seeking</code>; accumulation pauses, and the <code>change</code> handler sets <code>audio.currentTime</code> and calls <code>syncMediaTime()</code> so the anchor jumps to the drop point without counting the skipped span. If the user pauses, <code>flushSegment()</code> sends the final total and clears <code>seg</code>, so resuming starts a new <code>sessionId</code>. If the user closes the tab instead, <code>pagehide</code> calls <code>recordAudioProgress()</code> one last time and <code>sendBeacon</code>s the total. Four different exits, one identity per session, and the server-side UPSERT makes the repeated writes idempotent.
+
+There is one more guard that is easy to miss: <code>sendHistory()</code> refuses to send when <code>!getMe()</code> (not logged in), when the payload has no <code>sessionId</code>, or when <code>seconds &lt; 5</code>. That means an anonymous listener never generates server traffic at all — the player works, but the server never sees a row. It also means the five-second floor is enforced on both sides of the wire, so a bug in the client cannot produce a spam of one-second rows.
+
+Three companion timing points complete the picture. <code>timeupdate</code> only calls <code>recordAudioProgress()</code>; a 30-second interval flushes "if at least five seconds have accrued, but keep the session open":
+<div class="codehilite"><pre><span></span><code><span class="nx">setInterval</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">seg</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="nx">state</span><span class="p">.</span><span class="nx">playing</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">recordAudioProgress</span><span class="p">();</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">seg</span><span class="p">.</span><span class="nx">acc</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mf">5</span><span class="p">)</span><span class="w"> </span><span class="nx">flushSegment</span><span class="p">({</span><span class="w"> </span><span class="nx">keepOpen</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">});</span>
+<span class="p">},</span><span class="w"> </span><span class="mf">30000</span><span class="p">);</span>
+</code></pre></div>
+
+
+And on page close it uses <code>sendBeacon</code>, because <code>fetch</code> may be cancelled after <code>pagehide</code>:
+<div class="codehilite"><pre><span></span><code><span class="nb">window</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s2">&quot;pagehide&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">seg</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="nx">getMe</span><span class="p">())</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">recordAudioProgress</span><span class="p">();</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">seconds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">round</span><span class="p">(</span><span class="nx">seg</span><span class="p">.</span><span class="nx">acc</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">seconds</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">5</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"> </span><span class="nx">sessionId</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">scene</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">scene</span><span class="p">,</span><span class="w"> </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span><span class="w"> </span><span class="nx">artist</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">artist</span><span class="p">,</span><span class="w"> </span><span class="nx">seconds</span><span class="w"> </span><span class="p">});</span>
+<span class="w">  </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">navigator</span><span class="p">.</span><span class="nx">sendBeacon</span><span class="p">(</span><span class="s2">&quot;/api/history&quot;</span><span class="p">,</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">Blob</span><span class="p">([</span><span class="nx">body</span><span class="p">],</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;application/json&quot;</span><span class="w"> </span><span class="p">}));</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">sendHistory</span><span class="p">({</span><span class="w"> </span><span class="nx">sessionId</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">scene</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">scene</span><span class="p">,</span><span class="w"> </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span><span class="w"> </span><span class="nx">artist</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">artist</span><span class="p">,</span><span class="w"> </span><span class="nx">seconds</span><span class="w"> </span><span class="p">});</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div>
+
+
+<code>sendBeacon</code> means "hand the data to the browser and try even if the page unloads," which fits "last-ditch flush on close." Combined with the five-second floor, a user who opens a song for two seconds and closes it produces no junk row.
+<h2>Session de-duplication: sessionId, UPSERT, and a partial unique index</h2>
+
+The hardest problem in playback stats is not measuring time. It is not double-counting. A user pauses and resumes, a checkpoint fires every thirty seconds, and a beacon fires on close — one listening session produces many network writes. If every <code>POST /api/history</code> were an <code>INSERT</code>, the history would fill with dozens of rows for the same song.
+
+The fix is to give each continuous playback a <code>sessionId</code>:
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">startPlaybackSession</span><span class="p">(</span><span class="nx">track</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">track</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="nx">state</span><span class="p">.</span><span class="nx">scene</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">seg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="nx">crypto</span><span class="p">.</span><span class="nx">randomUUID</span><span class="p">(),</span><span class="w">   </span><span class="c1">// the unique id of one playback session</span>
+<span class="w">    </span><span class="nx">scene</span><span class="o">:</span><span class="w"> </span><span class="nx">state</span><span class="p">.</span><span class="nx">scene</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="nx">track</span><span class="p">.</span><span class="nx">t</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">artist</span><span class="o">:</span><span class="w"> </span><span class="nx">track</span><span class="p">.</span><span class="nx">a</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">acc</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">mediaTime</span><span class="o">:</span><span class="w"> </span><span class="nb">Number</span><span class="p">.</span><span class="nb">isFinite</span><span class="p">(</span><span class="nx">audio</span><span class="p">.</span><span class="nx">currentTime</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">audio</span><span class="p">.</span><span class="nx">currentTime</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span>
+<span class="w">  </span><span class="p">};</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+On pause, <code>flushSegment()</code> clears <code>seg</code> (<code>keepOpen: false</code>); on resume, <code>playTrack</code> calls <code>startPlaybackSession()</code> and generates a new <code>sessionId</code>. So "pause then resume" is two sessions by definition — a product choice that lets "listened three minutes, paused, listened two more" be distinguished from "listened five minutes straight."
+
+What actually folds duplicate writes into one row is the server statement:
+<div class="codehilite"><pre><span></span><code><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">echo_history</span><span class="w"> </span><span class="p">(</span><span class="n">username</span><span class="p">,</span><span class="w"> </span><span class="n">session_id</span><span class="p">,</span><span class="w"> </span><span class="n">updated_at</span><span class="p">,</span><span class="w"> </span><span class="n">scene</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="p">,</span><span class="w"> </span><span class="n">artist</span><span class="p">,</span><span class="w"> </span><span class="n">seconds</span><span class="p">,</span><span class="w"> </span><span class="n">played_at</span><span class="p">)</span>
+<span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">)</span>
+<span class="k">ON</span><span class="w"> </span><span class="n">CONFLICT</span><span class="w"> </span><span class="k">DO</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">SET</span>
+<span class="w">  </span><span class="n">updated_at</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">excluded</span><span class="p">.</span><span class="n">updated_at</span><span class="p">,</span>
+<span class="w">  </span><span class="n">seconds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="n">echo_history</span><span class="p">.</span><span class="n">seconds</span><span class="p">,</span><span class="w"> </span><span class="n">excluded</span><span class="p">.</span><span class="n">seconds</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>ON CONFLICT DO UPDATE</code> needs a conflict target, and here it is not spelled out as <code>ON CONFLICT (username, session_id)</code> because the table has a <strong>partial unique index</strong>:
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_history_user_session</span>
+<span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">echo_history</span><span class="p">(</span><span class="n">username</span><span class="p">,</span><span class="w"> </span><span class="n">session_id</span><span class="p">)</span>
+<span class="w">  </span><span class="k">WHERE</span><span class="w"> </span><span class="n">session_id</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+</code></pre></div>
+
+
+That partial index is the pivot of the whole design, with three details:
+<ul>
+<li><strong><code>(username, session_id)</code>, not <code>session_id</code> alone.</strong> The <code>sessionId</code> is generated client-side with <code>crypto.randomUUID()</code> and could theoretically collide; adding <code>username</code> makes the constraint mean "one user's one session," so two users with the same UUID do not collide.</li>
+<li><strong><code>seconds = MAX(echo_history.seconds, excluded.seconds)</code>.</strong> Later requests only raise the seconds, never lower them. Even with out-of-order requests or a late beacon, history does not shrink.</li>
+<li><strong><code>WHERE session_id IS NOT NULL</code>.</strong> Legacy rows have no <code>session_id</code>; the partial index excludes them, so the table can hold both new session-level rows and old per-row records without a backfill on migration.</li>
+</ul>
+
+Before the write there are two validations. <code>sessionId</code> must match <code>^[A-Za-z0-9_-]{16,80}$</code> to block odd characters and oversized keys; <code>seconds</code> must satisfy <code>0 &lt; seconds &lt;= 3 * 3600</code>, and anything else returns <code>{ ok: true, skipped: true }</code>. Note it returns success, not an error: "this one was not recorded" is not the client's fault.
+<h2>Schema migration: adding columns to an old history table without rewriting it</h2>
+
+The fourth migration file is the key to understanding the schema evolution:
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 0002_history_sessions.sql</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">echo_history</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">session_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">;</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">echo_history</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">updated_at</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">;</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">idx_history_user_session</span>
+<span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">echo_history</span><span class="p">(</span><span class="n">username</span><span class="p">,</span><span class="w"> </span><span class="n">session_id</span><span class="p">)</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">session_id</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">idx_history_user_updated</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">echo_history</span><span class="p">(</span><span class="n">username</span><span class="p">,</span><span class="w"> </span><span class="n">updated_at</span><span class="w"> </span><span class="k">DESC</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">idx_sessions_expires</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">echo_sessions</span><span class="p">(</span><span class="n">expires_at</span><span class="p">);</span>
+</code></pre></div>
+
+
+The order matters: add columns first, then create the partial unique index. SQLite (and D1) allows adding columns to an existing table with new columns defaulting to <code>NULL</code>; because the index carries <code>WHERE session_id IS NOT NULL</code>, every old row's <code>session_id</code> is <code>NULL</code>, so it never enters the unique index and never conflicts. In other words, <strong>the migration rewrites no old data</strong>: old records continue to exist as one row per event, new records exist as one row per session.
+
+The full <code>echo_history</code> shape (from <code>schema.sql</code>) is:
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">echo_history</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="n">id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
+<span class="w">  </span><span class="n">username</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">session_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">  </span><span class="n">updated_at</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span>
+<span class="w">  </span><span class="n">scene</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">title</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">artist</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">seconds</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">  </span><span class="n">played_at</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<span class="p">);</span>
+</code></pre></div>
+
+
+Note that <code>updated_at</code> and <code>played_at</code> are two different things: <code>played_at</code> is the <strong>first write time</strong> and never changes; <code>updated_at</code> is the <strong>most recent checkpoint time</strong> and is updated on every UPSERT. That distinction matters in aggregation — "recent plays" sorts by <code>updated_at</code>, while the "14-day active calendar" attributes by <code>played_at</code>.
+
+There are four migrations, with a clear rhythm:
+<table>
+<thead>
+<tr>
+<th>Migration</th>
+<th>What it does</th>
+<th>Why it is separate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0001_init.sql</code></td>
+<td>Create <code>echo_users</code>, <code>echo_sessions</code>, <code>echo_history</code> and base indexes</td>
+<td>Initial structure</td>
+</tr>
+<tr>
+<td><code>0002_history_sessions.sql</code></td>
+<td>Add <code>session_id</code>, <code>updated_at</code>; create the partial unique index</td>
+<td>Session-level dedup without touching old rows</td>
+</tr>
+<tr>
+<td><code>0003_libraries.sql</code></td>
+<td>Create the cloud playlist table <code>echo_libraries</code></td>
+<td>New feature</td>
+</tr>
+<tr>
+<td><code>0004_library_rev.sql</code></td>
+<td>Add an optimistic-lock <code>rev</code> column</td>
+<td>Detect concurrent writes</td>
+</tr>
+</tbody>
+</table>
+
+The discipline of "one migration does one thing" is far more reliable than "rerun a big schema.sql." The README also says explicitly: do not run the <code>ALTER</code>s in <code>schema.sql</code> against a live database; use <code>npm run db:migrate</code>, because the migration system records which files have run.
+<h2>Aggregation: per-session dedup, a 14-day calendar, and the UTC+14 trap</h2>
+
+<code>GET /api/history</code> is the most complex handler in the backend. It returns four groups in one request: totals, per-scene distribution, the last 14 days, and the last 50 rows. Four queries run concurrently via <code>Promise.all</code>, then get assembled.
+
+<strong>Totals: dedup by session.</strong> The key is <code>COUNT(DISTINCT COALESCE(session_id, 'legacy:' || id))</code>:
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="k">DISTINCT</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">session_id</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;legacy:&#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">id</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">plays</span><span class="p">,</span>
+<span class="w">       </span><span class="k">COALESCE</span><span class="p">(</span><span class="k">SUM</span><span class="p">(</span><span class="n">seconds</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">seconds</span><span class="p">,</span>
+<span class="w">       </span><span class="k">MIN</span><span class="p">(</span><span class="n">played_at</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">first_at</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">echo_history</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">?</span>
+</code></pre></div>
+
+
+<code>COALESCE(session_id, 'legacy:' || id)</code> means: new data uses <code>session_id</code> as the identity of "one playback"; old data has no <code>session_id</code>, so <code>'legacy:' || id</code> synthesizes a unique value. <code>COUNT(DISTINCT ...)</code> then counts new session-level plays correctly while remaining compatible with old per-row records. <code>SUM(seconds)</code> just adds up — because the UPSERT already collapsed each session into one row, there is nothing to double count.
+
+<strong>Per-scene distribution:</strong> the same <code>COUNT(DISTINCT ...)</code> with <code>GROUP BY scene</code>, assembled into an object:
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">byScene</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{};</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="nx">row</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">bySceneRows</span><span class="p">.</span><span class="nx">results</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">[])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">byScene</span><span class="p">[</span><span class="nx">row</span><span class="p">.</span><span class="nx">scene</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">plays</span><span class="o">:</span><span class="w"> </span><span class="nx">row</span><span class="p">.</span><span class="nx">plays</span><span class="p">,</span><span class="w"> </span><span class="nx">seconds</span><span class="o">:</span><span class="w"> </span><span class="nx">row</span><span class="p">.</span><span class="nx">seconds</span><span class="w"> </span><span class="p">};</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>The 14-day calendar: here is a real trap.</strong> The frontend wants "the last 14 days, how many seconds each day," with date labels on the axis. The intuitive approach is "take today, subtract 13 days, generate fourteen date strings." But if you compute only in the server's timezone, users in UTC+12 to UTC+14 see every date shifted by a day. The author's fix: determine "today" in the <strong>requested</strong> timezone, then generate the fourteen calendar dates using UTC anchors:
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">dayKey</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">ts</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">toDateKey</span><span class="p">(</span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">(</span><span class="nx">ts</span><span class="p">),</span><span class="w"> </span><span class="nx">formatter</span><span class="p">);</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">todayParts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Object</span><span class="p">.</span><span class="nx">fromEntries</span><span class="p">(</span>
+<span class="w">  </span><span class="nx">formatter</span><span class="p">.</span><span class="nx">formatToParts</span><span class="p">(</span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">()).</span><span class="nx">map</span><span class="p">((</span><span class="nx">p</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="nx">p</span><span class="p">.</span><span class="nx">type</span><span class="p">,</span><span class="w"> </span><span class="nx">p</span><span class="p">.</span><span class="nx">value</span><span class="p">]),</span>
+<span class="p">);</span>
+<span class="c1">// Build the 14 labels as UTC noon anchors, then format in UTC, so a</span>
+<span class="c1">// UTC+12..+14 timezone does not shift the dates back a day.</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">13</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">anchor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">(</span>
+<span class="w">    </span><span class="nb">Date</span><span class="p">.</span><span class="nx">UTC</span><span class="p">(</span><span class="nb">Number</span><span class="p">(</span><span class="nx">todayParts</span><span class="p">.</span><span class="nx">year</span><span class="p">),</span><span class="w"> </span><span class="nb">Number</span><span class="p">(</span><span class="nx">todayParts</span><span class="p">.</span><span class="nx">month</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="nb">Number</span><span class="p">(</span><span class="nx">todayParts</span><span class="p">.</span><span class="nx">day</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="mf">12</span><span class="p">),</span>
+<span class="w">  </span><span class="p">);</span>
+<span class="w">  </span><span class="nx">days</span><span class="p">.</span><span class="nx">push</span><span class="p">({</span><span class="w"> </span><span class="nx">date</span><span class="o">:</span><span class="w"> </span><span class="nx">toDateKey</span><span class="p">(</span><span class="nx">anchor</span><span class="p">,</span><span class="w"> </span><span class="nx">utcFormatter</span><span class="p">),</span><span class="w"> </span><span class="nx">seconds</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="p">});</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+The comment about "UTC noon anchors" is the essence. If you anchor at local midnight, UTC+14's "today" and UTC's "today" differ by a day; anchoring at noon and formatting in UTC keeps the labels stable across timezones. This trap even has a dedicated test (<code>tests/history.test.mjs</code>) using <code>Pacific/Kiritimati</code> (UTC+14) to assert the last day is the user's local today:
+<div class="codehilite"><pre><span></span><code><span class="nx">test</span><span class="p">(</span><span class="s2">&quot;history day labels keep the requested UTC+14 calendar date&quot;</span><span class="p">,</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">request</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">Request</span><span class="p">(</span><span class="s2">&quot;https://example.test/api/history?tz=Pacific%2FKiritimati&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">cookie</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;echo_token=test-token&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">});</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">onRequestGet</span><span class="p">({</span><span class="w"> </span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">DB</span><span class="o">:</span><span class="w"> </span><span class="nx">fakeDb</span><span class="p">()</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">});</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">json</span><span class="p">();</span>
+<span class="w">  </span><span class="nx">assert</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">body</span><span class="p">.</span><span class="nx">days</span><span class="p">.</span><span class="nx">length</span><span class="p">,</span><span class="w"> </span><span class="mf">14</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">assert</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">body</span><span class="p">.</span><span class="nx">days</span><span class="p">.</span><span class="nx">at</span><span class="p">(</span><span class="o">-</span><span class="mf">1</span><span class="p">).</span><span class="nx">date</span><span class="p">,</span><span class="w"> </span><span class="cm">/* local today */</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div>
+
+
+<strong>The last 50 rows:</strong> sorted by <code>COALESCE(updated_at, played_at)</code> descending, so a just-checkpointed session floats to the top instead of sinking by first-play time:
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">scene</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="p">,</span><span class="w"> </span><span class="n">artist</span><span class="p">,</span><span class="w"> </span><span class="n">seconds</span><span class="p">,</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">updated_at</span><span class="p">,</span><span class="w"> </span><span class="n">played_at</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">played_at</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">echo_history</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">?</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">updated_at</span><span class="p">,</span><span class="w"> </span><span class="n">played_at</span><span class="p">)</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">50</span>
+</code></pre></div>
+
+
+The <code>tz</code> parameter itself is not trusted blindly either: <code>requestedTimeZone()</code> first tries a format with <code>Intl.DateTimeFormat</code>, falling back to <code>UTC</code> if the timezone is invalid. That is more forgiving than an allowlist and safer than no validation.
+<h2>Free-mode playlists: turning a training plan into a pure function</h2>
+
+Free mode is the most "product-like" feature in ECHO SPACE: you pick a total training duration (10–180 minutes), and the system cuts it into song segments, rest segments, warm-up, and stretch, guaranteeing that <strong>the seconds of every segment sum to exactly the duration you chose</strong>. That guarantee is not assembled in the UI; it is pinned by a pure function and a unit test.
+
+The core is <code>buildPlan()</code> in <code>public/free-mode.js</code>, with a plain signature:
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">buildPlan</span><span class="p">(</span><span class="nx">scene</span><span class="p">,</span><span class="w"> </span><span class="nx">tracks</span><span class="p">,</span><span class="w"> </span><span class="nx">durations</span><span class="p">,</span><span class="w"> </span><span class="nx">totalSeconds</span><span class="p">,</span><span class="w"> </span><span class="nx">order</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+
+
+Inputs are the scene, the track list, each track's duration, the total seconds, and the playback order; the output is a <code>segments</code> array. It starts by computing the warm-up and stretch shares:
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">guidedPhaseSeconds</span><span class="p">(</span><span class="nx">totalSeconds</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">max</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">round</span><span class="p">(</span><span class="nb">Number</span><span class="p">(</span><span class="nx">totalSeconds</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="mf">0</span><span class="p">));</span>
+<span class="w">  </span><span class="c1">// Warm-up and stretch are at most three minutes each, and at most 20% of the total.</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">min</span><span class="p">(</span><span class="nx">GUIDED_PHASE_MAX_SECONDS</span><span class="p">,</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">floor</span><span class="p">(</span><span class="nx">total</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">0.2</span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Then the main loop does one thing: carve a slice of "the current song" out of the remaining time until nothing remains. The key line is:
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">seconds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">min</span><span class="p">(</span><span class="nx">duration</span><span class="p">,</span><span class="w"> </span><span class="nx">remaining</span><span class="p">);</span>
+</code></pre></div>
+
+
+That line guarantees "the last song does not extend the session because its own duration exceeds what is left." If only twelve seconds remain but the next song is four minutes, the segment is twelve seconds, not 240. After the loop there is a backstop:
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">remaining</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">segments</span><span class="p">.</span><span class="nx">push</span><span class="p">({</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;work&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">trackIndex</span><span class="o">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;训练结束前的缓冲&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">seconds</span><span class="o">:</span><span class="w"> </span><span class="nx">remaining</span><span class="w"> </span><span class="p">});</span>
+<span class="w">  </span><span class="nx">remaining</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Normally <code>remaining</code> always hits zero; this protects against "empty or malformed playlist" dropping seconds. The returned object carries <code>totalSeconds</code>, <code>workSeconds</code>, <code>restSeconds</code>, and <code>segments</code>, where <code>totalSeconds</code> is the original choice and the seconds in <code>segments</code> must equal it — an invariant the test asserts directly:
+<div class="codehilite"><pre><span></span><code><span class="nx">test</span><span class="p">(</span><span class="s2">&quot;buildPlan keeps requested duration exact&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">tracks</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nx">t</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">a</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;x&quot;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">t</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">a</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;y&quot;</span><span class="w"> </span><span class="p">}];</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">plan</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">free</span><span class="p">.</span><span class="nx">buildPlan</span><span class="p">(</span><span class="s2">&quot;run&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">tracks</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="mf">120</span><span class="p">,</span><span class="w"> </span><span class="mf">120</span><span class="p">],</span><span class="w"> </span><span class="mf">1800</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="mf">1</span><span class="p">]);</span>
+<span class="w">  </span><span class="nx">assert</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">plan</span><span class="p">.</span><span class="nx">segments</span><span class="p">.</span><span class="nx">reduce</span><span class="p">((</span><span class="nx">sum</span><span class="p">,</span><span class="w"> </span><span class="nx">s</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">sum</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">s</span><span class="p">.</span><span class="nx">seconds</span><span class="p">,</span><span class="w"> </span><span class="mf">0</span><span class="p">),</span><span class="w"> </span><span class="mf">1800</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">assert</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">plan</span><span class="p">.</span><span class="nx">totalSeconds</span><span class="p">,</span><span class="w"> </span><span class="mf">1800</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div>
+
+
+Besides <code>buildPlan</code>, <code>buildSelectedPlan()</code> handles "the user manually picked a few songs." It differs from <code>buildPlan</code> in that it does not truncate by total duration; it plays the selection through in order, computing warm-up/stretch from the "actual song total" rather than the chosen duration. And <code>estimateSelectedTotal()</code> gives a "estimated total including rests" preview on the button before the user generates a plan. All three share one property: no DOM, no global state, only inputs — so they load into Node with <code>vm.runInNewContext</code> and get tested directly.
+<h2>Scheduling rules: three rest models for jump rope, running, and hiking</h2>
+
+The three sport scenes' rest rules are pulled into a <code>PROFILES</code> table:
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">PROFILES</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">silence</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">restEvery</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">restSeconds</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;连续播放&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">jump</span><span class="o">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">restEvery</span><span class="o">:</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="nx">restSeconds</span><span class="o">:</span><span class="w"> </span><span class="mf">30</span><span class="p">,</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;每首歌后休息 30 秒&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">run</span><span class="o">:</span><span class="w">     </span><span class="p">{</span><span class="w"> </span><span class="nx">restEvery</span><span class="o">:</span><span class="w"> </span><span class="mf">4</span><span class="p">,</span><span class="w"> </span><span class="nx">restSeconds</span><span class="o">:</span><span class="w"> </span><span class="mf">45</span><span class="p">,</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;每 4 首后休息 45 秒&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">hike</span><span class="o">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">restEvery</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">restSeconds</span><span class="o">:</span><span class="w"> </span><span class="mf">300</span><span class="p">,</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;每 30 分钟休息 5 分钟&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">isTimeBased</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nx">intervalOptions</span><span class="o">:</span><span class="w"> </span><span class="nx">HIKE_INTERVALS</span><span class="w"> </span><span class="p">},</span>
+<span class="p">};</span>
+</code></pre></div>
+
+
+Three models, each matching a rhythm:
+<ul>
+<li><strong>Jump rope: triggered by song count.</strong> <code>restEvery: 1</code> — rest 30 seconds after every song. Jump rope is high-intensity interval work, and one song per cycle fits.</li>
+<li><strong>Running: triggered by song count, but rarer.</strong> <code>restEvery: 4</code> — rest 45 seconds every four songs, with songs flowing continuously in between. Running wants a stable cadence, and frequent interruptions break it.</li>
+<li><strong>Hiking: triggered by time.</strong> <code>isTimeBased: true</code>, <code>restEvery</code> is 0, and rest is driven by accumulated work time: <code>accWork += seconds; if (accWork &gt;= intervalSeconds) { rest }</code>. The interval is chosen from <code>HIKE_INTERVALS = [15, 30, 45, 60, 90, 120]</code>, defaulting to 30 minutes. Hiking is low-intensity and long, so time-based rest matches the effort curve.</li>
+</ul>
+
+One detail: if the remaining time is under five seconds, the rest segment is skipped (<code>if (rest &lt; 5) continue;</code>). That is not laziness; a "three-second rest" is meaningless and would litter the plan with fragments. Skipping those seconds does not break the total, because later song segments absorb the remainder.
+
+<code>buildSelectedPlan()</code> has a branch for "time-based" versus "count-based". Time-based inserts a rest when accumulated work reaches the interval, with no rest after the last song; count-based inserts a rest when <code>workCount % restEvery === 0</code>, also with no rest after the last song. So "the session ends" is always a clean finish, never "rest, then end."
+<h2>The duration index: know how long a track is without downloading it</h2>
+
+Free mode needs each track's duration, but audio files are several MB, and many are MP3. You cannot download ten songs just to plan thirty minutes. <code>tools/generate-durations.mjs</code> solves this: <strong>before deploy</strong>, it reads each file's container header, parses the duration, and writes a static index <code>public/durations-data.js</code>.
+
+The key constraint is "read only 4 MB":
+<div class="codehilite"><pre><span></span><code><span class="c1">// Container headers and Xing metadata are usually near the front;</span>
+<span class="c1">// avoid loading a multi-megabyte audio file just to read its duration.</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">length</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">min</span><span class="p">(</span><span class="nx">size</span><span class="p">,</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1024</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1024</span><span class="p">);</span>
+</code></pre></div>
+
+
+MP4/M4A is parsed through the <code>mvhd</code> atom: find the <code>mvhd</code> marker, read the version, take 32-bit timescale/duration for version 0 or 64-bit for version 1, then <code>duration / timescale</code> is seconds. MP3 is parsed through the frame header: skip ID3v2, find the first valid frame header, read the bitrate and sample rate; if the <code>Xing</code> or <code>Info</code> marker follows, read "total frames × samples per frame / sample rate," which is more accurate than a bitrate estimate.
+
+There is a fallback: some MP4 files put the <code>moov</code> atom at the end (no faststart). If the first 4 MB has no <code>mvhd</code>, the script reads a bounded tail window:
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">headDuration</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">size</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="nx">length</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">headDuration</span><span class="p">;</span>
+<span class="c1">// Some MP4/M4A files place the moov atom at EOF; read a bounded tail window.</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">tailOffset</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">size</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">length</span><span class="p">;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">Buffer</span><span class="p">.</span><span class="nx">alloc</span><span class="p">(</span><span class="nx">length</span><span class="p">);</span>
+</code></pre></div>
+
+
+The "read head + read tail" combination avoids loading the whole file while covering almost every container layout. The generated index looks like:
+<div class="codehilite"><pre><span></span><code><span class="nb">window</span><span class="p">.</span><span class="nx">ECHO_DURATIONS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">silence</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="mf">612.4</span><span class="p">,</span><span class="w"> </span><span class="mf">533.1</span><span class="p">,</span><span class="w"> </span><span class="p">...],</span><span class="w"> </span><span class="nx">jump</span><span class="o">:</span><span class="w"> </span><span class="p">[...],</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">};</span>
+</code></pre></div>
+
+
+<code>durationHint()</code> in <code>core.js</code> resolves in order: "track's own duration → static index → parse 'minutes' from the title → default 210 seconds." The fallback chain keeps "a plan can still be generated even if the index is missing," just with a coarser estimate.
+<h2>The executor: a 250ms tick, stall compensation, and phase transitions</h2>
+
+Generating a plan is paper; the executor is what actually runs. <code>public/js/free-training.js</code> holds a <code>freeSession</code> and ticks every 250ms:
+<div class="codehilite"><pre><span></span><code><span class="nx">freeTicker</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">setInterval</span><span class="p">(</span><span class="nx">tickFreeTraining</span><span class="p">,</span><span class="w"> </span><span class="mf">250</span><span class="p">);</span>
+</code></pre></div>
+
+
+<code>tickFreeTraining()</code> handles two kinds of segment differently.
+
+<strong>Work segments: driven by the real audio progress.</strong> It compares <code>audio.currentTime</code> against the segment's <code>seconds</code> and advances near the end:
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">segment</span><span class="p">.</span><span class="nx">type</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s2">&quot;work&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="nx">freeSession</span><span class="p">.</span><span class="nx">internal</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Number</span><span class="p">.</span><span class="nb">isFinite</span><span class="p">(</span><span class="nx">audio</span><span class="p">.</span><span class="nx">currentTime</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">audio</span><span class="p">.</span><span class="nx">currentTime</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">cur</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nx">segment</span><span class="p">.</span><span class="nx">seconds</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">0.25</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">advanceFreeSegment</span><span class="p">();</span>
+<span class="w">    </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+There is a "stall compensation" mechanism worth learning. If audio buffers (so <code>audio.paused</code> or <code>currentTime</code> stops moving) while the countdown keeps running on wall-clock time, the user sees "the countdown ends before the song plays through." So when a stall is detected, the executor pushes the segment end and the total end <strong>later</strong>:
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">stalled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">audio</span><span class="p">.</span><span class="nx">paused</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">abs</span><span class="p">(</span><span class="nx">cur</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">freeLastMedia</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">0.001</span><span class="p">;</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">stalled</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">delay</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">max</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">now</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="nx">freeSession</span><span class="p">.</span><span class="nx">lastTick</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">now</span><span class="p">));</span>
+<span class="w">  </span><span class="nx">freeSession</span><span class="p">.</span><span class="nx">phaseEndAt</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">delay</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">freeSession</span><span class="p">.</span><span class="nx">totalEndAt</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">delay</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">stopMetro</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+So "stalled three seconds" means "the whole session shifts three seconds," not "three seconds of listening lost." This compensation applies only to work segments; rest, warm-up, and stretch are pure timers and need no compensation.
+
+<strong>Non-work segments: driven by the wall clock.</strong> With no audio progress to rely on, they use <code>phaseEndAt</code> directly:
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">segment</span><span class="p">.</span><span class="nx">type</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="s2">&quot;work&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">now</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nx">freeSession</span><span class="p">.</span><span class="nx">phaseEndAt</span><span class="p">)</span><span class="w"> </span><span class="nx">advanceFreeSegment</span><span class="p">();</span>
+</code></pre></div>
+
+
+<code>advanceFreeSegment()</code> has a <code>transitioning</code> lock, so a 250ms tick and an audio event (<code>ended</code>/<code>timeupdate</code>) firing together cannot "advance two segments." Each transition does <code>index += 1</code>, then <code>beginFreeSegment()</code> resets <code>phaseEndAt</code> and <code>freeLastMedia</code> and acts differently per segment: work segments call <code>playTrack()</code> to start audio; rest segments <code>audio.pause()</code> and trigger speech.
+
+There is also a 0.18–0.25 second lead. Why not wait for <code>cur === seconds</code> exactly? Because audio events and timers jitter by tens of milliseconds, and waiting strictly could hang at the last segment if real audio is a few milliseconds shorter than planned. The lead guarantees an advance while being inaudible.
+
+The free-mode executor also owns the metronome, and it is built on the Web Audio API rather than <code>setInterval</code> for the same reason playback stats avoid timers. <code>startMetro()</code> schedules oscillator clicks with a lookahead: it keeps a <code>next</code> timestamp in <code>AudioContext</code> time and, on a 90ms <code>setTimeout</code>, schedules every click that falls within the next 300ms, then schedules itself again. This is the standard lookahead-scheduler pattern — a coarse timer wakes up, but the actual clicks are placed on the audio clock, so they do not drift when the main thread is busy. Each click is a square oscillator ramped from 880Hz to 420Hz over 80ms with a fast gain envelope, which reads as a crisp tick rather than a tone. The metronome pauses during rest and warm-up (<code>ensureMetroDuringWork()</code> only starts it on work segments), and the BPM is persisted in <code>localStorage</code> so a runner's preferred cadence survives a reload.
+
+There is a subtle interaction between the metronome and the audio that is worth flagging: the metronome must not count as "audio progress" for stall detection. The executor distinguishes "the metronome is running" from "the song is playing" by checking <code>state.playing</code> and the segment type, and it stops the metronome whenever the song stalls or the segment is not a work segment. Without that distinction, a stalled song with a running metronome would look "alive" and the stall compensation would never fire, so the countdown would race ahead of silent audio.
+
+<code>pauseFreeTraining()</code> / <code>resumeFreeTraining()</code> handle pause/resume. On pause they record "seconds left in the current segment" and "seconds left overall"; on resume they recompute <code>phaseEndAt</code>/<code>totalEndAt</code> from the wall clock and <code>audio.play()</code> again. An <code>internal</code> flag prevents the executor's own <code>audio.pause()</code> from triggering the "user paused" logic and recursing.
+<h2>The silence scene: breathing guidance and a focus timer</h2>
+
+The silence scene does not participate in free mode. It has two separate things: a breathing visual guide and a focus timer, both in <code>public/js/timer.js</code>.
+
+The breathing guide is a set of CSS animations (expand on inhale, contract on exhale), switched by <code>startBreathVisual()</code> / <code>stopBreathVisual()</code> and active only while the silence scene is playing. It involves no timing logic; it is purely visual companionship.
+
+The timer is a 15/30/45/60-minute focus countdown. It shares the same <code>AudioContext</code> as the free-mode executor (<code>ensureAudioCtx()</code> in <code>core.js</code>), because browsers limit AudioContext count and reusing one after a user gesture is more stable. When the timer ends, it plays a chime and stops the audio.
+
+One easily missed detail: the silence timer uses <strong>wall-clock time</strong> (<code>Date.now()</code> deltas), not audio progress. White-noise audio may loop, so <code>currentTime</code> resets and cannot drive a countdown. This is also the clearest proof that "listening-time stats" and "focus countdown" are two different time definitions and must not be mixed.
+<h2>Online audio: a JOOX proxy, temporary URLs, and a five-minute refresh</h2>
+
+Jump rope, running, and hiking draw songs from online search (JOOX), while silence uses local audio. Online audio brings three problems: CORS, the key, and temporary URLs.
+
+CORS and the key are both solved by the server-side proxy in <code>functions/api/search.js</code>:
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">JOOX_ENDPOINT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;https://apicx.asia/api/joox_music&quot;</span><span class="p">;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">MAX_UPSTREAM_BYTES</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">512</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1024</span><span class="p">;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">searchLimiter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createRateLimiter</span><span class="p">({</span><span class="w"> </span><span class="nx">windowMs</span><span class="o">:</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1000</span><span class="p">,</span><span class="w"> </span><span class="nx">max</span><span class="o">:</span><span class="w"> </span><span class="mf">30</span><span class="w"> </span><span class="p">});</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">searchIpLimiter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createRateLimiter</span><span class="p">({</span><span class="w"> </span><span class="nx">windowMs</span><span class="o">:</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1000</span><span class="p">,</span><span class="w"> </span><span class="nx">max</span><span class="o">:</span><span class="w"> </span><span class="mf">120</span><span class="w"> </span><span class="p">});</span>
+</code></pre></div>
+
+
+The proxy has five protections: only same-origin authenticated requests; a per-user limit of 30/minute; a per-IP limit of 120/minute; reject upstream responses over 512 KiB; and a nine-second upstream timeout (<code>AbortController</code>). <code>readLimitedText()</code> follows the same idea as <code>readJson()</code> — count while reading, never trust <code>Content-Length</code>. The token comes from <code>env.JOOX_TOKEN</code>; if missing, return 503 instead of crashing.
+
+Two smaller protections round out the proxy. <code>readLimitedText()</code> checks <code>Content-Length</code> first, then counts bytes as it reads, cancelling the upstream body if it exceeds 512 KiB. The JSON parse is defensive — a non-JSON body becomes <code>data = null</code>, which is reported as a 502 rather than leaking a stack trace. And every failure path returns a distinguishable message: 400 for a bad keyword, 401 for no session, 403 for a cross-origin call, 429 with <code>Retry-After</code> for either limiter, 502 for an upstream error or oversized response or timeout, 503 when <code>JOOX_TOKEN</code> is missing, and 500 for an unexpected throw. That mapping is what lets the frontend tell the difference between "you are not logged in," "slow down," and "the upstream is down," instead of showing one generic error for all of them.
+
+There is also a useful shape to the search result. The upstream returns a list of songs with a temporary <code>audioUrl</code>, but the client only keeps the stable identifiers and refetches the URL right before playback. That is why <code>GET /api/search</code> can return temporary URLs freely — they are used once and never persisted — while <code>PUT /api/library</code> strips them. The split keeps the stored playlist small and keeps credentials and expiring links out of the database.
+
+Temporary URLs are a frontend problem. JOOX's <code>audioUrl</code> expires and cannot live in a playlist long-term. So <code>library.js</code>'s <code>fetchJooxDetails()</code> fetches it right before playback, and <code>player.js</code> uses a five-minute window to decide "does this need a refresh":
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">needsOnlineRefresh</span><span class="p">(</span><span class="nx">track</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nb">Boolean</span><span class="p">(</span><span class="nx">track</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">isOnlineScene</span><span class="p">(</span><span class="nx">state</span><span class="p">.</span><span class="nx">scene</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">track</span><span class="p">.</span><span class="nx">source</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s2">&quot;joox&quot;</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">track</span><span class="p">.</span><span class="nx">audioUrl</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">Date</span><span class="p">.</span><span class="nx">now</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="nx">track</span><span class="p">.</span><span class="nx">audioFetchedAt</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">5</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1000</span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+Along with the <code>playbackGeneration</code> counter, if the user skips during an async fetch, the old request is cancelled via <code>AbortController</code>, so "a half-fetched old result" cannot overwrite the new song. This is a textbook async-race fix: bump a generation, compare it on return, discard if it changed.
+<h2>Cloud playlists: optimistic locking and rev conflicts</h2>
+
+<code>PUT /api/library</code> has to answer "two tabs save at once, who overwrites whom." The answer is optimistic locking, not pessimistic (the edge has no long transactions). The table has a <code>rev</code> column:
+<div class="codehilite"><pre><span></span><code><span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">echo_libraries</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">rev</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+
+The client reads the current <code>rev</code> with the playlist and echoes it back on save. The server's update is a conditional UPSERT:
+<div class="codehilite"><pre><span></span><code><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">echo_libraries</span><span class="w"> </span><span class="p">(</span><span class="n">username</span><span class="p">,</span><span class="w"> </span><span class="n">library_json</span><span class="p">,</span><span class="w"> </span><span class="n">updated_at</span><span class="p">,</span><span class="w"> </span><span class="n">rev</span><span class="p">)</span>
+<span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
+<span class="k">ON</span><span class="w"> </span><span class="n">CONFLICT</span><span class="p">(</span><span class="n">username</span><span class="p">)</span><span class="w"> </span><span class="k">DO</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">SET</span>
+<span class="w">  </span><span class="n">library_json</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">excluded</span><span class="p">.</span><span class="n">library_json</span><span class="p">,</span>
+<span class="w">  </span><span class="n">updated_at</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">excluded</span><span class="p">.</span><span class="n">updated_at</span><span class="p">,</span>
+<span class="w">  </span><span class="n">rev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">echo_libraries</span><span class="p">.</span><span class="n">rev</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">echo_libraries</span><span class="p">.</span><span class="n">rev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">?</span>
+</code></pre></div>
+
+
+If <code>WHERE echo_libraries.rev = ?</code> does not hold (another tab wrote first and the rev changed), the statement <strong>updates no rows.</strong> The server checks <code>result.meta.changes</code>; if zero, it returns 409 with the current <code>rev</code>:
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">result</span><span class="o">?</span><span class="p">.</span><span class="nx">meta</span><span class="o">?</span><span class="p">.</span><span class="nx">changes</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">row</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;SELECT rev FROM echo_libraries WHERE username = ?&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="nx">bind</span><span class="p">(</span><span class="nx">auth</span><span class="p">.</span><span class="nx">username</span><span class="p">).</span><span class="nx">first</span><span class="p">();</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">ok</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nx">code</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;CONFLICT&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">rev</span><span class="o">:</span><span class="w"> </span><span class="nx">row</span><span class="o">?</span><span class="p">.</span><span class="nx">rev</span><span class="w"> </span><span class="o">??</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">409</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+On 409, the client can choose "take the server's version" or "force overwrite." That is far better than "last writer wins," which silently drops the other tab's edits.
+
+The <code>rev</code> value is never trusted blindly. On a successful insert of a brand-new playlist, the server stores <code>rev = 1</code> and returns <code>(clientRev ?? 0) + 1</code>; on a conflict-free update, the SQL increments <code>rev</code> atomically, so even two updates racing within the same millisecond cannot produce the same next revision. The client is expected to echo the most recent <code>rev</code> it has loaded; if it echoes a stale one, the conditional <code>WHERE</code> fails and it gets the current <code>rev</code> back in the 409 body, which it can use to re-merge. This is a small protocol — two numbers and one status — but it makes concurrent editing correct without websockets or a lock table, which is the right trade at this scale.
+
+The playlist data is validated strictly. <code>validateLibrary()</code> caps 2000 favorites, 200 playlists, 2000 tracks per playlist, and 1 MB serialized; each track keeps only stable identifiers (<code>uid</code>, <code>source</code>, <code>title</code>, <code>artist</code>, <code>songMid</code>, and so on). JOOX's temporary <code>audioUrl</code> is <strong>always dropped</strong>; only <code>local-fallback</code> local paths are kept, and they must pass a strict regex (no <code>..</code>, no URL-encoded slash/dot):
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">output</span><span class="p">.</span><span class="nx">source</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s2">&quot;local-fallback&quot;</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="sr">/^audio\/(?:meditation|jumping|running|hiking)\/[^/?#\\]{1,500}$/</span><span class="p">.</span><span class="nx">test</span><span class="p">(</span><span class="nx">track</span><span class="p">.</span><span class="nx">audioUrl</span><span class="p">)</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="nx">track</span><span class="p">.</span><span class="nx">audioUrl</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s2">&quot;..&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="sr">/%2e|%2f|%5c/i</span><span class="p">.</span><span class="nx">test</span><span class="p">(</span><span class="nx">track</span><span class="p">.</span><span class="nx">audioUrl</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">output</span><span class="p">.</span><span class="nx">audioUrl</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">track</span><span class="p">.</span><span class="nx">audioUrl</span><span class="p">.</span><span class="nx">slice</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="mf">500</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+That is a textbook trust boundary: even though <code>audioUrl</code> comes from the client, it must fall in a controlled path pattern, with directory traversal explicitly blocked in both raw and encoded forms.
+<h2>Security headers and CSP: six policies one page needs</h2>
+
+<code>public/_headers</code> is Pages' static response-header configuration. It does two things: cache policy for audio and scripts, and security headers for all paths.
+
+The cache policy is restrained: audio caches for 30 days with <code>stale-while-revalidate</code>; JS, CSS, <code>tracks-data.js</code>, <code>durations-data.js</code>, and <code>free-mode.js</code> are all <code>max-age=0, must-revalidate</code>. The latter is deliberate — these are "code," and a change must take effect immediately, not wait behind a CDN cache.
+
+That split is worth spelling out because it is the most common source of "I deployed but nothing changed." Audio files are content-addressed by filename and change rarely, so a long cache plus <code>stale-while-revalidate</code> means the browser serves a cached copy instantly and refreshes it in the background for the next visit. Code files change on every deploy, so they get <code>max-age=0, must-revalidate</code>: the browser may keep a copy, but it must check with the server before using it, which turns a deploy into a single conditional request per file. The consequence is that a new <code>free-mode.js</code> is never mixed with an old <code>app.js</code> for longer than one navigation, which matters when the two share a data shape.
+
+The security headers are six-plus:
+<div class="codehilite"><pre><span></span><code>X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+X-Frame-Options: DENY
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+Content-Security-Policy: default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39; &#39;unsafe-inline&#39;;
+  media-src &#39;self&#39; https: blob:; connect-src &#39;self&#39;; img-src &#39;self&#39; data:;
+  object-src &#39;none&#39;; base-uri &#39;self&#39;; frame-ancestors &#39;none&#39;
+</code></pre></div>
+
+
+Line by line:
+<ul>
+<li><code>nosniff</code> stops the browser from guessing MIME types, preventing a JSON response from being executed as a script.</li>
+<li><code>Referrer-Policy</code> sends the full referrer only on same-origin requests and only the origin cross-site.</li>
+<li><code>X-Frame-Options: DENY</code> plus CSP's <code>frame-ancestors 'none'</code> doubly forbid framing, preventing clickjacking.</li>
+<li>HSTS forces HTTPS for a year.</li>
+<li>COOP/CORP isolate the page and its resources to their own origin, reducing cross-origin leakage.</li>
+<li><code>Permissions-Policy</code> turns off camera, microphone, and geolocation — this player needs none of them.</li>
+<li>CSP's <code>media-src</code> allows <code>https:</code> and <code>blob:</code> because online audio and local recording may both use blob URLs; <code>style-src</code>'s <code>'unsafe-inline'</code> is a necessary compromise for native inline styles, but <code>script-src 'self'</code> still forbids any inline script.</li>
+</ul>
+
+The value is this: even if one day someone injects a malicious inline script into <code>index.html</code>, CSP blocks it. Security is not "trust that the code is right"; it is "assume the code is wrong and still hold."
+<h2>Checks and tests: Node's built-in test runner plus asset validation</h2>
+
+ECHO SPACE's test strategy is light but covers the three most error-prone areas.
+
+<strong>One: pure-function scheduling.</strong> <code>tests/free-mode.test.mjs</code> loads <code>free-mode.js</code> into a fake <code>window</code> with <code>vm.runInNewContext</code>, then tests <code>buildPlan</code>, <code>buildSelectedPlan</code>, and <code>estimateSelectedTotal</code> directly. Four tests pin: exact total duration, preserved selection order plus jump-rope rests, hiking's five-minute recovery, and ignored duplicate/invalid indices.
+
+<strong>Two: timezone stats.</strong> <code>tests/history.test.mjs</code> uses a fake D1 (returning fixed rows) to drive <code>onRequestGet</code> and verifies that UTC+14 calendar labels do not shift. It needs no real database, because the handler only depends on <code>env.DB.prepare(...).bind(...).first()/all()</code>.
+
+<strong>Three: assets and syntax.</strong> <code>tools/check.mjs</code> does four things: recursively check the syntax and relative imports of every <code>.js</code> under <code>public/</code> and <code>functions/api/</code>; load <code>tracks-data.js</code> to confirm its shape; check that each track's audio file exists; and check for unregistered files under <code>public/audio/</code>. Its success line looks like:
+<div class="codehilite"><pre><span></span><code>OK: 20 JS files, 10 tracks, all audio files mapped
+</code></pre></div>
+
+
+The value is catching broken links before deploy. A missing audio file, a wrong filename in <code>tracks-data.js</code>, a JS import of a nonexistent module — if these only show up as a 404 in production, the cost is much higher.
+
+<code>.github/workflows/check.yml</code> runs <code>npm run check</code> and <code>npm test</code> on push and pull request with both Node 18 and 22. Note it does <strong>not</strong> deploy, and does <strong>not</strong> verify D1 migrations, because migrations need live credentials; pre-deploy migration and smoke testing remain manual. That is a sensible split: CI owns "is the code right," deploy owns "is the live environment right."
+
+The API's error surface is deliberately uniform, which keeps the frontend simple. Every handler returns <code>{ error }</code> (or <code>{ ok: false, error }</code>) with a matching status: <code>400</code> for bad input, <code>401</code> for no session, <code>403</code> for a cross-origin origin, <code>409</code> for a uniqueness or rev conflict, <code>413</code> for an oversized body, <code>429</code> for a limiter hit (with <code>Retry-After</code>), <code>500</code> for an unexpected throw, and <code>502</code>/<code>503</code> when an upstream dependency is unavailable. Because <code>json()</code> sets <code>Cache-Control: no-store</code> on every response, none of these can be cached by the edge or the browser and replayed stale. A small, consistent error vocabulary is worth more than clever per-endpoint messages, because the client can branch on the status instead of parsing prose.
+
+The README is also careful about migrations on a live database. Before applying remote migrations it recommends exporting a D1 backup, because migrations are not reversible in SQLite and a wrong <code>ALTER</code> on a table with years of history is not something you want to discover after the fact. The migration system itself (<code>wrangler d1 migrations apply</code>) records which files ran, so re-running is a no-op ("No migrations to apply!"), and the initial schema file is described as a reference for new environments — not something to replay against production. That distinction between "bootstrap a fresh database" and "evolve a live one" is one of the small disciplines that separates a hobby project from something you can operate.
+<h2>Known limitations: an honest list</h2>
+
+A project's maturity often shows in whether it dares to document its weaknesses. The README has a "Known limitations" section; I have organized it into a table and added the code locations:
+<table>
+<thead>
+<tr>
+<th>Limitation</th>
+<th>What it means</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Rate limiting is per-isolate</td>
+<td>Cross-isolate distributed attacks bypass it</td>
+<td><code>createRateLimiter</code> in <code>_auth.js</code></td>
+</tr>
+<tr>
+<td>No email verification or reset</td>
+<td>Registration checks format, not ownership</td>
+<td><code>register.js</code></td>
+</tr>
+<tr>
+<td>Legacy history cannot dedup precisely</td>
+<td>Old rows have no <code>session_id</code>, counted as <code>legacy:id</code></td>
+<td><code>COALESCE</code> in <code>history.js</code></td>
+</tr>
+<tr>
+<td>Daily stats attribute by first write</td>
+<td>A midnight-spanning session counts on the start day</td>
+<td><code>played_at</code> semantics</td>
+</tr>
+<tr>
+<td>Server trusts client title/artist</td>
+<td>History write does not validate the track exists</td>
+<td><code>history.js</code> POST</td>
+</tr>
+<tr>
+<td>Password iterations CPU-bound</td>
+<td>10,000, below general recommendations</td>
+<td><code>PASSWORD_ITERATIONS</code></td>
+</tr>
+<tr>
+<td>Username case not unified</td>
+<td>Stored as-is</td>
+<td><code>echo_users.username</code></td>
+</tr>
+</tbody>
+</table>
+
+The two most important are "server trusts client title/artist" and "rate limiting is per-isolate." The former means a logged-in user could theoretically forge a "listened to this song" record; closing it requires a server-side track manifest. The latter means the limiter is "stop rapid retries," not "stop distributed brute force."
+
+That list is itself a good product-documentation example: it does not pretend to be perfect; it hands the reader both the trade-off and its cost.
+<h2>If I rewrote it, I would change these five things first</h2>
+
+If I were rebuilding this repo, I would change five things in priority order.
+
+<strong>One: move rate limiting somewhere that crosses instances.</strong> Use Cloudflare's Rate Limiting Rules, or a Durable Object as a global counter, or at least a fixed-window table in D1. The in-isolate map's problem is not "written badly"; it is "physically cannot be global."
+
+<strong>Two: validate the track server-side on history writes.</strong> Today <code>POST /api/history</code> accepts client-provided <code>title</code>/<code>artist</code>. A safer design stores only a <code>trackId</code> in history and joins the title and artist from a server-side manifest at read time. Forged history then becomes impossible.
+
+<strong>Three: hand expired-session sweeping to Cron or a Durable Object alarm.</strong> The 2% probabilistic sweep is clever, but it means "if nobody visits, nothing is cleaned." A once-daily Cron Trigger would be much cleaner.
+
+<strong>Four: unify the username case policy.</strong> Today registration stores as-is and login queries <code>username</code> and <code>email.toLowerCase()</code>. Chinese usernames are fine, but English ones allow both <code>Alice</code> and <code>alice</code>. Either lowercase at registration or query with <code>COLLATE NOCASE</code>.
+
+<strong>Five: make midnight attribution exact instead of approximate.</strong> Daily stats currently attribute by <code>played_at</code>, so a play from 23:50 to 00:20 counts entirely on the first day. Exactness requires splitting the newly accumulated seconds across dates at checkpoint time — more write complexity, but a truer "14-day active" metric.
+
+None of these is "only possible in a rewrite"; all are "what the next version should prioritize." A good project document lets a reader see at a glance "which are deliberate trade-offs, which are temporary debt."
+<h2>Conclusion: the complexity of an edge app lives in its boundaries</h2>
+
+Reading ECHO SPACE end to end, you notice it has almost no "algorithmic hard problems." No function needs a derivation, no SQL needs an execution-plan tuning session. Its complexity is concentrated entirely in boundaries:
+<ul>
+<li><strong>CPU boundary:</strong> PBKDF2 can only afford 10,000 iterations, or login times out.</li>
+<li><strong>State boundary:</strong> no resident process, so session cleanup is "delete at login plus a 2% sweep."</li>
+<li><strong>Time boundary:</strong> listening time must come from <code>currentTime</code> deltas, discarding jumps over five seconds.</li>
+<li><strong>Uniqueness boundary:</strong> one playback must collapse into one row, via <code>sessionId</code> + UPSERT + a partial unique index.</li>
+<li><strong>Timezone boundary:</strong> the 14-day calendar must not shift by a day even at UTC+14.</li>
+<li><strong>Concurrency boundary:</strong> two tabs saving a playlist rely on a <code>rev</code> optimistic lock, not a long transaction.</li>
+<li><strong>Security boundary:</strong> CSP, request-size caps, same-origin checks, traversal filters — not one may be missing.</li>
+</ul>
+
+None of these is "something a framework solves for you." React will not decide how many PBKDF2 iterations to use; Vue will not decide whether the eight seconds between two <code>timeupdate</code> events was a seek; no ORM will hand you a "dedup by session" partial unique index. Real edge-app engineering is thinking through every boundary, then writing it into the code, the tests, and the docs.
+
+What makes ECHO SPACE worth studying is not "it is a player built on Cloudflare." It is that it lays out, completely, the questions a player must answer to become a product — and gives each one an honest, verifiable, trade-off-aware answer. That is more useful than any "best practices checklist."

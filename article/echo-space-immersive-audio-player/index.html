@@ -1,0 +1,1077 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Text must stay zoomable (WCAG 1.4.4) — no scale limits here.
+         Rationale for the whole zoom story lives in global.scss. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="适用读者：想把一个「能用的产品」完整地放到边缘上跑、却又不想被框架和服务器绑架的前端工程师；正在用 Cloudflare Pages Functions 和 D1 做小产品、被认…" />
+<!-- Google Search Console 站点验证 -->
+    <meta name="google-site-verification" content="1Cv5EI2xZqXCaZnwCBQJBHukLAD6SJkn1gfuamc7fpU" />
+    <link rel="canonical" href="https://blog.zhoujun.dev/article/echo-space-immersive-audio-player/" />
+    <meta property="og:title" content="ECHO SPACE：在 Cloudflare 边缘做一个带登录、去重统计与自由组歌的沉浸式播放器" />
+    <meta property="og:description" content="适用读者：想把一个「能用的产品」完整地放到边缘上跑、却又不想被框架和服务器绑架的前端工程师；正在用 Cloudflare Pages Functions 和 D1 做小产品、被认…" />
+    <meta property="og:url" content="https://blog.zhoujun.dev/article/echo-space-immersive-audio-player/" />
+    <meta property="og:site_name" content="尘世栈帧" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:image" content="https://blog.zhoujun.dev/photos/echo-space-immersive-audio-player-cover.png" />
+    <meta property="og:image:secure_url" content="https://blog.zhoujun.dev/photos/echo-space-immersive-audio-player-cover.png" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="ECHO SPACE：在 Cloudflare 边缘做一个带登录、去重统计与自由组歌的沉浸式播放器 封面" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ECHO SPACE：在 Cloudflare 边缘做一个带登录、去重统计与自由组歌的沉浸式播放器" />
+    <meta name="twitter:description" content="适用读者：想把一个「能用的产品」完整地放到边缘上跑、却又不想被框架和服务器绑架的前端工程师；正在用 Cloudflare Pages Functions 和 D1 做小产品、被认…" />
+    <meta name="twitter:image" content="https://blog.zhoujun.dev/photos/echo-space-immersive-audio-player-cover.png" />
+    <link rel="alternate" type="application/rss+xml" title="尘世栈帧 RSS" href="https://blog.zhoujun.dev/rss.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#f7f7f2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#18201c" media="(prefers-color-scheme: dark)" />
+    <meta name="author" content="Stack Frame" />
+    <title>ECHO SPACE：在 Cloudflare 边缘做一个带登录、去重统计与自由组歌的沉浸式播放器 | 尘世栈帧</title>
+    <!-- 站点级结构化数据：作为文章 Article 的 isPartOf / publisher 锚点。 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://blog.zhoujun.dev/#website",
+            "url": "https://blog.zhoujun.dev/",
+            "name": "尘世栈帧",
+            "description": "尘世栈帧 — 技术、编程、AI 与科学，以及 Happy Games、Halo Music 等在浏览器里就能用的原创项目。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://blog.zhoujun.dev/#publisher" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://blog.zhoujun.dev/#person",
+            "name": "Stack Frame",
+            "url": "https://blog.zhoujun.dev/about/",
+            "sameAs": ["https://github.com/zhoujungis"]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://blog.zhoujun.dev/#publisher",
+            "name": "尘世栈帧",
+            "url": "https://blog.zhoujun.dev/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://blog.zhoujun.dev/icons/icon-512.png",
+              "width": 512,
+              "height": 512
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- Google Analytics — set VITE_GA_ID env var to enable. Until then, no GA scripts. -->
+    <script>
+      (function(){var r=sessionStorage.getItem('redirect');if(r){sessionStorage.removeItem('redirect');history.replaceState(null,null,r);}})();
+    </script>
+    <!-- KaTeX + Mermaid are injected on demand by MarkdownView.vue only when
+         the current article actually contains math ($...$) or ```mermaid
+         blocks. Pinned versions + SRI hashes are kept there (see loadMath/
+         loadMermaid) to defend against CDN supply-chain compromise. -->
+
+    <!-- Cross-origin hints: API is called on first paint, covers come from
+         Unsplash, KaTeX/Mermaid load from jsdelivr on demand. -->
+    <link rel="preconnect" href="https://zhoujun123.pythonanywhere.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.unsplash.com" />
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+
+    <!-- Service Worker — register only; updates propagate via sw.js byte
+         differences (skipWaiting + clients.claim in sw.js). Unregistering on
+         every load forced a full SW reinstall + shell refetch each visit. -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js');
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-CP_tXTKa.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/_plugin-vue_export-helper-tRUQJj3d.js">
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/client-DDSzq_-U.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DnfPoa2_.css">
+      <meta property="article:section" content="项目实战" />
+  
+<style>
+.ns-article{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.85;color:var(--text-primary,#1f2a24);font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-article .ns-breadcrumb{font-size:.8rem;line-height:1.6;margin-bottom:.8em;color:#657168}
+.ns-article .ns-breadcrumb a{color:#3f6b57;text-decoration:none}
+.ns-article h1{font-size:1.8rem;line-height:1.4;margin:0 0 .6em}
+.ns-article h2{font-size:1.4rem;margin:1.6em 0 .6em}
+.ns-article h3{font-size:1.2rem;margin:1.4em 0 .5em}
+.ns-article p{margin:.8em 0}
+.ns-article img{max-width:100%;height:auto;border-radius:8px}
+.ns-article pre{background:#faf5f7;border-left:3px solid #3f6b57;border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:.85em}
+.ns-article code{font-family:SFMono-Regular,'Cascadia Code',Consolas,monospace;font-size:.9em}
+.ns-article table{border-collapse:collapse;margin:1em 0}
+.ns-article .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ns-article th,.ns-article td{border:1px solid #dce2da;padding:8px 12px}
+.ns-article a{color:#3f6b57}
+.ns-article .ns-meta{color:#657168;font-size:.85rem;margin-bottom:1.5em}
+.ns-article .ns-taxonomy{font-size:.82rem;line-height:1.9;color:#657168;margin:1.2em 0}
+.ns-article .ns-taxonomy a{color:#3f6b57;text-decoration:none;margin-right:.6em}
+.ns-article .ns-series{margin:1.4em 0;padding:14px 16px;background:#f2f4ee;border-radius:8px;font-size:.9rem}
+.ns-article .ns-series ol{margin:.6em 0;padding-left:1.4em}
+.ns-article .ns-topic{margin:2em 0;padding:16px;border:1px solid #dce2da;border-radius:8px}
+.ns-article .ns-topic a{color:#3f6b57}
+.ns-article .ns-pager,.ns-article .ns-related{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-article .ns-pager a,.ns-article .ns-related a{color:#3f6b57;text-decoration:none}
+.ns-article .ns-pager li,.ns-article .ns-related li{margin:.4em 0}
+.ns-article .ns-site-nav{margin-top:2em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-article .ns-site-nav a{color:#3f6b57;text-decoration:none;margin-right:.9em}
+.ns-home-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-home-list h1{font-size:1.6rem;margin:0 0 .5em}
+.ns-home-list h2{font-size:1.12rem;margin:2em 0 .5em;padding-bottom:.35em;border-bottom:1px solid #dce2da}
+.ns-home-list ul{padding-left:1.2em}
+.ns-home-list li{margin:.4em 0}
+.ns-home-list a{color:#3f6b57}
+.ns-home-list .ns-sub{color:#3f6b57;font-size:.95rem;font-weight:700;letter-spacing:.18em;margin:.3em 0 .9em}
+.ns-home-list .ns-lede{font-size:1rem;font-weight:700;margin:.6em 0}
+.ns-home-list .ns-meta,.ns-home-list .ns-date{color:#657168;font-size:.82rem}
+.ns-home-list .ns-excerpt{color:#657168;font-size:.85rem;line-height:1.7;margin:.25em 0 1em}
+.ns-home-list .ns-more{color:#657168;font-size:.88rem}
+.ns-home-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.88rem;line-height:2}
+.ns-home-list .ns-nav a{margin-right:.9em}
+.ns-list{max-width:780px;margin:96px auto 64px;padding:0 20px;line-height:1.8;font-family:'PingFang SC','Hiragino Sans GB','Noto Sans SC','Microsoft YaHei','Segoe UI',sans-serif}
+.ns-list h1{font-size:1.8rem;margin:0 0 .4em}
+.ns-list h2{font-size:1.15rem;margin:1.6em 0 .4em;padding-bottom:.3em;border-bottom:1px solid #dce2da}
+.ns-list h3{font-size:1rem;margin:1.2em 0 .3em;color:#657168}
+.ns-list .ns-lead{color:#657168;font-size:.9rem;margin:0 0 1.5em}
+.ns-list ul{padding-left:1.2em;margin:.3em 0}
+.ns-list li{margin:.35em 0}
+.ns-list a{color:#3f6b57}
+.ns-list .ns-date{color:#657168;font-size:.82rem}
+.ns-list .ns-nav{margin-top:2.5em;padding-top:1em;border-top:1px solid #dce2da;font-size:.9rem}
+.ns-list .ns-nav a{margin-right:.8em}
+</style>
+    <link rel="alternate" hreflang="zh-CN" href="https://blog.zhoujun.dev/article/echo-space-immersive-audio-player/" />
+    <link rel="alternate" hreflang="en" href="https://blog.zhoujun.dev/en/article/echo-space-immersive-audio-player/" />
+    <link rel="alternate" hreflang="x-default" href="https://blog.zhoujun.dev/article/echo-space-immersive-audio-player/" />
+    <meta property="og:type" content="article" />
+    <meta property="article:published_time" content="2026-11-25T11:30:04.087084+08:00" />
+        <meta property="article:modified_time" content="2026-11-25T11:30:04.087084+08:00" />
+        <meta property="article:tag" content="Cloudflare" />
+    <meta property="article:tag" content="D1" />
+    <meta property="article:tag" content="SQLite" />
+    <meta property="article:tag" content="安全" />
+    <meta property="article:tag" content="实时通信" />
+    <meta property="article:tag" content="项目实战" />
+    <script type="application/ld+json" data-article-jsonld="1">{"@context":"https://schema.org","@graph":[{"@type":"Article","@id":"https://blog.zhoujun.dev/article/echo-space-immersive-audio-player/#article","url":"https://blog.zhoujun.dev/article/echo-space-immersive-audio-player/","headline":"ECHO SPACE：在 Cloudflare 边缘做一个带登录、去重统计与自由组歌的沉浸式播放器","description":"适用读者：想把一个「能用的产品」完整地放到边缘上跑、却又不想被框架和服务器绑架的前端工程师；正在用 Cloudflare Pages Functions 和 D1 做小产品、被认…","image":"https://blog.zhoujun.dev/photos/echo-space-immersive-audio-player-cover.png","datePublished":"2026-11-25T11:30:04.087084+08:00","dateModified":"2026-11-25T11:30:04.087084+08:00","author":{"@type":"Person","@id":"https://blog.zhoujun.dev/#person","name":"Stack Frame"},"publisher":{"@id":"https://blog.zhoujun.dev/#publisher"},"isPartOf":{"@id":"https://blog.zhoujun.dev/#website"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://blog.zhoujun.dev/article/echo-space-immersive-audio-player/"},"articleSection":"项目实战","keywords":"Cloudflare, D1, SQLite, 安全, 实时通信, 项目实战","inLanguage":"zh-CN","wordCount":12686},{"@type":"BreadcrumbList","@id":"https://blog.zhoujun.dev/article/echo-space-immersive-audio-player/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"首页","item":"https://blog.zhoujun.dev/"},{"@type":"ListItem","position":2,"name":"文章","item":"https://blog.zhoujun.dev/articles/"},{"@type":"ListItem","position":3,"name":"ECHO SPACE：在 Cloudflare 边缘做一个带登录、去重统计与自由组歌的沉浸式播放器","item":"https://blog.zhoujun.dev/article/echo-space-immersive-audio-player/"}]}]}</script>
+    <script type="application/json" id="prerender-article">{"slug":"echo-space-immersive-audio-player","title":"ECHO SPACE：在 Cloudflare 边缘做一个带登录、去重统计与自由组歌的沉浸式播放器","created_at":"2026-11-25T11:30:04.087084+08:00","updated_at":"2026-11-25T11:30:04.087265+08:00","author":null,"category":{"id":14,"name":"项目实战","slug":"projects"},"tags":[{"id":219,"name":"Cloudflare","slug":"cloudflare"},{"id":222,"name":"D1","slug":"d1"},{"id":202,"name":"SQLite","slug":"sqlite"},{"id":107,"name":"安全","slug":"security"},{"id":184,"name":"实时通信","slug":"realtime"},{"id":232,"name":"项目实战","slug":"project-practice"}],"cover_image":"/photos/echo-space-immersive-audio-player-cover.png","excerpt":"适用读者：想把一个「能用的产品」完整地放到边缘上跑、却又不想被框架和服务器绑架的前端工程师；正在用 Cloudflare Pages Functions 和 D1 做小产品、被认证、限流、统计口径和并发写入反复咬到的人；以及任何写过一个播放器、然后发现「播放」只占整件事两成的人。 结论先行：ECHO SPACE 是一个","reading_time":50,"views_count":1,"likes_count":0,"prev_article":null,"next_article":null}</script>
+  </head>
+  <body>
+    <div id="app"><div class="ns-article"><nav class="ns-breadcrumb"><a href="https://blog.zhoujun.dev/">首页</a> / <a href="https://blog.zhoujun.dev/articles/">文章</a> / <span>ECHO SPACE：在 Cloudflare 边缘做一个带登录、去重统计与自由组歌的沉浸式播放器</span></nav><h1>ECHO SPACE：在 Cloudflare 边缘做一个带登录、去重统计与自由组歌的沉浸式播放器</h1><div class="ns-meta">2026/11/25 · Stack Frame</div><p class="ns-taxonomy">分类：<a href="https://blog.zhoujun.dev/topics/projects/">项目实战</a> · 标签：<a href="https://blog.zhoujun.dev/tags/cloudflare/">Cloudflare</a> D1 <a href="https://blog.zhoujun.dev/tags/sqlite/">SQLite</a> <a href="https://blog.zhoujun.dev/tags/security/">安全</a> <a href="https://blog.zhoujun.dev/tags/realtime/">实时通信</a> 项目实战</p><nav class="ns-series"><p><strong>本系列 · 项目实战</strong>（11 篇）</p><ol><li><a href="https://blog.zhoujun.dev/article/nanobrowser-tauri-webview2/">NanoBrowser 拆解：手写进程内 CDP</a></li><li><a href="https://blog.zhoujun.dev/article/nanohermes-rust-coding-agent/">NanoHermes：零运行时的 Rust Agent</a></li><li><a href="https://blog.zhoujun.dev/article/nanoss-windows-ssh-client/">NanoSSH：13 MB 的 Windows SSH 客户端怎么做</a></li><li><a href="https://blog.zhoujun.dev/article/micromd-3mb-markdown-reader/">micromd：3 MB 的单文件 Markdown 阅读器</a></li><li><a href="https://blog.zhoujun.dev/article/nanoapi-wails-http-client/">NanoAPI：用 Go + Wails 造一个够用的 Postman</a></li><li><a href="https://blog.zhoujun.dev/article/z-bot-local-first-ai-assistant/">Z Bot：本地优先的私人 AI 助理怎么搭</a></li><li><a href="https://blog.zhoujun.dev/article/interviewatlas-daily-crawl-llm-analysis/">InterviewAtlas：3 万条面经的自动采集与 LLM 归纳</a></li><li><a href="https://blog.zhoujun.dev/article/aidevops-terminal-client/">【开源】aidevops 技术拆解：研发数据关联与可解释风险</a></li><li><a href="https://blog.zhoujun.dev/article/halo-music-square-architecture/">Halo 音乐广场技术拆解：多音源在线音乐应用</a></li><li><a href="https://blog.zhoujun.dev/article/happy-games-24-games-zero-framework-guide/">快乐小游戏：24 款零框架小游戏的全栈实践</a></li><li><a href="https://blog.zhoujun.dev/article/google-matter-smart-home-dev-guide/">谷歌 Matter 智能家居开发完全指南：从入门到认证</a></li></ol><p><a href="https://blog.zhoujun.dev/topics/projects/">查看项目实战专题</a></p></nav><div class="markdown-body"><blockquote>
+
+适用读者：想把一个「能用的产品」完整地放到边缘上跑、却又不想被框架和服务器绑架的前端工程师；正在用 Cloudflare Pages Functions 和 D1 做小产品、被认证、限流、统计口径和并发写入反复咬到的人；以及任何写过一个播放器、然后发现「播放」只占整件事两成的人。
+结论先行：ECHO SPACE 是一个部署在 Cloudflare Pages 上的沉浸式音频播放器，前端是零依赖的原生 HTML/CSS/JS，后端是 Pages Functions 加 D1。它真正难的地方不是把音频放出来，而是四类边界：认证要在一万次 PBKDF2 迭代里兼顾边缘 CPU 预算；播放时长要用 <code>currentTime</code> 差值而不是定时器，否则拖动进度条会虚增统计；同一段播放要能被去重成一条记录，这是 <code>sessionId</code> + UPSERT + 部分唯一索引三件套；自由组歌要把「训练总时长」精确地切成歌曲段、休息段和热身拉伸，一行不能多也一行不能少。文章会给出 7 条 API 路由、4 次 D1 迁移、4 张表的真实实现，也会把「限流只在 isolate 内」「旧历史无法精确去重」「服务端信任前端提交的曲名」这些边界逐一定位到文件。
+阅读时间：约 50 分钟 | 难度：进阶 | 收获：一套可以直接照抄的边缘应用骨架 + 会话级统计去重的完整做法 + 一份把「时间预算」写成纯函数的排程器
+</blockquote>
+
+<strong>目录</strong>
+<ul>
+<li>这不是一个播放器 Demo</li>
+<li>整体拓扑：静态资源、Pages Functions 与 D1</li>
+<li>前端为什么不用框架，也不留构建产物</li>
+<li>认证：PBKDF2、16 字节盐与 10000 次迭代</li>
+<li>会话：Cookie 标志、30 天有效期与概率清扫</li>
+<li>限流：单 isolate 内存桶与 LRU 驱逐</li>
+<li>请求体上限：Content-Length 不可信，流式读取兜底</li>
+<li>播放口径：用 currentTime 差值，而不是 setInterval</li>
+<li>会话去重：sessionId、UPSERT 与部分唯一索引</li>
+<li>数据库迁移：给旧历史表加列而不重写数据</li>
+<li>统计聚合：按会话去重、14 天日历与 UTC+14 的坑</li>
+<li>自由组歌：把训练计划写成纯函数</li>
+<li>排程规则：跳绳、跑步、爬山三种休息模型</li>
+<li>时长索引：不下载整首歌也能知道它多长</li>
+<li>执行器：250ms tick、卡顿补偿与阶段切换</li>
+<li>静默场景：呼吸引导与计时器</li>
+<li>在线音源：JOOX 代理、临时 URL 与 5 分钟刷新</li>
+<li>云端歌单：乐观锁与 rev 冲突</li>
+<li>安全头与 CSP：一个页面需要的六条策略</li>
+<li>检查与测试：Node 内置测试加资源校验</li>
+<li>已知限制：一份诚实的清单</li>
+<li>如果重写，我会先改这五件事</li>
+<li>小结：边缘应用的复杂度都在边界</li>
+</ul>
+<hr>
+<h2>这不是一个播放器 Demo</h2>
+
+大多数「音乐/音频播放器」项目的归宿是一样的：一个 HTML 文件，一个 <code>&lt;audio&gt;</code> 标签，一段从公开接口拉歌单的 JS。它能出声，但它不是产品，因为没有人回答下面六个问题：
+<ul>
+<li>用户不登录也能播放，那他听了多久、听了什么，存在哪里？</li>
+<li>同一首歌按了暂停、又恢复、又刷新页面，历史里会留下几条记录？</li>
+<li>拖动进度条往前跳 60 秒，这 60 秒算收听时长吗？</li>
+<li>两个标签页同时保存歌单，谁覆盖谁？</li>
+<li>「跳绳 30 分钟，每首歌后休息 30 秒」，这个计划谁负责保证总时长刚好 1800 秒？</li>
+<li>部署在一万台边缘机器上的限流，到底限的是谁？</li>
+</ul>
+
+ECHO SPACE 是围绕这六个问题长出来的。它的规模并不夸张：前端是 <code>public/</code> 下一组原生模块，后端是 <code>functions/api/</code> 下 7 个处理函数，数据落在 D1 的 4 张表里。它没有 framework、没有 bundler、没有毫秒级的构建产物；打开页面就是一次静态 HTML 请求，加几次 <code>/api/*</code>。但它的复杂度不在代码量，而在边界：认证的 CPU 预算、会话 Cookie 的生命周期、播放口径的定义、去重的主键、迁移的兼容性、限流的物理位置。
+
+先把结论摆出来，后面逐条拆：
+<ul>
+<li>认证用 PBKDF2-SHA-256，随机 16 字节盐，<strong>固定 10000 次迭代</strong>——不是为了最强，而是为了不撞 Pages Functions 的 CPU 上限。</li>
+<li>会话是存在 D1 里的 <code>echo_sessions</code> 行，Cookie 是 <code>HttpOnly; Secure; SameSite=Lax</code>，有效期 30 天，过期靠「登录时删一批 + 访问时按 2% 概率清扫」。</li>
+<li>播放时长<strong>绝不</strong>用 <code>setInterval</code> 累加，而是用 <code>audio.currentTime</code> 的真实差值，并对「单次差值大于 5 秒」的跳变直接丢弃。</li>
+<li>一次播放会话生成一个 <code>sessionId</code>，写入走 <code>INSERT ... ON CONFLICT DO UPDATE</code>，配合 <code>(username, session_id)</code> 的部分唯一索引，把重复的网络重试折叠成一行。</li>
+<li>自由组歌的核心 <code>buildPlan()</code> 是纯函数，输入歌曲时长和总秒数，输出一个「所有段秒数之和严格等于总时长」的分段数组——这是可以用单元测试钉死的。</li>
+<li>限流是 isolate 内存里的 Map，只能算边缘层的 best-effort，这一点在 README 里被明确写成「已知限制」，而不是藏在注释里。</li>
+</ul>
+
+这篇文章会把每一处都落到文件、函数和常量上。先把「为什么值得写」讲清楚，再讲「怎么做的」。
+<h2>整体拓扑：静态资源、Pages Functions 与 D1</h2>
+
+ECHO SPACE 的全部基础设施只有三样东西：
+<div class="codehilite"><pre><span></span><code>浏览器
+  |
+  |-- 静态资源 ------------------&gt; Cloudflare Pages
+  |                                 public/index.html
+  |                                 public/js/*.js
+  |                                 public/styles.css
+  |                                 public/audio/*
+  |
+  |-- /api/* ---------------------&gt; Pages Functions
+                                    functions/api/*.js
+                                      |
+                                      `--&gt; Cloudflare D1: echo-space-db
+</code></pre></div>
+
+
+<code>wrangler.toml</code> 里只有很短一段配置决定了这个拓扑：
+<div class="codehilite"><pre><span></span><code><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;echo-space-run&quot;</span>
+<span class="n">compatibility_date</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;2026-08-27&quot;</span>
+<span class="n">pages_build_output_dir</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;./public&quot;</span>
+
+<span class="k">[[d1_databases]]</span>
+<span class="n">binding</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;DB&quot;</span>
+<span class="n">database_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;echo-space-db&quot;</span>
+<span class="n">database_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;788e722f-9aea-48d2-89ad-f449ed393aa2&quot;</span>
+</code></pre></div>
+
+
+<code>pages_build_output_dir</code> 指向 <code>public/</code>，意味着 Pages 会把这个目录整体当作静态站点；<code>binding = "DB"</code> 让每个 Function 通过 <code>env.DB</code> 拿到 D1。没有单独的 API 服务器，没有容器，没有需要保活的进程——这正是边缘应用最迷人的地方，也是它最容易被误判的地方。
+
+误判在于：很多人以为「静态资源 + Functions」意味着「没有状态」。恰恰相反，状态全在 D1 里，而 D1 是一个<strong>地域分布的 SQLite</strong>。你写的 <code>INSERT</code>、<code>UPDATE</code>、唯一索引、事务批处理，行为和本机 SQLite 高度一致，但它的并发模型、延迟和「每次调用都是一个新 isolate」的性质，会反过来塑造你的 API 设计。后面关于会话、限流、去重、乐观锁的每一节，本质上都是在回答同一个问题：在一个没有常驻进程、每次请求都可能落到不同 isolate 的环境里，怎么把状态写对。
+<h2>前端为什么不用框架，也不留构建产物</h2>
+
+<code>public/</code> 里的前端是原生 HTML/CSS/JS，没有 React、没有 Vue、没有 Vite。目录长这样：
+<div class="codehilite"><pre><span></span><code>public/
+├── index.html          # 页面骨架：场景卡片、播放器、登录弹窗、个人页
+├── styles.css          # 深色主题、场景配色、响应式、动画、无障碍焦点
+├── free-mode.js        # 自由组歌的纯函数排程器（可单元测试）
+├── tracks-data.js      # 场景目录与本地曲目元数据
+├── durations-data.js   # 构建前生成的音频时长索引
+├── _headers            # Pages 的缓存与安全响应头
+├── audio/              # 实际音频文件
+└── js/
+    ├── main.js         # 入口：初始化、路由、事件绑定
+    ├── core.js         # 全局 state、audio 元素、SCENE_META、工具函数
+    ├── auth.js         # 登录/注册弹窗与本地登录态
+    ├── player.js       # 播放、暂停、切歌、拖动、音量、媒体键
+    ├── scene.js        # 场景切换、列表渲染、播放顺序、下一首
+    ├── stats.js        # 播放时长统计与会话 flush
+    ├── free-training.js# 自由组歌执行器（250ms tick）
+    ├── library.js      # JOOX 在线搜索与云端歌单
+    ├── profile.js      # 个人页与统计渲染
+    ├── timer.js        # 静默场景的呼吸引导与计时器
+    ├── views.js        # 视图切换与 hero 同步
+    ├── settings.js     # 设置页与分组 tab
+    └── dialog.js       # toast、焦点陷阱、背景 inert
+</code></pre></div>
+
+
+不用框架的理由不是「炫技」，而是三条很具体的约束：
+<ol>
+<li><strong>首屏只要两次请求。</strong> 静态 HTML + 一次 CSS，剩下的 JS 都是原生 <code>import</code>，浏览器自己就能缓存和并行。没有 bundle 也就没有 hydration，没有「先白屏再填充」。</li>
+<li><strong>音频播放需要接近底层的控制。</strong> <code>audio.currentTime</code>、<code>timeupdate</code>、<code>seeked</code>、<code>Media Session API</code>、<code>sendBeacon</code>——这些都得直接摸 DOM。框架的响应式在这里只增加一层「什么时候该同步」的心智负担。</li>
+<li><strong>可测试的纯函数要能脱离框架跑。</strong> 自由组歌的排程逻辑放在 <code>public/free-mode.js</code> 里，用 <code>vm.runInNewContext</code> 就能在 Node 里测，不需要 jsdom、不需要组件挂载。</li>
+</ol>
+
+代价也很诚实：没有组件系统，就意味着「播放按钮的图标和 aria 状态」这种逻辑容易散落在四个音频事件处理器里。作者后来专门在 <code>player.js</code> 里收敛成一个函数：
+<div class="codehilite"><pre><span></span><code><span class="c1">// player.js —— 播放/暂停图标 + aria 状态的唯一入口</span>
+<span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">syncPlayButton</span><span class="p">(</span><span class="nx">active</span><span class="p">,</span><span class="w"> </span><span class="nx">label</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;播放 / 暂停&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">$</span><span class="p">(</span><span class="s2">&quot;ic-play&quot;</span><span class="p">).</span><span class="nx">classList</span><span class="p">.</span><span class="nx">toggle</span><span class="p">(</span><span class="s2">&quot;hidden&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">active</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">$</span><span class="p">(</span><span class="s2">&quot;ic-pause&quot;</span><span class="p">).</span><span class="nx">classList</span><span class="p">.</span><span class="nx">toggle</span><span class="p">(</span><span class="s2">&quot;hidden&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">!</span><span class="nx">active</span><span class="p">);</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">button</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">$</span><span class="p">(</span><span class="s2">&quot;btn-play&quot;</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">button</span><span class="p">.</span><span class="nx">setAttribute</span><span class="p">(</span><span class="s2">&quot;aria-pressed&quot;</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="p">(</span><span class="nx">active</span><span class="p">));</span>
+<span class="w">  </span><span class="nx">button</span><span class="p">.</span><span class="nx">setAttribute</span><span class="p">(</span><span class="s2">&quot;aria-label&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">label</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<code>core.js</code> 里则集中了全局状态和场景元数据，避免每个模块各自维护一份：
+<div class="codehilite"><pre><span></span><code><span class="c1">// core.js —— 单一状态源</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">SCENE_META</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">silence</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;静默&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">en</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;SILENCE&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">list</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;白噪音 · 冥想&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">jump</span><span class="o">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;跳绳&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">en</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;JUMP ROPE&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">list</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;DJ 节奏歌单&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">run</span><span class="o">:</span><span class="w">     </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;跑步&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">en</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;RUNNING&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">list</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;步频歌单&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">hike</span><span class="o">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;爬山&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">en</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;HIKING&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">list</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;山野歌单&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="p">};</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">scene</span><span class="o">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">tracks</span><span class="o">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">  </span><span class="nx">idx</span><span class="o">:</span><span class="w"> </span><span class="o">-</span><span class="mf">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">playing</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">shuffle</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">loop</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;all&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nx">volume</span><span class="o">:</span><span class="w"> </span><span class="nx">readVolume</span><span class="p">(),</span>
+<span class="w">  </span><span class="nx">seeking</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="p">};</span>
+</code></pre></div>
+
+
+这里有一个容易被忽视的设计点：<code>SCENE_COLORS</code> 也被放在 <code>core.js</code>，让「个人页的统计条染色」和「最近播放记录的小圆点」用同一份颜色，而不是在两个组件里各写一套十六进制。原生前端没有 props 传递，<code>state</code> 和这些常量就是事实上的「共享上下文」，所以它们必须唯一。
+<h2>认证：PBKDF2、16 字节盐与 10000 次迭代</h2>
+
+先看密码存储的形状。<code>functions/api/_auth.js</code> 里，盐和哈希是这样生成的：
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">PASSWORD_ITERATIONS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">10000</span><span class="p">;</span>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">createPasswordSalt</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">bytesToHex</span><span class="p">(</span><span class="nx">crypto</span><span class="p">.</span><span class="nx">getRandomValues</span><span class="p">(</span><span class="ow">new</span><span class="w"> </span><span class="nb">Uint8Array</span><span class="p">(</span><span class="mf">16</span><span class="p">)));</span>
+<span class="p">}</span>
+
+<span class="k">export</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">hashPassword</span><span class="p">(</span><span class="nx">password</span><span class="p">,</span><span class="w"> </span><span class="nx">saltHex</span><span class="p">,</span><span class="w"> </span><span class="nx">iterations</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">PASSWORD_ITERATIONS</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">material</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">crypto</span><span class="p">.</span><span class="nx">subtle</span><span class="p">.</span><span class="nx">importKey</span><span class="p">(</span>
+<span class="w">    </span><span class="s2">&quot;raw&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="ow">new</span><span class="w"> </span><span class="nx">TextEncoder</span><span class="p">().</span><span class="nx">encode</span><span class="p">(</span><span class="nx">password</span><span class="p">),</span>
+<span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;PBKDF2&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">    </span><span class="p">[</span><span class="s2">&quot;deriveBits&quot;</span><span class="p">],</span>
+<span class="w">  </span><span class="p">);</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">derived</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">crypto</span><span class="p">.</span><span class="nx">subtle</span><span class="p">.</span><span class="nx">deriveBits</span><span class="p">(</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;PBKDF2&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nx">salt</span><span class="o">:</span><span class="w"> </span><span class="nx">hexToBytes</span><span class="p">(</span><span class="nx">saltHex</span><span class="p">),</span>
+<span class="w">      </span><span class="nx">iterations</span><span class="p">,</span>
+<span class="w">      </span><span class="nx">hash</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;SHA-256&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nx">material</span><span class="p">,</span>
+<span class="w">    </span><span class="mf">256</span><span class="p">,</span>
+<span class="w">  </span><span class="p">);</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">bytesToHex</span><span class="p">(</span><span class="ow">new</span><span class="w"> </span><span class="nb">Uint8Array</span><span class="p">(</span><span class="nx">derived</span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这里有三个值得停下来看的选择。
+
+<strong>第一，为什么是 PBKDF2 而不是 Argon2 或 scrypt。</strong> 因为有 Web Crypto。Pages Functions 跑在 Workers runtime 里，<code>crypto.subtle.deriveBits</code> 是原生支持的，而 Argon2 需要 WASM 或额外的 CPU 时间，在一个每次调用都有 CPU 预算的环境里不划算。PBKDF2 不是最强的密码派生函数，但它是「能在一万次迭代里稳定跑完」的那个。
+
+<strong>第二，为什么是 10000 次，而不是 OWASP 推荐的几十万次。</strong> 这是整篇文章里最「反直觉」的一个决定，而代码里的注释写得很明白：
+<div class="codehilite"><pre><span></span><code><span class="c1">// Keep this below the Pages Functions CPU budget. Raising it can make auth</span>
+<span class="c1">// requests time out at the edge.</span>
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">PASSWORD_ITERATIONS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">10000</span><span class="p">;</span>
+</code></pre></div>
+
+
+在自建服务器上，你当然应该把迭代次数拉到 600000。但 Pages Functions 的免费/低配层对单次请求的 CPU 时间有硬上限，PBKDF2 是纯 CPU 密集型运算，迭代次数一高，登录请求就会在边缘超时。作者选择了「让登录能用」，而不是「让哈希理论最优」——这是一个真实的工程取舍，而且它被明确写进了代码和 README 的已知限制，而不是悄悄埋着。
+
+<strong>第三，为什么盐用 16 字节、哈希用 256 位。</strong> 16 字节（128 位）的随机盐足够抵抗彩虹表，也足够便宜；<code>deriveBits(..., 256)</code> 让输出是 256 位，用十六进制表示就是 64 个字符，正好落在 <code>TEXT</code> 里。这两件事都不需要「更大」，因为在边缘上的每一毫秒都要算账。
+
+登录校验本身是常量时间之外的一个小细节：<code>hashPassword(password, account.password_salt)</code> 算出来的哈希和数据库里的 <code>password_hash</code> 直接字符串比较。这里没有用 <code>timingSafeEqual</code>，因为两边都是服务端派生的十六进制串，且比较的结果不直接暴露给攻击者（错误信息统一是「账号或密码不正确」）。这是一个可以接受、但也值得知道的边界。
+<h2>会话：Cookie 标志、30 天有效期与概率清扫</h2>
+
+认证通过后，服务端并不发 JWT，而是发一个存在 D1 里的随机会话 token：
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">SESSION_TTL_MS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1000</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">24</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">30</span><span class="p">;</span>
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">SESSION_COOKIE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;echo_token&quot;</span><span class="p">;</span>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">sessionCookie</span><span class="p">(</span><span class="nx">token</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="sb">`</span><span class="si">${</span><span class="nx">SESSION_COOKIE</span><span class="si">}</span><span class="sb">=</span><span class="si">${</span><span class="nx">token</span><span class="si">}</span><span class="sb">`</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;Path=/&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;HttpOnly&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;Secure&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="s2">&quot;SameSite=Lax&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="sb">`Max-Age=</span><span class="si">${</span><span class="nb">Math</span><span class="p">.</span><span class="nx">floor</span><span class="p">(</span><span class="nx">SESSION_TTL_MS</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1000</span><span class="p">)</span><span class="si">}</span><span class="sb">`</span><span class="p">,</span>
+<span class="w">  </span><span class="p">].</span><span class="nx">join</span><span class="p">(</span><span class="s2">&quot;; &quot;</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+四个标志各有分工：<code>HttpOnly</code> 让 JavaScript 读不到 token，XSS 偷不走；<code>Secure</code> 只在 HTTPS 上发送，边缘默认就是 HTTPS；<code>SameSite=Lax</code> 挡住绝大多数跨站请求伪造，同时不破坏从外部链接点进来的正常导航；<code>Max-Age</code> 让浏览器 30 天后自动丢弃。会话 token 本身是 <code>crypto.randomUUID()</code>，135 位随机性，不存在被猜中的问题。
+
+真正有意思的是「过期会话怎么清」。Pages Functions 没有 cron trigger，你没法每天凌晨跑一个清理任务。所以作者用了两段逻辑。第一段在 <code>authenticatedUsername()</code> 里——当某个用户带着 token 来访问时，如果这条 session 已经过期，就顺手删掉它：
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">authenticatedUsername</span><span class="p">(</span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">token</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">sessionToken</span><span class="p">(</span><span class="nx">request</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">token</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">session</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span>
+<span class="w">    </span><span class="s2">&quot;SELECT username, expires_at FROM echo_sessions WHERE token = ?&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">token</span><span class="p">).</span><span class="nx">first</span><span class="p">();</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">session</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">session</span><span class="p">.</span><span class="nx">expires_at</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="nb">Date</span><span class="p">.</span><span class="nx">now</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">session</span><span class="p">)</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;DELETE FROM echo_sessions WHERE token = ?&quot;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nx">token</span><span class="p">).</span><span class="nx">run</span><span class="p">();</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="c1">// 2% 概率做一次全局清扫：清掉所有已过期的 session</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">Math</span><span class="p">.</span><span class="nx">random</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nx">SESSION_SWEEP_PROBABILITY</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;DELETE FROM echo_sessions WHERE expires_at &lt;= ?&quot;</span><span class="p">).</span><span class="nx">bind</span><span class="p">(</span><span class="nb">Date</span><span class="p">.</span><span class="nx">now</span><span class="p">()).</span><span class="nx">run</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">session</span><span class="p">.</span><span class="nx">username</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+第二段是这 2% 的概率清扫。它的思路是：既然没有定时任务，就把清理工作摊到正常请求上——平均每 50 次认证请求，就有一个会顺手执行一次 <code>DELETE FROM echo_sessions WHERE expires_at &lt;= ?</code>。这样过期数据不会无限堆积，而单个请求最多多一次轻量 DELETE。<code>try {} catch {}</code> 是刻意的：清扫失败不能影响这次请求的正常返回。
+
+这个设计不完美，但它诚实地承认了边缘环境没有定时器的现实。真正的改进方向是把清扫放进 Durable Object 的 alarm，或者用 Cloudflare 的 Cron Trigger 定期调用一个 <code>/_sweep</code> 端点——这两条都写在了「如果重写」的清单里。
+<h2>限流：单 isolate 内存桶与 LRU 驱逐</h2>
+
+限流器是 <code>_auth.js</code> 里最值得单独讲的一段代码。它的接口很小：
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">createRateLimiter</span><span class="p">({</span><span class="w"> </span><span class="nx">windowMs</span><span class="p">,</span><span class="w"> </span><span class="nx">max</span><span class="p">,</span><span class="w"> </span><span class="nx">maxBuckets</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">10000</span><span class="w"> </span><span class="p">})</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">buckets</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Map</span><span class="p">();</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">check</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">},</span>
+<span class="w">    </span><span class="nx">clear</span><span class="p">(</span><span class="nx">key</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">buckets</span><span class="p">.</span><span class="ow">delete</span><span class="p">(</span><span class="nx">key</span><span class="p">);</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">};</span>
+<span class="p">}</span>
+
+<span class="kd">const</span><span class="w"> </span><span class="nx">authLimiter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createRateLimiter</span><span class="p">({</span><span class="w"> </span><span class="nx">windowMs</span><span class="o">:</span><span class="w"> </span><span class="mf">5</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1000</span><span class="p">,</span><span class="w"> </span><span class="nx">max</span><span class="o">:</span><span class="w"> </span><span class="mf">10</span><span class="w"> </span><span class="p">});</span>
+</code></pre></div>
+
+
+意思是「同一个 key，在 5 分钟内最多 10 次」。<code>check()</code> 的实现有三层防御，值得逐层看。
+
+<strong>第一层：惰性过期。</strong> 没有定时器扫 Map，而是在每次 <code>check()</code> 时比较 <code>now - bucket.startedAt &gt;= windowMs</code>，过期就重置。这是 token bucket / sliding window 的常见写法。
+
+<strong>第二层：容量上限。</strong> <code>maxBuckets = 10000</code> 是为了防止「攻击者用无数个 key 把内存撑爆」。当 Map 超过上限时，先把所有已过期的桶删掉；如果删完还超，就用「Map 的插入顺序」当作近似 LRU，从最早插入的开始驱逐：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">buckets</span><span class="p">.</span><span class="nx">size</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="nx">maxBuckets</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="p">[</span><span class="nx">bucketKey</span><span class="p">,</span><span class="w"> </span><span class="nx">bucketValue</span><span class="p">]</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">buckets</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">now</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">bucketValue</span><span class="p">.</span><span class="nx">startedAt</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nx">windowMs</span><span class="p">)</span><span class="w"> </span><span class="nx">buckets</span><span class="p">.</span><span class="ow">delete</span><span class="p">(</span><span class="nx">bucketKey</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="c1">// 若所有桶都还活跃，就淘汰最老的，避免攻击者控制的 key 无限增长内存</span>
+<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="nx">buckets</span><span class="p">.</span><span class="nx">size</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="nx">maxBuckets</span><span class="p">)</span><span class="w"> </span><span class="nx">buckets</span><span class="p">.</span><span class="ow">delete</span><span class="p">(</span><span class="nx">buckets</span><span class="p">.</span><span class="nx">keys</span><span class="p">().</span><span class="nx">next</span><span class="p">().</span><span class="nx">value</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>第三层：登录成功就清零。</strong> <code>login.js</code> 和 <code>register.js</code> 在成功后都会调用 <code>clearAuthRateLimit(request)</code>，把当前来源地址的桶删掉。这样「连续输错几次密码、然后终于输对」不会继续占用配额。
+
+现在说清楚它的<strong>物理边界</strong>，这也是 README 里明确写下的：
+<blockquote>
+
+当前限流 Map 存储在 Pages Functions isolate 内，只能作为边缘层的 best-effort 防护。若需要强抗攻击能力，应在 Cloudflare WAF、Rate Limiting Rules 或 Durable Objects 中增加分布式限流。
+</blockquote>
+
+这句话非常关键。Cloudflare 的边缘有成千上万个 isolate，每个 isolate 各自持有自己的 Map。攻击者只要让请求落到不同 isolate，就能绕过「单 isolate 10 次」的限制。所以这个限流器的真实作用不是「挡住分布式暴力破解」，而是「挡住单个连接/单个用户的快速重试」，以及降低你的 D1 写入压力。把这句话藏在代码注释里是失职，写成文档里的「已知限制」才是对读者负责。
+<h2>请求体上限：Content-Length 不可信，流式读取兜底</h2>
+
+所有写接口都限制请求体大小，默认 8 KiB。最直觉的做法是看 <code>Content-Length</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">requestExceedsLimit</span><span class="p">(</span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">maxBytes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">8192</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">length</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Number</span><span class="p">(</span><span class="nx">request</span><span class="p">.</span><span class="nx">headers</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s2">&quot;content-length&quot;</span><span class="p">));</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nb">Number</span><span class="p">.</span><span class="nb">isFinite</span><span class="p">(</span><span class="nx">length</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">length</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="nx">maxBytes</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+但 <code>Content-Length</code> 是可选的：分块传输（chunked）的请求可以不带它。所以真正的防线是边读边数：
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">readJson</span><span class="p">(</span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">maxBytes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">8192</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">requestExceedsLimit</span><span class="p">(</span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">maxBytes</span><span class="p">))</span><span class="w"> </span><span class="k">throw</span><span class="w"> </span><span class="nx">tooLarge</span><span class="p">();</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">request</span><span class="p">.</span><span class="nx">body</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">request</span><span class="p">.</span><span class="nx">json</span><span class="p">();</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">reader</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">request</span><span class="p">.</span><span class="nx">body</span><span class="p">.</span><span class="nx">getReader</span><span class="p">();</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">chunks</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[];</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="kc">true</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">done</span><span class="p">,</span><span class="w"> </span><span class="nx">value</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">reader</span><span class="p">.</span><span class="nx">read</span><span class="p">();</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">done</span><span class="p">)</span><span class="w"> </span><span class="k">break</span><span class="p">;</span>
+<span class="w">    </span><span class="nx">total</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">value</span><span class="p">.</span><span class="nx">byteLength</span><span class="p">;</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">total</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="nx">maxBytes</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="k">await</span><span class="w"> </span><span class="nx">reader</span><span class="p">.</span><span class="nx">cancel</span><span class="p">();</span>
+<span class="w">      </span><span class="k">throw</span><span class="w"> </span><span class="nx">tooLarge</span><span class="p">();</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span><span class="nx">chunks</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">value</span><span class="p">);</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="nx">reader</span><span class="p">.</span><span class="nx">releaseLock</span><span class="p">();</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">bytes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Uint8Array</span><span class="p">(</span><span class="nx">total</span><span class="p">);</span>
+<span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="nx">offset</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="nx">chunk</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">chunks</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">bytes</span><span class="p">.</span><span class="nx">set</span><span class="p">(</span><span class="nx">chunk</span><span class="p">,</span><span class="w"> </span><span class="nx">offset</span><span class="p">);</span><span class="w"> </span><span class="nx">offset</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">chunk</span><span class="p">.</span><span class="nx">byteLength</span><span class="p">;</span><span class="w"> </span><span class="p">}</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">parse</span><span class="p">(</span><span class="ow">new</span><span class="w"> </span><span class="nx">TextDecoder</span><span class="p">().</span><span class="nx">decode</span><span class="p">(</span><span class="nx">bytes</span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这一段的价值不在「能拒绝大包」，而在「不能通过省略 header 绕过限制」。<code>reader.cancel()</code> 会尽快断开上游，避免继续把数据读进内存；<code>releaseLock()</code> 保证流被正确释放。任何接受 JSON 的接口只要走 <code>readJson</code>，就同时获得了「大小上限」和「合法 JSON」两件事，调用方不需要重复写 try/catch。
+
+歌单接口是个例外，它需要更大的上限，所以显式传了 <code>MAX_LIBRARY_BYTES + 1024</code>：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">libraryJson</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">readJson</span><span class="p">(</span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">MAX_LIBRARY_BYTES</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1024</span><span class="p">);</span>
+</code></pre></div>
+
+
+多出来的 1024 字节是给 JSON 外壳（字段名、括号、引号）留的余量，因为 <code>validateLibrary()</code> 之后还会对序列化后的字节数再做一次精确判断。
+<h2>播放口径：用 currentTime 差值，而不是 setInterval</h2>
+
+这是整篇文章里最容易被写错、也最容易被忽略的一节。几乎所有「统计收听时长」的初级实现都是这样的：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 反例：不要这样写</span>
+<span class="nx">setInterval</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">playing</span><span class="p">)</span><span class="w"> </span><span class="nx">totalSeconds</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="mf">1</span><span class="p">;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">1000</span><span class="p">);</span>
+</code></pre></div>
+
+
+它有三个致命问题：第一，定时器在后台标签页会被节流，累计的秒数和真实收听对不上；第二，用户拖动进度条往后跳 3 分钟，你不会知道；第三，暂停时如果定时器没清干净，会继续加。
+
+ECHO SPACE 用的是「真实媒体时间的差值」。核心在 <code>public/js/stats.js</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">recordAudioProgress</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">seg</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">audio</span><span class="p">.</span><span class="nx">currentTime</span><span class="p">;</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nb">Number</span><span class="p">.</span><span class="nb">isFinite</span><span class="p">(</span><span class="nx">current</span><span class="p">))</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">previous</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">mediaTime</span><span class="p">;</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">state</span><span class="p">.</span><span class="nx">playing</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="nx">state</span><span class="p">.</span><span class="nx">seeking</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">Number</span><span class="p">.</span><span class="nb">isFinite</span><span class="p">(</span><span class="nx">previous</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">delta</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">current</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">previous</span><span class="p">;</span>
+<span class="w">    </span><span class="c1">// 忽略拖动和浏览器的时间跳变；正常 timeupdate 的间隔远小于 5 秒</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">delta</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">delta</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mf">5</span><span class="p">)</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">acc</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">delta</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="w">  </span><span class="nx">seg</span><span class="p">.</span><span class="nx">mediaTime</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">current</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这段逻辑有四个关键判断，每一个都对应一个真实故障：
+<ol>
+<li><strong><code>state.playing</code> 为真才累计。</strong> 暂停时不加，避免「暂停了还在涨」。</li>
+<li><strong><code>!state.seeking</code> 才累计。</strong> 拖动进度条时，<code>input</code> 事件把 <code>state.seeking</code> 设为 true，累计暂停；<code>change</code> 事件（真正落点）再调用 <code>syncMediaTime()</code> 把锚点重置到新的 <code>currentTime</code>，这样「跳过去的那一段」不会被算进收听。</li>
+<li><strong><code>delta &gt; 0</code>。</strong> 用户往回调，差值可能是负的，不累计。</li>
+<li><strong><code>delta &lt;= 5</code>。</strong> 这是最重要的一条。后台标签页恢复、系统休眠唤醒、网络缓冲都会让两次 <code>timeupdate</code> 之间的差值突然变成几十秒甚至几分钟；正常播放时这个差值通常是 0.25～1 秒。把「大于 5 秒的跳变」当作异常丢弃，是这套口径能成立的关键。</li>
+</ol>
+
+配套还有三个时机点。<code>timeupdate</code> 只负责调用 <code>recordAudioProgress()</code>；每 30 秒的定时器负责「累计到 5 秒以上就 flush 一次，但保持会话不关」：
+<div class="codehilite"><pre><span></span><code><span class="nx">setInterval</span><span class="p">(()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">seg</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="nx">state</span><span class="p">.</span><span class="nx">playing</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">recordAudioProgress</span><span class="p">();</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">seg</span><span class="p">.</span><span class="nx">acc</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mf">5</span><span class="p">)</span><span class="w"> </span><span class="nx">flushSegment</span><span class="p">({</span><span class="w"> </span><span class="nx">keepOpen</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="w"> </span><span class="p">});</span>
+<span class="p">},</span><span class="w"> </span><span class="mf">30000</span><span class="p">);</span>
+</code></pre></div>
+
+
+而页面关闭时，用的是 <code>sendBeacon</code>——因为 <code>fetch</code> 在 <code>pagehide</code> 之后可能被浏览器取消：
+<div class="codehilite"><pre><span></span><code><span class="nb">window</span><span class="p">.</span><span class="nx">addEventListener</span><span class="p">(</span><span class="s2">&quot;pagehide&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">seg</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="nx">getMe</span><span class="p">())</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">recordAudioProgress</span><span class="p">();</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">seconds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">round</span><span class="p">(</span><span class="nx">seg</span><span class="p">.</span><span class="nx">acc</span><span class="p">);</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">seconds</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">5</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">JSON</span><span class="p">.</span><span class="nx">stringify</span><span class="p">({</span><span class="w"> </span><span class="nx">sessionId</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">scene</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">scene</span><span class="p">,</span><span class="w"> </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span><span class="w"> </span><span class="nx">artist</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">artist</span><span class="p">,</span><span class="w"> </span><span class="nx">seconds</span><span class="w"> </span><span class="p">});</span>
+<span class="w">  </span><span class="k">try</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">navigator</span><span class="p">.</span><span class="nx">sendBeacon</span><span class="p">(</span><span class="s2">&quot;/api/history&quot;</span><span class="p">,</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">Blob</span><span class="p">([</span><span class="nx">body</span><span class="p">],</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;application/json&quot;</span><span class="w"> </span><span class="p">}));</span>
+<span class="w">  </span><span class="p">}</span><span class="w"> </span><span class="k">catch</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">sendHistory</span><span class="p">({</span><span class="w"> </span><span class="nx">sessionId</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">id</span><span class="p">,</span><span class="w"> </span><span class="nx">scene</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">scene</span><span class="p">,</span><span class="w"> </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">title</span><span class="p">,</span><span class="w"> </span><span class="nx">artist</span><span class="o">:</span><span class="w"> </span><span class="nx">seg</span><span class="p">.</span><span class="nx">artist</span><span class="p">,</span><span class="w"> </span><span class="nx">seconds</span><span class="w"> </span><span class="p">});</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">});</span>
+</code></pre></div>
+
+
+<code>sendBeacon</code> 的语义是「把数据交给浏览器，即使页面卸载也尽力发出去」，正好匹配「关页面时最后兜一次」的需求。加上前面 5 秒的门槛，用户只点开听了两秒就关掉，不会产生一条垃圾记录。
+<h2>会话去重：sessionId、UPSERT 与部分唯一索引</h2>
+
+播放统计最难的问题不是「怎么计时」，而是「怎么不重复」。用户按了暂停又恢复、每 30 秒 checkpoint 一次、页面关闭再发一次 beacon——同一次收听会产生很多次网络写入。如果每次 <code>POST /api/history</code> 都 <code>INSERT</code> 一行，历史里就会出现几十条同一首歌的记录。
+
+解决办法是给每一次「连续播放」分配一个 <code>sessionId</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">startPlaybackSession</span><span class="p">(</span><span class="nx">track</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">track</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="o">!</span><span class="nx">state</span><span class="p">.</span><span class="nx">scene</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">seg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">id</span><span class="o">:</span><span class="w"> </span><span class="nx">crypto</span><span class="p">.</span><span class="nx">randomUUID</span><span class="p">(),</span><span class="w">   </span><span class="c1">// 一次播放会话的唯一 id</span>
+<span class="w">    </span><span class="nx">scene</span><span class="o">:</span><span class="w"> </span><span class="nx">state</span><span class="p">.</span><span class="nx">scene</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="nx">track</span><span class="p">.</span><span class="nx">t</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">artist</span><span class="o">:</span><span class="w"> </span><span class="nx">track</span><span class="p">.</span><span class="nx">a</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">acc</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span>
+<span class="w">    </span><span class="nx">mediaTime</span><span class="o">:</span><span class="w"> </span><span class="nb">Number</span><span class="p">.</span><span class="nb">isFinite</span><span class="p">(</span><span class="nx">audio</span><span class="p">.</span><span class="nx">currentTime</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">audio</span><span class="p">.</span><span class="nx">currentTime</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span>
+<span class="w">  </span><span class="p">};</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+暂停时 <code>flushSegment()</code> 会先把 <code>seg</code> 置空（<code>keepOpen: false</code>），恢复播放时 <code>playTrack</code> 又会 <code>startPlaybackSession()</code> 生成一个新的 <code>sessionId</code>。所以「暂停再恢复」在语义上是两次会话，这是产品层面的选择——它让「听了 3 分钟、暂停、又听 2 分钟」和「连续听 5 分钟」在统计里可以区分。
+
+真正把重复写入折叠成一行的，是服务端这条语句：
+<div class="codehilite"><pre><span></span><code><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">echo_history</span><span class="w"> </span><span class="p">(</span><span class="n">username</span><span class="p">,</span><span class="w"> </span><span class="n">session_id</span><span class="p">,</span><span class="w"> </span><span class="n">updated_at</span><span class="p">,</span><span class="w"> </span><span class="n">scene</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="p">,</span><span class="w"> </span><span class="n">artist</span><span class="p">,</span><span class="w"> </span><span class="n">seconds</span><span class="p">,</span><span class="w"> </span><span class="n">played_at</span><span class="p">)</span>
+<span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">)</span>
+<span class="k">ON</span><span class="w"> </span><span class="n">CONFLICT</span><span class="w"> </span><span class="k">DO</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">SET</span>
+<span class="w">  </span><span class="n">updated_at</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">excluded</span><span class="p">.</span><span class="n">updated_at</span><span class="p">,</span>
+<span class="w">  </span><span class="n">seconds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="n">echo_history</span><span class="p">.</span><span class="n">seconds</span><span class="p">,</span><span class="w"> </span><span class="n">excluded</span><span class="p">.</span><span class="n">seconds</span><span class="p">)</span>
+</code></pre></div>
+
+
+<code>ON CONFLICT DO UPDATE</code> 需要一个冲突目标，而这里没有显式写 <code>ON CONFLICT (username, session_id)</code>，是因为表上有一个<strong>部分唯一索引</strong>：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="n">idx_history_user_session</span>
+<span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">echo_history</span><span class="p">(</span><span class="n">username</span><span class="p">,</span><span class="w"> </span><span class="n">session_id</span><span class="p">)</span>
+<span class="w">  </span><span class="k">WHERE</span><span class="w"> </span><span class="n">session_id</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+</code></pre></div>
+
+
+这个部分唯一索引是整套设计的枢纽，有三个细节：
+<ul>
+<li><strong><code>(username, session_id)</code> 而不是单独的 <code>session_id</code>。</strong> <code>sessionId</code> 是客户端用 <code>crypto.randomUUID()</code> 生成的，理论上可能撞车；加上 <code>username</code> 之后，唯一性约束的语义变成「同一个用户的同一个会话」，即使两个用户生成了一样的 UUID 也不冲突。</li>
+<li><strong><code>seconds = MAX(echo_history.seconds, excluded.seconds)</code>。</strong> 后到的请求只会把秒数往大了更新，不会把之前累计的时长改小。这样即使网络乱序、beacon 晚到，历史也不会缩水。</li>
+<li><strong><code>WHERE session_id IS NOT NULL</code>。</strong> 旧数据没有 <code>session_id</code>，这个部分索引把它们排除在外，所以历史表可以同时容纳「新的会话级记录」和「旧的逐条记录」，迁移时不需要回填。</li>
+</ul>
+
+写入之前还有两道校验。<code>sessionId</code> 必须匹配 <code>^[A-Za-z0-9_-]{16,80}$</code>，防止注入奇怪字符或超长 key；<code>seconds</code> 必须满足 <code>0 &lt; seconds &lt;= 3 * 3600</code>，小于等于 0 或超过 3 小时直接返回 <code>{ ok: true, skipped: true }</code>——注意它返回的是成功，而不是错误，因为「这次没记」不是客户端的错。
+<h2>数据库迁移：给旧历史表加列而不重写数据</h2>
+
+第 4 个迁移文件是理解这套 schema 演进的钥匙：
+<div class="codehilite"><pre><span></span><code><span class="c1">-- 0002_history_sessions.sql</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">echo_history</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">session_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">;</span>
+<span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">echo_history</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">updated_at</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">;</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">UNIQUE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">idx_history_user_session</span>
+<span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">echo_history</span><span class="p">(</span><span class="n">username</span><span class="p">,</span><span class="w"> </span><span class="n">session_id</span><span class="p">)</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">session_id</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">;</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">idx_history_user_updated</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">echo_history</span><span class="p">(</span><span class="n">username</span><span class="p">,</span><span class="w"> </span><span class="n">updated_at</span><span class="w"> </span><span class="k">DESC</span><span class="p">);</span>
+<span class="k">CREATE</span><span class="w"> </span><span class="k">INDEX</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">idx_sessions_expires</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">echo_sessions</span><span class="p">(</span><span class="n">expires_at</span><span class="p">);</span>
+</code></pre></div>
+
+
+这里的顺序很重要：先 <code>ADD COLUMN</code>，再建部分唯一索引。SQLite（以及 D1）允许给已有表加列，新列默认是 <code>NULL</code>；因为索引带了 <code>WHERE session_id IS NOT NULL</code>，所有旧行的 <code>session_id</code> 都是 <code>NULL</code>，所以它们不会进入这个唯一索引，也不会互相冲突。换句话说，<strong>迁移没有重写任何旧数据</strong>，旧记录继续以「每条一个 id」的方式存在，新记录以「每个会话一个 session_id」的方式存在。
+
+<code>echo_history</code> 的完整字段（来自 <code>schema.sql</code>）是这样的：
+<div class="codehilite"><pre><span></span><code><span class="k">CREATE</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="k">IF</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">EXISTS</span><span class="w"> </span><span class="n">echo_history</span><span class="w"> </span><span class="p">(</span>
+<span class="w">  </span><span class="n">id</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">PRIMARY</span><span class="w"> </span><span class="k">KEY</span><span class="w"> </span><span class="n">AUTOINCREMENT</span><span class="p">,</span>
+<span class="w">  </span><span class="n">username</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">session_id</span><span class="w"> </span><span class="nb">TEXT</span><span class="p">,</span>
+<span class="w">  </span><span class="n">updated_at</span><span class="w"> </span><span class="nb">INTEGER</span><span class="p">,</span>
+<span class="w">  </span><span class="n">scene</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">title</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">artist</span><span class="w"> </span><span class="nb">TEXT</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="p">,</span>
+<span class="w">  </span><span class="n">seconds</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">  </span><span class="n">played_at</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<span class="p">);</span>
+</code></pre></div>
+
+
+注意 <code>updated_at</code> 和 <code>played_at</code> 是两回事：<code>played_at</code> 是<strong>首次写入时间</strong>，不会变；<code>updated_at</code> 是<strong>最近一次 checkpoint 时间</strong>，每次 UPSERT 都会更新。这个区分在统计聚合里非常关键——「最近播放」应该按 <code>updated_at</code> 排，而「14 天活跃日历」应该按 <code>played_at</code> 归属日期。
+
+迁移一共四个，节奏很清楚：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>迁移文件</th>
+<th>做了什么</th>
+<th>为什么单独拆出来</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0001_init.sql</code></td>
+<td>建 <code>echo_users</code>、<code>echo_sessions</code>、<code>echo_history</code> 与基础索引</td>
+<td>初始结构</td>
+</tr>
+<tr>
+<td><code>0002_history_sessions.sql</code></td>
+<td>给历史表加 <code>session_id</code>、<code>updated_at</code>，建部分唯一索引</td>
+<td>支持会话级去重，不动旧数据</td>
+</tr>
+<tr>
+<td><code>0003_libraries.sql</code></td>
+<td>建云端歌单表 <code>echo_libraries</code></td>
+<td>新增功能</td>
+</tr>
+<tr>
+<td><code>0004_library_rev.sql</code></td>
+<td>给歌单表加 <code>rev</code> 乐观锁字段</td>
+<td>并发写入冲突检测</td>
+</tr>
+</tbody>
+</table></div>
+
+这种「每个迁移只做一件事」的纪律，比「一个大 schema.sql 反复执行」可靠得多。README 里也明确写了：线上库不要直接跑 <code>schema.sql</code> 里的 <code>ALTER</code>，要走 <code>npm run db:migrate</code>，因为迁移系统会记录哪些文件已经执行过。
+<h2>统计聚合：按会话去重、14 天日历与 UTC+14 的坑</h2>
+
+<code>GET /api/history</code> 是整个后端里最复杂的一个 handler。它要在一个请求里返回四组数据：总量、按场景分布、最近 14 天、最近 50 条。四条 SQL 用 <code>Promise.all</code> 并发，然后拼装。
+
+<strong>总量：按会话去重。</strong> 这里的关键是 <code>COUNT(DISTINCT COALESCE(session_id, 'legacy:' || id))</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="k">COUNT</span><span class="p">(</span><span class="k">DISTINCT</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">session_id</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;legacy:&#39;</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">id</span><span class="p">))</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">plays</span><span class="p">,</span>
+<span class="w">       </span><span class="k">COALESCE</span><span class="p">(</span><span class="k">SUM</span><span class="p">(</span><span class="n">seconds</span><span class="p">),</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">seconds</span><span class="p">,</span>
+<span class="w">       </span><span class="k">MIN</span><span class="p">(</span><span class="n">played_at</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">first_at</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">echo_history</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">?</span>
+</code></pre></div>
+
+
+<code>COALESCE(session_id, 'legacy:' || id)</code> 的意思是：新数据用 <code>session_id</code> 作为「一次播放」的身份，旧数据没有 <code>session_id</code>，就用 <code>'legacy:' || id</code> 合成一个唯一值。这样 <code>COUNT(DISTINCT ...)</code> 既能正确统计新的会话级播放，也能兼容旧的逐条记录。<code>SUM(seconds)</code> 则直接累加——因为同一会话的 UPSERT 已经把秒数收敛成一行，不会重复加。
+
+<strong>按场景分布：</strong> 同样的 <code>COUNT(DISTINCT ...)</code>，只是加了 <code>GROUP BY scene</code>，结果被拼成一个对象：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">byScene</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{};</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">const</span><span class="w"> </span><span class="nx">row</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">bySceneRows</span><span class="p">.</span><span class="nx">results</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">[])</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">byScene</span><span class="p">[</span><span class="nx">row</span><span class="p">.</span><span class="nx">scene</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">plays</span><span class="o">:</span><span class="w"> </span><span class="nx">row</span><span class="p">.</span><span class="nx">plays</span><span class="p">,</span><span class="w"> </span><span class="nx">seconds</span><span class="o">:</span><span class="w"> </span><span class="nx">row</span><span class="p">.</span><span class="nx">seconds</span><span class="w"> </span><span class="p">};</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<strong>14 天日历：这里有一个真正的坑。</strong> 前端要的是「最近 14 天，每天听了多少秒」，横轴是日期标签。直觉写法是「取今天，往前推 13 天，生成 14 个日期字符串」。但如果只按服务器所在的时区算，UTC+12 到 UTC+14 的用户会看到日期整体错位一天。作者的处理方式是：在<strong>请求要求的时区</strong>里确定「今天」，再用 UTC 的锚点生成 14 个日历日期：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">dayKey</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nx">ts</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">toDateKey</span><span class="p">(</span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">(</span><span class="nx">ts</span><span class="p">),</span><span class="w"> </span><span class="nx">formatter</span><span class="p">);</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">todayParts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Object</span><span class="p">.</span><span class="nx">fromEntries</span><span class="p">(</span>
+<span class="w">  </span><span class="nx">formatter</span><span class="p">.</span><span class="nx">formatToParts</span><span class="p">(</span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">()).</span><span class="nx">map</span><span class="p">((</span><span class="nx">p</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">[</span><span class="nx">p</span><span class="p">.</span><span class="nx">type</span><span class="p">,</span><span class="w"> </span><span class="nx">p</span><span class="p">.</span><span class="nx">value</span><span class="p">]),</span>
+<span class="p">);</span>
+<span class="c1">// 用 UTC 的正午作为锚点生成 14 个标签；再用 UTC 格式化，</span>
+<span class="c1">// 避免在 UTC+12..+14 的时区里把日期整体推后一天。</span>
+<span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kd">let</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">13</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span><span class="w"> </span><span class="nx">i</span><span class="o">--</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">anchor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nb">Date</span><span class="p">(</span>
+<span class="w">    </span><span class="nb">Date</span><span class="p">.</span><span class="nx">UTC</span><span class="p">(</span><span class="nb">Number</span><span class="p">(</span><span class="nx">todayParts</span><span class="p">.</span><span class="nx">year</span><span class="p">),</span><span class="w"> </span><span class="nb">Number</span><span class="p">(</span><span class="nx">todayParts</span><span class="p">.</span><span class="nx">month</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="nb">Number</span><span class="p">(</span><span class="nx">todayParts</span><span class="p">.</span><span class="nx">day</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">i</span><span class="p">,</span><span class="w"> </span><span class="mf">12</span><span class="p">),</span>
+<span class="w">  </span><span class="p">);</span>
+<span class="w">  </span><span class="nx">days</span><span class="p">.</span><span class="nx">push</span><span class="p">({</span><span class="w"> </span><span class="nx">date</span><span class="o">:</span><span class="w"> </span><span class="nx">toDateKey</span><span class="p">(</span><span class="nx">anchor</span><span class="p">,</span><span class="w"> </span><span class="nx">utcFormatter</span><span class="p">),</span><span class="w"> </span><span class="nx">seconds</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="w"> </span><span class="p">});</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+注释里那句「用 UTC 正午作锚点」是精髓。如果直接用本地零点，UTC+14 的「今天」和 UTC 的「今天」会差一天；用正午作锚点，再统一用 UTC 格式化，就能让日期标签在不同时区下都稳定。这个坑甚至有一个专门的测试（<code>tests/history.test.mjs</code>），用 <code>Pacific/Kiritimati</code>（UTC+14）验证最后一天就是用户本地的今天：
+<div class="codehilite"><pre><span></span><code><span class="nx">test</span><span class="p">(</span><span class="s2">&quot;history day labels keep the requested UTC+14 calendar date&quot;</span><span class="p">,</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">request</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="ow">new</span><span class="w"> </span><span class="nx">Request</span><span class="p">(</span><span class="s2">&quot;https://example.test/api/history?tz=Pacific%2FKiritimati&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">headers</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">cookie</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;echo_token=test-token&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="p">});</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">onRequestGet</span><span class="p">({</span><span class="w"> </span><span class="nx">request</span><span class="p">,</span><span class="w"> </span><span class="nx">env</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">DB</span><span class="o">:</span><span class="w"> </span><span class="nx">fakeDb</span><span class="p">()</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="p">});</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">body</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">response</span><span class="p">.</span><span class="nx">json</span><span class="p">();</span>
+<span class="w">  </span><span class="nx">assert</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">body</span><span class="p">.</span><span class="nx">days</span><span class="p">.</span><span class="nx">length</span><span class="p">,</span><span class="w"> </span><span class="mf">14</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">assert</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">body</span><span class="p">.</span><span class="nx">days</span><span class="p">.</span><span class="nx">at</span><span class="p">(</span><span class="o">-</span><span class="mf">1</span><span class="p">).</span><span class="nx">date</span><span class="p">,</span><span class="w"> </span><span class="cm">/* 本地今天 */</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div>
+
+
+<strong>最近 50 条：</strong> 按 <code>COALESCE(updated_at, played_at)</code> 倒序，这样刚刚 checkpoint 过的会话会排到最前面，而不是按首次播放时间沉底：
+<div class="codehilite"><pre><span></span><code><span class="k">SELECT</span><span class="w"> </span><span class="n">scene</span><span class="p">,</span><span class="w"> </span><span class="n">title</span><span class="p">,</span><span class="w"> </span><span class="n">artist</span><span class="p">,</span><span class="w"> </span><span class="n">seconds</span><span class="p">,</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">updated_at</span><span class="p">,</span><span class="w"> </span><span class="n">played_at</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">played_at</span>
+<span class="k">FROM</span><span class="w"> </span><span class="n">echo_history</span><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">username</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">?</span>
+<span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="k">COALESCE</span><span class="p">(</span><span class="n">updated_at</span><span class="p">,</span><span class="w"> </span><span class="n">played_at</span><span class="p">)</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">50</span>
+</code></pre></div>
+
+
+至于 <code>tz</code> 参数本身，也不是直接信任：<code>requestedTimeZone()</code> 会先用 <code>Intl.DateTimeFormat</code> 试着格式化一次，非法时区就回退到 <code>UTC</code>。这比白名单更宽容，也比不校验更安全。
+<h2>自由组歌：把训练计划写成纯函数</h2>
+
+自由组歌是 ECHO SPACE 里最像「产品」的功能：你选一个训练总时长（10～180 分钟），系统把它切成「歌曲段 + 休息段 + 热身 + 拉伸」，并且保证<strong>所有段的秒数之和严格等于你选的总时长</strong>。这个保证不是靠 UI 拼出来的，而是靠一个纯函数 + 单元测试钉死的。
+
+核心在 <code>public/free-mode.js</code> 的 <code>buildPlan()</code>。它的签名很朴素：
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">buildPlan</span><span class="p">(</span><span class="nx">scene</span><span class="p">,</span><span class="w"> </span><span class="nx">tracks</span><span class="p">,</span><span class="w"> </span><span class="nx">durations</span><span class="p">,</span><span class="w"> </span><span class="nx">totalSeconds</span><span class="p">,</span><span class="w"> </span><span class="nx">order</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="cm">/* ... */</span><span class="w"> </span><span class="p">}</span>
+</code></pre></div>
+
+
+输入是场景、曲目列表、每首的时长、总秒数和播放顺序，输出是一个 <code>segments</code> 数组。开头先算「热身 + 拉伸」各占多少：
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">guidedPhaseSeconds</span><span class="p">(</span><span class="nx">totalSeconds</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">total</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">max</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">round</span><span class="p">(</span><span class="nb">Number</span><span class="p">(</span><span class="nx">totalSeconds</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="mf">0</span><span class="p">));</span>
+<span class="w">  </span><span class="c1">// 热身/拉伸最多各 3 分钟，且不超过总时长的 20%</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">min</span><span class="p">(</span><span class="nx">GUIDED_PHASE_MAX_SECONDS</span><span class="p">,</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">floor</span><span class="p">(</span><span class="nx">total</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">0.2</span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+然后主循环只做一件事：从剩余时间里不断切出「当前这首歌的一段」，直到剩余归零。关键的一行是：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">seconds</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">min</span><span class="p">(</span><span class="nx">duration</span><span class="p">,</span><span class="w"> </span><span class="nx">remaining</span><span class="p">);</span>
+</code></pre></div>
+
+
+这一行保证了「最后一首歌不会因为自身时长超过剩余时间而把训练拉长」。比如总共只剩 12 秒，而下一首歌有 4 分钟，那这一段的秒数就是 12 秒，而不是 240 秒。循环结束后还会兜底：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">remaining</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">segments</span><span class="p">.</span><span class="nx">push</span><span class="p">({</span><span class="w"> </span><span class="nx">type</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;work&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">trackIndex</span><span class="o">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span><span class="w"> </span><span class="nx">title</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;训练结束前的缓冲&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">seconds</span><span class="o">:</span><span class="w"> </span><span class="nx">remaining</span><span class="w"> </span><span class="p">});</span>
+<span class="w">  </span><span class="nx">remaining</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+正常情况下 <code>remaining</code> 一定归零；这层兜底是为了「空歌单或异常输入」时不丢秒数。最终的返回对象里带上了 <code>totalSeconds</code>、<code>workSeconds</code>、<code>restSeconds</code> 和 <code>segments</code>，其中 <code>totalSeconds</code> 是用户选择的原值，而 <code>segments</code> 的秒数之和必须等于它——这条不变式被测试直接断言：
+<div class="codehilite"><pre><span></span><code><span class="nx">test</span><span class="p">(</span><span class="s2">&quot;buildPlan keeps requested duration exact&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">tracks</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[{</span><span class="w"> </span><span class="nx">t</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">a</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;x&quot;</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">t</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">a</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;y&quot;</span><span class="w"> </span><span class="p">}];</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">plan</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">free</span><span class="p">.</span><span class="nx">buildPlan</span><span class="p">(</span><span class="s2">&quot;run&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">tracks</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="mf">120</span><span class="p">,</span><span class="w"> </span><span class="mf">120</span><span class="p">],</span><span class="w"> </span><span class="mf">1800</span><span class="p">,</span><span class="w"> </span><span class="p">[</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="mf">1</span><span class="p">]);</span>
+<span class="w">  </span><span class="nx">assert</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">plan</span><span class="p">.</span><span class="nx">segments</span><span class="p">.</span><span class="nx">reduce</span><span class="p">((</span><span class="nx">sum</span><span class="p">,</span><span class="w"> </span><span class="nx">s</span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nx">sum</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nx">s</span><span class="p">.</span><span class="nx">seconds</span><span class="p">,</span><span class="w"> </span><span class="mf">0</span><span class="p">),</span><span class="w"> </span><span class="mf">1800</span><span class="p">);</span>
+<span class="w">  </span><span class="nx">assert</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span><span class="nx">plan</span><span class="p">.</span><span class="nx">totalSeconds</span><span class="p">,</span><span class="w"> </span><span class="mf">1800</span><span class="p">);</span>
+<span class="p">});</span>
+</code></pre></div>
+
+
+除了 <code>buildPlan</code>，还有 <code>buildSelectedPlan()</code> 处理「用户手动选了某几首歌」的场景。它和 <code>buildPlan</code> 的区别是：不按总时长截断，而是按选中顺序完整排完；热身/拉伸按「实际歌曲总时长」的 20% 计算，而不是用户选的时长。还有一个 <code>estimateSelectedTotal()</code>，在用户还没生成计划时，先根据时长索引估一个「预计总时长（含休息）」显示在按钮上。这三个函数的共同点是：都不碰 DOM、不读全局状态、只依赖入参——所以它们能在 Node 里被 <code>vm.runInNewContext</code> 直接加载测试。
+<h2>排程规则：跳绳、跑步、爬山三种休息模型</h2>
+
+三种运动场景的休息规则，被抽成一个 <code>PROFILES</code> 表：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">PROFILES</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">silence</span><span class="o">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">restEvery</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">restSeconds</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;连续播放&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">jump</span><span class="o">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">restEvery</span><span class="o">:</span><span class="w"> </span><span class="mf">1</span><span class="p">,</span><span class="w"> </span><span class="nx">restSeconds</span><span class="o">:</span><span class="w"> </span><span class="mf">30</span><span class="p">,</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;每首歌后休息 30 秒&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">run</span><span class="o">:</span><span class="w">     </span><span class="p">{</span><span class="w"> </span><span class="nx">restEvery</span><span class="o">:</span><span class="w"> </span><span class="mf">4</span><span class="p">,</span><span class="w"> </span><span class="nx">restSeconds</span><span class="o">:</span><span class="w"> </span><span class="mf">45</span><span class="p">,</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;每 4 首后休息 45 秒&quot;</span><span class="w"> </span><span class="p">},</span>
+<span class="w">  </span><span class="nx">hike</span><span class="o">:</span><span class="w">    </span><span class="p">{</span><span class="w"> </span><span class="nx">restEvery</span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">restSeconds</span><span class="o">:</span><span class="w"> </span><span class="mf">300</span><span class="p">,</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;每 30 分钟休息 5 分钟&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">isTimeBased</span><span class="o">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span><span class="w"> </span><span class="nx">intervalOptions</span><span class="o">:</span><span class="w"> </span><span class="nx">HIKE_INTERVALS</span><span class="w"> </span><span class="p">},</span>
+<span class="p">};</span>
+</code></pre></div>
+
+
+这里有三种模型，分别对应三种运动节奏：
+<ul>
+<li><strong>跳绳（jump）：按「首数」触发。</strong> <code>restEvery: 1</code>，每唱完一首就休息 30 秒。跳绳是间歇性高强度，一首歌一个循环刚好。</li>
+<li><strong>跑步（run）：按「首数」触发，但更稀。</strong> <code>restEvery: 4</code>，每 4 首休息 45 秒，歌曲之间默认连续播放。跑步需要的是稳定的步频，频繁打断反而破坏节奏。</li>
+<li><strong>爬山（hike）：按「时间」触发。</strong> <code>isTimeBased: true</code>，<code>restEvery</code> 是 0，休息不是按首数而是按累计工作时长：<code>accWork += seconds; if (accWork &gt;= intervalSeconds) { rest }</code>。间隔由用户在 <code>HIKE_INTERVALS = [15, 30, 45, 60, 90, 120]</code> 里选，默认 30 分钟。爬山是低强度长时间，按时间休息更符合体力曲线。</li>
+</ul>
+
+代码里有一个细节值得注意：休息段如果剩余时间不足 5 秒，就直接跳过（<code>if (rest &lt; 5) continue;</code>）。这不是为了省事，而是因为「休息 3 秒」在体验上没有意义，还会让计划里出现大量碎片段。跳过这几秒不会导致总时长不准，因为后续的歌曲段会把剩余的秒数吃掉。
+
+<code>buildSelectedPlan()</code> 里还有一处针对「时间制」和「首数制」的分支。时间制在累计工作时长达到间隔时插入休息，且最后一首歌之后不休息；首数制在 <code>workCount % restEvery === 0</code> 时插入休息，且最后一首之后也不休息。这样「训练结束时」永远是干净的收尾，而不是「先休息再结束」。
+<h2>时长索引：不下载整首歌也能知道它多长</h2>
+
+自由组歌需要知道每首歌多长，但音频文件动辄几 MB，而且很多是 MP3。你不能为了排一个 30 分钟的计划，把 10 首歌全下载下来读时长。<code>tools/generate-durations.mjs</code> 解决的就是这个问题：它在<strong>部署前</strong>读每个音频文件的容器头部，解析出时长，写成一个静态索引 <code>public/durations-data.js</code>。
+
+关键约束是「只读 4 MB」：
+<div class="codehilite"><pre><span></span><code><span class="c1">// 容器头和 Xing 元数据通常都在文件前部；</span>
+<span class="c1">// 避免为了读时长把整个几 MB 的音频都加载进内存。</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">length</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">min</span><span class="p">(</span><span class="nx">size</span><span class="p">,</span><span class="w"> </span><span class="mf">4</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1024</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1024</span><span class="p">);</span>
+</code></pre></div>
+
+
+MP4/M4A 走的是解析 <code>mvhd</code> atom：找到 <code>mvhd</code> 标记，读版本号，版本 0 读 32 位的 timescale/duration，版本 1 读 64 位的，然后 <code>duration / timescale</code> 就是秒数。MP3 走的是解析帧头：跳过 ID3v2，找到第一个合法的帧头，读出码率和采样率；如果帧头后面跟着 <code>Xing</code> 或 <code>Info</code> 标记，就直接读「总帧数 × 每帧采样数 / 采样率」，这比按码率估算更准。
+
+还有一个容错：有些 MP4 把 <code>moov</code> atom 放在文件末尾（没有做 faststart）。前 4 MB 里找不到 <code>mvhd</code> 时，脚本会再读一段尾部窗口：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">headDuration</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">size</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="nx">length</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="nx">headDuration</span><span class="p">;</span>
+<span class="c1">// 有些 MP4 把 moov 放在 EOF，读一段有界的尾部窗口再试</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">tailOffset</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">size</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">length</span><span class="p">;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">tail</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">Buffer</span><span class="p">.</span><span class="nx">alloc</span><span class="p">(</span><span class="nx">length</span><span class="p">);</span>
+</code></pre></div>
+
+
+这个「读头 + 读尾」的组合，既避免了加载整文件，又覆盖了绝大多数容器布局。生成出来的索引长这样：
+<div class="codehilite"><pre><span></span><code><span class="nb">window</span><span class="p">.</span><span class="nx">ECHO_DURATIONS</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">silence</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="mf">612.4</span><span class="p">,</span><span class="w"> </span><span class="mf">533.1</span><span class="p">,</span><span class="w"> </span><span class="p">...],</span><span class="w"> </span><span class="nx">jump</span><span class="o">:</span><span class="w"> </span><span class="p">[...],</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">};</span>
+</code></pre></div>
+
+
+前端 <code>core.js</code> 的 <code>durationHint()</code> 会按「在线曲目自带时长 → 静态索引 → 从标题里解析『分钟』→ 默认 210 秒」的顺序取值。这个多级回退保证了「即使索引缺失，计划也能生成」，只是估算会粗一点。
+<h2>执行器：250ms tick、卡顿补偿与阶段切换</h2>
+
+计划生成只是纸面，执行器才是真正在跑的东西。<code>public/js/free-training.js</code> 维护一个 <code>freeSession</code>，每 250ms tick 一次：
+<div class="codehilite"><pre><span></span><code><span class="nx">freeTicker</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">setInterval</span><span class="p">(</span><span class="nx">tickFreeTraining</span><span class="p">,</span><span class="w"> </span><span class="mf">250</span><span class="p">);</span>
+</code></pre></div>
+
+
+<code>tickFreeTraining()</code> 面对两种段，处理方式不同。
+
+<strong>歌曲段（work）：以音频的真实播放进度为准。</strong> 它比较 <code>audio.currentTime</code> 和这一段的 <code>seconds</code>，接近末尾就切下一段：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">segment</span><span class="p">.</span><span class="nx">type</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s2">&quot;work&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="nx">freeSession</span><span class="p">.</span><span class="nx">internal</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">cur</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Number</span><span class="p">.</span><span class="nb">isFinite</span><span class="p">(</span><span class="nx">audio</span><span class="p">.</span><span class="nx">currentTime</span><span class="p">)</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="nx">audio</span><span class="p">.</span><span class="nx">currentTime</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="mf">0</span><span class="p">;</span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">cur</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nx">segment</span><span class="p">.</span><span class="nx">seconds</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mf">0.25</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">advanceFreeSegment</span><span class="p">();</span>
+<span class="w">    </span><span class="k">return</span><span class="p">;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这里有一个「卡顿补偿」的机制，非常值得学。如果音频因为缓冲卡住了（<code>audio.paused</code> 或 <code>currentTime</code> 不走），而倒计时还在按墙上时钟走，用户就会看到「音乐没放完，倒计时先到」。所以当检测到卡顿时，执行器会把这一段的结束时间和总结束时间<strong>往后推</strong>：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">stalled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">audio</span><span class="p">.</span><span class="nx">paused</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">abs</span><span class="p">(</span><span class="nx">cur</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nx">freeLastMedia</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">0.001</span><span class="p">;</span>
+<span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">stalled</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">delay</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">Math</span><span class="p">.</span><span class="nx">max</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="nx">now</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="nx">freeSession</span><span class="p">.</span><span class="nx">lastTick</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nx">now</span><span class="p">));</span>
+<span class="w">  </span><span class="nx">freeSession</span><span class="p">.</span><span class="nx">phaseEndAt</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">delay</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">freeSession</span><span class="p">.</span><span class="nx">totalEndAt</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="nx">delay</span><span class="p">;</span>
+<span class="w">  </span><span class="nx">stopMetro</span><span class="p">();</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这样「卡了 3 秒」就等于「训练整体顺延 3 秒」，而不是「少听了 3 秒」。这个补偿只作用于歌曲段；休息段和热身/拉伸本来就是纯计时，不需要补偿。
+
+<strong>非歌曲段（休息/热身/拉伸）：以墙上时钟为准。</strong> 它们没有音频进度可依赖，所以直接用 <code>phaseEndAt</code>：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">segment</span><span class="p">.</span><span class="nx">type</span><span class="w"> </span><span class="o">!==</span><span class="w"> </span><span class="s2">&quot;work&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">now</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="nx">freeSession</span><span class="p">.</span><span class="nx">phaseEndAt</span><span class="p">)</span><span class="w"> </span><span class="nx">advanceFreeSegment</span><span class="p">();</span>
+</code></pre></div>
+
+
+阶段切换 <code>advanceFreeSegment()</code> 有一个 <code>transitioning</code> 锁，防止 250ms tick 和音频事件（<code>ended</code>/<code>timeupdate</code>）同时触发导致「连续切两段」。每次切换都会 <code>index += 1</code>，然后 <code>beginFreeSegment()</code> 重新设置 <code>phaseEndAt</code>、重置 <code>freeLastMedia</code>，并对不同段做不同的事：歌曲段调 <code>playTrack()</code> 起音频，休息段 <code>audio.pause()</code> 并触发语音播报。
+
+还有一个 0.18～0.25 秒的「提前量」。为什么不是精确等于 <code>seconds</code> 才切？因为音频事件和定时器都有几十毫秒的抖动，如果严格等 <code>cur &gt;= seconds</code>，可能等不到（音频实际长度比计划短几毫秒）而卡在最后一段。留一个提前量，既保证一定切得动，又几乎听不出差别。
+
+<code>pauseFreeTraining()</code> / <code>resumeFreeTraining()</code> 负责暂停恢复。暂停时记录「当前段还剩多少秒」和「总剩余多少秒」，恢复时按墙上时钟重新算 <code>phaseEndAt</code>/<code>totalEndAt</code>，并重新 <code>audio.play()</code>。这里用了一个 <code>internal</code> 标志：执行器内部主动调用 <code>audio.pause()</code> 时，不要触发「用户暂停」的逻辑，否则会递归。
+<h2>静默场景：呼吸引导与计时器</h2>
+
+静默场景不参与自由组歌，它有两个独立的东西：呼吸视觉引导和专注计时器，都在 <code>public/js/timer.js</code>。
+
+呼吸引导是一组 CSS 动画（吸气放大、呼气缩小），由 <code>startBreathVisual()</code> / <code>stopBreathVisual()</code> 控制开关，只在静默场景播放时启动。它不涉及任何计时逻辑，纯粹是视觉陪伴。
+
+计时器则是 15/30/45/60 分钟的专注倒计时。它和自由组歌的执行器共享同一个 <code>AudioContext</code>（<code>core.js</code> 里的 <code>ensureAudioCtx()</code>），因为浏览器对 AudioContext 的数量有限制，而且用户手势激活后复用同一个上下文更稳。计时结束会播放一个提示音并停止音频。
+
+这里有一个容易被忽略的细节：静默场景的计时器用的是<strong>墙上时钟</strong>（<code>Date.now()</code> 差值），而不是音频进度。因为白噪音音频可能是循环播放的，<code>currentTime</code> 会重置，不能用来做倒计时。这也反过来证明了「播放时长统计」和「专注计时」是两套不同的时间口径，不能混用。
+<h2>在线音源：JOOX 代理、临时 URL 与 5 分钟刷新</h2>
+
+跳绳/跑步/爬山三个场景的歌曲来自在线搜索（JOOX），而静默场景用本地音频。在线音源带来三个问题：跨域、密钥、临时 URL。
+
+跨域和密钥都由服务端的 <code>functions/api/search.js</code> 代理解决：
+<div class="codehilite"><pre><span></span><code><span class="kd">const</span><span class="w"> </span><span class="nx">JOOX_ENDPOINT</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;https://apicx.asia/api/joox_music&quot;</span><span class="p">;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">MAX_UPSTREAM_BYTES</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">512</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1024</span><span class="p">;</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">searchLimiter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createRateLimiter</span><span class="p">({</span><span class="w"> </span><span class="nx">windowMs</span><span class="o">:</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1000</span><span class="p">,</span><span class="w"> </span><span class="nx">max</span><span class="o">:</span><span class="w"> </span><span class="mf">30</span><span class="w"> </span><span class="p">});</span>
+<span class="kd">const</span><span class="w"> </span><span class="nx">searchIpLimiter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createRateLimiter</span><span class="p">({</span><span class="w"> </span><span class="nx">windowMs</span><span class="o">:</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1000</span><span class="p">,</span><span class="w"> </span><span class="nx">max</span><span class="o">:</span><span class="w"> </span><span class="mf">120</span><span class="w"> </span><span class="p">});</span>
+</code></pre></div>
+
+
+这个代理有五个保护：只接受同源登录请求；按用户限流 30 次/分钟；按 IP 限流 120 次/分钟；上游响应超过 512 KiB 直接拒绝；上游请求 9 秒超时（<code>AbortController</code>）。<code>readLimitedText()</code> 和 <code>readJson()</code> 是同一个思路——边读边数，不能只信 <code>Content-Length</code>。token 从 <code>env.JOOX_TOKEN</code> 读，缺失时返回 503 而不是崩掉。
+
+临时 URL 的问题在前端。JOOX 返回的 <code>audioUrl</code> 是有时效的，不能长期存在歌单里。所以 <code>library.js</code> 的 <code>fetchJooxDetails()</code> 会在播放前即时拉取，而 <code>player.js</code> 用一个 5 分钟窗口判断「要不要刷新」：
+<div class="codehilite"><pre><span></span><code><span class="kd">function</span><span class="w"> </span><span class="nx">needsOnlineRefresh</span><span class="p">(</span><span class="nx">track</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nb">Boolean</span><span class="p">(</span><span class="nx">track</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">isOnlineScene</span><span class="p">(</span><span class="nx">state</span><span class="p">.</span><span class="nx">scene</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nx">track</span><span class="p">.</span><span class="nx">source</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s2">&quot;joox&quot;</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">track</span><span class="p">.</span><span class="nx">audioUrl</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">Date</span><span class="p">.</span><span class="nx">now</span><span class="p">()</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="p">(</span><span class="nx">track</span><span class="p">.</span><span class="nx">audioFetchedAt</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="mf">0</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">5</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">60</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mf">1000</span><span class="p">));</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+配合 <code>playbackGeneration</code> 计数器，异步拉取过程中如果用户又切了歌，旧的请求会被 <code>AbortController</code> 取消，避免「拉到一半的旧结果覆盖新歌」。这是一个非常典型的「异步竞态」处理：自增一个 generation，异步返回后比对 generation，不一致就丢弃。
+<h2>云端歌单：乐观锁与 rev 冲突</h2>
+
+云端歌单 <code>PUT /api/library</code> 要解决的是「两个标签页同时保存，谁覆盖谁」。方案是乐观锁，而不是悲观锁（边缘环境没有长事务）。表上有一个 <code>rev</code> 字段：
+<div class="codehilite"><pre><span></span><code><span class="k">ALTER</span><span class="w"> </span><span class="k">TABLE</span><span class="w"> </span><span class="n">echo_libraries</span><span class="w"> </span><span class="k">ADD</span><span class="w"> </span><span class="k">COLUMN</span><span class="w"> </span><span class="n">rev</span><span class="w"> </span><span class="nb">INTEGER</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">DEFAULT</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+
+
+客户端读取歌单时拿到当前的 <code>rev</code>，保存时把它回传。服务端的更新是一条带条件的 UPSERT：
+<div class="codehilite"><pre><span></span><code><span class="k">INSERT</span><span class="w"> </span><span class="k">INTO</span><span class="w"> </span><span class="n">echo_libraries</span><span class="w"> </span><span class="p">(</span><span class="n">username</span><span class="p">,</span><span class="w"> </span><span class="n">library_json</span><span class="p">,</span><span class="w"> </span><span class="n">updated_at</span><span class="p">,</span><span class="w"> </span><span class="n">rev</span><span class="p">)</span>
+<span class="k">VALUES</span><span class="w"> </span><span class="p">(</span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span>
+<span class="k">ON</span><span class="w"> </span><span class="n">CONFLICT</span><span class="p">(</span><span class="n">username</span><span class="p">)</span><span class="w"> </span><span class="k">DO</span><span class="w"> </span><span class="k">UPDATE</span><span class="w"> </span><span class="k">SET</span>
+<span class="w">  </span><span class="n">library_json</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">excluded</span><span class="p">.</span><span class="n">library_json</span><span class="p">,</span>
+<span class="w">  </span><span class="n">updated_at</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">excluded</span><span class="p">.</span><span class="n">updated_at</span><span class="p">,</span>
+<span class="w">  </span><span class="n">rev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">echo_libraries</span><span class="p">.</span><span class="n">rev</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span>
+<span class="k">WHERE</span><span class="w"> </span><span class="n">echo_libraries</span><span class="p">.</span><span class="n">rev</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">?</span>
+</code></pre></div>
+
+
+如果 <code>WHERE echo_libraries.rev = ?</code> 不成立（说明另一个标签页先写了，rev 已经变了），这条语句就<strong>不会更新任何行</strong>。服务端通过 <code>result.meta.changes</code> 判断，0 就返回 409，并把当前 <code>rev</code> 一起带给客户端：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="nx">result</span><span class="o">?</span><span class="p">.</span><span class="nx">meta</span><span class="o">?</span><span class="p">.</span><span class="nx">changes</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="kd">const</span><span class="w"> </span><span class="nx">row</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">env</span><span class="p">.</span><span class="nx">DB</span><span class="p">.</span><span class="nx">prepare</span><span class="p">(</span><span class="s2">&quot;SELECT rev FROM echo_libraries WHERE username = ?&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="p">.</span><span class="nx">bind</span><span class="p">(</span><span class="nx">auth</span><span class="p">.</span><span class="nx">username</span><span class="p">).</span><span class="nx">first</span><span class="p">();</span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="nx">json</span><span class="p">({</span><span class="w"> </span><span class="nx">ok</span><span class="o">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nx">code</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;CONFLICT&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">rev</span><span class="o">:</span><span class="w"> </span><span class="nx">row</span><span class="o">?</span><span class="p">.</span><span class="nx">rev</span><span class="w"> </span><span class="o">??</span><span class="w"> </span><span class="mf">1</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="mf">409</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+客户端收到 409 后可以选择「用服务端的新版本」或「强制覆盖」。这个设计比「最后写入者获胜」好得多，因为后者会静默丢掉另一个标签页的编辑。
+
+歌单数据本身也做了严格清洗。<code>validateLibrary()</code> 限制收藏 2000 首、歌单 200 个、单歌单 2000 首、序列化后不超过 1 MB；每个曲目只保留稳定标识（<code>uid</code>、<code>source</code>、<code>title</code>、<code>artist</code>、<code>songMid</code> 等），JOOX 的临时 <code>audioUrl</code> <strong>一律丢弃</strong>，只有 <code>local-fallback</code> 的本地路径允许保留，而且还要过一条严格的正则（不允许 <code>..</code>、不允许 URL 编码的斜杠/点）：
+<div class="codehilite"><pre><span></span><code><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nx">output</span><span class="p">.</span><span class="nx">source</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="s2">&quot;local-fallback&quot;</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="sr">/^audio\/(?:meditation|jumping|running|hiking)\/[^/?#\\]{1,500}$/</span><span class="p">.</span><span class="nx">test</span><span class="p">(</span><span class="nx">track</span><span class="p">.</span><span class="nx">audioUrl</span><span class="p">)</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="nx">track</span><span class="p">.</span><span class="nx">audioUrl</span><span class="p">.</span><span class="nx">includes</span><span class="p">(</span><span class="s2">&quot;..&quot;</span><span class="p">)</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="sr">/%2e|%2f|%5c/i</span><span class="p">.</span><span class="nx">test</span><span class="p">(</span><span class="nx">track</span><span class="p">.</span><span class="nx">audioUrl</span><span class="p">))</span><span class="w"> </span><span class="p">{</span>
+<span class="w">  </span><span class="nx">output</span><span class="p">.</span><span class="nx">audioUrl</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">track</span><span class="p">.</span><span class="nx">audioUrl</span><span class="p">.</span><span class="nx">slice</span><span class="p">(</span><span class="mf">0</span><span class="p">,</span><span class="w"> </span><span class="mf">500</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+这段代码是「信任边界」的教科书式写法：即使 <code>audioUrl</code> 来自客户端，也只允许它落在一个受控的路径模式下，并且显式挡住目录穿越的两种编码。
+<h2>安全头与 CSP：一个页面需要的六条策略</h2>
+
+<code>public/_headers</code> 是 Pages 的静态响应头配置文件。它做了两件事：给音频和脚本设置缓存策略，给所有路径设置安全头。
+
+缓存策略很克制：音频缓存 30 天并允许 <code>stale-while-revalidate</code>；JS、CSS、<code>tracks-data.js</code>、<code>durations-data.js</code>、<code>free-mode.js</code> 全部 <code>max-age=0, must-revalidate</code>。后者是刻意的——这些是「代码」，一改就该立刻生效，不能因为 CDN 缓存让用户跑到旧版本。
+
+安全头则是六条：
+<div class="codehilite"><pre><span></span><code>X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+X-Frame-Options: DENY
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+Content-Security-Policy: default-src &#39;self&#39;; script-src &#39;self&#39;; style-src &#39;self&#39; &#39;unsafe-inline&#39;;
+  media-src &#39;self&#39; https: blob:; connect-src &#39;self&#39;; img-src &#39;self&#39; data:;
+  object-src &#39;none&#39;; base-uri &#39;self&#39;; frame-ancestors &#39;none&#39;
+</code></pre></div>
+
+
+逐条看：
+<ul>
+<li><code>nosniff</code> 禁止浏览器「猜」MIME 类型，防止把 JSON 当脚本执行。</li>
+<li><code>Referrer-Policy</code> 只在同源时发送完整 referrer，跨站只发域名。</li>
+<li><code>X-Frame-Options: DENY</code> + CSP 的 <code>frame-ancestors 'none'</code> 双重禁止被 iframe 嵌入，防点击劫持。</li>
+<li>HSTS 强制一年 HTTPS。</li>
+<li>COOP/CORP 把页面和资源隔离到自己的源，减少跨源泄漏面。</li>
+<li><code>Permissions-Policy</code> 直接关掉摄像头、麦克风、定位——这个播放器一个都不需要。</li>
+<li>CSP 的 <code>media-src</code> 允许 <code>https:</code> 和 <code>blob:</code>，是因为在线音源和本地录音都可能用 blob URL；<code>style-src</code> 的 <code>'unsafe-inline'</code> 是原生内联样式的必要妥协，但 <code>script-src 'self'</code> 仍然禁止任何内联脚本。</li>
+</ul>
+
+这套头的价值在于：即使某天有人往 <code>index.html</code> 里塞了一段恶意内联脚本，CSP 也会挡住它。安全不是「相信代码写对了」，而是「假设代码写错了，还能兜住」。
+<h2>检查与测试：Node 内置测试加资源校验</h2>
+
+ECHO SPACE 的测试策略很轻，但覆盖了最容易出错的三块。
+
+<strong>第一块：纯函数排程。</strong> <code>tests/free-mode.test.mjs</code> 用 <code>vm.runInNewContext</code> 把 <code>free-mode.js</code> 加载进一个假的 <code>window</code>，然后直接测 <code>buildPlan</code>、<code>buildSelectedPlan</code>、<code>estimateSelectedTotal</code>。四个测试分别钉住：总时长精确、选中顺序保留 + 跳绳休息、爬山 5 分钟恢复、重复/非法索引被忽略。
+
+<strong>第二块：时区统计。</strong> <code>tests/history.test.mjs</code> 用一个假的 D1（返回固定行）驱动 <code>onRequestGet</code>，验证 UTC+14 的日历标签不偏移。这个测试不需要真的数据库，因为 handler 只依赖 <code>env.DB.prepare(...).bind(...).first()/all()</code> 这几个接口。
+
+<strong>第三块：资源与语法。</strong> <code>tools/check.mjs</code> 做四件事：递归检查 <code>public/</code> 与 <code>functions/api/</code> 下所有 <code>.js</code> 文件的语法与相对导入；加载 <code>tracks-data.js</code> 确认格式；检查每首曲目对应的音频文件存在；检查 <code>public/audio/</code> 里有没有未登记的文件。它输出的成功信息长这样：
+<div class="codehilite"><pre><span></span><code>OK: 20 JS files, 10 tracks, all audio files mapped
+</code></pre></div>
+
+
+这套检查的价值在于「部署前就能发现断链」。音频文件缺失、<code>tracks-data.js</code> 里写错文件名、JS 里 import 了一个不存在的模块——这些如果等到线上 404 才发现，成本高得多。
+
+<code>.github/workflows/check.yml</code> 会在 push 和 PR 时用 Node 18 和 22 各跑一遍 <code>npm run check</code> 和 <code>npm test</code>。注意它<strong>不</strong>跑部署，也<strong>不</strong>验证 D1 迁移，因为迁移需要线上凭据；部署前的迁移和冒烟测试仍然要手动做。这是一个合理的分工：CI 管「代码本身对不对」，部署管「线上环境对不对」。
+<h2>已知限制：一份诚实的清单</h2>
+
+一个项目成熟与否，往往看它敢不敢把自己的短板写成文档。ECHO SPACE 的 README 里有一节「已知限制」，我把它整理成下面这张表，并补上代码位置的印证：
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>限制</th>
+<th>具体表现</th>
+<th>代码/配置位置</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>限流只在 isolate 内</td>
+<td>跨 isolate 的分布式攻击可绕过</td>
+<td><code>_auth.js</code> 的 <code>createRateLimiter</code></td>
+</tr>
+<tr>
+<td>无邮箱验证与找回密码</td>
+<td>注册只校验格式，不验证归属</td>
+<td><code>register.js</code></td>
+</tr>
+<tr>
+<td>旧历史无法精确去重</td>
+<td>旧行没有 <code>session_id</code>，按 <code>legacy:id</code> 计数</td>
+<td><code>history.js</code> 的 <code>COALESCE</code></td>
+</tr>
+<tr>
+<td>每日统计按首次写入归属</td>
+<td>跨午夜长播放会算在开始那天</td>
+<td><code>played_at</code> 语义</td>
+</tr>
+<tr>
+<td>服务端信任曲名/作者</td>
+<td>历史写入不校验歌曲是否真实存在</td>
+<td><code>history.js</code> POST</td>
+</tr>
+<tr>
+<td>密码迭代次数受 CPU 限制</td>
+<td>10000 次，低于通用推荐</td>
+<td><code>PASSWORD_ITERATIONS</code></td>
+</tr>
+<tr>
+<td>用户名大小写不统一</td>
+<td>按数据库原值处理</td>
+<td><code>echo_users.username</code></td>
+</tr>
+</tbody>
+</table></div>
+
+其中「服务端信任曲名/作者」和「限流只在 isolate 内」是最需要说清楚的两条。前者意味着：一个已登录用户理论上可以伪造一条「听了某首歌」的历史；要堵住它，需要在服务端维护一份曲目清单并校验。后者意味着：限流只是「挡快速重试」，不是「挡分布式爆破」。
+
+这份清单本身就是一个很好的产品文档范例——它不假装完美，而是把「为什么这样取舍」和「代价是什么」一起交给读者。
+<h2>如果重写，我会先改这五件事</h2>
+
+如果让我基于这个仓库重做一版，我会按优先级改五件事。
+
+<strong>第一，把限流搬到能跨实例的地方。</strong> 用 Cloudflare 的 Rate Limiting Rules，或者用一个 Durable Object 做全局计数器，或者至少把 <code>Map</code> 换成 D1 里的固定窗口表。isolate 内存桶的问题不是「写得不好」，而是「物理上到不了全局」。
+
+<strong>第二，给历史写入加服务端曲目校验。</strong> 现在 <code>POST /api/history</code> 会接受客户端给的 <code>title</code>/<code>artist</code>。更稳的做法是：历史只存 <code>trackId</code>，标题和作者在读取时从服务端曲目清单 join 出来。这样伪造历史就无从谈起。
+
+<strong>第三，把过期 session 清扫交给 Cron 或 Durable Object alarm。</strong> 2% 概率清扫很聪明，但它意味着「没人访问就不会清」。一个每天跑一次的 Cron Trigger 会干净得多。
+
+<strong>第四，统一用户名大小写策略。</strong> 现在注册时原样存、登录时 <code>username</code> 和 <code>email.toLowerCase()</code> 一起查，中文用户名没问题，但英文用户名会出现 <code>Alice</code> 和 <code>alice</code> 两个账号。要么注册时统一小写，要么在查询时 <code>COLLATE NOCASE</code>。
+
+<strong>第五，把「跨午夜归属」从近似改成精确。</strong> 每日统计现在按 <code>played_at</code> 归属，一次从 23:50 听到 00:20 的播放会全算在第一天。如果要精确，需要在 checkpoint 时按「本次新增的秒数落在哪个日期」拆分——这会增加写入复杂度，但对「14 天活跃」这种指标更真实。
+
+这五条都不是「重写才能做」的事，而是「下一版应该优先做」的事。一个好的项目文档，应该让人一眼看出「哪些是刻意的取舍，哪些是暂时的欠账」。
+<h2>小结：边缘应用的复杂度都在边界</h2>
+
+把 ECHO SPACE 从头看到尾，你会发现它几乎没有「算法难题」。没有一个函数需要你推半天公式，没有一段 SQL 需要你优化执行计划。它的复杂度全部集中在边界上：
+<ul>
+<li><strong>CPU 边界</strong>：PBKDF2 只能跑 10000 次，否则登录超时。</li>
+<li><strong>状态边界</strong>：没有常驻进程，session 清理只能靠「登录时删 + 2% 概率扫」。</li>
+<li><strong>时间边界</strong>：播放时长必须用 <code>currentTime</code> 差值，且要丢掉大于 5 秒的跳变。</li>
+<li><strong>唯一性边界</strong>：同一段播放要折叠成一行，靠的是 <code>sessionId</code> + UPSERT + 部分唯一索引。</li>
+<li><strong>时区边界</strong>：14 天日历要在 UTC+14 也不偏一天。</li>
+<li><strong>并发边界</strong>：两个标签页保存歌单，靠 <code>rev</code> 乐观锁而不是长事务。</li>
+<li><strong>安全边界</strong>：CSP、请求体上限、同源校验、路径穿越过滤，一层都不能少。</li>
+</ul>
+
+这些边界没有一个是「框架能自动帮你解决」的。React 不会替你决定 PBKDF2 迭代几次，Vue 不会替你判断两次 <code>timeupdate</code> 之间的 8 秒是不是拖动，任何 ORM 都不会自动给你一个「按会话去重」的部分唯一索引。真正的边缘应用工程，就是把每一条边界都想清楚，然后写进代码、写进测试、写进文档。
+
+ECHO SPACE 值得学的地方，不是它「用 Cloudflare 做了个播放器」，而是它把「一个播放器要成为产品，需要回答哪些问题」完整地摆了出来，并且对每一个问题都给出了一个诚实、可验证、带取舍的答案。这比任何「最佳实践清单」都更有参考价值。</div><p class="ns-topic">专题：<a href="https://blog.zhoujun.dev/topics/projects/"><strong>项目实战</strong></a> — 从零实现：桌面客户端、数据流水线与本地 Agent</p><nav class="ns-pager"><p><strong>继续阅读</strong></p><ul><li>上一篇：<a href="https://blog.zhoujun.dev/article/autotest-pytest-mobile-console/">AutoTest：把 pytest 手机自动化装进一个可远程遥控的控制台</a></li></ul></nav><nav class="ns-related"><p><strong>相关文章</strong></p><ul><li><a href="https://blog.zhoujun.dev/article/routewise-ai-geo-constrained-itinerary/">Routewise AI：让模型吐出一份能落在地图上的行程</a></li><li><a href="https://blog.zhoujun.dev/article/shuge-cloudflare-rag/">書閣 ShuGe：在边缘搭一套可引用页码的 RAG</a></li><li><a href="https://blog.zhoujun.dev/article/autotest-pytest-mobile-console/">AutoTest：把 pytest 手机自动化装进一个可远程遥控的控制台</a></li><li><a href="https://blog.zhoujun.dev/article/z-memory-explainable-provenance/">Z Memory：让 AI 记住并说清理由</a></li><li><a href="https://blog.zhoujun.dev/article/z-desktop-permission-gate/">Z Desktop：44 个本机工具怎么过闸</a></li></ul></nav><nav class="ns-site-nav"><a href="https://blog.zhoujun.dev/">首页</a> <a href="https://blog.zhoujun.dev/articles/">全部文章</a> <a href="https://blog.zhoujun.dev/topics/">专题</a> <a href="https://blog.zhoujun.dev/about/">关于本站</a> <a href="https://blog.zhoujun.dev/privacy/">隐私政策</a> <a href="https://blog.zhoujun.dev/disclaimer/">免责声明</a></nav></div></div>
+  </body>
+</html>
