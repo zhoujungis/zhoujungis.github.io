@@ -90,9 +90,9 @@ export const TOPICS = [
     name: '项目实战',
     en: 'Projects',
     tagline: '从零实现：桌面客户端、数据流水线与本地 Agent',
-    keywords: '项目实战, 开源项目, NanoSSH, micromd, NanoAPI, Z Bot, InterviewAtlas, SSH, Wails, Electron, 数据流水线',
+    keywords: '项目实战, 开源项目, NanoSSH, micromd, NanoAPI, Z Bot, InterviewAtlas, DevBox, SSH, Wails, Electron, 数据流水线',
     intro: [
-      '专题收录完整的开源项目拆解：手写进程内 CDP 协议的 NanoBrowser、零运行时的 Rust Agent、13 MB 的 Windows SSH 客户端、单文件 Markdown 阅读器、够用的 HTTP 调试工具、本地优先的私人助理，以及 3 万条面经的数据流水线。',
+      '专题收录完整的开源项目拆解：手写进程内 CDP 协议的 NanoBrowser、零运行时的 Rust Agent、13 MB 的 Windows SSH 客户端、单文件 Markdown 阅读器、够用的 HTTP 调试工具、本地优先的私人助理、42 个工具的浏览器工具箱，以及 3 万条面经的数据流水线。',
       '重点不在「做了什么」，而在设计取舍：为什么不用某个框架、哪些抽象被删掉了、性能与可维护性在哪里换了一次；每篇都附一份真实踩过的坑。',
     ],
     series: [
@@ -107,6 +107,7 @@ export const TOPICS = [
       'halo-music-square-architecture',
       'happy-games-24-games-zero-framework-guide',
       'google-matter-smart-home-dev-guide',
+      'devbox-registry-driven-toolbox',
     ],
   },
 ]
